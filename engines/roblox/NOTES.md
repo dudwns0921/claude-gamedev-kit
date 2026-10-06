@@ -10,4 +10,8 @@
   Allow HTTP Requests 를 켠다. 표를 저장하면 플레이 테스트 중인 게임의 값이 바뀐다.
 - 값은 서버에서 덮고 모듈의 속성(Attribute)으로 클라이언트에 복제된다. 클라이언트도 `Balance.NAME` 으로 읽으면 된다.
 - Luau 는 정수와 실수를 가리지 않지만, 실수로 쓸 값은 `4.0` 처럼 소수점을 적는다 — 도구가 그것으로 정수/실수를 가린다.
-- **이 런타임 틀은 Lune 으로만 돌려 봤다 (Roblox 쪽은 흉내). Studio 에서는 아직이다.** 처음 붙일 때 출력 창의 `[balance]` 줄을 확인한다.
+- Rojo 프로젝트 파일에 `"HttpService": { "$properties": { "HttpEnabled": true } }` 를 넣고 `rojo build` 로 만든 플레이스를 열면
+  HTTP 허용을 손으로 켜지 않아도 된다.
+- 새 스크립트가 Studio 에 안 나타나면 Rojo 플러그인의 스크립트 주입 권한이 거부된 것이다 — 허용하고 다시 Connect.
+- Studio 의 출력은 `~/Library/Logs/Roblox/*_Studio_*_last.log` 에 남는다 (`[FLog::CreatorOutput]` · `[FLog::CreatorError]`).
+  `[balance] 이름  전 → 후` 줄이 보이면 표가 닿은 것이다.

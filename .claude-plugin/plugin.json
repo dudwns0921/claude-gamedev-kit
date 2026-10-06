@@ -1,7 +1,7 @@
 {
   "name": "gamedev-kit",
   "description": "게임 개발 워크플로 — GDD ↔ 코드 동기화, 엑셀 밸런스 표. 엔진은 게임 저장소의 kit.config.json 이 정한다 (Godot · Roblox · Unity).",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": { "name": "dudwns0921" },
   "repository": "https://github.com/dudwns0921/claude-gamedev-kit"
 }
