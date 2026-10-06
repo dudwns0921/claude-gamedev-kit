@@ -39,11 +39,13 @@ while true do
 				print(string.format("[balance] %s  %s → %s", name, tostring(pair[1]), tostring(pair[2])))
 			end
 		end
-	elseif string.find(tostring(body), "503", 1, true) then
-		-- 엑셀이 저장하는 도중이다 — 다음 번에 다시 읽는다
-	else
+	elseif not string.find(tostring(body), "503", 1, true) then
+		-- 503 은 엑셀이 저장하는 도중이다 — 조용히 다음 번에 다시 읽는다
 		if not warned then
-			warn("[balance] 표를 가져오지 못했다 — balance_table.py serve 가 켜져 있는가, HTTP 요청이 허용돼 있는가: " .. tostring(body))
+			warn(
+				"[balance] 표를 가져오지 못했다 — serve 가 켜져 있는가, HTTP 요청이 허용돼 있는가: "
+					.. tostring(body)
+			)
 			warned = true
 		end
 		pause = RETRY_SEC

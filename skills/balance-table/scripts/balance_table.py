@@ -267,12 +267,18 @@ def snapshot():
 def serve(port):
     """실행 중인 게임이 표를 가져갈 수 있게 내준다. 이 컴퓨터 안에서만 열린다 (127.0.0.1)."""
     from http.server import BaseHTTPRequestHandler, HTTPServer
+    from urllib.parse import urlparse
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            snap = snapshot() if self.path.split("?")[0] == "/balance" else None
-            body = json.dumps(snap or {"error": "표를 읽지 못했다"}).encode("utf-8")
-            self.send_response(200 if snap else 503)
+            # 주소 전체를 요청 줄에 적어 보내는 클라이언트도 있다 (GET http://127.0.0.1:8765/balance)
+            if urlparse(self.path).path.rstrip("/") != "/balance":
+                snap, status = {"error": "/balance 만 있다"}, 404
+            else:
+                snap = snapshot()
+                snap, status = (snap, 200) if snap else ({"error": "표를 읽지 못했다"}, 503)
+            body = json.dumps(snap).encode("utf-8")
+            self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()

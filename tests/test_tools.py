@@ -8,6 +8,7 @@
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -198,10 +199,36 @@ class Tools(unittest.TestCase):
         self.assertNotEqual(one["stamp"], two["stamp"], "저장하면 도장이 바뀐다")
         self.assertEqual(two["values"], {"PLAYER_HP": 80.0}, "숫자가 아닌 칸은 넘긴다")
 
+        # 주소 전체를 요청 줄에 적는 클라이언트 (Lune 이 그렇다)
+        host, port = url.split("/")[2].split(":")
+        with socket.create_connection((host, int(port)), timeout=5) as sock:
+            sock.sendall(f"GET {url}?x=1 HTTP/1.0\r\n\r\n".encode())
+            self.assertIn(b"200 OK", sock.makefile("rb").readline())
+        with self.assertRaises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(url + "x", timeout=5)
+        self.assertEqual(e.exception.code, 404)
+
         open(table, "wb").write(b"PK\x03\x04 broken")
         with self.assertRaises(urllib.error.HTTPError) as e:
             get()
         self.assertEqual(e.exception.code, 503, "읽다 만 파일")
+
+    @unittest.skipUnless(shutil.which("lune"), "lune 이 없다 — brew install lune")
+    def test_roblox_runtime(self):
+        """Balance.luau · BalanceWatch 를 Lune 으로 돌린다. Roblox 쪽은 흉내이고 표 서버는 진짜다."""
+        root, _code, table, _rel = self.project("roblox")
+        files = os.path.join(KIT, "engines/roblox/files")
+        for sub in ("src/shared/Balance.luau", "src/server/BalanceWatch.server.luau"):
+            os.makedirs(os.path.dirname(os.path.join(root, sub)), exist_ok=True)
+            shutil.copy(os.path.join(files, sub), os.path.join(root, sub))
+        os.makedirs(os.path.dirname(table))
+        excel_save(table, {"PLAYER_HP": "130", "PLAYER_WALK_SPEED": "12.5", "COIN_VALUE": "5", "NO_SUCH_NAME": "1"})
+        p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "8765"], stdout=subprocess.PIPE, text=True)
+        self.addCleanup(p.kill)
+        url = p.stdout.readline().split(" ")[0]
+        r = subprocess.run(["lune", "run", os.path.join(KIT, "tests/roblox_runtime.luau"), url],
+                           cwd=root, capture_output=True, text=True)
+        self.assertIn("SMOKE OK", r.stdout, r.stdout + r.stderr)
 
     def test_no_config(self):
         root = tempfile.mkdtemp(prefix="kit-none-")
