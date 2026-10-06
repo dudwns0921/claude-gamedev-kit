@@ -61,6 +61,10 @@ def main():
 
     place(os.path.join(KIT, "templates", "GDD.md"), os.path.join(root, "docs", "GDD.md"), root, done)
     made_claude = place(os.path.join(KIT, "templates", "CLAUDE.md"), os.path.join(root, "CLAUDE.md"), root, done)
+    extra = os.path.join(src, "CLAUDE.md")  # 그 엔진에서만 맞는 규칙 (실행 · 검증 · 함정)
+    if made_claude and os.path.exists(extra):
+        with open(os.path.join(root, "CLAUDE.md"), "a", encoding="utf-8") as f:
+            f.write(open(extra, encoding="utf-8").read())
 
     ignore = os.path.join(root, ".gitignore")
     text = open(ignore, encoding="utf-8").read() if os.path.exists(ignore) else ""
@@ -72,7 +76,9 @@ def main():
 
     print(f"gamedev-kit — {engine}\n" + "\n".join(done))
     if not made_claude and "gdd-sync" not in open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read():
-        print(f"\nCLAUDE.md 에 동기화 규칙이 없다 — 이 틀의 두 절을 옮겨 적는다: {os.path.join(KIT, 'templates', 'CLAUDE.md')}")
+        print(f"\nCLAUDE.md 에 동기화 규칙이 없다 — 이 틀의 절을 옮겨 적는다: {os.path.join(KIT, 'templates', 'CLAUDE.md')}")
+        if os.path.exists(extra):
+            print(f"엔진 규칙도: {extra}")
     notes = os.path.join(src, "NOTES.md")
     if os.path.exists(notes):
         print("\n" + open(notes, encoding="utf-8").read().strip())

@@ -226,9 +226,31 @@ class Tools(unittest.TestCase):
         p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "0"], stdout=subprocess.PIPE, text=True)
         self.addCleanup(p.kill)
         url = p.stdout.readline().split(" ")[0]
-        r = subprocess.run(["lune", "run", os.path.join(KIT, "tests/roblox_runtime.luau"), url],
+        r = subprocess.run(["lune", "run", os.path.join(files, "tests/balance_runtime.luau"), url],
                            cwd=root, capture_output=True, text=True)
         self.assertIn("SMOKE OK", r.stdout, r.stdout + r.stderr)
+
+    def test_init(self):
+        init = os.path.join(KIT, "skills/init/scripts/init.py")
+        for engine in CODE:
+            with self.subTest(engine=engine):
+                root = tempfile.mkdtemp(prefix=f"kit-init-{engine}-")
+                self.addCleanup(shutil.rmtree, root, True)
+                out = run(init, root, engine).stdout
+                self.assertIn("새로    kit.config.json", out)
+                claude = open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read()
+                self.assertIn("/gamedev-kit:gdd-sync", claude)
+                extra = os.path.join(KIT, "engines", engine, "CLAUDE.md")
+                if os.path.exists(extra):
+                    self.assertIn(open(extra, encoding="utf-8").read(), claude)
+                open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8").write("내 규칙")
+                again = run(init, root, engine).stdout
+                self.assertNotIn("새로", again, "두 번째에는 아무것도 만들지 않는다")
+                self.assertEqual(open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read(), "내 규칙")
+                self.assertIn("옮겨 적는다", again)
+                if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
+                    self.assertIn("같다", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
+                    self.assertIn("| 동기 | 3 |", run(REPORT, root).stdout, "틀의 예시 세 행이 값 파일과 짝이 맞는다")
 
     def test_no_config(self):
         root = tempfile.mkdtemp(prefix="kit-none-")

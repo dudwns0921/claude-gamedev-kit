@@ -25,8 +25,8 @@ description: >-
    깔리는 것: `kit.config.json` · `docs/GDD.md` · `CLAUDE.md` · 엔진별 값 파일과 런타임 틀 · `.gitignore` 한 줄.
    끝에 그 엔진에서 손으로 이어 줄 일(오토로드 등록, Rojo 경로, HTTP 허용 등)이 적혀 나온다 — **그 일을 이어서 한다.**
 
-3. **CLAUDE.md 가 이미 있었으면** 스크립트가 틀의 경로를 알려 준다. 틀의 두 절("GDD 와 코드는 항상 같아야 한다" ·
-   "밸런스 값은 표에서 고친다")을 기존 CLAUDE.md 에 옮겨 적는다.
+3. **CLAUDE.md 가 이미 있었으면** 스크립트가 틀의 경로를 알려 준다. 틀의 절들과 엔진 규칙(실행 · 검증 · 함정)을
+   기존 CLAUDE.md 에 옮겨 적는다. 새로 만들어졌으면 `<게임 이름>` 을 채운다 (`docs/GDD.md` 의 제목도).
 
 4. **프로젝트 구조가 틀과 다르면 맞춘다.** 값 파일을 다른 자리에 두고 싶으면 파일을 옮기고 `kit.config.json` 의
    `balance-table.code` 를 고친다. 값 파일의 예시 값 세 줄은 게임의 값으로 바꾼다.
@@ -36,5 +36,6 @@ description: >-
 
 ## 엔진을 더하려면 (플러그인 쪽 작업)
 
-`engines/<이름>/` 에 `kit.config.json`(코드 확장자 · 값 줄 정규식), `NOTES.md`, `files/`(게임 저장소에 그대로 복사될 파일)를 둔다.
+`engines/<이름>/` 에 `kit.config.json`(코드 확장자 · 값 줄 정규식), `NOTES.md`(깐 뒤 이어서 할 일), `CLAUDE.md`(게임의 CLAUDE.md 에
+붙을 엔진 규칙), `files/`(게임 저장소에 그대로 복사될 파일)를 둔다.
 `tests/test_tools.py` 의 `CODE` 에 그 엔진 문법의 값 파일을 더해 도구가 읽고 고치는지 확인한다.

@@ -55,7 +55,7 @@ claude plugin update gamedev-kit@claude-gamedev-kit
 .claude-plugin/     plugin.json · marketplace.json (이 저장소가 플러그인이자 마켓플레이스다)
 skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scripts/ 에
 agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일만 에이전트로 둔다
-engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md · files/(게임 저장소에 그대로 복사될 런타임 틀)
+engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙) · files/(게임에 복사될 틀)
 templates/          GDD.md · CLAUDE.md — 게임 저장소에 깔리는 틀
 tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사
 ```
