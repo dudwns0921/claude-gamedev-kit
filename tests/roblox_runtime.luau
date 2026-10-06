@@ -86,8 +86,8 @@ local watchEnv = {
 		GetService = function(_, name)
 			if name == "HttpService" then
 				return {
-					GetAsync = function(_, target)
-						local res = net.request(target or url)
+					GetAsync = function(_, _target)
+						local res = net.request(url) -- 틀에 적힌 주소 대신 테스트가 띄운 서버로
 						if not res.ok then
 							error("HTTP " .. res.statusCode)
 						end
@@ -131,7 +131,10 @@ local watchEnv = {
 	warn = print,
 }
 local source = fs.readFile("src/server/BalanceWatch.server.luau")
-check("주소가 틀과 같다", string.find(source, url, 1, true) ~= nil, url)
+check(
+	"틀의 주소는 serve 의 기본 포트다",
+	string.find(source, "http://127.0.0.1:8765/balance", 1, true) ~= nil
+)
 local ok, err = pcall(luau.load(source, { debugName = "BalanceWatch", environment = watchEnv }))
 check("감시가 돌다가 멈춘다", not ok and string.find(tostring(err), STOP, 1, true) ~= nil, err)
 check("표의 값으로 덮는다", server.PLAYER_HP == 130 and server.PLAYER_WALK_SPEED == 12.5, server.PLAYER_HP)

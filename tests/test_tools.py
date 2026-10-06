@@ -223,7 +223,7 @@ class Tools(unittest.TestCase):
             shutil.copy(os.path.join(files, sub), os.path.join(root, sub))
         os.makedirs(os.path.dirname(table))
         excel_save(table, {"PLAYER_HP": "130", "PLAYER_WALK_SPEED": "12.5", "COIN_VALUE": "5", "NO_SUCH_NAME": "1"})
-        p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "8765"], stdout=subprocess.PIPE, text=True)
+        p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "0"], stdout=subprocess.PIPE, text=True)
         self.addCleanup(p.kill)
         url = p.stdout.readline().split(" ")[0]
         r = subprocess.run(["lune", "run", os.path.join(KIT, "tests/roblox_runtime.luau"), url],

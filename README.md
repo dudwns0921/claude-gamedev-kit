@@ -7,6 +7,13 @@
 | `/gamedev-kit:init` | 게임 저장소에 설정 · GDD 틀 · CLAUDE.md 규칙 · 런타임 틀을 깐다 |
 | `/gamedev-kit:gdd-sync` | GDD 부록 A 동기화 표와 코드의 `GDD: <ID>` 표식을 대조하고 한쪽으로 맞춘다 |
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
+| `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 문서대로 구현 |
+
+| 에이전트 | 하는 일 |
+|---|---|
+| `playtest-analyst` | 문제 목록의 원인을 찾아 작업 문서로 쓴다. 모델이 Fable 로 정해져 있다 — 세션이 어떤 모델이든 분석은 비싼 모델이 한다 |
+
+분석은 비싼 모델이 한 번, 구현은 그 문서를 든 싼 모델이. 구현할 때는 세션 모델을 Opus 나 Sonnet 으로 바꾸고 `/gamedev-kit:playtest implement`.
 
 ## 엔진
 
@@ -45,6 +52,7 @@ claude plugin update gamedev-kit@claude-gamedev-kit
 ```
 .claude-plugin/     plugin.json · marketplace.json (이 저장소가 플러그인이자 마켓플레이스다)
 skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scripts/ 에
+agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일(분석)만 에이전트로 둔다
 engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md · files/(게임 저장소에 그대로 복사될 런타임 틀)
 templates/          GDD.md · CLAUDE.md — 게임 저장소에 깔리는 틀
 tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사
