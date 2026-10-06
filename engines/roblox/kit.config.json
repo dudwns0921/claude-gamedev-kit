@@ -1,0 +1,15 @@
+{
+  "engine": "roblox",
+  "gdd-sync": {
+    "code_ext": [".luau", ".lua"],
+    "skip_dirs": [".git", ".claude", "build", "docs", "Packages", "ServerPackages", "DevPackages", "node_modules"],
+    "symbol": "(?:local\\s+function|function|local)\\s+([A-Za-z_][A-Za-z0-9_.:]*)"
+  },
+  "balance-table": {
+    "code": "src/shared/Balance.luau",
+    "table": "data/balance.xlsx",
+    "line": "^(Balance\\.)([A-Z][A-Z0-9_]*)( = )(-?\\d+(?:\\.\\d+)?)(\\s*(?:--.*)?)$",
+    "doc_prefix": "---",
+    "comment": "--"
+  }
+}

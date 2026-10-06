@@ -1,0 +1,12 @@
+{
+  "name": "claude-gamedev-kit",
+  "description": "게임 개발용 Claude Code 플러그인 — GDD ↔ 코드 동기화, 엑셀 밸런스 표",
+  "owner": { "name": "dudwns0921" },
+  "plugins": [
+    {
+      "name": "gamedev-kit",
+      "source": "./",
+      "description": "게임 개발 워크플로 — GDD ↔ 코드 동기화, 엑셀 밸런스 표 (Godot · Roblox · Unity)"
+    }
+  ]
+}

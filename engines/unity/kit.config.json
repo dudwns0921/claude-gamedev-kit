@@ -1,0 +1,15 @@
+{
+  "engine": "unity",
+  "gdd-sync": {
+    "code_ext": [".cs", ".json", ".asset"],
+    "skip_dirs": [".git", ".claude", "build", "docs", "Library", "Temp", "Logs", "obj", "Packages"],
+    "symbol": "(?:class|enum|struct|const\\s+\\w+|static\\s+\\w+|void|bool|int|float)\\s+([A-Za-z_][A-Za-z0-9_]*)"
+  },
+  "balance-table": {
+    "code": "Assets/Scripts/Config/Balance.cs",
+    "table": "data/balance.xlsx",
+    "line": "^(\\s*public static (?:int|float|double) )([A-Z][A-Z0-9_]*)( = )(-?\\d+(?:\\.\\d+)?)(f?;\\s*(?://.*)?)$",
+    "doc_prefix": "///",
+    "comment": "//"
+  }
+}

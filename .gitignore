@@ -1,0 +1,8 @@
+__pycache__/
+.DS_Store
+
+# 엑셀이 파일을 열어 둔 동안 만드는 잠금 파일
+~$*.xlsx
+
+# Claude Code 개인 설정 (머신별)
+.claude/settings.local.json

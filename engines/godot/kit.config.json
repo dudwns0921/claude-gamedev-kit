@@ -1,0 +1,15 @@
+{
+  "engine": "godot",
+  "gdd-sync": {
+    "code_ext": [".gd", ".tscn", ".tres", ".json", ".cfg", ".gdshader"],
+    "skip_dirs": [".git", ".godot", ".claude", "addons", "build", "docs"],
+    "symbol": "(?:const|var|func|enum|signal|class_name|@export\\s+var)\\s+([A-Za-z_][A-Za-z0-9_]*)"
+  },
+  "balance-table": {
+    "code": "game/config/balance.gd",
+    "table": "data/balance.xlsx",
+    "line": "^(static var )([A-Z][A-Z0-9_]*)( := )(-?\\d+(?:\\.\\d+)?)(\\s*(?:#.*)?)$",
+    "doc_prefix": "##",
+    "comment": "#"
+  }
+}
