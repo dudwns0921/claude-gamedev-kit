@@ -11,5 +11,7 @@
     "line": "^(Balance\\.)([A-Z][A-Z0-9_]*)( = )(-?\\d+(?:\\.\\d+)?)(\\s*(?:--.*)?)$",
     "doc_prefix": "---",
     "comment": "--"
-  }
+  },
+  "deploy": { "itch": "", "pre": [], "channels": {} },
+  "promo": { "confirm": true, "env_file": "~/.config/gamedev-kit/threads.env" }
 }

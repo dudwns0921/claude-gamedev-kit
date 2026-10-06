@@ -11,5 +11,14 @@
     "line": "^(\\s*public static (?:int|float|double) )([A-Z][A-Z0-9_]*)( = )(-?\\d+(?:\\.\\d+)?)(f?;\\s*(?://.*)?)$",
     "doc_prefix": "///",
     "comment": "//"
-  }
+  },
+  "deploy": {
+    "itch": "",
+    "version": { "file": "ProjectSettings/ProjectSettings.asset", "regex": "bundleVersion: (\\S+)" },
+    "pre": [],
+    "channels": {
+      "html5": { "build": "", "dir": "build/web", "must": "index.html" }
+    }
+  },
+  "promo": { "confirm": true, "env_file": "~/.config/gamedev-kit/threads.env" }
 }

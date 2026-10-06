@@ -1,25 +1,54 @@
 #!/usr/bin/env python3
 """도구 검사 — engines/ 의 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync 와 balance-table 을 끝까지 돌린다.
+deploy 는 가짜 butler 로, promo 는 가짜 Threads 서버로 돌린다 — 밖으로는 아무것도 나가지 않는다.
 
   python3 tests/test_tools.py
 
 엔진은 필요 없다. 엔진 문법(GDScript · Luau · C#)으로 적힌 값 파일을 도구가 읽고 고치는지만 본다.
 """
+import base64
+import http.server
 import json
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
+import urllib.parse
 import urllib.request
 import zipfile
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORT = os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py")
 TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
+DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
+THREADS = os.path.join(KIT, "skills/promo/scripts/threads.py")
+ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
+
+
+def raw_glb():
+    """Meshy 가 줄 법한 메쉬: 삼각형 둘, 높이 4, 원점도 크기도 어긋나 있다 (x 0~2 · y 1~5 · z 0~1, 노드에 이동과 배율)."""
+    b = b"".join(struct.pack("<3f", *p) for p in [(0, 1, 0), (2, 1, 0), (0, 5, 1), (2, 5, 1)]) + struct.pack("<6H", 0, 1, 2, 1, 3, 2)
+    g = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}],
+         "nodes": [{"mesh": 0, "translation": [10, 0, 0], "scale": [3, 3, 3]}],
+         "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1}]}],
+         "buffers": [{"byteLength": len(b)}],
+         "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 48, "target": 34962},
+                         {"buffer": 0, "byteOffset": 48, "byteLength": 12, "target": 34963}],
+         "accessors": [{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3", "min": [0, 1, 0], "max": [2, 5, 1]},
+                       {"bufferView": 1, "componentType": 5123, "count": 6, "type": "SCALAR"}]}
+    j = json.dumps(g).encode()
+    j += b" " * (-len(j) % 4)
+    return (struct.pack("<4sII", b"glTF", 2, 28 + len(j) + len(b)) + struct.pack("<I4s", len(j), b"JSON") + j
+            + struct.pack("<I4s", len(b), b"BIN\0") + b)
+
+# 엔진이 버전을 적어 두는 파일의 한 줄 (deploy.version 이 이것을 집어야 한다)
+VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3"}
 
 GDD = """# 게임
 
@@ -258,6 +287,273 @@ class Tools(unittest.TestCase):
         open(os.path.join(root, "kit.config.json"), "w").write("{}")
         self.assertIn("code_ext", run(REPORT, root, ok=False).stderr)
         self.assertIn("balance-table.code", run(TABLE, root, "check", ok=False).stderr)
+
+    def test_deploy(self):
+        root = tempfile.mkdtemp(prefix="kit-deploy-")
+        self.addCleanup(shutil.rmtree, root, True)
+        butler, log = os.path.join(root, "butler"), os.path.join(root, "butler.log")
+        open(butler, "w").write(f"#!/bin/sh\necho \"$@\" >> '{log}'\n")
+        os.chmod(butler, 0o755)
+        cfg = {"itch": "me/game", "butler": butler, "version": {"file": "VERSION", "regex": "v=(\\S+)"},
+               "pre": ["true"], "channels": {"html5": {"build": "mkdir -p out && echo hi > out/index.html",
+                                                        "dir": "out", "must": "index.html"}}}
+
+        def write(**over):
+            json.dump({"deploy": dict(cfg, **over)}, open(os.path.join(root, "kit.config.json"), "w"))
+
+        write()
+        open(os.path.join(root, "VERSION"), "w").write("v=0.3.0\n")
+        self.assertIn("me/game · 버전 0.3.0", run(DEPLOY, root, "check").stdout)
+        self.assertIn("빌드가 없다", run(DEPLOY, root, "push", "--dry-run", ok=False).stderr)
+        self.assertIn("파일 1개", run(DEPLOY, root, "build").stdout)
+        self.assertIn("올리지 않는다", run(DEPLOY, root, "push", "html5", "--dry-run").stdout)
+        run(DEPLOY, root, "push")
+        out = os.path.join(os.path.realpath(root), "out")
+        self.assertEqual(open(log).read().replace(os.path.join(root, "out"), out).split("\n")[:2],
+                         [f"push {out} me/game:html5 --userversion 0.3.0 --dry-run",
+                          f"push {out} me/game:html5 --userversion 0.3.0"])
+        self.assertIn("모르는 채널", run(DEPLOY, root, "build", "win", ok=False).stderr)
+
+        write(pre=["false"])
+        self.assertIn("사전 검사 실패", run(DEPLOY, root, "push", ok=False).stderr)
+        self.assertEqual(len(open(log).read().strip().split("\n")), 2, "검사가 실패하면 butler 를 부르지 않는다")
+        write(itch="game")
+        self.assertIn("사용자/게임", run(DEPLOY, root, "check", ok=False).stderr)
+        write(butler=os.path.join(root, "no-butler"))
+        self.assertIn("butler 가 없다", run(DEPLOY, root, "check", ok=False).stderr)
+
+    def test_deploy_engine_config(self):
+        for engine in CODE:
+            with self.subTest(engine=engine):
+                root = tempfile.mkdtemp(prefix=f"kit-deploy-{engine}-")
+                self.addCleanup(shutil.rmtree, root, True)
+                shutil.copy(os.path.join(KIT, "engines", engine, "kit.config.json"), os.path.join(root, "kit.config.json"))
+                cfg = json.load(open(os.path.join(root, "kit.config.json"), encoding="utf-8"))
+                self.assertIn("confirm", cfg["promo"])
+                self.assertIn("deploy.itch", run(DEPLOY, root, "check", "--dirty", ok=False).stderr, "깔린 직후에는 대상이 비어 있다")
+                if engine in VERSION_LINE:
+                    path = os.path.join(root, cfg["deploy"]["version"]["file"])
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    open(path, "w").write("앞줄\n" + VERSION_LINE[engine] + "\n")
+                    self.assertEqual(run(DEPLOY, root, "version").stdout.strip(), "1.2.3")
+                if not cfg["deploy"]["channels"]:
+                    self.assertIn("channels 가 비어", run(DEPLOY, root, "build", ok=False).stderr)
+
+    def test_promo(self):
+        seen = []
+
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def reply(self, body):
+                seen.append((self.command, urllib.parse.urlparse(self.path).path, body))
+                path = seen[-1][1]
+                fail = path.endswith("/threads") and "터진다" in body.get("text", [""])[0]
+                out = ({"error": {"message": "터졌다"}} if fail
+                       else {"id": "42", "username": "dev"} if path == "/me"
+                       else {"id": f"c{len(seen)}"} if path.endswith("/threads")
+                       else {"id": "p" + body["creation_id"][0]} if path.endswith("/threads_publish")
+                       else {"status": "FINISHED" if [p for _m, p, _b in seen].count(path) > 1 else "IN_PROGRESS"}
+                       if "status" in body.get("fields", [""])[0]
+                       else {"permalink": "https://threads.example/p/1"})
+                self.send_response(400 if fail else 200)
+                self.end_headers()
+                self.wfile.write(json.dumps(out).encode())
+
+            def do_GET(self):
+                self.reply(urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query))
+
+            def do_POST(self):
+                self.reply(urllib.parse.parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode()))
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        root = tempfile.mkdtemp(prefix="kit-promo-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write(json.dumps({"promo": {"env_file": os.path.join(root, "none.env")}}))
+        env = dict(os.environ, THREADS_API_BASE=f"http://127.0.0.1:{server.server_port}", THREADS_ACCESS_TOKEN="tok",
+                   THREADS_POLL_SEC="0")
+
+        def threads(*args, ok=True, env=env):
+            p = subprocess.run([sys.executable, THREADS, "--root", root, *args], capture_output=True, text=True, env=env)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        def draft(name, body):
+            path = os.path.join(root, name)
+            open(path, "w", encoding="utf-8").write(f"# 초안\n\n메모 — 올라가면 안 된다\n\n<!-- threads -->\n{body}\n<!-- /threads -->\n\n## 같이 올리면 좋을 것\n")
+            return path
+
+        self.assertIn("@dev (42)", threads("whoami"))
+        no_token = {k: v for k, v in env.items() if k != "THREADS_ACCESS_TOKEN"}
+        self.assertIn("토큰이 없다", threads("whoami", ok=False, env=no_token))
+
+        long = draft("long.md", "가" * 501)
+        self.assertIn("500자를 넘는다", threads("check", long, ok=False))
+        self.assertIn("500자를 넘는다", threads("post", long, ok=False))
+        self.assertIn("글 1개", threads("check", draft("fits.md", "가" * 500)))
+        self.assertIn("글 1: 503자", threads("check", draft("emoji.md", "가" * 499 + "🎮"), ok=False), "이모지는 바이트 수로 센다")
+
+        del seen[:]
+        path = draft("a.md", "첫 글\n둘째 줄\n---\n이어지는 글")
+        self.assertIn("글 2개", threads("check", path))
+        self.assertEqual(seen, [], "check 는 밖으로 나가지 않는다")
+        self.assertIn("https://threads.example/p/1", threads("post", path))
+        made = [b for _m, p, b in seen if p.endswith("/threads")]
+        self.assertEqual([b["text"][0] for b in made], ["첫 글\n둘째 줄", "이어지는 글"])
+        self.assertNotIn("reply_to_id", made[0])
+        self.assertEqual(made[1]["reply_to_id"], ["pc2"], "둘째 글은 첫 글의 답글이다")
+        order = [p for _m, p, _b in seen]
+        self.assertEqual(order[1:5], ["/42/threads", "/c2", "/c2", "/42/threads_publish"], "준비됐다고 할 때까지 묻고 나서 올린다")
+        self.assertIn("게시: https://threads.example/p/1 (@dev", open(path, encoding="utf-8").read())
+        self.assertIn("이미 올린 초안", threads("post", path, ok=False))
+
+        half = draft("half.md", "첫 글\n---\n터진다")
+        self.assertIn("올리다 멈췄다 (1/2)", threads("post", half, ok=False))
+        self.assertIn("2개 중 1개만", open(half, encoding="utf-8").read())
+        self.assertIn("이미 올린 초안", threads("post", half, ok=False), "반만 올라간 초안도 다시 올리지 않는다")
+
+    def asset_project(self, blender):
+        """가짜 OpenAI · Meshy 서버와 그것을 보는 프로젝트. (root, 부르는 함수, 서버가 받은 요청들)"""
+        seen = []
+
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def reply(self, body, raw=None):
+                seen.append((self.command, self.path, body))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(raw if raw is not None else json.dumps(self.answer(body)).encode())
+
+            def answer(self, body):
+                if self.path.startswith("/images/"):
+                    return {"data": [{"b64_json": base64.b64encode(f"png{len(seen)}".encode()).decode()}]}
+                if self.command == "POST":
+                    return {"result": f"task{len(seen)}"}
+                polls = sum(1 for m, p, _b in seen if m == "GET" and p == self.path)
+                done = polls >= 2  # 첫 물음에는 아직이라고 한다
+                return {"status": "SUCCEEDED" if done else "IN_PROGRESS", "progress": 100 if done else 40, "consumed_credits": 20,
+                        "model_urls": {"glb": f"http://127.0.0.1:{self.server.server_port}/file.glb"}}
+
+            def do_GET(self):
+                self.reply(None, raw_glb() if self.path == "/file.glb" else None)
+
+            def do_POST(self):
+                data = self.rfile.read(int(self.headers["Content-Length"]))
+                self.reply(json.loads(data) if self.headers["Content-Type"] == "application/json" else data)
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        root = tempfile.mkdtemp(prefix="kit-asset-")
+        self.addCleanup(shutil.rmtree, root, True)
+        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
+        cfg["asset"].update(blender=blender, env_file=os.path.join(root, "none.env"))
+        json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+        os.makedirs(os.path.join(root, "docs"))
+        base = f"http://127.0.0.1:{server.server_port}"
+        env = dict(os.environ, OPENAI_API_BASE=base, MESHY_API_BASE=base, ASSET_POLL_SEC="0",
+                   OPENAI_API_KEY="k1", MESHY_API_KEY="k2")
+
+        def asset(*args, ok=True, env=env):
+            p = subprocess.run([sys.executable, ASSET, "--root", root, *args], capture_output=True, text=True, env=env)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        return root, asset, seen, env
+
+    def test_asset(self):
+        blender = os.path.join(tempfile.mkdtemp(prefix="kit-blender-"), "blender")
+        self.addCleanup(shutil.rmtree, os.path.dirname(blender), True)
+        open(blender, "w").write("""#!/bin/sh
+for a; do shift; [ "$a" = "--" ] && break; done
+cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
+""")
+        os.chmod(blender, 0o755)
+        root, asset, seen, env = self.asset_project(blender)
+        rec = lambda n: json.load(open(os.path.join(root, "assets/_gen", n, "asset.json"), encoding="utf-8"))
+        posts = lambda path: [b for m, p, b in seen if m == "POST" and p == path]
+
+        asset("new", "crate", "--size", "1.2", "A wooden crate with iron corners")
+        self.assertIn("이미 있다", asset("new", "crate", "--size", "1", "x", ok=False))
+        self.assertIn("소문자", asset("new", "Big-Crate", "--size", "1", "x", ok=False))
+        self.assertIn("asset-style", asset("image", "crate", ok=False), "화풍이 없으면 그리지 않는다")
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("# 규칙\n<!-- asset-style -->\nChunky low-poly,\nmuted palette.\n<!-- /asset-style -->\n")
+        self.assertIn("OPENAI_API_KEY 가 없다", asset("image", "crate", ok=False, env={k: v for k, v in env.items() if k != "OPENAI_API_KEY"}))
+        self.assertEqual(seen, [])
+
+        asset("image", "crate")
+        first = posts("/images/generations")[0]
+        self.assertIn("A wooden crate with iron corners. Front view", first["prompt"])
+        self.assertIn("Chunky low-poly, muted palette.", first["prompt"])
+        self.assertEqual((first["background"], first["model"]), ("transparent", "gpt-image-2.5-flare"))
+        back = posts("/images/edits")[0]
+        self.assertIn(b"back view", back)
+        self.assertIn(b'name="image[]"; filename="front.png"', back, "뒷면은 앞면을 보고 그린다")
+        self.assertIn("보고 approve", asset("status"))
+
+        self.assertIn("승인된 이미지가 없다", asset("mesh", "crate", ok=False))
+        asset("approve", "crate")
+        asset("image", "crate", "--view", "back")
+        self.assertIn("승인된 이미지가 없다", asset("mesh", "crate", ok=False), "이미지를 다시 그리면 승인도 다시")
+        self.assertEqual(posts("/multi-image-to-3d"), [])
+        asset("approve", "crate")
+
+        out = asset("mesh", "crate")
+        self.assertIn("IN_PROGRESS 40%", out)
+        self.assertIn("assets/models/crate.glb — 삼각형 2 · 1 × 1.2 × 1 m", out)
+        made = posts("/multi-image-to-3d")
+        self.assertEqual(len(made), 1)
+        self.assertEqual(len(made[0]["image_urls"]), 2)
+        self.assertTrue(made[0]["image_urls"][0].startswith("data:image/png;base64,"))
+        self.assertEqual((made[0]["target_polycount"], made[0]["should_remesh"], made[0]["target_formats"]), (5000, True, ["glb"]))
+        self.assertEqual(open(os.path.join(root, "assets/models/crate.glb"), "rb").read(), raw_glb())
+        self.assertEqual((rec("crate")["meshy"]["credits"], rec("crate")["out"]), (20, "assets/models/crate.glb"))
+        self.assertNotIn("image_urls", json.dumps(rec("crate")), "기록에 이미지를 통째로 넣지 않는다")
+        self.assertIn("끝", asset("status"))
+
+        asset("mesh", "crate")
+        self.assertEqual(len(posts("/multi-image-to-3d")), 1, "끝난 작업을 다시 사지 않는다")
+        self.assertIn("× 2.0 ×", asset("finish", "crate", "--size", "2"))
+        self.assertEqual(len(posts("/multi-image-to-3d")), 1, "크기만 바꾸는 데 Meshy 를 다시 부르지 않는다")
+
+        # 작업을 만든 뒤 끊겼다 — 다시 돌리면 그 작업을 이어서 기다린다
+        asset("new", "barrel", "--size", "1", "--poly", "800", "A barrel")
+        asset("image", "barrel")
+        asset("approve", "barrel")
+        r = rec("barrel")
+        r["meshy"] = {"id": "old-task", "status": "IN_PROGRESS", "images": r["approved"]}
+        json.dump(r, open(os.path.join(root, "assets/_gen/barrel/asset.json"), "w"))
+        asset("mesh", "barrel")
+        self.assertEqual(len(posts("/multi-image-to-3d")), 1)
+        self.assertIn(("GET", "/multi-image-to-3d/old-task", None), seen)
+
+    @unittest.skipUnless(shutil.which("blender"), "blender 가 없다")
+    def test_asset_blender(self):
+        root, asset, seen, _env = self.asset_project("blender")
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- asset-style -->\nLow-poly.\n<!-- /asset-style -->\n")
+        asset("new", "pillar", "--size", "1.5", "--poly", "800", "A stone pillar")
+        asset("image", "pillar")
+        asset("approve", "pillar")
+        self.assertIn("삼각형 2 · 0.75 × 1.5 × 0.375 m", asset("mesh", "pillar"))
+        self.assertEqual([b["target_polycount"] for m, p, b in seen if p == "/multi-image-to-3d" and m == "POST"], [800])
+        d = open(os.path.join(root, "assets/models/pillar.glb"), "rb").read()
+        g = json.loads(d[20:20 + struct.unpack("<I", d[12:16])[0]])
+        box = next(a for a in g["accessors"] if "min" in a)
+        for got, want in zip(box["min"] + box["max"], [-0.375, 0, -0.1875, 0.375, 1.5, 0.1875]):
+            self.assertAlmostEqual(got, want, places=4, msg="가장 긴 변이 1.5 m, 바닥이 0, 가운데가 원점")
+        self.assertNotIn("translation", g["nodes"][0])
+        self.assertNotIn("scale", g["nodes"][0])
+
+    def test_asset_no_config(self):
+        root = tempfile.mkdtemp(prefix="kit-none-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        self.assertIn("asset.dir", run(ASSET, root, "status", ok=False).stderr)
 
 
 if __name__ == "__main__":

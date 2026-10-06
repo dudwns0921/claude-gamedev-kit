@@ -22,7 +22,7 @@ description: >-
    python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <godot|roblox|unity>
    ```
 
-   깔리는 것: `kit.config.json` · `docs/GDD.md` · `CLAUDE.md` · 엔진별 값 파일과 런타임 틀 · `.gitignore` 한 줄.
+   깔리는 것: `kit.config.json` · `docs/GDD.md` · `docs/DESIGN.md` · `CLAUDE.md` · 엔진별 값 파일과 런타임 틀 · `.gitignore` 한 줄.
    끝에 그 엔진에서 손으로 이어 줄 일(오토로드 등록, Rojo 경로, HTTP 허용 등)이 적혀 나온다 — **그 일을 이어서 한다.**
 
 3. **CLAUDE.md 가 이미 있었으면** 스크립트가 틀의 경로를 알려 준다. 틀의 절들과 엔진 규칙(실행 · 검증 · 함정)을
@@ -34,8 +34,11 @@ description: >-
 5. **표를 만들고 확인한다.** balance-table 스킬의 `export` 로 `data/balance.xlsx` 를 만들고, gdd-sync 스킬로
    보고서가 나오는지 본다. GDD 틀의 예시 행(BAL.PLAYER.HP)이 값 파일의 예시 값과 짝지어 `동기` 로 나오면 된 것이다.
 
+6. **배포 · 홍보 · 에셋은 쓸 때 채운다.** `kit.config.json` 의 `deploy.itch`(itch.io 의 `사용자/게임`), Threads 토큰, 에셋 API 키,
+   `docs/DESIGN.md` 의 화풍 문단은 비어 있는 채로 깔린다. 처음 쓸 때 deploy · promo · asset 스킬이 채우는 법을 안내한다.
+
 ## 엔진을 더하려면 (플러그인 쪽 작업)
 
-`engines/<이름>/` 에 `kit.config.json`(코드 확장자 · 값 줄 정규식), `NOTES.md`(깐 뒤 이어서 할 일), `CLAUDE.md`(게임의 CLAUDE.md 에
+`engines/<이름>/` 에 `kit.config.json`(코드 확장자 · 값 줄 정규식 · 빌드 명령), `NOTES.md`(깐 뒤 이어서 할 일), `CLAUDE.md`(게임의 CLAUDE.md 에
 붙을 엔진 규칙), `files/`(게임 저장소에 그대로 복사될 파일)를 둔다.
 `tests/test_tools.py` 의 `CODE` 에 그 엔진 문법의 값 파일을 더해 도구가 읽고 고치는지 확인한다.

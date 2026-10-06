@@ -60,6 +60,7 @@ def main():
             place(path, os.path.join(root, os.path.relpath(path, files)), root, done)
 
     place(os.path.join(KIT, "templates", "GDD.md"), os.path.join(root, "docs", "GDD.md"), root, done)
+    place(os.path.join(KIT, "templates", "DESIGN.md"), os.path.join(root, "docs", "DESIGN.md"), root, done)
     made_claude = place(os.path.join(KIT, "templates", "CLAUDE.md"), os.path.join(root, "CLAUDE.md"), root, done)
     extra = os.path.join(src, "CLAUDE.md")  # 그 엔진에서만 맞는 규칙 (실행 · 검증 · 함정)
     if made_claude and os.path.exists(extra):

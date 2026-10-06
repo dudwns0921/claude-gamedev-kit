@@ -46,3 +46,8 @@ Rojo 프로젝트를 전제로 한다. 아래에서 아직 안 된 것을 순서
 - Luau 는 정수와 실수를 가리지 않지만, 실수로 쓸 값은 `4.0` 처럼 소수점을 적는다 — 도구가 그것으로 정수/실수를 가린다.
 - `tests/balance_runtime.luau` 는 Studio 없이 Lune 으로 런타임을 돌린다 (Roblox 쪽은 흉내). Studio 에서는 0.741 에서 확인했다 (2026-10-06).
 - 맵을 Studio 에서 손으로 만들면 플레이스 파일에만 남는다. 그렇게 가기로 하면 플레이스 파일을 .gitignore 에서 빼고 커밋한다.
+
+## 배포와 홍보
+
+Roblox 게임은 itch.io 에 올리지 않는다 — Studio 의 "Publish to Roblox" 로 사용자가 올린다. 그래서 `kit.config.json` 의 `deploy.channels` 는 비어 있고
+deploy 스킬은 할 일이 없다. cycle 의 배포 단계에서는 사용자가 Studio 에서 올리고 그 사실만 사이클 문서에 적는다. 홍보(promo)는 그대로 쓴다.

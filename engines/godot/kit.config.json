@@ -11,5 +11,22 @@
     "line": "^(static var )([A-Z][A-Z0-9_]*)( := )(-?\\d+(?:\\.\\d+)?)(\\s*(?:#.*)?)$",
     "doc_prefix": "##",
     "comment": "#"
-  }
+  },
+  "deploy": {
+    "itch": "",
+    "version": { "file": "project.godot", "regex": "config/version=\"([^\"]+)\"" },
+    "pre": [],
+    "channels": {
+      "html5": { "build": "godot --headless --path . --export-release Web build/web/index.html", "dir": "build/web", "must": "index.html" }
+    }
+  },
+  "asset": {
+    "dir": "assets/models",
+    "format": "glb",
+    "views": ["front", "back"],
+    "refs": [],
+    "image": { "model": "gpt-image-2.5-flare", "size": "1024x1024", "quality": "medium" },
+    "meshy": { "ai_model": "latest", "target_polycount": 5000, "topology": "triangle", "enable_pbr": false }
+  },
+  "promo": { "confirm": true, "env_file": "~/.config/gamedev-kit/threads.env" }
 }
