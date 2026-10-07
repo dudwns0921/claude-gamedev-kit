@@ -10,8 +10,8 @@
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
 | `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 홍보 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
 | `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더 |
-| `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올린다 (check · build · push · status) |
-| `/gamedev-kit:promo` | 개발 일지 초안(`docs/promo/`)을 쓰고 Threads API 로 올린다. itch.io 에 배포했으면 devlog 초안도 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
+| `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올리고 (check · build · push · status), 그 빌드의 itch.io devlog 초안을 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
+| `/gamedev-kit:promo` | 개발 일지 초안(`docs/promo/`)을 쓰고 Threads API 로 올린다 |
 
 | 에이전트 | 모델 | 하는 일 |
 |---|---|---|
@@ -20,7 +20,7 @@
 | `designer` | Fable | 기획이 어떻게 보이고 들리는가(UI 의 생김새 · 연출 · 소리 · 에셋 목록)를 쓴다. 규칙 · 수치 · 치수는 정하지 않는다. 스크린샷을 `docs/DESIGN.md` 에 비추어 본다 |
 | `developer` | Opus | 사이클의 작업을 나누고(plan), 사이클 · 플레이테스트 문서의 작업 하나를 적힌 대로 구현한다(build). 다시 분석하지 않는다 |
 | `deployer` | Sonnet | 검사 · 빌드 · butler push. 빌드가 깨지면 첫 오류를 찾아 돌려준다 |
-| `promoter` | Opus | 실제로 만든 것만 읽고 Threads 글과 itch.io devlog 초안을 쓴다. 올리지 않는다 |
+| `promoter` | Opus | 실제로 만든 것만 읽고 글의 초안을 쓴다 — 배포 때 itch.io devlog(`docs/devlog/`), 홍보 때 Threads 글(`docs/promo/`). 올리지 않는다 |
 
 모델은 에이전트에 정해져 있어서 세션이 어떤 모델이든 분석은 Fable, 구현은 Opus 가 한다. 세션은 지휘만 한다.
 서로 다른 파일을 고치는 작업은 동시에 돈다.

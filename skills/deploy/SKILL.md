@@ -1,9 +1,10 @@
 ---
 name: deploy
 description: >-
-  게임을 빌드해 butler 로 itch.io 에 올린다 — 검사(check) · 빌드(build) · 올리기(push) · 올라간 것 보기(status).
-  빌드 명령과 올릴 곳은 kit.config.json 의 deploy 절이 정한다. 일은 배포 에이전트(deployer)가 한다.
-  다음 상황이면 이 스킬을 쓴다: 사용자가 "배포해줘", "itch 에 올려줘", "빌드 올려", "butler", "새 버전 내자" 라고 할 때;
+  게임을 빌드해 butler 로 itch.io 에 올리고, 그 빌드에 붙일 itch.io devlog 초안을 쓴다 — 검사(check) · 빌드(build) · 올리기(push) ·
+  올라간 것 보기(status) · devlog. 빌드 명령과 올릴 곳은 kit.config.json 의 deploy 절이 정한다. 올리는 일은 배포 에이전트(deployer)가,
+  devlog 초안은 promoter 에이전트가 한다. devlog 를 올리는 API 는 없어서 붙여 넣는 것은 사용자다.
+  다음 상황이면 이 스킬을 쓴다: 사용자가 "배포해줘", "itch 에 올려줘", "빌드 올려", "butler", "새 버전 내자", "devlog 써줘", "itch 데브로그", "릴리스 노트" 라고 할 때;
   "올라갔어?", "itch 에 지금 뭐가 있어" 라고 할 때; cycle 스킬이 배포 단계에 왔을 때; deploy 절을 처음 채울 때.
 ---
 
@@ -18,6 +19,7 @@ description: >-
 | `/gamedev-kit:deploy prepare [채널]` | 준비만 |
 | `/gamedev-kit:deploy push [채널]` | 이미 준비된 빌드를 올린다 (사용자가 이 말을 했으면 그것이 승낙이다) |
 | `/gamedev-kit:deploy status` | itch.io 가 가진 채널과 빌드 |
+| `/gamedev-kit:deploy devlog` | 이미 올린 빌드의 devlog 초안만 쓴다 |
 
 ## 절차
 
@@ -28,7 +30,14 @@ description: >-
 4. **돌아온 것을 그대로 보여 주고 묻는다** — 대상(`사용자/게임:채널`), 버전, 폴더 크기. 막혔으면 이유를 전하고 멈춘다.
    빌드가 깨진 것이면 고칠지 묻는다. 여기서 검사를 건너뛰는 플래그(`--dirty`)를 붙이지 않는다 — 사용자가 그러라고 할 때만.
 5. **승낙을 받으면 에이전트를 `push` 로 부른다.** 끝나면 주소(`https://<사용자>.itch.io/<게임>`)와 버전을 전한다.
-6. 사이클 중이면 사이클 문서의 "배포" 절에 날짜 · 버전 · 채널 · 커밋을 적는다.
+6. **devlog 초안.** 빌드가 올라갔으면 `gamedev-kit:promoter` 에이전트를 `devlog` 로 부른다. 넘길 것: 모드, 무엇에 대해 쓸지(사이클 문서 경로,
+   없으면 지난 배포 뒤의 커밋 범위), itch.io 주소, 버전, 올린 채널. 네가 문장을 지어 넘기지 않는다.
+   돌아온 초안(`docs/devlog/<날짜>-<버전>.md`)을 **칸째로 그대로** 보여 준다 — Title · Post type · Attachments · Tags · Languages · Cover image · 본문.
+   사용자가 itch.io 대시보드 → 게임 → Devlog → 새 글에서 위에서 아래로 옮겨 적는다. **이것은 네가 올릴 수 없다.**
+   본문은 꾸밈 없이 쓰여 있다 — 굵게 · 제목은 편집기에서 한다. Cover image 와 스크린샷은 사용자가 찍는다.
+   고쳐 달라고 하면 초안을 고친다. 사용자가 올린 글의 주소를 주면 초안 끝에 `게시: <주소>` 한 줄을 적는다.
+   올리지 않기로 하면 초안은 남기고 그렇게 적는다 — 배포는 devlog 없이도 끝난 것이다.
+7. 사이클 중이면 사이클 문서의 "배포" 절에 날짜 · 버전 · 채널 · 커밋 · devlog 초안 경로(와 올린 주소)를 적는다.
 
 `status` 는 에이전트 없이 바로 돌린다:
 
