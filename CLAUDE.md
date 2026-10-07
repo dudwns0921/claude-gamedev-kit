@@ -17,7 +17,7 @@ Claude Code 플러그인 저장소다. 게임 코드는 여기 없다 — 게임
 ## 검증
 
 ```bash
-python3 tests/test_tools.py        # 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync · balance-table 을 끝까지 돌린다. deploy 는 가짜 butler, promo · asset 은 가짜 API 서버로 (asset 의 다듬기는 Blender 가 있으면 진짜로)
+python3 tests/test_tools.py        # 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync · balance-table 을 끝까지 돌린다. deploy 는 가짜 butler, asset 은 가짜 API 서버로 (asset 의 다듬기는 Blender 가 있으면 진짜로)
 claude plugin validate .           # 매니페스트
 ```
 

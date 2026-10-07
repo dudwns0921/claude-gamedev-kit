@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """도구 검사 — engines/ 의 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync 와 balance-table 을 끝까지 돌린다.
-deploy 는 가짜 butler 로, promo 는 가짜 Threads 서버로 돌린다 — 밖으로는 아무것도 나가지 않는다.
+deploy 는 가짜 butler 로, asset 은 가짜 API 서버로 돌린다 — 밖으로는 아무것도 나가지 않는다.
 
   python3 tests/test_tools.py
 
@@ -19,7 +19,6 @@ import tempfile
 import threading
 import time
 import unittest
-import urllib.parse
 import urllib.request
 import zipfile
 
@@ -27,7 +26,6 @@ KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORT = os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py")
 TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
-THREADS = os.path.join(KIT, "skills/promo/scripts/threads.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
 SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
 
@@ -330,7 +328,7 @@ class Tools(unittest.TestCase):
                 self.addCleanup(shutil.rmtree, root, True)
                 shutil.copy(os.path.join(KIT, "engines", engine, "kit.config.json"), os.path.join(root, "kit.config.json"))
                 cfg = json.load(open(os.path.join(root, "kit.config.json"), encoding="utf-8"))
-                self.assertIn("confirm", cfg["promo"])
+                self.assertNotIn("promo", cfg)
                 self.assertIn("deploy.itch", run(DEPLOY, root, "check", "--dirty", ok=False).stderr, "깔린 직후에는 대상이 비어 있다")
                 if engine in VERSION_LINE:
                     path = os.path.join(root, cfg["deploy"]["version"]["file"])
@@ -339,82 +337,6 @@ class Tools(unittest.TestCase):
                     self.assertEqual(run(DEPLOY, root, "version").stdout.strip(), "1.2.3")
                 if not cfg["deploy"]["channels"]:
                     self.assertIn("channels 가 비어", run(DEPLOY, root, "build", ok=False).stderr)
-
-    def test_promo(self):
-        seen = []
-
-        class Fake(http.server.BaseHTTPRequestHandler):
-            def reply(self, body):
-                seen.append((self.command, urllib.parse.urlparse(self.path).path, body))
-                path = seen[-1][1]
-                fail = path.endswith("/threads") and "터진다" in body.get("text", [""])[0]
-                out = ({"error": {"message": "터졌다"}} if fail
-                       else {"id": "42", "username": "dev"} if path == "/me"
-                       else {"id": f"c{len(seen)}"} if path.endswith("/threads")
-                       else {"id": "p" + body["creation_id"][0]} if path.endswith("/threads_publish")
-                       else {"status": "FINISHED" if [p for _m, p, _b in seen].count(path) > 1 else "IN_PROGRESS"}
-                       if "status" in body.get("fields", [""])[0]
-                       else {"permalink": "https://threads.example/p/1"})
-                self.send_response(400 if fail else 200)
-                self.end_headers()
-                self.wfile.write(json.dumps(out).encode())
-
-            def do_GET(self):
-                self.reply(urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query))
-
-            def do_POST(self):
-                self.reply(urllib.parse.parse_qs(self.rfile.read(int(self.headers["Content-Length"])).decode()))
-
-            def log_message(self, *a):
-                pass
-
-        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        root = tempfile.mkdtemp(prefix="kit-promo-")
-        self.addCleanup(shutil.rmtree, root, True)
-        open(os.path.join(root, "kit.config.json"), "w").write(json.dumps({"promo": {"env_file": os.path.join(root, "none.env")}}))
-        env = dict(os.environ, THREADS_API_BASE=f"http://127.0.0.1:{server.server_port}", THREADS_ACCESS_TOKEN="tok",
-                   THREADS_POLL_SEC="0")
-
-        def threads(*args, ok=True, env=env):
-            p = subprocess.run([sys.executable, THREADS, "--root", root, *args], capture_output=True, text=True, env=env)
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        def draft(name, body):
-            path = os.path.join(root, name)
-            open(path, "w", encoding="utf-8").write(f"# 초안\n\n메모 — 올라가면 안 된다\n\n<!-- threads -->\n{body}\n<!-- /threads -->\n\n## 같이 올리면 좋을 것\n")
-            return path
-
-        self.assertIn("@dev (42)", threads("whoami"))
-        no_token = {k: v for k, v in env.items() if k != "THREADS_ACCESS_TOKEN"}
-        self.assertIn("토큰이 없다", threads("whoami", ok=False, env=no_token))
-
-        long = draft("long.md", "가" * 501)
-        self.assertIn("500자를 넘는다", threads("check", long, ok=False))
-        self.assertIn("500자를 넘는다", threads("post", long, ok=False))
-        self.assertIn("글 1개", threads("check", draft("fits.md", "가" * 500)))
-        self.assertIn("글 1: 503자", threads("check", draft("emoji.md", "가" * 499 + "🎮"), ok=False), "이모지는 바이트 수로 센다")
-
-        del seen[:]
-        path = draft("a.md", "첫 글\n둘째 줄\n---\n이어지는 글")
-        self.assertIn("글 2개", threads("check", path))
-        self.assertEqual(seen, [], "check 는 밖으로 나가지 않는다")
-        self.assertIn("https://threads.example/p/1", threads("post", path))
-        made = [b for _m, p, b in seen if p.endswith("/threads")]
-        self.assertEqual([b["text"][0] for b in made], ["첫 글\n둘째 줄", "이어지는 글"])
-        self.assertNotIn("reply_to_id", made[0])
-        self.assertEqual(made[1]["reply_to_id"], ["pc2"], "둘째 글은 첫 글의 답글이다")
-        order = [p for _m, p, _b in seen]
-        self.assertEqual(order[1:5], ["/42/threads", "/c2", "/c2", "/42/threads_publish"], "준비됐다고 할 때까지 묻고 나서 올린다")
-        self.assertIn("게시: https://threads.example/p/1 (@dev", open(path, encoding="utf-8").read())
-        self.assertIn("이미 올린 초안", threads("post", path, ok=False))
-
-        half = draft("half.md", "첫 글\n---\n터진다")
-        self.assertIn("올리다 멈췄다 (1/2)", threads("post", half, ok=False))
-        self.assertIn("2개 중 1개만", open(half, encoding="utf-8").read())
-        self.assertIn("이미 올린 초안", threads("post", half, ok=False), "반만 올라간 초안도 다시 올리지 않는다")
 
     def asset_project(self, blender):
         """가짜 OpenAI · Meshy 서버와 그것을 보는 프로젝트. (root, 부르는 함수, 서버가 받은 요청들)"""

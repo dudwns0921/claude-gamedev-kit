@@ -3,7 +3,7 @@ name: deploy
 description: >-
   게임을 빌드해 butler 로 itch.io 에 올리고, 그 빌드에 붙일 itch.io devlog 초안을 쓴다 — 검사(check) · 빌드(build) · 올리기(push) ·
   올라간 것 보기(status) · devlog. 빌드 명령과 올릴 곳은 kit.config.json 의 deploy 절이 정한다. 올리는 일은 배포 에이전트(deployer)가,
-  devlog 초안은 promoter 에이전트가 한다. devlog 를 올리는 API 는 없어서 붙여 넣는 것은 사용자다.
+  devlog 초안은 devlog-writer 에이전트가 한다. devlog 를 올리는 API 는 없어서 붙여 넣는 것은 사용자다.
   다음 상황이면 이 스킬을 쓴다: 사용자가 "배포해줘", "itch 에 올려줘", "빌드 올려", "butler", "새 버전 내자", "devlog 써줘", "itch 데브로그", "릴리스 노트" 라고 할 때;
   "올라갔어?", "itch 에 지금 뭐가 있어" 라고 할 때; cycle 스킬이 배포 단계에 왔을 때; deploy 절을 처음 채울 때.
 ---
@@ -30,7 +30,7 @@ description: >-
 4. **돌아온 것을 그대로 보여 주고 묻는다** — 대상(`사용자/게임:채널`), 버전, 폴더 크기. 막혔으면 이유를 전하고 멈춘다.
    빌드가 깨진 것이면 고칠지 묻는다. 여기서 검사를 건너뛰는 플래그(`--dirty`)를 붙이지 않는다 — 사용자가 그러라고 할 때만.
 5. **승낙을 받으면 에이전트를 `push` 로 부른다.** 끝나면 주소(`https://<사용자>.itch.io/<게임>`)와 버전을 전한다.
-6. **devlog 초안.** 빌드가 올라갔으면 `gamedev-kit:promoter` 에이전트를 `devlog` 로 부른다. 넘길 것: 모드, 무엇에 대해 쓸지(사이클 문서 경로,
+6. **devlog 초안.** 빌드가 올라갔으면 `gamedev-kit:devlog-writer` 에이전트를 부른다. 넘길 것: 무엇에 대해 쓸지(사이클 문서 경로,
    없으면 지난 배포 뒤의 커밋 범위), itch.io 주소, 버전, 올린 채널. 네가 문장을 지어 넘기지 않는다.
    돌아온 초안(`docs/devlog/<날짜>-<버전>.md`)을 **칸째로 그대로** 보여 준다 — Title · Post type · Attachments · Tags · Languages · Cover image · 본문.
    사용자가 itch.io 대시보드 → 게임 → Devlog → 새 글에서 위에서 아래로 옮겨 적는다. **이것은 네가 올릴 수 없다.**

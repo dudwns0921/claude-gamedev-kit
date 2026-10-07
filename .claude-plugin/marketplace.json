@@ -6,7 +6,7 @@
     {
       "name": "gamedev-kit",
       "source": "./",
-      "description": "게임 개발 워크플로 — 한 사이클(기획 · 디자인 · 구현 · 플레이 · 배포 · 홍보), GDD ↔ 코드 동기화, 엑셀 밸런스 표 (Godot · Roblox · Unity)"
+      "description": "게임 개발 워크플로 — 한 사이클(기획 · 디자인 · 구현 · 플레이 · 배포), GDD ↔ 코드 동기화, 엑셀 밸런스 표 (Godot · Roblox · Unity)"
     }
   ]
 }

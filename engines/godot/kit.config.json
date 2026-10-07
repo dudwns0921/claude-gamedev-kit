@@ -28,6 +28,5 @@
     "image": { "model": "gpt-image-2.5-flare", "size": "1024x1024", "quality": "medium" },
     "meshy": { "ai_model": "latest", "target_polycount": 5000, "topology": "triangle", "enable_pbr": false },
     "sound": { "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1" }
-  },
-  "promo": { "confirm": true, "env_file": "~/.config/gamedev-kit/threads.env" }
+  }
 }

@@ -8,10 +8,9 @@
 | `/gamedev-kit:gdd-sync` | GDD 부록 A 동기화 표와 코드의 `GDD: <ID>` 표식을 대조하고 한쪽으로 맞춘다 |
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
-| `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 홍보 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
+| `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
 | `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더 |
 | `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올리고 (check · build · push · status), 그 빌드의 itch.io devlog 초안을 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
-| `/gamedev-kit:promo` | 개발 일지 초안(`docs/promo/`)을 쓰고 Threads API 로 올린다 |
 
 | 에이전트 | 모델 | 하는 일 |
 |---|---|---|
@@ -20,7 +19,7 @@
 | `designer` | Fable | 기획이 어떻게 보이고 들리는가(UI 의 생김새 · 연출 · 소리 · 에셋 목록)를 쓴다. 규칙 · 수치 · 치수는 정하지 않는다. 스크린샷을 `docs/DESIGN.md` 에 비추어 본다 |
 | `developer` | Opus | 사이클의 작업을 나누고(plan), 사이클 · 플레이테스트 문서의 작업 하나를 적힌 대로 구현한다(build). 다시 분석하지 않는다 |
 | `deployer` | Sonnet | 검사 · 빌드 · butler push. 빌드가 깨지면 첫 오류를 찾아 돌려준다 |
-| `promoter` | Opus | 실제로 만든 것만 읽고 글의 초안을 쓴다 — 배포 때 itch.io devlog(`docs/devlog/`), 홍보 때 Threads 글(`docs/promo/`). 올리지 않는다 |
+| `devlog-writer` | Opus | 실제로 만든 것만 읽고, 배포한 빌드의 itch.io devlog 초안(`docs/devlog/`)을 쓴다. 올리지 않는다 |
 
 모델은 에이전트에 정해져 있어서 세션이 어떤 모델이든 분석은 Fable, 구현은 Opus 가 한다. 세션은 지휘만 한다.
 서로 다른 파일을 고치는 작업은 동시에 돈다.
@@ -30,8 +29,8 @@
 [gstack](https://github.com/garrytan/gstack) 의 틀 — 역할마다 에이전트, 단계마다 문서, 뒤 단계가 앞 단계의 문서를 읽는다 — 을 게임 한 판에 맞춘 것이다.
 
 ```
-목표 ─▶ 기획 ─────────▶ 디자인 ─▶ 계획 ─▶ 구현 ─▶ 플레이 ─▶ 배포 ─▶ 홍보 ─▶ 회고
-사용자   systems-designer  designer  developer developer  사용자    deployer  promoter
+목표 ─▶ 기획 ─────────▶ 디자인 ─▶ 계획 ─▶ 구현 ─▶ 플레이 ─▶ 배포 ───────────────────▶ 회고
+사용자   systems-designer  designer  developer developer  사용자    deployer · devlog-writer
                                        ▲                    ▲          ▲
                                     결정을 묻는다       내보낼지 묻는다  올리기 전에 묻는다
 ```
@@ -39,8 +38,8 @@
 **대신 정해 주는 CEO 에이전트는 없다.** 에이전트는 "결정할 것" 을 선택지와 권하는 것 하나로 돌려주고, 사용자의 답이 사이클 문서의 "결정" 절에
 그대로 적힌다. 답이 없는 결정에 걸린 일은 하지 않는다.
 
-밖으로 나가는 두 가지: 배포는 올리기 전에 대상 · 버전 · 크기를 보여 주고 묻는다. 홍보는 `kit.config.json` 의 `promo.confirm` 이
-`true`(기본)면 글을 보여 주고 묻고, `false` 면 묻지 않고 올린다. butler 로그인과 Threads 토큰은 사용자가 한 번 하고 저장소 밖에 둔다.
+밖으로 나가는 것은 배포 하나다: 올리기 전에 대상 · 버전 · 크기를 보여 주고 묻는다. butler 로그인은 사용자가 한 번 하고 저장소 밖에 둔다.
+**알리는 일(SNS)은 이 키트에 없다** — 사용자가 직접 한다. itch.io devlog 는 초안까지만 쓰고, 붙여 넣는 것도 사용자다.
 
 ## 엔진
 
@@ -50,7 +49,7 @@
 | Roblox | ○ | ○ | ○ `serve` 가 내주는 JSON 을 Studio 가 가져온다 | — Studio 에서 올린다 | — | 도구 테스트 · Lune 으로 런타임 실행 · Studio 플레이 테스트에서 실시간 반영 (0.741, 2026-10-06) |
 | Unity | ○ | ○ | — | △ 에디터에서 빌드한 폴더를 올린다 | — | 도구 테스트만 |
 
-배포 · 홍보 · 에셋 도구는 가짜 butler · 가짜 Threads · 가짜 OpenAI/Meshy/ElevenLabs 서버로만 돌려 보았다 (`tests/test_tools.py`). 진짜 itch.io 와 Threads 에 올린 적,
+배포 · 에셋 도구는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs 서버로만 돌려 보았다 (`tests/test_tools.py`). 진짜 itch.io 에 올린 적,
 진짜 API 로 에셋을 뽑은 적은 아직 없다. 에셋의 다듬기(Blender 5.2)는 진짜로 돌렸고, 나온 glb 를 Godot 4.7 이 헤드리스로 가져와 크기와 원점이 맞는 것까지 확인했다.
 
 ## 설치

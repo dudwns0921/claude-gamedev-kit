@@ -12,6 +12,5 @@
     "doc_prefix": "---",
     "comment": "--"
   },
-  "deploy": { "itch": "", "pre": [], "channels": {} },
-  "promo": { "confirm": true, "env_file": "~/.config/gamedev-kit/threads.env" }
+  "deploy": { "itch": "", "pre": [], "channels": {} }
 }

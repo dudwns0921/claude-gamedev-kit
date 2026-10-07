@@ -19,6 +19,5 @@
     "channels": {
       "html5": { "build": "", "dir": "build/web", "must": "index.html" }
     }
-  },
-  "promo": { "confirm": true, "env_file": "~/.config/gamedev-kit/threads.env" }
+  }
 }
