@@ -29,6 +29,7 @@ TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
 THREADS = os.path.join(KIT, "skills/promo/scripts/threads.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
+SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
 
 
 def raw_glb():
@@ -548,6 +549,80 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             self.assertAlmostEqual(got, want, places=4, msg="가장 긴 변이 1.5 m, 바닥이 0, 가운데가 원점")
         self.assertNotIn("translation", g["nodes"][0])
         self.assertNotIn("scale", g["nodes"][0])
+
+    def test_sound(self):
+        seen = []
+
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                seen.append((self.path, self.headers["xi-api-key"], body))
+                bad = "터진다" in body.get("text", "")
+                self.send_response(422 if bad else 200)
+                self.end_headers()
+                self.wfile.write(json.dumps({"detail": {"message": "안 된다"}}).encode() if bad else f"소리{len(seen)}".encode() * 4)
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        root = tempfile.mkdtemp(prefix="kit-sound-")
+        self.addCleanup(shutil.rmtree, root, True)
+        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
+        cfg["asset"]["env_file"] = os.path.join(root, "none.env")
+
+        def write(**over):
+            cfg["asset"]["sound"].update(over)
+            json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+
+        write()
+        env = dict(os.environ, ELEVENLABS_API_BASE=f"http://127.0.0.1:{server.server_port}", ELEVENLABS_API_KEY="k3")
+
+        def sound(*args, ok=True, env=env):
+            p = subprocess.run([sys.executable, SOUND, "--root", root, *args], capture_output=True, text=True, env=env)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        self.assertIn("ELEVENLABS_API_KEY 가 없다", sound("sfx", "coin", "x", ok=False, env={k: v for k, v in env.items() if k != "ELEVENLABS_API_KEY"}))
+        self.assertIn("0.5~30초", sound("sfx", "coin", "--seconds", "40", "x", ok=False))
+        self.assertIn("소문자", sound("sfx", "Coin", "x", ok=False))
+        self.assertEqual(seen, [])
+
+        self.assertIn("assets/sounds/coin.mp3", sound("sfx", "coin", "--seconds", "0.8", "A metal coin on stone, one bright ping."))
+        path, key, body = seen[0]
+        self.assertEqual((path, key), ("/sound-generation?output_format=mp3_44100_128", "k3"))
+        self.assertEqual(body, {"text": "A metal coin on stone, one bright ping", "prompt_influence": 0.3, "loop": False, "duration_seconds": 0.8})
+        first = open(os.path.join(root, "assets/sounds/coin.mp3"), "rb").read()
+
+        os.makedirs(os.path.join(root, "docs"))
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- sound-style -->\n8-bit,\ndry.\n<!-- /sound-style -->\n")
+        self.assertIn("2번째", sound("again", "coin"))
+        self.assertEqual(seen[1][2]["text"], "A metal coin on stone, one bright ping. 8-bit, dry.", "소리의 결이 설명 뒤에 붙는다")
+        self.assertNotEqual(open(os.path.join(root, "assets/sounds/coin.mp3"), "rb").read(), first)
+
+        self.assertIn("이어지는 소리", sound("sfx", "wind", "--loop", "--influence", "0.6", "Wind over a ridge"))
+        self.assertEqual((seen[2][2]["loop"], seen[2][2]["prompt_influence"]), (True, 0.6))
+        self.assertNotIn("duration_seconds", seen[2][2], "길이를 안 주면 알아서 정하게 둔다")
+
+        self.assertIn("3~600초", sound("music", "theme", "--seconds", "1", "x", ok=False))
+        sound("music", "theme", "--seconds", "45", "Calm exploration theme")
+        self.assertEqual(seen[3][0].split("?")[0], "/music")
+        self.assertEqual(seen[3][2], {"prompt": "Calm exploration theme. 8-bit, dry.", "music_length_ms": 45000,
+                                      "model_id": "music_v1", "force_instrumental": True})
+
+        self.assertIn("422: 안 된다", sound("sfx", "boom", "터진다", ok=False))
+        self.assertFalse(os.path.exists(os.path.join(root, "assets/sounds/boom.mp3")))
+        out = sound("status")
+        self.assertEqual([line.split()[0] for line in out.strip().split("\n")], ["coin", "theme", "wind"])
+
+        write(format="pcm_22050")
+        sound("sfx", "step", "A footstep on gravel")
+        with __import__("wave").open(os.path.join(root, "assets/sounds/step.wav")) as w:
+            self.assertEqual((w.getframerate(), w.getnchannels(), w.getsampwidth()), (22050, 1, 2))
+        write(dir="")
+        self.assertIn("asset.sound.dir", sound("status", ok=False))
 
     def test_asset_no_config(self):
         root = tempfile.mkdtemp(prefix="kit-none-")

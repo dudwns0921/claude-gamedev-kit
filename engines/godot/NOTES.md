@@ -12,3 +12,5 @@
 - **에셋(asset 스킬)**: 끝난 모델은 `assets/models/<이름>.glb` 에 놓인다. Godot 는 glb 를 그대로 읽는다 — 에디터가 켜져 있으면 창에 돌아올 때,
   꺼져 있으면 `godot --headless --path . --import` 로 가져온다. 1 단위가 1 m 라서 `--size` 가 그대로 게임 안 크기다. 원점은 바닥 가운데.
   `.gitignore` 에 `assets/_gen/*/raw.glb` 를 넣는다. `docs/DESIGN.md` 의 화풍 문단과 API 키는 asset 스킬이 처음 쓸 때 안내한다.
+- **소리(asset 스킬)**: `assets/sounds/<이름>.mp3` 에 놓인다. Godot 는 mp3 를 `AudioStreamMP3` 로 읽는다. 이어지는 소리와 음악은
+  가져오기 설정에서 **Loop** 를 켠다 (파일을 고르고 가져오기 독 → Loop → 다시 가져오기) — `--loop` 로 만들어도 이 설정이 꺼져 있으면 한 번만 난다.

@@ -1,14 +1,18 @@
 ---
 name: asset
 description: >-
-  3D 에셋을 만든다 — 설명 → 이미지(OpenAI) → 사람이 보고 승인 → 메쉬(Meshy) → 크기 · 원점을 맞춰(Blender) 게임 폴더에.
-  화풍은 docs/DESIGN.md 의 한 문단이 모든 에셋에 똑같이 붙고, 에셋마다 프롬프트 · 이미지 · 작업 번호가 기록으로 남는다.
+  에셋을 만든다. 3D 모델: 설명 → 이미지(OpenAI) → 사람이 보고 승인 → 메쉬(Meshy) → 크기 · 원점을 맞춰(Blender) 게임 폴더에.
+  소리: 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더에. 화풍과 소리의 결은 docs/DESIGN.md 의 한 문단씩이
+  모든 에셋에 똑같이 붙고, 에셋마다 프롬프트와 결과가 기록으로 남는다.
   다음 상황이면 이 스킬을 쓴다: 사용자가 "에셋 만들어줘", "모델 뽑아줘", "○○ 3D 로 만들어줘", "이거랑 비슷한 걸로 하나 더" 라고 할 때;
-  사이클의 디자인 절 "필요한 에셋" 에 없는 3D 모델이 있을 때; "이미지 괜찮아, 메쉬로 가자", "크기가 안 맞아" 라고 할 때;
+  "효과음 만들어줘", "소리 넣자", "배경음", "BGM", "이 소리 다시 뽑아줘" 라고 할 때;
+  사이클의 디자인 절 "필요한 에셋" 에 없는 3D 모델이나 소리가 있을 때; "이미지 괜찮아, 메쉬로 가자", "크기가 안 맞아" 라고 할 때;
   화풍 문단이나 에셋 API 키를 처음 잡을 때.
 ---
 
 # asset
+
+3D 모델과 소리는 길이 다르다. 모델은 아래 절차를, 소리는 맨 아래 "소리" 절을 따른다.
 
 ```
 설명 ─▶ 이미지 (면마다 한 장) ─▶ [사람이 본다] ─▶ 메쉬 ─▶ 다듬기 ─▶ 게임 폴더
@@ -80,10 +84,36 @@ muted earthy palette with one saturated accent color, no fine surface detail, ma
 - `views` — 만들 면(`front` · `back` · `left` · `right`, 넷까지). 첫 면이 기준이고 나머지는 그것을 보고 그린다.
   면이 많을수록 뒷모습이 덜 지어내지지만, 면끼리 어긋나면 메쉬가 망가진다. 둘에서 시작한다.
 - `image` · `meshy` — 각 API 에 그대로 넘어간다. 다른 값(`texture_resolution` 등)을 더 적어도 된다.
+- `sound` — `{ "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1" }`.
+  `format` 은 ElevenLabs 의 output_format 이다. `pcm_44100` 처럼 `pcm_` 으로 시작하면 wav 로 놓는다 (요금제에 따라 막혀 있을 수 있다).
 - 에셋마다 다른 것(설명 · 크기 · 삼각형 수)은 `assets/_gen/<이름>/asset.json` 에 있다. 손으로 고쳐도 된다.
 
 `assets/_gen/` 은 저장소에 넣는다 — 기록(`asset.json`)과 이미지가 있어야 "이거랑 비슷하게 하나 더" 가 된다.
 받은 그대로의 메쉬(`raw.glb`)는 커서 `.gitignore` 에 넣는다 (다시 `finish` 할 때만 쓴다).
+
+## 소리
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" sfx <이름> [--seconds <초>] [--loop] [--influence <0~1>] "<어떤 소리인지 — 영어로>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" music <이름> --seconds <초> "<어떤 음악인지 — 영어로>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" again <이름>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" status
+```
+
+소리는 한 번에 나온다 — 이미지 같은 중간 관문이 없다. 대신 **네가 들을 수 없다.** 좋은지는 사용자만 안다.
+
+1. **있는 것을 먼저 본다.** `status` 와 소리 폴더. 같은 소리가 있으면 만들지 않는다.
+2. **설명을 쓴다.** 영어로, 들리는 것을 순서대로: 무엇이 무엇에 부딪히는가 · 재질 · 세기 · 꼬리(짧게 끊긴다 / 울린다).
+   "coin pickup" 이 아니라 "a small metal coin dropped on a stone floor, one bright ping, short tail". 게임의 결(8비트 · 건조하게 · 잔향 없이)은
+   적지 않는다 — `docs/DESIGN.md` 의 `<!-- sound-style -->` … `<!-- /sound-style -->` 문단이 있으면 스크립트가 붙인다.
+   그 문단이 비어 있으면 처음 소리 몇 개를 만들며 사용자와 정해 적는다. 화풍 문단과 같다: 바꾸면 이미 만든 소리와 어긋난다.
+3. **길이.** 디자인 절 "연출과 소리" 에 초가 적혀 있으면 `--seconds` 로 준다. 효과음은 0.5~30초 (생략하면 알아서), 음악은 3~600초.
+   바람 · 엔진 · 배경처럼 끝없이 도는 소리는 `--loop`. 조작에 돌아오는 소리는 짧게 — 길면 겹쳐 들린다.
+4. **만들고, 경로를 주고, 들어 보라고 한다.** 여럿이면 몇 개인지 먼저 말한다. 소리를 듣지 않고 "잘 나왔다" 고 하지 않는다.
+5. **고친다.** 다른 결과만 원하면 `again <이름>` (같은 설명, 다른 소리). 소리가 틀렸으면 설명을 고쳐 같은 이름으로 다시 `sfx`.
+   설명을 더 글자 그대로 따르게 하려면 `--influence 0.6` 쯤, 더 자유롭게는 `0.1`. 같은 이름은 파일을 덮는다 —
+   사용자가 앞의 것이 낫다고 할 수 있으니, 좋다고 한 소리를 다시 만들기 전에는 묻는다.
+6. 사이클 중이면 디자인 절 "필요한 에셋" 표의 "있는가" 칸에 경로를 적는다. 게임에서 소리를 트는 코드는 개발 작업이다.
 
 ## 처음 한 번 (사용자가 직접)
 
@@ -93,11 +123,13 @@ muted earthy palette with one saturated accent color, no fine surface detail, ma
   mkdir -p ~/.config/gamedev-kit && chmod 700 ~/.config/gamedev-kit && ${EDITOR:-nano} ~/.config/gamedev-kit/asset.env
   ```
 
-  파일에는 `OPENAI_API_KEY=...` 와 `MESHY_API_KEY=...` 두 줄. **키를 대화에 붙여 넣지 않게 하고, 받았더라도 저장소의 어떤 파일에도 적지 않는다.**
+  파일에는 `OPENAI_API_KEY=...` 와 `MESHY_API_KEY=...` 두 줄. 소리를 만들려면 `ELEVENLABS_API_KEY=...` 한 줄을 더한다
+  (ElevenLabs 키에 Sound Effects 와 Music 권한이 켜져 있어야 한다). **키를 대화에 붙여 넣지 않게 하고, 받았더라도 저장소의 어떤 파일에도 적지 않는다.**
 - **Blender**: `blender` 가 PATH 에 있어야 한다. 없으면 `asset.blender` 에 실행 파일 경로를 적는다.
-- 두 서비스 모두 쓴 만큼 돈이 든다. Meshy 는 실패한 작업의 크레딧을 돌려준다. 여러 에셋을 한 번에 돌리기 전에 몇 개인지 말한다.
+- 세 서비스 모두 쓴 만큼 돈이 든다. Meshy 는 실패한 작업의 크레딧을 돌려준다. 여러 에셋을 한 번에 돌리기 전에 몇 개인지 말한다.
 
 ## 하지 않는 것
 
 - 2D(UI 아이콘 · 텍스처)는 아직 없다. 리깅과 애니메이션도 없다 — 움직이지 않는 소품과 지형물까지다.
+- 목소리(대사 읽기)는 없다. 음악은 가사 없이 만든다.
 - 엔진에 넣은 뒤의 일(충돌체 · 머티리얼 손질 · 씬에 놓기)은 개발 작업이다. 사이클의 작업으로 쓴다.

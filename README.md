@@ -9,7 +9,7 @@
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
 | `/gamedev-kit:cycle` | 한 사이클 — 목표 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 홍보 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
-| `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더 |
+| `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더 |
 | `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올린다 (check · build · push · status) |
 | `/gamedev-kit:promo` | 개발 일지 초안(`docs/promo/`)을 쓰고 Threads API 로 올린다 |
 
@@ -43,13 +43,13 @@
 
 ## 엔진
 
-| 엔진 | gdd-sync | 표 ↔ 코드 | 실행 중에 표 다시 읽기 | itch.io 배포 | 3D 에셋 | 확인한 것 |
+| 엔진 | gdd-sync | 표 ↔ 코드 | 실행 중에 표 다시 읽기 | itch.io 배포 | 3D 에셋 · 소리 | 확인한 것 |
 |---|---|---|---|---|---|---|
-| Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | △ `Web` 프리셋을 빌드해 올린다 — 실제 빌드는 확인 안 함 | ○ glb | 도구 테스트 · 헤드리스 실행 (4.7) |
+| Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | △ `Web` 프리셋을 빌드해 올린다 — 실제 빌드는 확인 안 함 | ○ glb · mp3 | 도구 테스트 · 헤드리스 실행 (4.7) |
 | Roblox | ○ | ○ | ○ `serve` 가 내주는 JSON 을 Studio 가 가져온다 | — Studio 에서 올린다 | — | 도구 테스트 · Lune 으로 런타임 실행 · Studio 플레이 테스트에서 실시간 반영 (0.741, 2026-10-06) |
 | Unity | ○ | ○ | — | △ 에디터에서 빌드한 폴더를 올린다 | — | 도구 테스트만 |
 
-배포 · 홍보 · 에셋 도구는 가짜 butler · 가짜 Threads · 가짜 OpenAI/Meshy 서버로만 돌려 보았다 (`tests/test_tools.py`). 진짜 itch.io 와 Threads 에 올린 적,
+배포 · 홍보 · 에셋 도구는 가짜 butler · 가짜 Threads · 가짜 OpenAI/Meshy/ElevenLabs 서버로만 돌려 보았다 (`tests/test_tools.py`). 진짜 itch.io 와 Threads 에 올린 적,
 진짜 API 로 에셋을 뽑은 적은 아직 없다. 에셋의 다듬기(Blender 5.2)는 진짜로 돌렸고, 나온 glb 를 Godot 4.7 이 헤드리스로 가져와 크기와 원점이 맞는 것까지 확인했다.
 
 ## 설치
