@@ -54,5 +54,6 @@ Claude 는 소리를 들을 수 없다 — 만든 뒤 경로를 주고 사용자
 ## 밖으로 나가는 것
 
 - 배포는 `/gamedev-kit:deploy` (butler → itch.io). 올리기 전에 대상 · 버전 · 크기를 보여 주고 승낙을 받는다.
-- 홍보는 `/gamedev-kit:promo` (Threads). 초안은 `docs/promo/` 에 남는다. 실제로 만든 것만 쓴다.
+- 홍보는 `/gamedev-kit:promo` (Threads · itch.io devlog). 초안은 `docs/promo/` 에 남는다. 실제로 만든 것만 쓴다.
+  Threads 는 스크립트가 올리고, itch.io devlog 는 올리는 API 가 없어 사용자가 초안을 붙여 넣는다.
 - butler 로그인, Threads 토큰, 에셋 API 키는 저장소 밖에 있다. 어떤 파일에도 적지 않는다.
