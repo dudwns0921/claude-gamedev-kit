@@ -8,7 +8,7 @@
 | `/gamedev-kit:gdd-sync` | GDD 부록 A 동기화 표와 코드의 `GDD: <ID>` 표식을 대조하고 한쪽으로 맞춘다 |
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
-| `/gamedev-kit:cycle` | 한 사이클 — 목표 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 홍보 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
+| `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 홍보 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
 | `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더 |
 | `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올린다 (check · build · push · status) |
 | `/gamedev-kit:promo` | 개발 일지 초안(`docs/promo/`)을 쓰고 Threads API 로 올린다 |
@@ -16,7 +16,8 @@
 | 에이전트 | 모델 | 하는 일 |
 |---|---|---|
 | `playtest-analyst` | Fable | 문제 목록의 원인을 찾아 작업 문서로 쓴다. 코드는 고치지 않는다 |
-| `designer` | Fable | 사이클의 목표를 플레이어가 보고 듣는 것(화면 · UI · 연출 · 에셋)으로 쓴다. 스크린샷을 `docs/DESIGN.md` 에 비추어 본다 |
+| `systems-designer` | Fable | 사이클의 목표를 규칙 · 밸런스 수치 · 공간의 치수로 쓴다. 값은 정하지 않고 계산을 붙인 범위로 내놓는다 |
+| `designer` | Fable | 기획이 어떻게 보이고 들리는가(UI 의 생김새 · 연출 · 소리 · 에셋 목록)를 쓴다. 규칙 · 수치 · 치수는 정하지 않는다. 스크린샷을 `docs/DESIGN.md` 에 비추어 본다 |
 | `developer` | Opus | 사이클의 작업을 나누고(plan), 사이클 · 플레이테스트 문서의 작업 하나를 적힌 대로 구현한다(build). 다시 분석하지 않는다 |
 | `deployer` | Sonnet | 검사 · 빌드 · butler push. 빌드가 깨지면 첫 오류를 찾아 돌려준다 |
 | `promoter` | Opus | 실제로 만든 것만 읽고 Threads 글 초안을 쓴다. 올리지 않는다 |
@@ -29,10 +30,10 @@
 [gstack](https://github.com/garrytan/gstack) 의 틀 — 역할마다 에이전트, 단계마다 문서, 뒤 단계가 앞 단계의 문서를 읽는다 — 을 게임 한 판에 맞춘 것이다.
 
 ```
-목표 ─▶ 디자인 ─▶ 계획 ─▶ 구현 ─▶ 플레이 ─▶ 배포 ─▶ 홍보 ─▶ 회고
-사용자   designer  developer developer  사용자    deployer  promoter
-                     ▲                    ▲          ▲
-                  결정을 묻는다       내보낼지 묻는다  올리기 전에 묻는다
+목표 ─▶ 기획 ─────────▶ 디자인 ─▶ 계획 ─▶ 구현 ─▶ 플레이 ─▶ 배포 ─▶ 홍보 ─▶ 회고
+사용자   systems-designer  designer  developer developer  사용자    deployer  promoter
+                                       ▲                    ▲          ▲
+                                    결정을 묻는다       내보낼지 묻는다  올리기 전에 묻는다
 ```
 
 **대신 정해 주는 CEO 에이전트는 없다.** 에이전트는 "결정할 것" 을 선택지와 권하는 것 하나로 돌려주고, 사용자의 답이 사이클 문서의 "결정" 절에
