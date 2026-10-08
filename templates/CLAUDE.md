@@ -1,70 +1,73 @@
 # CLAUDE.md — <게임 이름>
 
-설계 문서: [docs/GDD.md](docs/GDD.md)
+Design document: [docs/GDD.md](docs/GDD.md)
 
-## GDD 와 코드는 항상 같아야 한다
+## Language
 
-GDD 부록 A 동기화 표에 ID 가 있는 항목(수치 · 열거 · 규칙 · 입력 · HUD)은 GDD 와 코드 두 곳에 같은 사실이 적혀 있다.
-한쪽만 바꾸면 다른 쪽이 거짓말을 한다. 그래서:
+Talk to the user in the language they write in, and write everything under `docs/` in that language too. The fixed headings and labels of the kit's document formats (cycle, playtest, GDD tables) stay exactly as the templates give them — scripts parse them.
 
-- **코드에서** 그런 값을 만들거나 바꿨으면 → 작업 마지막에 `/gamedev-kit:gdd-sync to-gdd` 를 돌려 GDD(표와 본문)를 맞춘다.
-- **GDD에서** 그런 값을 바꿨으면 → `/gamedev-kit:gdd-sync to-code` 를 돌려 코드를 맞춘다.
-- 어느 쪽이 정답인지 모르겠으면 `/gamedev-kit:gdd-sync` 로 보고서만 보고 사용자에게 묻는다.
-- 새 값을 코드에 정의할 때는 정의하는 줄에 `GDD: <ID>` 표식을 붙인다. 표에 없는 항목이면 표에 행을 먼저 추가한다.
+## The GDD and the code must always agree
 
-사용자가 "GDD" 라고 말하지 않아도 이 규칙은 적용된다. 밸런스 상수 하나 고치는 작업도 마지막 단계는 동기화다.
+Items with an ID in the GDD Appendix A sync table (numbers · enums · rules · input · HUD) state the same fact in two places, the GDD and the code.
+Change only one side and the other side lies. So:
 
-## 밸런스 값은 표에서 고친다
+- If you created or changed such a value **in the code** → at the end of the task run `/gamedev-kit:gdd-sync to-gdd` to bring the GDD (table and body) in line.
+- If you changed such a value **in the GDD** → run `/gamedev-kit:gdd-sync to-code` to bring the code in line.
+- If you do not know which side is right, look at the report only with `/gamedev-kit:gdd-sync` and ask the user.
+- When defining a new value in code, add a `GDD: <ID>` marker to the defining line. If the item is not in the table, add a row to the table first.
 
-밸런스 수치는 `data/balance.xlsx` (엑셀) 에서 고친다. 개발 중인 게임은 표의 값으로 값 파일을 덮고,
-표가 저장되면 다시 읽는다 — 게임을 끄지 않는다. 도구는 gamedev-kit 플러그인의 balance-table 스킬이다.
+This rule applies even when the user does not say "GDD". Even a task that changes one balance constant ends with the sync.
 
-- 값이 정해지면 balance-table 스킬로 `bake` → `/gamedev-kit:gdd-sync to-gdd`.
-  **배포 빌드는 표를 읽지 않고 구운 값만 쓴다.** 배포 전에 `check` 가 통과해야 한다.
-- 새 값을 더하거나 값 파일의 숫자를 손으로 고쳤으면 `export`. export 는 표를 코드 값으로 다시 쓴다 —
-  표에서 고치던 값이 있으면 먼저 bake 한다.
-- 값을 쓰는 코드는 쓸 때마다 값 파일에서 읽는다. 뜰 때 변수에 받아 두지 않는다.
+## Balance values are edited in the table
 
-도구가 보는 파일과 줄 모양은 `kit.config.json` 에 있다.
+Balance numbers are edited in `data/balance.xlsx` (Excel). The game in development overrides the value file with the table's values,
+and re-reads the table when it is saved — the game is not closed. The tool is the balance-table skill of the gamedev-kit plugin.
 
-## 플레이테스트 피드백은 문서를 거친다
+- Once values are settled, use the balance-table skill to `bake` → `/gamedev-kit:gdd-sync to-gdd`.
+  **A release build does not read the table; it uses only the baked values.** `check` must pass before deploying.
+- If you added a new value or hand-edited a number in the value file, `export`. export rewrites the table with the code's values —
+  if there are values being edited in the table, bake first.
+- Code that uses a value reads it from the value file every time it is used. Do not copy it into a variable at startup.
 
-사용자가 직접 해 보고 문제를 여러 개 적어 주면 `/gamedev-kit:playtest` 로 넘긴다. 분석 에이전트가 `docs/playtest/` 에
-작업 문서를 만들고, 작업마다 개발자 에이전트가 하나씩 맡는다. 이 세션은 지휘만 한다 — 직접 분석하거나 고치지 않는다.
+The files and line shapes the tools look at are in `kit.config.json`.
 
-## 한 묶음의 목표는 사이클로 간다
+## Playtest feedback goes through a document
 
-"이번엔 ○○ 를 넣자" 처럼 여러 작업이 걸린 목표는 `/gamedev-kit:cycle` 로 넘긴다. 사이클 문서(`docs/cycle/`)에
-목표 → 기획 → 디자인 → 작업 → 플레이 → 배포 → 회고가 쌓인다. 규칙 · 수치 · 공간의 치수는 기획자 에이전트가,
-보이는 것과 들리는 것은 디자이너 에이전트가, 구현은 작업마다 개발자 에이전트가 한다.
-화면과 UI 의 규칙은 [docs/DESIGN.md](docs/DESIGN.md) 에 있다.
+When the user plays and writes down several problems, hand them to `/gamedev-kit:playtest`. The analyst agent creates a work document in `docs/playtest/`,
+and a developer agent takes each task one by one. This session only directs — it does not analyze or fix directly.
 
-**정하는 사람은 사용자다.** 범위 · 취향 · 수치 · 내보낼지를 Claude 가 대신 정하지 않는다. 선택지와 권하는 것 하나를 내놓고 묻고,
-답은 사이클 문서의 "결정" 에 사용자의 말 그대로 적는다.
+## A bundled goal goes through a cycle
 
-## 3D 에셋과 소리는 한 문단에서 나온다
+A goal that involves several tasks, like "let's add ○○ this time", is handed to `/gamedev-kit:cycle`. The cycle document (`docs/cycle/`) accumulates
+"목표" → "기획" → "디자인" → "작업" → "플레이" → "배포" → "회고". Rules · numbers · spatial dimensions are done by the systems designer agent,
+what is seen and heard by the designer agent, and implementation by a developer agent per task.
+The rules for screens and UI are in [docs/DESIGN.md](docs/DESIGN.md).
 
-3D 모델은 `/gamedev-kit:asset` 으로 만든다 — 이미지 → 사용자가 보고 승인 → 메쉬 → 크기와 원점을 맞춰 에셋 폴더에.
-화풍은 `docs/DESIGN.md` 의 `<!-- asset-style -->` 문단 하나이고 모든 에셋에 똑같이 붙는다. 에셋마다 프롬프트를 따로 짓지 않는다.
-이미지를 승인하는 사람은 사용자다. 기록은 `assets/_gen/<이름>/asset.json` 에 남는다.
+**The user decides.** Claude does not decide scope · taste · numbers · whether to ship on the user's behalf. Offer options and one recommendation and ask,
+and write the answer in the cycle document's "결정" in the user's own words (verbatim).
 
-효과음 · 이어지는 소리 · 음악도 같은 스킬로 만든다 (ElevenLabs). 소리의 결은 `<!-- sound-style -->` 문단이다.
-Claude 는 소리를 들을 수 없다 — 만든 뒤 경로를 주고 사용자가 듣는다. 기록은 `assets/_gen/<이름>/sound.json`.
+## 3D assets and sound come from one paragraph
 
-## 세션은 짧게
+3D models are made with `/gamedev-kit:asset` — image → the user looks and approves → mesh → size and origin fitted, into the asset folder.
+The art style is the single `<!-- asset-style -->` paragraph in `docs/DESIGN.md`, attached identically to every asset. Do not write a separate prompt per asset.
+The user approves images. The record stays in `assets/_gen/<name>/asset.json`.
 
-대화가 길어질수록 턴마다 다시 읽는 양이 늘어 토큰과 시간이 많이 든다. 사이클의 끊을 자리(결정을 물은 곳 · 플레이할 차례 · 사이클이 끝난 곳)에서
-새 세션으로 넘어간다 — `/gamedev-kit:cycle next` 가 문서에서 이어 간다. 사이클 밖의 일은 `/gamedev-kit:handoff` 로 메모를 남기고 새 세션에서
-`/gamedev-kit:handoff resume`. 메인 세션은 사이클 · 플레이테스트 문서를 통째로 읽지 않는다 — 그 스킬의 스크립트가 필요한 줄만 꺼낸다.
+Sound effects · looping sounds · music are made with the same skill (ElevenLabs). The sound style is the `<!-- sound-style -->` paragraph.
+Claude cannot hear sound — after making it, give the path and the user listens. The record is `assets/_gen/<name>/sound.json`.
 
-## 배운 것은 둘로 가른다
+## Keep sessions short
 
-걸려 넘어진 함정과 찾아낸 확인 방법 가운데 이 게임만의 것은 이 파일의 "함정" 에 적는다. 같은 엔진의 다른 게임도 걸릴 것은
-`docs/kit-feedback.md` 에 한 줄 적는다 (cycle 스킬의 `lesson`) — 키트로 올라가 다음 게임이 처음부터 갖고 시작한다.
+The longer the conversation, the more is re-read every turn, costing tokens and time. At the cycle's break points (where a decision was asked · when it is time to play · where the cycle ended)
+move to a new session — `/gamedev-kit:cycle next` continues from the document. For work outside a cycle, leave a note with `/gamedev-kit:handoff` and in the new session
+`/gamedev-kit:handoff resume`. The main session does not read cycle · playtest documents whole — that skill's script extracts the lines needed.
 
-## 밖으로 나가는 것
+## Split what was learned in two
 
-- 배포는 `/gamedev-kit:deploy` (butler → itch.io). 올리기 전에 대상 · 버전 · 크기를 보여 주고 승낙을 받는다.
-  올린 뒤 그 빌드의 itch.io devlog 초안이 `docs/devlog/` 에 남는다 — 올리는 API 가 없어 사용자가 붙여 넣는다.
-- 알리는 일(SNS)은 사용자가 직접 한다. Claude 는 홍보 글을 쓰거나 올리지 않는다 — 부탁받았을 때만 돕는다.
-- butler 로그인과 에셋 API 키는 저장소 밖에 있다. 어떤 파일에도 적지 않는다.
+Of the pitfalls you tripped over and the verification methods you found, those specific to this game go in this file's "Pitfalls". Those that other games on the same engine would also hit
+get one line in `docs/kit-feedback.md` (the cycle skill's `lesson`) — they go up to the kit and the next game starts with them.
+
+## What goes outside
+
+- Deployment is `/gamedev-kit:deploy` (butler → itch.io). Before uploading, show the target · version · size and get consent.
+  After uploading, an itch.io devlog draft for that build is left in `docs/devlog/` — there is no API for posting, so the user pastes it.
+- The butler login and the asset API keys live outside the repository. Do not write them in any file.

@@ -1,61 +1,61 @@
 ---
 name: playtest
 description: >-
-  플레이테스트 → 분석 → 구현 흐름. 사용자가 게임을 직접 해 보고 적은 문제 목록을 분석 에이전트(playtest-analyst, Fable)가
-  docs/playtest/ 에 작업 문서로 만들고, 작업마다 개발자 에이전트(developer, Opus)가 하나씩 맡아 처리한다.
-  다음 상황이면 이 스킬을 쓴다: 사용자가 "플레이해 봤는데", "해 보니까 이게 문제야", "플레이테스트", "이것들 고쳐줘" 라며
-  문제나 할 일을 여러 개 늘어놓을 때; "문제 리스트 분석해줘", "피드백 정리해줘"; "분석 문서대로 구현해줘",
-  "playtest 문서 진행해줘", "T3 부터 해줘" 라고 할 때. 문제가 하나뿐이고 원인이 뻔하면 쓰지 않고 그냥 고친다.
+  Playtest → analysis → build flow. The analyst agent (playtest-analyst, Fable) turns the problem list the user wrote after playing
+  into a task document in docs/playtest/, and one developer agent (developer, Opus) per task handles it.
+  Use when the user lists several problems or to-dos ("플레이해 봤는데", "해 보니까 이게 문제야", "플레이테스트", "이것들 고쳐줘");
+  asks to analyze a problem list or organize feedback; or says "분석 문서대로 구현해줘", "playtest 문서 진행해줘", "T3 부터 해줘".
+  Not for a single problem with an obvious cause — just fix that.
 ---
 
 # playtest
 
-분석과 구현을 가르고, 둘 다 에이전트에게 맡긴다. 원인을 찾는 일은 비싼 모델이 한 번 하고 문서로 남긴다.
-고치는 일은 작업마다 싼 모델의 에이전트가 하나씩 맡는다 — 각자 자기 작업 항목과 고칠 파일만 읽는다.
-**이 세션은 지휘만 한다.** 여기서 코드를 읽고 분석하거나 직접 고치면 가른 뜻이 없어진다.
+Split analysis from the build, and give both to agents. Finding causes is done once by the expensive model and left as a document.
+Fixing is done by a cheap-model agent per task — each reads only its own task entry and the files to fix.
+**This session only directs.** Reading code and analyzing here, or fixing directly, defeats the split.
 
-| 호출 | 뜻 |
+| Call | Meaning |
 |---|---|
-| `/gamedev-kit:playtest <문제 목록>` | 분석하고, 막는 질문이 없는 작업을 전부 구현한다 |
-| `/gamedev-kit:playtest plan <문제 목록>` | 분석만. 문서를 만들고 멈춘다 |
-| `/gamedev-kit:playtest implement [문서] [T3 …]` | 구현만. 문서를 생략하면 `docs/playtest/` 의 가장 새 문서, 작업을 생략하면 남은 전부 |
-| `/gamedev-kit:playtest status` | 문서들의 남은 작업 |
+| `/gamedev-kit:playtest <problem list>` | Analyze, then build every task with no blocking question |
+| `/gamedev-kit:playtest plan <problem list>` | Analysis only. Create the document and stop |
+| `/gamedev-kit:playtest implement [document] [T3 …]` | Build only. Without a document, the newest in `docs/playtest/`; without tasks, all remaining |
+| `/gamedev-kit:playtest status` | Remaining tasks of the documents |
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" status          # 문서마다 한 줄
-python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # 물을 것 · 다음 차수의 작업
-python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # 요약과 작업 하나만
-python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<이유>" · open
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" status          # one line per document
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # questions to ask · next wave's tasks
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # the summary and one task only
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<reason>" · open
 ```
 
-가장 새 문서에 한다 (다른 문서면 `--doc <경로>`).
+These act on the newest document (for another, `--doc <path>`).
 
-## 1. 분석
+## 1. Analysis
 
-1. **목록을 받는다.** 사용자가 적은 문장을 다듬지 않는다. 목록이 메시지에 없으면 달라고 한다.
-   `git rev-parse --short HEAD` 로 지금 커밋을 적고, 커밋 안 된 변경이 있으면 알린다.
-2. **`gamedev-kit:playtest-analyst` 에이전트를 부른다.** 넘길 것: 문제 목록 원문 그대로, 커밋 해시,
-   사용자가 덧붙인 맥락(어느 장면 · 어느 기기 · 몇 번 해 봤는지). **네 추측은 넘기지 않는다** — 가설을 받은 분석가는 그 가설을 확인해 온다.
-3. 돌아오면 문서 경로, 작업 수, "사용자에게 물을 것" 을 전한다. `plan` 이면 여기서 멈춘다.
+1. **Take the list.** Do not polish the user's sentences. If the list is not in the message, ask for it.
+   Record the current commit with `git rev-parse --short HEAD`, and say so if there are uncommitted changes.
+2. **Call the `gamedev-kit:playtest-analyst` agent.** Pass: the problem list verbatim, the commit hash,
+   context the user added (which scene · which device · how many tries). **Do not pass your guesses** — an analyst handed a hypothesis comes back having confirmed it.
+3. When it returns, relay the document path, the task count, and "사용자에게 물을 것". For `plan`, stop here.
 
-## 2. 구현
+## 2. Build
 
-1. `next` 로 다음 차수의 작업을 본다 — 문서를 통째로 읽지 않는다 (수만 토큰이다).
-2. **할 작업을 고른다.** 다음은 건너뛴다 — 건너뛴다고 말한다:
-   - "사용자에게 물을 것" 의 답 없는 질문에 걸린 작업
-   - 분류가 **설계**인데 사용자의 결정이 문서에 적혀 있지 않은 작업
-   - 앞 차수에서 막히거나 실패한 작업에 기대는 작업
-3. **차수마다, 작업 하나에 `gamedev-kit:developer` 에이전트 하나, `build T<n>` 으로.** 같은 차수의 작업은 한 번에(한 메시지에서) 부른다 —
-   분석가가 서로 다른 파일만 건드리게 묶어 두었다. 넘길 것은 세 줄이다 — `build T<n>`, 문서 경로, 작업 꺼내기 명령(`python3 <이 스킬의 playtest.py 절대 경로> task T<n> --doc <문서>`). 작업 내용을 옮겨 적지 않는다.
-   앞 차수가 다 돌아온 뒤 다음 차수를 부른다.
-4. **돌아온 결과를 `mark` 로 적는다** (에이전트는 문서를 고치지 않는다. 문서를 열어 손으로 고치지 않는다):
-   - 끝 → `mark T1,T3 done`. "문서와 다르게 한 것" 이 있으면 `mark T1 done "<무엇을 왜>"`.
-   - 막힘 · 실패 → `mark T2 blocked "<이유>"`. **여기서 직접 다시 분석해 고치지 않는다.**
-5. **모든 차수가 끝나면 한 번에:**
-   - 분류가 밸런스인 작업이 있었으면 balance-table 스킬로 `export` (표가 옛 값을 쥐고 있지 않게)
-   - 값 · 규칙이 바뀌었으면 `/gamedev-kit:gdd-sync to-gdd`
-   - 프로젝트의 검증(CLAUDE.md 의 "검증")을 전체로 한 번 — 작업끼리 부딪힌 것은 여기서 드러난다
-6. **보고:**
+1. See the next wave's tasks with `next` — do not read the document whole (it is tens of thousands of tokens).
+2. **Pick the tasks to do.** Skip the following — and say you are skipping them:
+   - tasks hanging on an unanswered question in "사용자에게 물을 것"
+   - tasks whose 분류 is **설계** with no user decision written in the document
+   - tasks that depend on a task blocked or failed in an earlier wave
+3. **Per wave, one `gamedev-kit:developer` agent per task, with `build T<n>`.** Call a wave's tasks all at once (in one message) —
+   the analyst grouped them so they touch different files. Pass three lines — `build T<n>`, the document path, the task-extraction command (`python3 <absolute path to this skill's playtest.py> task T<n> --doc <document>`). Do not copy out the task content.
+   Call the next wave after the previous wave has fully returned.
+4. **Record returned results with `mark`** (agents do not edit the document. Do not open the document and edit it by hand):
+   - done → `mark T1,T3 done`. If there are "Deviations from the document", `mark T1 done "<what and why>"`.
+   - blocked · failed → `mark T2 blocked "<reason>"`. **Do not re-analyze and fix it here yourself.**
+5. **When all waves are done, once:**
+   - if any task's 분류 was 밸런스, `export` with the balance-table skill (so the table does not hold old values)
+   - if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`
+   - the project's verification (CLAUDE.md "Verification") once in full — conflicts between tasks show up here
+6. **Report:**
 
    ```
    ## 플레이테스트 — <문서>
@@ -64,12 +64,12 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<�
    - 직접 해 보고 확인할 것: <작업별로 무엇을 보면 되는지>
    ```
 
-   막힌 작업이 있으면 다시 분석할지 묻는다. 다시 분석은 그 작업의 막힌 이유를 붙여 분석가를 다시 부르는 것이다.
+   If any task is blocked, ask whether to re-analyze. Re-analysis means calling the analyst again with that task's "Why blocked" attached.
 
 ## status
 
-`playtest.py status` 의 출력을 그대로 전한다.
+Relay the output of `playtest.py status` as-is.
 
-## 문서는 남긴다
+## Keep the documents
 
-끝난 문서도 지우지 않는다. 다음 플레이테스트에서 같은 문제가 다시 나오면 분석가가 이전 문서를 읽고 "지난번에 이렇게 고쳤는데 왜 또" 부터 시작할 수 있다.
+Do not delete finished documents either. If the same problem comes up in the next playtest, the analyst can read the earlier document and start from "we fixed it this way last time, so why again".

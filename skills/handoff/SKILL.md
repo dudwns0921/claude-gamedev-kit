@@ -1,71 +1,71 @@
 ---
 name: handoff
 description: >-
-  세션을 바꿀 때 하던 일을 짧은 인계 메모(docs/handoff/)로 남기고, 새 세션에서 그 메모로 이어 간다. 대화가 길어져 컨텍스트가 커졌을 때
-  새 세션으로 가볍게 넘어가기 위한 것이다. 다음 상황이면 이 스킬을 쓴다: 사용자가 "세션 바꾸자", "새 세션에서 이어가자", "인계 메모 남겨줘",
-  "여기까지 정리해줘", "handoff" 라고 할 때; 새 세션에서 "이어서 하자", "아까 하던 거", "handoff resume" 이라고 할 때;
-  컨텍스트가 크다는 알림이 왔고 지금 하는 일이 사이클 문서에 적혀 있지 않을 때.
+  When switching sessions, leaves the work in progress as a short handoff note (docs/handoff/) and continues from it in a new session —
+  for moving light to a new session once the conversation and context have grown. Use when the user says "세션 바꾸자",
+  "새 세션에서 이어가자", "인계 메모 남겨줘", "여기까지 정리해줘", "handoff"; in a new session says "이어서 하자", "아까 하던 거", "handoff resume";
+  or a large-context notice arrived and the current work is not written in a cycle document.
 ---
 
 # handoff
 
-모델은 턴마다 지금까지의 대화를 통째로 다시 읽는다. 대화가 길어질수록 같은 일에 드는 토큰과 시간이 늘어난다.
-새 세션으로 넘어가면 가벼워지지만, 하던 맥락을 사용자가 다시 설명해야 하면 아무도 넘어가지 않는다. 그 설명을 메모 하나로 대신한다.
+Every turn the model re-reads the whole conversation so far. The longer the conversation, the more tokens and time the same work costs.
+Moving to a new session makes it light, but if the user has to re-explain the context, nobody moves. One note replaces that explanation.
 
-| 호출 | 뜻 |
+| Call | Meaning |
 |---|---|
-| `/gamedev-kit:handoff` | 지금 하던 일을 메모로 남긴다 |
-| `/gamedev-kit:handoff resume` | 가장 새 메모를 읽고 이어 간다 |
+| `/gamedev-kit:handoff` | Leave the current work as a note |
+| `/gamedev-kit:handoff resume` | Read the newest note and continue |
 
-**사이클 안의 일은 메모가 필요 없다.** 상태가 사이클 문서에 다 있다 — 새 세션에서 `/gamedev-kit:cycle next`. 사이클과 그 밖의 일을 같이 하고 있었으면
-메모에는 그 밖의 일만 적고 사이클은 문서를 가리킨다.
+**Work inside a cycle needs no note.** All state is in the cycle document — in the new session, `/gamedev-kit:cycle next`. If you were doing cycle work and other work together,
+write only the other work in the note and point to the document for the cycle.
 
-## 남기기
+## Leaving a note
 
-1. **지금 아는 것으로 쓴다.** 메모를 쓰려고 파일을 다시 읽지 않는다 — 그러면 넘어가려던 세션이 더 무거워진다.
-   돌리는 것은 `git status --short` 와 `git rev-parse --short HEAD` 뿐이다.
-2. `docs/handoff/YYYY-MM-DD-HHMM-<짧은-이름>.md` 로 쓴다. 아래 모양, **마흔 줄 안쪽.** 읽는 쪽은 이 대화를 전혀 모르는 새 세션이다 —
-   그 세션이 이 메모만 읽고 첫 명령을 칠 수 있어야 한다.
+1. **Write from what you know now.** Do not re-read files to write the note — that makes the session you are leaving heavier.
+   Run only `git status --short` and `git rev-parse --short HEAD`.
+2. Write it to `docs/handoff/YYYY-MM-DD-HHMM-<short-name>.md`. Shape below, **under forty lines.** The reader is a new session that knows nothing of this conversation —
+   it must be able to type its first command from this note alone.
 
 ```markdown
-# 인계 — <무엇을 하던 중인가, 한 줄>
+# 인계 — <what was in progress, one line>
 
-남김: <날짜 시각> · 커밋 <해시 7자> · 커밋 안 된 변경: <없음 | 파일들>
+남김: <date time> · 커밋 <7-char hash> · 커밋 안 된 변경: <없음 | files>
 
 ## 하던 일
-사용자가 원한 것. 사용자의 말 그대로 한두 줄.
+What the user wanted. One or two lines in the user's own words (verbatim).
 
 ## 지금 상태
-- 끝난 것: <무엇 — 파일 경로>
-- 하다 만 것: <무엇을 어디까지 — 파일:줄. 다음에 손댈 자리>
-- 돌고 있던 것: <백그라운드 작업 · 기다리던 것 — 없으면 줄을 뺀다>
+- 끝난 것: <what — file path>
+- 하다 만 것: <what, how far — file:line. where to pick up next>
+- 돌고 있던 것: <background jobs · things being waited on — drop the line if none>
 
 ## 정해진 것
-이 대화에서 사용자가 정한 것. 사용자의 말 그대로. 다시 묻지 않게.
+What the user decided in this conversation. In the user's own words (verbatim). So it is not asked again.
 
 ## 다음에 할 일
-1. <첫 번째 — 칠 명령이나 열 파일까지>
+1. <first — down to the command to type or the file to open>
 2. …
 
 ## 조심할 것
-이 대화에서 걸려 넘어진 것, 건드리면 안 되는 것. 없으면 절을 뺀다.
+What tripped this conversation up, what must not be touched. Drop the section if none.
 
 ## 사용자에게 물을 것
-답을 못 받은 질문. 없으면 절을 뺀다.
+Unanswered questions. Drop the section if none.
 ```
 
-3. **적지 않는 것**: 대화의 경위("처음엔 A 를 해 봤는데…"), 로그와 코드의 복사, 이미 파일에 있는 내용(가리키기만 한다), 끝나서 다시 볼 일 없는 것.
-   CLAUDE.md 에 적혀야 할 것(되풀이될 함정 · 프로젝트의 규칙)이 나왔으면 메모가 아니라 거기 적을지 사용자에게 묻는다.
-4. 메모 경로를 주고 한 줄로 안내한다: "새 세션을 열어 `/gamedev-kit:handoff resume`." 이 세션에서 일을 더 이어 가지 않는다.
+3. **Do not write**: the history of the conversation ("first we tried A, but…"), copies of logs and code, content already in files (only point to it), finished things that need no second look.
+   If something came up that belongs in CLAUDE.md (a recurring pitfall · a project rule), ask the user whether to write it there, not in the note.
+4. Give the note's path and guide in one line: "Open a new session and run `/gamedev-kit:handoff resume`." Do not continue working in this session.
 
-## 이어받기
+## Resuming
 
-1. `docs/handoff/` 에서 `이어받음:` 줄이 없는 가장 새 메모를 읽는다. 없으면 없다고 하고, 사이클이 있으면 `/gamedev-kit:cycle next` 를 권한다.
-2. 메모 끝에 `이어받음: <날짜 시각>` 한 줄을 더한다 — 다음 세션이 같은 메모를 또 집지 않게.
-3. 메모의 커밋과 지금 커밋이 다르거나 "커밋 안 된 변경" 이 지금과 다르면 그 사실을 먼저 말한다 — 메모는 남긴 때의 사진이다.
-4. "다음에 할 일" 의 첫 번째부터 한다. **메모에 없는 것을 알아내려고 프로젝트를 훑지 않는다** — 그 일에 필요한 파일만 연다.
-   "사용자에게 물을 것" 이 있으면 그것부터 묻는다.
+1. In `docs/handoff/`, read the newest note without an `이어받음:` line. If there is none, say so, and if there is a cycle, recommend `/gamedev-kit:cycle next`.
+2. Append one line `이어받음: <date time>` at the end of the note — so the next session does not pick up the same note again.
+3. If the note's commit differs from the current commit, or "커밋 안 된 변경" differs from now, say that first — the note is a snapshot of when it was left.
+4. Start from the first item of "다음에 할 일". **Do not scan the project to find out what is not in the note** — open only the files that work needs.
+   If there is a "사용자에게 물을 것", ask those first.
 
-## 메모는 남긴다
+## Keep the notes
 
-이어받은 메모도 지우지 않는다. 커밋할지는 사용자가 정한다 — 넣고 싶지 않으면 `.gitignore` 에 `docs/handoff/` 를 넣는다.
+Do not delete resumed notes either. The user decides whether to commit them — if they do not want them in, add `docs/handoff/` to `.gitignore`.

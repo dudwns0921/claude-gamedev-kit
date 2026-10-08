@@ -1,61 +1,61 @@
 ---
 name: asset
 description: >-
-  에셋을 만든다. 3D 모델: 설명 → 이미지(OpenAI) → 사람이 보고 승인 → 메쉬(Meshy) → 크기 · 원점을 맞춰(Blender) 게임 폴더에.
-  소리: 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더에. 화풍과 소리의 결은 docs/DESIGN.md 의 한 문단씩이
-  모든 에셋에 똑같이 붙고, 에셋마다 프롬프트와 결과가 기록으로 남는다.
-  다음 상황이면 이 스킬을 쓴다: 사용자가 "에셋 만들어줘", "모델 뽑아줘", "○○ 3D 로 만들어줘", "이거랑 비슷한 걸로 하나 더" 라고 할 때;
-  "효과음 만들어줘", "소리 넣자", "배경음", "BGM", "이 소리 다시 뽑아줘" 라고 할 때;
-  사이클의 디자인 절 "필요한 에셋" 에 없는 3D 모델이나 소리가 있을 때; "이미지 괜찮아, 메쉬로 가자", "크기가 안 맞아" 라고 할 때;
-  화풍 문단이나 에셋 API 키를 처음 잡을 때.
+  Makes assets. 3D model: description → image (OpenAI) → human approves → mesh (Meshy) → size and origin fixed (Blender) → game folder.
+  Sound: description → sound effect, looping sound, music (ElevenLabs) → game folder. One art style paragraph and one sound style
+  paragraph in docs/DESIGN.md are attached to every asset, and each asset's prompt and result are recorded.
+  Use when the user says "에셋 만들어줘", "모델 뽑아줘", "○○ 3D 로 만들어줘", "효과음 만들어줘", "소리 넣자", or asks for one more
+  like an existing asset, background sound, BGM, or a sound redone; when the cycle's design section "필요한 에셋" lists a 3D model or
+  sound that does not exist; when the user approves an image for meshing or says the size is wrong;
+  when first setting the art style paragraph or the asset API keys.
 ---
 
 # asset
 
-3D 모델과 소리는 길이 다르다. 모델은 아래 절차를, 소리는 맨 아래 "소리" 절을 따른다.
+3D models and sounds take different paths. Models follow the procedure below; sounds follow the "Sound" section at the bottom.
 
 ```
-설명 ─▶ 이미지 (면마다 한 장) ─▶ [사람이 본다] ─▶ 메쉬 ─▶ 다듬기 ─▶ 게임 폴더
-new      image                     approve          mesh     (mesh 가 이어서 한다)
+description ─▶ image (one per view) ─▶ [human looks] ─▶ mesh ─▶ finish ─▶ game folder
+new            image                   approve          mesh    (mesh continues into it)
 ```
 
-**사람이 보는 곳은 이미지 한 군데다.** 이미지는 싸고 빨라서 몇 번이고 다시 그린다. 메쉬는 느리고 크레딧이 든다 —
-그래서 승인된 이미지만 메쉬가 되고, 승인 뒤로는 끝까지 묻지 않고 간다.
+**The human looks at one place: the image.** Images are cheap and fast, so redraw as often as needed. Meshes are slow and cost credits —
+so only approved images become meshes, and after approval it runs to the end without asking.
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" new <이름> --size <미터> [--poly <삼각형 수>] "<무엇인지 — 영어로>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <이름>... [--view back]
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" approve <이름>...
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" mesh <이름>...
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" finish <이름>... [--size <미터>]
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" new <name> --size <meters> [--poly <triangle count>] "<what it is — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <name>... [--view back]
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" approve <name>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" mesh <name>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" finish <name>... [--size <meters>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
 ```
 
-## 절차
+## Procedure
 
-1. **화풍이 있는지 본다.** `docs/DESIGN.md` 의 `<!-- asset-style -->` … `<!-- /asset-style -->` 사이가 비어 있으면 먼저 채운다 (아래 "화풍").
-   에셋을 만들면서 화풍을 그때그때 정하지 않는다 — 그러면 에셋마다 달라진다.
-2. **있는 것을 먼저 본다.** `status` 와 에셋 폴더. 같은 것이 이미 있으면 만들지 않는다. 돌 · 상자 · 풀 같은 채움용은
-   CC0 팩(Kenney · Quaternius)이 더 고르고 공짜다 — 사용자에게 그쪽을 먼저 권한다. 생성은 이 게임에만 있는 것에 쓴다.
-3. **`new`.** 설명은 **무엇인지만** 영어로 적는다 — 모양 · 비율 · 재질 · 색, 눈에 띄는 부분 두셋. 화풍 · 배경 · 조명 · 구도는 적지 않는다
-   (스크립트가 붙인다). `--size` 는 가장 긴 변의 길이(미터)다. 사용자가 말하지 않았으면 GDD 나 디자인 절에서 찾고, 없으면 묻는다.
-   `--poly` 는 화면에 크게 나오거나 작게 나오는 것만 준다 (기본은 설정값).
-4. **`image`.** 여럿이면 이름을 한 번에 준다. 끝나면 이미지 경로를 사용자에게 주고 직접 열어 보라고 한다.
-   **네가 이미지를 Read 하지 않는다** — 그림은 이 세션에 끝까지 남아 턴마다 다시 읽힌다. 보는 사람은 사용자다.
-   사용자가 먼저 걸러 달라고 하면 `gamedev-kit:designer` 를 `review` 로 불러 경로를 넘기고 글로 돌려받는다.
-5. **사용자의 답을 기다린다.** 고쳐 달라고 하면 — 물건이 틀렸으면 `asset.json` 의 `subject` 를 고치고 `image`, 한 면만 어긋났으면 `image --view <면>`.
-   **네 눈에 좋아 보인다고 `approve` 하지 않는다.** 사용자가 좋다고 한 에셋만 `approve` 한다.
-6. **`mesh`.** 승인된 것을 한 번에 준다 — 동시에 만들어진다. 몇 분 걸리므로 백그라운드로 돌린다. 끊겨도 같은 명령을 다시 돌리면
-   같은 작업을 이어서 기다린다 (새로 사지 않는다). 메쉬를 받으면 다듬기까지 이어서 한다.
-7. **결과를 전한다.** 파일 경로 · 삼각형 수 · 크기 · 든 크레딧. 엔진에서 열어 보는 것은 사용자가 한다.
-   크기만 틀렸으면 `finish <이름> --size <미터>` — Meshy 를 다시 부르지 않는다.
-8. 사이클 중이면 디자인 절 "필요한 에셋" 표의 "있는가" 칸에 경로를 적는다.
+1. **Check that the art style exists.** If the space between `<!-- asset-style -->` … `<!-- /asset-style -->` in `docs/DESIGN.md` is empty, fill it first ("Art style" below).
+   Do not decide the art style ad hoc while making assets — each asset would come out different.
+2. **Look at what exists first.** `status` and the asset folder. If the same thing already exists, do not make it. For filler like rocks, crates and grass,
+   CC0 packs (Kenney, Quaternius) are more consistent and free — recommend those to the user first. Generate only what is unique to this game.
+3. **`new`.** Write the description in English, **only what the thing is** — shape, proportions, material, color, two or three standout parts. Do not write art style, background, lighting or composition
+   (the script attaches them). `--size` is the length of the longest side in meters. If the user did not say, look in the GDD or the design section; if absent, ask.
+   Give `--poly` only for things that appear large or small on screen (default is the configured value).
+4. **`image`.** For several, give the names at once. When done, give the user the image paths and tell them to open the images themselves.
+   **Do not Read the images yourself** — a picture stays in this session to the end and is re-read every turn. The one who looks is the user.
+   If the user asks you to screen them first, call `gamedev-kit:designer` with `review`, pass the paths, and get text back.
+5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>`.
+   **Do not `approve` because it looks good to you.** `approve` only assets the user said are good.
+6. **`mesh`.** Give all approved ones at once — they are made concurrently. It takes minutes, so run it in the background. If interrupted, rerunning the same command
+   resumes waiting on the same job (it does not buy a new one). Once the mesh arrives it continues through finishing.
+7. **Report the result.** File path, triangle count, size, credits spent. Opening it in the engine is the user's job.
+   If only the size is wrong, `finish <name> --size <meters>` — do not call Meshy again.
+8. During a cycle, write the path in the "있는가" cell of the design section's "필요한 에셋" table.
 
-## 화풍
+## Art style
 
-모든 프롬프트에 그대로 붙는 한 문단이다. 영어로, 이 게임의 어떤 에셋에나 맞는 말만 적는다:
-그리는 방식(low-poly · hand-painted · flat-shaded …), 색(팔레트의 색 이름이나 값), 디테일의 양, 재질의 느낌, 비율(과장 · 사실).
-물건 이름이나 배경 · 조명 · 구도는 넣지 않는다.
+One paragraph attached verbatim to every prompt. In English, containing only what fits any asset of this game:
+rendering method (low-poly, hand-painted, flat-shaded …), color (palette color names or values), amount of detail, material feel, proportions (exaggerated or realistic).
+No object names, background, lighting or composition.
 
 ```markdown
 <!-- asset-style -->
@@ -64,11 +64,11 @@ muted earthy palette with one saturated accent color, no fine surface detail, ma
 <!-- /asset-style -->
 ```
 
-화풍 문단은 사용자와 정한다. `docs/DESIGN.md` 의 색 · 톤과 GDD 의 아트 방향에서 초안을 만들고, 시험 에셋 두셋을 `image` 로 뽑아 같이 보며 고친다.
-마음에 드는 이미지가 나오면 `kit.config.json` 의 `asset.refs` 에 그 경로를 넣는다 — 그 뒤로 모든 첫 이미지가 그것을 보고 그려진다.
-**화풍을 바꾸면 이미 만든 에셋과 어긋난다.** 바꾸기 전에 그렇게 말한다.
+Decide the art style paragraph with the user. Draft it from the colors and tone in `docs/DESIGN.md` and the art direction in the GDD, then generate two or three test assets with `image` and revise while looking at them together.
+When an image they like comes out, put its path in `asset.refs` in `kit.config.json` — from then on every first image is drawn with it as reference.
+**Changing the art style makes it clash with assets already made.** Say so before changing it.
 
-## 설정
+## Config
 
 ```json
 "asset": {
@@ -81,67 +81,67 @@ muted earthy palette with one saturated accent color, no fine surface detail, ma
 }
 ```
 
-- `dir` · `format` — 끝난 모델이 놓이는 곳과 형식. 엔진이 정한다 (init 이 깐 값).
-- `views` — 만들 면(`front` · `back` · `left` · `right`, 넷까지). 첫 면이 기준이고 나머지는 그것을 보고 그린다.
-  면이 많을수록 뒷모습이 덜 지어내지지만, 면끼리 어긋나면 메쉬가 망가진다. 둘에서 시작한다.
-- `image` · `meshy` — 각 API 에 그대로 넘어간다. 다른 값(`texture_resolution` 등)을 더 적어도 된다.
+- `dir`, `format` — where finished models go and in what format. The engine decides (values installed by init).
+- `views` — views to make (`front`, `back`, `left`, `right`, up to four). The first is the reference; the rest are drawn from it.
+  More views mean less of the back is invented, but if views disagree the mesh breaks. Start with two.
+- `image`, `meshy` — passed straight to each API. Other values (`texture_resolution` etc.) may be added.
 - `sound` — `{ "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1" }`.
-  `format` 은 ElevenLabs 의 output_format 이다. `pcm_44100` 처럼 `pcm_` 으로 시작하면 wav 로 놓는다 (요금제에 따라 막혀 있을 수 있다).
-- 에셋마다 다른 것(설명 · 크기 · 삼각형 수)은 `assets/_gen/<이름>/asset.json` 에 있다. 손으로 고쳐도 된다.
+  `format` is ElevenLabs' output_format. If it starts with `pcm_`, like `pcm_44100`, the file is saved as wav (may be blocked depending on the plan).
+- Per-asset values (description, size, triangle count) are in `assets/_gen/<name>/asset.json`. Editing by hand is fine.
 
-`assets/_gen/` 은 저장소에 넣는다 — 기록(`asset.json`)과 이미지가 있어야 "이거랑 비슷하게 하나 더" 가 된다.
-받은 그대로의 메쉬(`raw.glb`)는 커서 `.gitignore` 에 넣는다 (다시 `finish` 할 때만 쓴다).
+Commit `assets/_gen/` to the repository — the record (`asset.json`) and images are what make "one more like this" possible.
+The mesh as received (`raw.glb`) is large, so put it in `.gitignore` (it is only used when running `finish` again).
 
-## 소리
+## Sound
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" sfx <이름> [--seconds <초>] [--loop] [--influence <0~1>] "<어떤 소리인지 — 영어로>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" music <이름> --seconds <초> "<어떤 음악인지 — 영어로>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" again <이름>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" sfx <name> [--seconds <seconds>] [--loop] [--influence <0~1>] "<what sound — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" music <name> --seconds <seconds> "<what music — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" again <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/sound.py" status
 ```
 
-소리는 한 번에 나온다 — 이미지 같은 중간 관문이 없다. 대신 **네가 들을 수 없다.** 좋은지는 사용자만 안다.
+A sound comes out in one step — there is no intermediate gate like the image. But **you cannot hear it.** Only the user knows whether it is good.
 
-1. **있는 것을 먼저 본다.** `status` 와 소리 폴더. 같은 소리가 있으면 만들지 않는다.
-2. **설명을 쓴다.** 영어로, 들리는 것을 순서대로: 무엇이 무엇에 부딪히는가 · 재질 · 세기 · 꼬리(짧게 끊긴다 / 울린다).
-   "coin pickup" 이 아니라 "a small metal coin dropped on a stone floor, one bright ping, short tail". 게임의 결(8비트 · 건조하게 · 잔향 없이)은
-   적지 않는다 — `docs/DESIGN.md` 의 `<!-- sound-style -->` … `<!-- /sound-style -->` 문단이 있으면 스크립트가 붙인다.
-   그 문단이 비어 있으면 처음 소리 몇 개를 만들며 사용자와 정해 적는다. 화풍 문단과 같다: 바꾸면 이미 만든 소리와 어긋난다.
-3. **길이.** 디자인 절 "연출과 소리" 에 초가 적혀 있으면 `--seconds` 로 준다. 효과음은 0.5~30초 (생략하면 알아서), 음악은 3~600초.
-   바람 · 엔진 · 배경처럼 끝없이 도는 소리는 `--loop`. 조작에 돌아오는 소리는 짧게 — 길면 겹쳐 들린다.
-4. **만들고, 경로를 주고, 들어 보라고 한다.** 여럿이면 몇 개인지 먼저 말한다. 소리를 듣지 않고 "잘 나왔다" 고 하지 않는다.
-5. **고친다.** 다른 결과만 원하면 `again <이름>` (같은 설명, 다른 소리). 소리가 틀렸으면 설명을 고쳐 같은 이름으로 다시 `sfx`.
-   설명을 더 글자 그대로 따르게 하려면 `--influence 0.6` 쯤, 더 자유롭게는 `0.1`. 같은 이름은 파일을 덮는다 —
-   사용자가 앞의 것이 낫다고 할 수 있으니, 좋다고 한 소리를 다시 만들기 전에는 묻는다.
-6. 사이클 중이면 디자인 절 "필요한 에셋" 표의 "있는가" 칸에 경로를 적는다. 게임에서 소리를 트는 코드는 개발 작업이다.
+1. **Look at what exists first.** `status` and the sound folder. If the same sound exists, do not make it.
+2. **Write the description.** In English, what is heard, in order: what hits what, material, intensity, tail (cuts short / rings).
+   Not "coin pickup" but "a small metal coin dropped on a stone floor, one bright ping, short tail". Do not write the game's sound style (8-bit, dry, no reverb) —
+   if the `<!-- sound-style -->` … `<!-- /sound-style -->` paragraph in `docs/DESIGN.md` exists, the script attaches it.
+   If that paragraph is empty, decide it with the user while making the first few sounds and write it down. Same as the art style paragraph: changing it clashes with sounds already made.
+3. **Length.** If the design section "연출과 소리" gives seconds, pass them with `--seconds`. Sound effects are 0.5–30 s (omit to let it decide), music 3–600 s.
+   Use `--loop` for sounds that run endlessly, like wind, engines and ambience. Keep sounds that answer an input short — long ones overlap.
+4. **Make it, give the path, tell the user to listen.** For several, say how many first. Do not say "it came out well" without hearing it.
+5. **Revise.** If they only want a different result, `again <name>` (same description, different sound). If the sound is wrong, fix the description and run `sfx` again under the same name.
+   To follow the description more literally use about `--influence 0.6`; for more freedom, `0.1`. The same name overwrites the file —
+   the user may prefer the earlier one, so ask before remaking a sound they said was good.
+6. During a cycle, write the path in the "있는가" cell of the design section's "필요한 에셋" table. The code that plays the sound in the game is development work.
 
-걸려 넘어지는 것:
+Pitfalls:
 
-- **효과음 설명은 결 문단까지 합쳐 450자 안이다.** 넘으면 스크립트가 멈춘다 — 결 문단을 줄이지 말고 설명을 줄인다.
-- **결 문단이 설명과 부딪히면 결 문단이 이긴다.** 결에 "no voices" 가 있는데 함성을 뽑으려면 설명에 목소리라는 것을 분명히 적는다.
-- **이어지는 소리와 음악은 끝에 침묵이 붙어 올 때가 있다.** 그대로 돌리면 박자가 끊긴다 — 침묵을 잘라 낸다 (`ffmpeg -af silenceremove`).
-  세기도 소리마다 다르다: 배경으로 깔 것은 `ffmpeg -af volumedetect` 로 재서 맞춘다.
-- **박자가 맞아야 하는 소리 둘은 길이를 똑같이 만든다.** 통째로 뽑아 맞추기 어려우면 조각(북 한 번 · 함성 한 번)을 따로 뽑아 짜 넣는다.
+- **A sound effect description, including the sound style paragraph, must fit in 450 characters.** Over that the script stops — shorten the description, not the sound style paragraph.
+- **When the sound style paragraph conflicts with the description, the sound style paragraph wins.** If the style says "no voices" and you need a shout, state clearly in the description that it is a voice.
+- **Looping sounds and music sometimes arrive with silence at the end.** Looped as is, the beat breaks — trim the silence (`ffmpeg -af silenceremove`).
+  Loudness also differs per sound: for background layers, measure with `ffmpeg -af volumedetect` and match.
+- **Two sounds that must stay in time must be made exactly the same length.** If generating them whole and matching is hard, generate pieces (one drum hit, one shout) separately and sequence them.
 
-## 처음 한 번 (사용자가 직접)
+## First time only (done by the user)
 
-- **키**: OpenAI 와 Meshy 의 API 키를 저장소 **밖**의 파일에 적는다 (사용자가 터미널에서):
+- **Keys**: write the OpenAI and Meshy API keys in a file **outside** the repository (the user, in a terminal):
 
   ```bash
   mkdir -p ~/.config/gamedev-kit && chmod 700 ~/.config/gamedev-kit && ${EDITOR:-nano} ~/.config/gamedev-kit/asset.env
   ```
 
-  파일에는 `OPENAI_API_KEY=...` 와 `MESHY_API_KEY=...` 두 줄. 소리를 만들려면 `ELEVENLABS_API_KEY=...` 한 줄을 더한다
-  (ElevenLabs 키에 Sound Effects 와 Music 권한이 켜져 있어야 한다). **키를 대화에 붙여 넣지 않게 하고, 받았더라도 저장소의 어떤 파일에도 적지 않는다.**
-- **Blender**: `blender` 가 PATH 에 있어야 한다. 없으면 `asset.blender` 에 실행 파일 경로를 적는다.
-- 세 서비스 모두 쓴 만큼 돈이 든다. Meshy 는 실패한 작업의 크레딧을 돌려준다. 여러 에셋을 한 번에 돌리기 전에 몇 개인지 말한다.
+  The file has two lines, `OPENAI_API_KEY=...` and `MESHY_API_KEY=...`. To make sounds, add one more line, `ELEVENLABS_API_KEY=...`
+  (the ElevenLabs key must have Sound Effects and Music permissions enabled). **Keep the user from pasting keys into the conversation, and even if you receive one, do not write it to any file in the repository.**
+- **Blender**: `blender` must be on PATH. If not, write the executable path in `asset.blender`.
+- All three services charge by use. Meshy refunds credits for failed jobs. Before running several assets at once, say how many.
 
-## 하지 않는 것
+## Not covered
 
-- 2D(UI 아이콘 · 텍스처)는 아직 없다. 리깅과 애니메이션도 없다 — 움직이지 않는 소품과 지형물까지다.
-  게임이 따로 Meshy 로 리깅했다면 알아 둘 것: 리깅된 glb 는 메쉬가 배율 0.01 인 `Armature` 아래에 있고 스킨 메쉬는 뼈를 따른다 —
-  자리와 크기는 메쉬의 변환이 아니라 뼈로 잰다. 자동 가중치는 차렷 자세에서 걸려 팔의 살이 허벅지 뼈를 따를 수 있다 —
-  팔을 드는 클립을 가까이서 찍어 보고, 가중치를 고친 꼭짓점은 합이 1 인지 센다.
-- 목소리(대사 읽기)는 없다. 음악은 가사 없이 만든다.
-- 엔진에 넣은 뒤의 일(충돌체 · 머티리얼 손질 · 씬에 놓기)은 개발 작업이다. 사이클의 작업으로 쓴다.
+- 2D (UI icons, textures) is not available yet. Neither are rigging and animation — only static props and terrain pieces.
+  If the game rigged with Meshy separately, know this: in a rigged glb the mesh sits under an `Armature` with scale 0.01 and the skinned mesh follows the bones —
+  measure position and size by the bones, not the mesh's transform. Auto weights are bound in the arms-down pose, so arm flesh may follow the thigh bone —
+  capture an arm-raising clip up close, and for vertices whose weights you fixed, check that they sum to 1.
+- No voice (reading lines). Music is made without lyrics.
+- Work after import into the engine (colliders, material touch-up, placing in scenes) is development work. Write it as a cycle task.

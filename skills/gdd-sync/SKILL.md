@@ -1,86 +1,86 @@
 ---
 name: gdd-sync
 description: >-
-  게임 디자인 문서(docs/GDD.md)와 게임 코드를 양방향으로 동기화한다. GDD 부록 A 동기화 표의 ID 와 코드의
-  `GDD: <ID>` 표식을 대조해 불일치·미구현·고아 항목을 찾고, 지정한 방향(GDD→코드 또는 코드→GDD)으로 값을 맞춘 뒤
-  표의 코드 위치와 상태 열을 갱신한다. 엔진을 가리지 않는다 (Godot · Roblox · Unity 등 — kit.config.json 이 정한다).
-  다음 상황이면 반드시 이 스킬을 쓴다: 사용자가 "GDD 동기화", "문서랑 코드 맞춰", "gdd-sync", "GDD 반영",
-  "설계대로 됐는지 확인", "이 수치 GDD에도 반영해" 라고 할 때; GDD 의 수치·목록·규칙을 고쳤을 때; 밸런스 상수·열거·
-  입력 매핑·HUD 구성처럼 GDD 표에 있는 항목을 코드에서 새로 만들거나 바꿨을 때; 새 시스템을 구현하기 시작해 GDD 의
-  미구현 항목에 대응 코드가 생겼을 때. 사용자가 명시적으로 "GDD" 라고 말하지 않아도 위 항목의 값을 바꾸는 작업이면
-  마무리 단계에서 이 스킬로 표를 갱신한다.
+  Syncs the game design document (docs/GDD.md) and the game code in both directions. Matches the IDs in the GDD's 부록 A 동기화 표
+  against `GDD: <ID>` markers in code to find 불일치, 미구현 and 고아 items, aligns values in the given direction (GDD→code or code→GDD),
+  then updates the table's 코드 위치 and 상태 columns. kit.config.json sets the code extensions and symbol shapes.
+  Always use this skill when: the user says "GDD 동기화", "문서랑 코드 맞춰", "gdd-sync", "GDD 반영",
+  "설계대로 됐는지 확인", or asks to reflect a number in the GDD; a number, list or rule in the GDD was edited; an item in the GDD table
+  (balance constant, enum, input mapping, HUD layout) was created or changed in code; a new system's implementation gave a GDD
+  미구현 item matching code. Even if the user does not say "GDD", when the work changes the value of such an item,
+  use this skill to update the table at the wrap-up step.
 ---
 
 # gdd-sync
 
-GDD(`docs/GDD.md`)와 코드는 같은 사실을 두 곳에 적어 둔 것이다. 한쪽만 고치면 다른 쪽이 거짓말을 하게 되고,
-그 거짓말은 몇 주 뒤 "문서엔 90초라는데 왜 60초지?" 로 돌아온다. 이 스킬은 두 곳을 대조하고 한쪽으로 맞춘다.
+The GDD (`docs/GDD.md`) and the code record the same facts in two places. Change only one and the other starts lying,
+and that lie comes back weeks later as "the doc says 90 seconds, why is it 60?". This skill compares the two and aligns them to one side.
 
-동기화 대상은 **GDD 부록 A 동기화 표에 ID 가 있는 항목뿐**이다. 톤, 대사, 아트 방향은 코드에 대응물이 없으므로 다루지 않는다.
+Sync covers **only items with an ID in the GDD's 부록 A 동기화 표**. Tone, dialogue and art direction have no counterpart in code, so they are not handled.
 
-## 인자
+## Arguments
 
-| 호출 | 뜻 |
+| Call | Meaning |
 |---|---|
-| `/gamedev-kit:gdd-sync` | 대조 보고서만. 아무것도 고치지 않는다 |
-| `/gamedev-kit:gdd-sync to-code` | GDD 가 정답. 불일치 항목의 코드를 GDD 값으로 고친다 |
-| `/gamedev-kit:gdd-sync to-gdd` | 코드가 정답. 불일치 항목의 GDD 를 코드 값으로 고친다 |
-| `/gamedev-kit:gdd-sync <ID>` 또는 `/gamedev-kit:gdd-sync to-code BAL.CYCLE.*` | 특정 항목만 |
+| `/gamedev-kit:gdd-sync` | Comparison report only. Changes nothing |
+| `/gamedev-kit:gdd-sync to-code` | GDD is the truth. Fix the code of 불일치 items to the GDD value |
+| `/gamedev-kit:gdd-sync to-gdd` | Code is the truth. Fix the GDD of 불일치 items to the code value |
+| `/gamedev-kit:gdd-sync <ID>` or `/gamedev-kit:gdd-sync to-code BAL.CYCLE.*` | Specific items only |
 
-방향이 없으면 보고서를 낸 뒤 **불일치마다 어느 쪽이 맞는지 사용자에게 묻는다.** 설계 의도가 바뀐 건지 구현하다 편의로
-바꾼 건지는 코드만 봐서는 알 수 없다. 자동 모드에서 방향 없이 호출됐으면 보고서와 함께 각 불일치에 대한 추천 방향을 적고 멈춘다.
+With no direction, produce the report and then **ask the user, for each 불일치, which side is right.** Whether the design intent changed or the value was
+changed for convenience during implementation cannot be known from the code alone. If called in auto mode with no direction, write a recommended direction for each 불일치 alongside the report and stop.
 
-## 절차
+## Procedure
 
-### 1. 대조
+### 1. Compare
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/sync_report.py"
 ```
 
-스크립트가 표의 각 ID 를 코드의 `GDD: <ID>` 표식과 짝짓고 상태를 판정한다.
+The script pairs each ID in the table with the `GDD: <ID>` marker in code and determines the status.
 
-- **동기** — 숫자 항목(BAL, HUD 의 숫자)이 GDD 값과 같다. `20~25` 같은 범위는 안에 들면 동기.
-- **불일치** — 숫자가 다르다. 사람 판단 대상.
-- **동기?** — 열거·규칙·입력처럼 자동 비교가 안 되는 항목에 표식이 있다. **코드를 직접 읽고** 표의 내용과 같은지 본다.
-  예: 열거는 순서까지 같아야 하고, 규칙은 표에 적힌 조건 검사가 실제로 있어야 동기다.
-- **미구현** — 표식이 없다.
-- **고아 표식** — 코드에는 `GDD: X` 가 있는데 표에 X 가 없다. 오타이거나 표에 행을 추가해야 하는 신호.
-- **위치 불일치** — 표에 적힌 코드 위치에 표식이 더 이상 없다. 파일을 옮겼거나 지웠다.
+- **동기** — a numeric item (BAL, numbers in HUD) equals the GDD value. A range like `20~25` is 동기 if the value falls inside.
+- **불일치** — the numbers differ. Needs human judgment.
+- **동기?** — a marker exists on an item that cannot be compared automatically, such as an enum, rule or input. **Read the code yourself** and check it matches the table.
+  E.g. an enum must match down to the order, and a rule is 동기 only if the condition check written in the table actually exists.
+- **미구현** — no marker.
+- **고아 표식** — code has `GDD: X` but the table has no X. A typo, or a sign that a row must be added to the table.
+- **Location mismatch** — the marker is no longer at the code location written in the table. The file was moved or deleted.
 
-`--json` 으로 받으면 다루기 쉽다. `--only <ID>` 로 하나만 볼 수 있다.
+`--json` output is easier to handle. `--only <ID>` shows a single item.
 
-### 2. 판단
+### 2. Judge
 
-**동기?** 항목은 하나씩 코드를 열어 본다. 같으면 동기, 다르면 불일치로 취급한다. 여기서 대충 넘기면 스크립트가 못 잡는
-열거 순서 오류나 규칙 누락이 그대로 남는다 — 이 스킬에서 사람(또는 Claude)이 실제로 값을 더하는 자리가 여기다.
+Open the code for each **동기?** item, one by one. If it matches, treat it as 동기; if not, as 불일치. Skimming here leaves in place
+the enum order errors and missing rules the script cannot catch — this is where a human (or Claude) actually adds value in this skill.
 
-**미구현** 항목은 to-code 모드라도 **새로 만들지 않는다.** 대응 코드가 어디에 들어가야 할지는 설계 결정이고, 이 스킬은
-이미 있는 대응물을 맞추는 도구다. 다만 자연스러운 자리가 이미 있으면(예: 밸런스 값 파일이 있고 BAL 항목 하나가
-빠져 있음) 한 줄 추가는 해도 된다. 그 경계는 "새 파일이나 새 시스템이 필요한가" 다.
+**미구현** items are **not created**, even in to-code mode. Where the matching code should go is a design decision, and this skill is
+a tool for aligning counterparts that already exist. However, if a natural place already exists (e.g. the balance value file exists and one BAL item
+is missing), adding one line is fine. The boundary is "does it need a new file or a new system".
 
-### 3. 반영
+### 3. Apply
 
-**to-code:** 표식이 있는 줄의 값을 GDD 값으로 바꾼다. 범위 값(`20~25`)은 코드 값이 범위 밖일 때만 건드리고, 범위 안이면 둔다.
-바꾼 뒤 그 값을 쓰는 곳에 파생 계산이 있는지 본다 — 표의 비고에 "A 는 B+C 와 같아야 한다" 같은 말이 있으면 같이 맞춘다.
-밸런스 표(xlsx)를 쓰는 프로젝트면 값 파일을 고친 뒤 `balance_table.py export` 로 표도 맞춘다 (balance-table 스킬).
+**to-code:** change the value on the marked line to the GDD value. For a range value (`20~25`), touch the code only if its value is outside the range; leave it if inside.
+After changing, check whether anything using that value has derived calculations — if the table's 비고 says something like "A must equal B+C", align that too.
+If the project uses a balance table (xlsx), after fixing the value file also align the table with `balance_table.py export` (balance-table skill).
 
-**to-gdd:** 표의 값 열을 코드 값으로 바꾸고, **본문의 같은 수치도 함께** 고친다. 출처 열의 절 번호(예: 4.4)로 가서 그 값이
-산문에 나오는 자리를 찾는다. 표만 고치고 본문을 두면 표와 본문이 다시 어긋난다. 비고에 `코드 기준 갱신 YYYY-MM-DD` 를
-덧붙여 나중에 "왜 이 값이지?" 에 답할 수 있게 한다.
+**to-gdd:** change the table's 값 column to the code value, and **also fix the same number in the body text**. Go to the section number in the 출처 column (e.g. 4.4) and find where the value
+appears in prose. Fixing only the table and leaving the body makes the table and body diverge again. Append `코드 기준 갱신 YYYY-MM-DD` to 비고
+so that "why this value?" can be answered later.
 
-값을 바꾸면 그 값에서 파생되는 다른 항목과 본문의 계산 결과("모두 잃기까지 약 18분" 같은 문장)도 따라 바뀐다.
+When a value changes, other items derived from it and computed results in the body (sentences like "모두 잃기까지 약 18분") change with it.
 
-### 4. 표 갱신
+### 4. Update the table
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/sync_report.py" --write
 ```
 
-코드 위치 열과 상태 열을 현재 상태로 다시 쓴다. **값 열은 절대 건드리지 않는다** — 값은 3단계에서 판단하고 고친 것이다.
-`동기?` 는 표에 `동기` 로 적히므로, 2단계에서 불일치로 판단한 항목은 --write 전에 값을 고쳐 두거나 표에 직접 `불일치` 로 적는다.
+Rewrites the 코드 위치 and 상태 columns to the current state. **Never touches the 값 column** — values were judged and fixed in step 3.
+`동기?` is written to the table as `동기`, so for items judged 불일치 in step 2, fix the value before --write or write `불일치` in the table by hand.
 
-### 5. 보고
+### 5. Report
 
 ```
 ## GDD 동기화 결과
@@ -90,10 +90,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/sync_report.py" --write
 - 미구현 중 곧 필요한 것: <ID> (…)
 ```
 
-## 코드 쪽 표식 규칙
+## Marker rules in code
 
-표식은 **값을 정의하는 줄**에 붙인다. 쓰는 줄이 아니다. 스크립트는 같은 줄의 `= 숫자` 를 읽으므로 한 줄에 하나만 둔다.
-주석 기호는 엔진의 것을 쓴다 — 스크립트는 `GDD: <ID>` 글자만 찾는다.
+Put the marker on **the line that defines the value**, not a line that uses it. The script reads `= number` on the same line, so keep one per line.
+Use the engine's comment syntax — the script only looks for the text `GDD: <ID>`.
 
 ```gdscript
 static var CREW_START := 12  # GDD: BAL.CREW.START
@@ -113,9 +113,9 @@ public enum CyclopsState { Active, Eat, Digest } // GDD: ENUM.CYCLOPS_STATE
 bool CanStab() // GDD: RULE.STAB.WINDOW
 ```
 
-규칙(RULE.*)은 그 규칙을 판정하는 함수나 분기 위에 붙인다. 입력(INPUT.*)은 입력을 매핑하는 설정이나 코드에 붙인다.
-어떤 확장자를 훑는지는 `kit.config.json` 의 `gdd-sync.code_ext` 가 정한다.
+A rule (RULE.*) goes above the function or branch that decides it. An input (INPUT.*) goes on the config or code that maps the input.
+`gdd-sync.code_ext` in `kit.config.json` sets which extensions are scanned.
 
-새 항목을 코드에 먼저 만들었으면 GDD 표에 행을 추가하고 본문에도 한 줄 적는다. ID 는 `분류.대상.속성` 형식으로
-기존 것과 나란히 짓는다. 한 번 붙인 ID 는 바꾸지 않는다 — 코드와 문서 양쪽에 박혀 있어서 바꾸면 둘 다 고쳐야 한다.
-항목이 없어지면 행을 지우지 말고 상태를 `폐기` 로 적는다.
+If a new item was created in code first, add a row to the GDD table and write one line in the body too. Name the ID in `category.target.attribute` form,
+alongside existing ones. Never change an ID once assigned — it is embedded in both code and document, so changing it means fixing both.
+When an item goes away, do not delete the row; write its 상태 as `폐기`.

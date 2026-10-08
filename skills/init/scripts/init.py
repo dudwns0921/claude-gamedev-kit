@@ -28,9 +28,9 @@ LOCK_LINE = "~$*.xlsx"
 START, END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"
 BLOCK_RE = re.compile(re.escape(START) + r" · ([0-9a-f]+)[^\n]*-->\n(.*?)\n" + re.escape(END), re.S)
 OWN = """
-## 이 게임의 규칙
+## This game's rules
 
-이 게임에만 맞는 구조 · 함정 · 확인 방법을 여기부터 적는다. 위 블록과 어긋나면 여기 적힌 것이 앞선다.
+Structure, pitfalls and verification methods specific to this game go here. Where they disagree with the block above, what is written here wins.
 """
 
 
@@ -51,8 +51,8 @@ def digest(body):
 
 
 def block(body):
-    return (f"{START} · {digest(body)} — 이 사이는 키트의 규칙이다. 고치지 않는다 (`/gamedev-kit:init rules` 가 통째로 바꾼다). "
-            f"이 게임의 규칙은 블록 밖에 적는다. -->\n{body.strip()}\n{END}\n")
+    return (f"{START} · {digest(body)} — kit rules. Do not edit between these markers (`/gamedev-kit:init rules` replaces the whole block). "
+            f"This game's own rules go outside the block. -->\n{body.strip()}\n{END}\n")
 
 
 def rules_state(root, engine):

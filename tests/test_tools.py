@@ -4,7 +4,7 @@ deploy 는 가짜 butler 로, asset 은 가짜 API 서버로 돌린다 — 밖�
 
   python3 tests/test_tools.py
 
-엔진은 필요 없다. 엔진 문법(GDScript · Luau · C#)으로 적힌 값 파일을 도구가 읽고 고치는지만 본다.
+엔진은 필요 없다. 엔진 문법(GDScript)으로 적힌 값 파일을 도구가 읽고 고치는지만 본다.
 """
 import base64
 import http.server
@@ -52,7 +52,7 @@ def raw_glb():
             + struct.pack("<I4s", len(b), b"BIN\0") + b)
 
 # 엔진이 버전을 적어 두는 파일의 한 줄 (deploy.version 이 이것을 집어야 한다)
-VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3"}
+VERSION_LINE = {"godot": 'config/version="1.2.3"'}
 
 GDD = """# 게임
 
@@ -93,36 +93,6 @@ static func can_pickup() -> bool:  # GDD: RULE.COIN.PICKUP
 
 static var STRAY := 1  # GDD: BAL.STRAY.ONE
 """, "can_pickup"),
-    "roblox": ("""local Balance = {}
---- 시작 체력
-Balance.PLAYER_HP = 100 -- GDD: BAL.PLAYER.HP
-Balance.PLAYER_WALK_SPEED = 4.0 -- GDD: BAL.PLAYER.WALK_SPEED
-Balance.COIN_VALUE = 5 -- GDD: BAL.COIN.VALUE
-Balance.UNMARKED = 2.5 -- 표식 없는 값
-
-local function canPickup() -- GDD: RULE.COIN.PICKUP
-	return true
-end
-
-Balance.STRAY = 1 -- GDD: BAL.STRAY.ONE
-return Balance
-""", "canPickup"),
-    "unity": ("""public static class Balance
-{
-    /// 시작 체력
-    public static int PLAYER_HP = 100; // GDD: BAL.PLAYER.HP
-    public static float PLAYER_WALK_SPEED = 4.0f; // GDD: BAL.PLAYER.WALK_SPEED
-    public static int COIN_VALUE = 5; // GDD: BAL.COIN.VALUE
-    public static float UNMARKED = 2.5f; // 표식 없는 값
-
-    public static bool CanPickup() // GDD: RULE.COIN.PICKUP
-    {
-        return true;
-    }
-
-    public static int STRAY = 1; // GDD: BAL.STRAY.ONE
-}
-""", "CanPickup"),
 }
 
 
@@ -214,7 +184,7 @@ class Tools(unittest.TestCase):
             self.assertIn("정수 값에 소수", run(TABLE, root, "check", ok=False).stderr)
 
     def test_serve(self):
-        root, _code, table, _rel = self.project("roblox")
+        root, _code, table, _rel = self.project("godot")
         run(TABLE, root, "export")
         p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "0"], stdout=subprocess.PIPE, text=True)
         self.addCleanup(p.kill)
@@ -232,7 +202,7 @@ class Tools(unittest.TestCase):
         self.assertNotEqual(one["stamp"], two["stamp"], "저장하면 도장이 바뀐다")
         self.assertEqual(two["values"], {"PLAYER_HP": 80.0}, "숫자가 아닌 칸은 넘긴다")
 
-        # 주소 전체를 요청 줄에 적는 클라이언트 (Lune 이 그렇다)
+        # 주소 전체를 요청 줄에 적는 클라이언트도 있다
         host, port = url.split("/")[2].split(":")
         with socket.create_connection((host, int(port)), timeout=5) as sock:
             sock.sendall(f"GET {url}?x=1 HTTP/1.0\r\n\r\n".encode())
@@ -245,23 +215,6 @@ class Tools(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as e:
             get()
         self.assertEqual(e.exception.code, 503, "읽다 만 파일")
-
-    @unittest.skipUnless(shutil.which("lune"), "lune 이 없다 — brew install lune")
-    def test_roblox_runtime(self):
-        """Balance.luau · BalanceWatch 를 Lune 으로 돌린다. Roblox 쪽은 흉내이고 표 서버는 진짜다."""
-        root, _code, table, _rel = self.project("roblox")
-        files = os.path.join(KIT, "engines/roblox/files")
-        for sub in ("src/shared/Balance.luau", "src/server/BalanceWatch.server.luau"):
-            os.makedirs(os.path.dirname(os.path.join(root, sub)), exist_ok=True)
-            shutil.copy(os.path.join(files, sub), os.path.join(root, sub))
-        os.makedirs(os.path.dirname(table))
-        excel_save(table, {"PLAYER_HP": "130", "PLAYER_WALK_SPEED": "12.5", "COIN_VALUE": "5", "NO_SUCH_NAME": "1"})
-        p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "0"], stdout=subprocess.PIPE, text=True)
-        self.addCleanup(p.kill)
-        url = p.stdout.readline().split(" ")[0]
-        r = subprocess.run(["lune", "run", os.path.join(files, "tests/balance_runtime.luau"), url],
-                           cwd=root, capture_output=True, text=True)
-        self.assertIn("SMOKE OK", r.stdout, r.stdout + r.stderr)
 
     def test_init(self):
         init = os.path.join(KIT, "skills/init/scripts/init.py")
@@ -310,7 +263,7 @@ class Tools(unittest.TestCase):
         put = lambda s: open(path, "w", encoding="utf-8").write(s)
         check = lambda: subprocess.run([sys.executable, init, "--rules-check"], cwd=root, capture_output=True, text=True).stdout
         self.assertRegex(fresh, r"<!-- gamedev-kit 시작 · [0-9a-f]{8} ")
-        self.assertIn("<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙", fresh)
+        self.assertIn("<!-- gamedev-kit 끝 -->\n\n## This game's rules", fresh)
         self.assertIn("지금 판과 같다", run(init, root, engine, "--rules").stdout)
         self.assertEqual(check(), "", "같으면 조용하다")
 
@@ -326,19 +279,19 @@ class Tools(unittest.TestCase):
         self.assertIn("/gamedev-kit:gdd-sync", text())
         self.assertEqual(check(), "")
 
-        put(text().replace("## GDD 와 코드는 항상 같아야 한다", "## GDD 와 코드는 가끔 같아도 된다"))
+        put(text().replace("## The GDD and the code must always agree", "## 가끔 같아도 된다"))
         self.assertIn("손으로 고쳐져", check())
         self.assertIn("덮지 않는다", run(init, root, engine, "--rules", ok=False).stderr)
         self.assertIn("가끔 같아도 된다", text())
         run(init, root, engine, "--rules", "--force")
         self.assertNotIn("가끔 같아도 된다", text())
 
-        put("# 옛 게임\n\n## 밸런스 값은 표에서 고친다\n이 게임에서 고쳐 쓴 말\n")
+        put("# 옛 게임\n\n## Balance values are edited in the table\n이 게임에서 고쳐 쓴 말\n")
         self.assertIn("블록이 없다", check())
         out = run(init, root, engine, "--rules").stdout
         self.assertIn("끝에 키트 규칙 블록을 붙였다", out)
-        self.assertIn("같은 제목의 절이 남아 있다 (옛 판을 옮겨 적은 것): 밸런스 값은 표에서 고친다", out)
-        self.assertTrue(text().startswith("# 옛 게임\n\n## 밸런스 값은 표에서 고친다\n이 게임에서 고쳐 쓴 말\n\n<!-- gamedev-kit 시작"))
+        self.assertIn("같은 제목의 절이 남아 있다 (옛 판을 옮겨 적은 것): Balance values are edited in the table", out)
+        self.assertTrue(text().startswith("# 옛 게임\n\n## Balance values are edited in the table\n이 게임에서 고쳐 쓴 말\n\n<!-- gamedev-kit 시작"))
         put("# 옛 게임\n")
         cfg_path = os.path.join(root, "kit.config.json")
         whole = open(cfg_path, encoding="utf-8").read()

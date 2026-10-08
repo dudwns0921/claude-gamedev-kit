@@ -1,145 +1,145 @@
 ---
 name: cycle
 description: >-
-  게임 개발 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — 를 문서 하나(docs/cycle/)로 끌고 간다.
-  기획자 · 디자이너 · 개발자 · 배포 에이전트가 단계마다 일하고, 정하는 일은 전부 사용자에게 돌아온다.
-  다음 상황이면 이 스킬을 쓴다: 사용자가 "이번 사이클", "다음 버전 만들자", "이번엔 ○○ 를 넣자" 처럼 한 묶음의 목표를 말할 때;
-  "사이클 이어서", "다음 단계", "어디까지 했지" 라고 할 때; 결정을 답해 줄 때("D2 는 ①로"). 한 줄 고치는 일에는 쓰지 않는다.
+  Drives one game-dev cycle — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — through a single document (docs/cycle/).
+  Systems designer, designer, developer and deploy agents work stage by stage; every decision goes back to the user.
+  Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자", "이번엔 ○○ 를 넣자"); says "사이클 이어서",
+  "다음 단계", "어디까지 했지"; or answers a decision ("D2 는 ①로"). Not for one-line fixes.
 ---
 
 # cycle
 
-한 사이클은 **목표 하나를 플레이어 손에 닿게 하는 데까지**다. 단계마다 맡은 에이전트가 일하고, 결과는 사이클 문서 하나에 쌓인다 —
-뒤 단계는 앞 단계의 절을 읽는다. **이 세션은 지휘만 한다.** 여기서 기획 · 디자인하거나 코드를 읽고 고치면 가른 뜻이 없어진다.
+One cycle runs **until one goal reaches the player's hands**. At each stage the agent in charge works, and results accumulate in one cycle document —
+later stages read the earlier stages' sections. **This session only directs.** Doing spec or design here, or reading and editing code, defeats the split.
 
-## 장부는 스크립트로, 세션은 짧게
+## Ledger by script, sessions short
 
-토큰과 시간은 대부분 **이 세션이 턴마다 다시 읽는 양**에서 나간다. 그래서 둘을 지킨다.
+Most tokens and time go to **what this session re-reads every turn**. So keep two rules.
 
-**사이클 문서를 통째로 읽거나 손으로 고치지 않는다.** 문서는 수만 토큰이다. 필요한 줄을 꺼내고 바꾸는 일은 스크립트가 한다:
+**Do not read the cycle document whole or edit it by hand.** The document is tens of thousands of tokens. The script pulls out and changes the lines needed:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" new <짧은-이름> "<목표 — 사용자의 말 그대로>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" status          # 문서마다 한 줄
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" next            # 단계 · 답 없는 결정 · 다음 차수의 작업
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # 작업 하나와 걸린 결정만
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<이유>" · open
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <기획|디자인|계획> "<질문 — ① … ② … · 권함: ①>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<사용자의 답 그대로>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <단계>
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<무엇에 걸렸나 → 어떻게 피하나>"   # 키트로 올릴 것 (회고에서)
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" new <short-name> "<goal — in the user's own words>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" status          # one line per document
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" next            # stage · unanswered decisions · next wave's tasks
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # one task and only the decisions it hangs on
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<reason>" · open
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <기획|디자인|계획> "<question — ① … ② … · 권함: ①>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (in 회고)
 ```
 
-가장 새 문서에 한다 (다른 문서면 `--doc <경로>`). 절을 길게 쓰는 일(플레이 · 배포 · 회고)만 Edit 로 한다 — 그때도 문서 전체가 아니라 그 절의 줄 범위만 읽는다.
+These act on the newest document (for another, `--doc <path>`). Use Edit only for writing long sections (플레이 · 배포 · 회고) — and even then read only that section's line range, not the whole document.
 
-**세션을 끊는다.** 문서에 상태가 다 있으므로 새 세션은 `next` 한 번으로 이어진다. 끊을 자리는 셋이다 —
-결정을 묻고 멈춘 곳, 구현이 끝나 사용자가 플레이할 차례인 곳, 사이클이 끝난 곳. 거기에 오면 한 줄로 권한다:
-"여기서 새 세션을 열어 `/gamedev-kit:cycle next` 로 이으면 가볍다." 사용자가 그냥 가자고 하면 간다.
-한 세션에서 사이클을 둘 이상 잇지 않는다. 사이클 밖의 일(에셋 · 설정 · 다른 저장소)을 같이 하고 있었으면 handoff 스킬로 메모를 남기고 넘어간다.
+**Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
+where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the cycle ended. On reaching one, recommend in one line:
+"Opening a new session here and continuing with `/gamedev-kit:cycle next` is lighter." If the user says just go on, go on.
+Do not chain two or more cycles in one session. If you were also doing work outside the cycle (assets · settings · another repo), leave a note with the handoff skill and move on.
 
-**이 세션에서 하지 않는 것**: 코드 읽기 · 그림 읽기 · 로그 읽기. 전부 에이전트가 하고 요약만 돌아온다. 에이전트의 보고를 사용자에게 옮길 때도 다시 길게 풀어 쓰지 않는다.
+**Not done in this session**: reading code · reading images · reading logs. Agents do all of it and only summaries come back. When relaying an agent's report to the user, do not expand it at length again.
 
-**정하는 사람은 사용자다.** 대신 정해 주는 에이전트는 없다. 에이전트는 "결정할 것" 을 선택지와 권하는 것 하나로 돌려주고,
-이 스킬은 그것을 모아 묻고, 답을 문서의 "결정" 절에 사용자의 말 그대로 적는다. 답이 없는 결정에 걸린 일은 하지 않는다.
+**The user decides.** No agent decides for them. Agents return "Decisions needed" as options plus one recommendation,
+this skill collects and asks them, and writes the answers in the document's "결정" section in the user's own words (verbatim). Do not do work that hangs on an unanswered decision.
 
-| 호출 | 뜻 |
+| Call | Meaning |
 |---|---|
-| `/gamedev-kit:cycle <목표>` | 새 사이클. 기획 · 디자인 · 계획까지 하고 결정을 묻는다 |
-| `/gamedev-kit:cycle next` | 가장 새 사이클의 다음 단계 |
-| `/gamedev-kit:cycle status` | 사이클마다 지금 단계 · 남은 작업 · 답 없는 결정 |
+| `/gamedev-kit:cycle <goal>` | New cycle. Runs through spec · design · plan, then asks the decisions |
+| `/gamedev-kit:cycle next` | Next stage of the newest cycle |
+| `/gamedev-kit:cycle status` | Per cycle: current stage · remaining tasks · unanswered decisions |
 
-## 단계
+## Stages
 
-| | 단계 | 누가 | 문서의 절 | 멈추는 곳 |
+| | Stage | Who | Document section | Stops at |
 |---|---|---|---|---|
-| 1 | 목표 | 사용자 | 목표 | |
+| 1 | 목표 | user | 목표 | |
 | 2 | 기획 | `gamedev-kit:systems-designer` `spec` | 기획 | |
 | 3 | 디자인 | `gamedev-kit:designer` `design` | 디자인 | |
-| 4 | 계획 | `gamedev-kit:developer` `plan` | 작업 · 순서 | **결정을 묻는다** |
-| 5 | 구현 | `gamedev-kit:developer` `build T<n>`, 작업마다 하나 | 작업의 체크 | |
-| 6 | 플레이 | 사용자 (문제는 `/gamedev-kit:playtest`) | 플레이 | **내보낼지 묻는다** |
-| 7 | 배포 | deploy 스킬 | 배포 | |
-| 8 | 회고 | 이 세션이 적고 사용자가 고친다 | 회고 | **다음 목표는 사용자가 정한다** |
+| 4 | 계획 | `gamedev-kit:developer` `plan` | 작업 · 순서 | **ask the decisions** |
+| 5 | 구현 | `gamedev-kit:developer` `build T<n>`, one per task | task checkboxes | |
+| 6 | 플레이 | user (problems go to `/gamedev-kit:playtest`) | 플레이 | **ask whether to ship** |
+| 7 | 배포 | deploy skill | 배포 | |
+| 8 | 회고 | this session writes, the user corrects | 회고 | **the user sets the next goal** |
 
 ### 1. 목표
 
-`new` 로 문서를 만든다 — 목표는 사용자의 말을 다듬지 않고 그대로 넘긴다. 목표가 여러 사이클 크기로 보여도 줄이지 않는다 — 줄일지는 계획 단계에서 선택지로 묻는다.
-스크립트가 `docs/cycle/NN-<짧은-이름>.md` 를 아래 틀로 만들고 지금 커밋을 적는다. 커밋 안 된 변경이 있다고 나오면 알린다.
-앞 사이클의 "회고" 에 "다음에" 가 있으면 사용자에게 한 줄로 상기시킨다.
+Create the document with `new` — pass the goal in the user's words as-is, unpolished. Even if the goal looks several cycles big, do not shrink it — whether to shrink is asked as an option at the 계획 stage.
+The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
+If the previous cycle's "회고" has a "다음에", remind the user in one line.
 
 ### 2. 기획 · 3. 디자인 · 4. 계획
 
-누가 무엇을 맡는가: **기획자**는 게임이 어떻게 돌아가는가(규칙 · 밸런스 수치 · 공간의 구조와 치수), **디자이너**는 그것이 어떻게 보이고 들리는가
-(UI 의 생김새 · 연출 · 소리 · 에셋), **개발자**는 그것을 어떻게 만드는가. 뒤의 에이전트는 앞의 절을 고치지 않고 받아 쓴다.
+Who owns what: the **systems designer** owns how the game works (rules · balance numbers · structure and dimensions of spaces), the **designer** owns how it looks and sounds
+(UI appearance · effects · sound · assets), the **developer** owns how to build it. A later agent does not edit earlier sections; it takes them as given.
 
-기획자 → 디자이너 → 개발자(`plan`) 순서로 하나씩 부른다. 앞이 돌아온 뒤에 다음을 부른다. 넘길 것은 사이클 문서 경로와 모드뿐이다. 네 생각을 붙이지 않는다.
+Call them one at a time in the order systems designer → designer → developer (`plan`). Call the next only after the previous returns. Pass only the cycle document path and the mode. Do not attach your own thoughts.
 
-- 기획자가 "규칙에 닿는 것 없음" 으로 돌아오면 그대로 디자인으로 간다.
-- 기획자의 "결정할 것" 중 규칙을 가르는 것(이 규칙이 A 인가 B 인가)은 **디자인으로 가기 전에 먼저 묻는다** — 그 답에 따라 뒤의 둘이 쓰는 것이 통째로 달라진다.
-  수치의 "시작" 값은 묻지 않는다. 구현된 뒤 표에서 고친다.
-- 디자이너나 개발자가 "기획에 물을 것" 을 돌려주면 그것을 붙여 기획자를 다시 부르고, 기획 절이 바뀌었으면 물은 쪽을 다시 부른다.
-  네가 대신 답하지 않는다.
+- If the systems designer returns "nothing touches the rules", go straight to 디자인.
+- Of the systems designer's "Decisions needed", those that split a rule (is this rule A or B) are **asked first, before going to 디자인** — what the next two write changes wholesale with the answer.
+  Do not ask about "시작" values of numbers. They are tuned in the table after the build.
+- If the designer or developer returns "Questions for spec", call the systems designer again with them attached, and if the "기획" section changed, call the asker again.
+  Do not answer in their place.
 
-디자인 절의 "필요한 에셋" 에 없는 3D 모델이나 소리가 있으면 사용자에게 알린다 — 만들지(asset 스킬), 임시 에셋으로 갈지는 결정으로 묻는다.
-만들기로 하면 구현과 나란히 asset 스킬의 절차를 따른다. 이미지 승인과 소리를 들어 보는 일은 그 스킬에서 사용자가 한다.
+If the "디자인" section's "필요한 에셋" lists a 3D model or sound that does not exist, tell the user — whether to make it (asset skill) or go with a placeholder asset is asked as a decision.
+If the answer is to make it, follow the asset skill's procedure alongside the build. Approving images and listening to sounds are done by the user in that skill.
 
-셋이 돌려준 "결정할 것" 을 번호를 이어(D1 …) `ask` 로 문서의 "결정" 에 적고 사용자에게 한 번에 묻는다 —
-선택지 · 각각이 드는 일 · 권하는 것. 그리고 작업 수와 차수를 보여 준다. **여기서 멈춘다.**
+Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
+options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
-답이 오면 `decide D1 "<사용자의 말 그대로>"` 로 적는다. 답이 기획 · 디자인 · 계획을 바꾸면(범위를 줄였다 · 다른 안을 골랐다)
-그 에이전트를 다시 불러 절을 고치게 하고, 그 뒤 단계의 절도 다시 맞춘다. 사용자가 계획을 직접 고쳐 달라고 한 것도 마찬가지다.
+When answers come, record them with `decide D1 "<the user's words verbatim>"`. If an answer changes the spec · design · plan (scope cut · a different option chosen),
+call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
 
 ### 5. 구현
 
-`next` 가 다음 차수의 작업을 적어 준다 (대기 중인 것은 대기라고 나온다 — 돌리지 않는다). 차수마다, 작업 하나에 개발자 에이전트 하나. 같은 차수는 한 메시지에서 한 번에 부른다.
-넘길 것은 세 줄이다 — `build T<n>`, 문서 경로, 그리고 작업 꺼내기 명령(`python3 <이 스킬의 cycle.py 절대 경로> task T<n> --doc <문서>`). **작업 내용을 옮겨 적지 않는다.**
-엔진 실행 파일의 경로처럼 모든 작업에 똑같이 붙는 말은 프로젝트의 CLAUDE.md 에 한 번 적어 둔다 — 에이전트마다 되풀이해 넘기지 않는다.
-돌아온 결과는 `mark` 로 적는다 (에이전트는 문서를 고치지 않는다): 끝 → `mark T1,T3 done`, 막힘 · 실패 → `mark T2 blocked "<이유>"`.
-막힌 작업을 여기서 직접 고치지 않는다 — 막힌 이유를 붙여 `plan` 을 다시 부를지 사용자에게 묻는다.
+`next` lists the next wave's tasks (pending ones are shown as 대기 — do not run them). Per wave, one developer agent per task. Call the same wave all at once in one message.
+Pass three lines — `build T<n>`, the document path, and the task-extraction command (`python3 <absolute path to this skill's cycle.py> task T<n> --doc <document>`). **Do not copy out the task content.**
+Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
+Record returned results with `mark` (agents do not edit the document): done → `mark T1,T3 done`, blocked · failed → `mark T2 blocked "<reason>"`.
+Do not fix a blocked task here yourself — ask the user whether to call `plan` again with "Why blocked" attached.
 
-모든 차수가 끝나면 한 번에: 값 · 규칙이 바뀌었으면 `/gamedev-kit:gdd-sync to-gdd`, 밸런스 값 파일이 바뀌었으면 balance-table 스킬의 `export`,
-프로젝트의 검증(CLAUDE.md 의 "검증") 전체. 그리고 사용자에게 플레이해 볼 것을 작업의 "사람이 볼 것", 기획의 "플레이해서 볼 것", 디자인의 "사람이 봐야 아는 것" 에서 모아 전한다.
-기획의 수치는 "시작" 값으로 들어가 있다 — 표(`data/balance.xlsx`)에서 어느 값을 움직여 보면 되는지 같이 전한다.
+When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
+the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "플레이해서 볼 것" and the design's "사람이 봐야 아는 것".
+The spec's numbers went in as "시작" values — also say which values in the table (`data/balance.xlsx`) to try moving.
 
 ### 6. 플레이
 
-사용자가 한다. 문제 목록이 오면 `/gamedev-kit:playtest` 로 넘기고, 그 문서 경로를 "플레이" 절에 적는다.
-스크린샷을 주면 디자이너를 `review` 로 불러 볼 수 있다. 몇 번을 돌아도 된다.
-사용자가 표에서 값을 정했다고 하면 balance-table 스킬의 `bake` → `/gamedev-kit:gdd-sync to-gdd`.
-**내보낼지는 사용자가 말한다.** 묻되 권하지 않는다 — 남은 `[ ]` · `[!]` 작업과 열린 플레이테스트 문서가 있으면 그것만 사실로 알린다.
+The user does this. If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "플레이" section.
+If given screenshots, you may call the designer with `review`. Any number of rounds is fine.
+If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
+**The user says whether to ship.** Ask but do not recommend — if `[ ]` · `[!]` tasks or open playtest documents remain, state only those as facts.
 
 ### 7. 배포
 
-사용자가 내보내자고 하면 deploy 스킬의 절차를 따른다. 그 말이 준비까지의 승낙이고, 올리기 전에 대상 · 버전 · 크기를 보여 주고 받는 답이 올리기의 승낙이다.
-배포는 빌드에 붙일 itch.io devlog 초안까지다 — deploy 스킬이 쓰고, 사용자가 붙여 넣는다.
-배포하지 않는 사이클(안에서만 도는 판)이면 건너뛰고 그렇게 적는다. **알리는 일(SNS 등)은 사용자가 직접 한다** — 이 스킬은 글을 쓰지도 올리지도 않는다.
+When the user says ship, follow the deploy skill's procedure. That word is consent up to preparation; the answer given after you show target · version · size before uploading is the consent to upload.
+Deploy goes as far as a draft itch.io devlog to attach to the build — the deploy skill writes it, the user pastes it.
+If the cycle is not deployed (an internal-only build), skip and record that.
 
 ### 8. 회고
 
-"회고" 절을 적는다 — 사실만: 목표 중 된 것과 안 된 것, 막혔던 작업과 이유, 플레이테스트를 몇 번 돌았는지, 미룬 것.
-그 아래 "다음에" 에 미룬 것과 플레이에서 나온 것을 후보로 늘어놓는다. 고르지 않는다.
-**배운 것을 둘로 가른다.** 이번 사이클에서 걸려 넘어진 것 · 손으로 한 엔진 설정 · 새로 찾은 확인 방법을 (막힌 작업의 이유, 에이전트가 돌려준 "문서와 다르게 한 것",
-플레이테스트 문서에서) 모아 하나씩 본다:
+Write the "회고" section — facts only: which goals were met and which were not, tasks that were blocked and why, how many playtest rounds, what was deferred.
+Under it, in "다음에", list deferred items and things that came out of play as candidates. Do not pick.
+**Split what was learned in two.** Collect what tripped this cycle up · engine settings done by hand · newly found ways to check (from the reasons tasks were blocked, the agents' returned "Deviations from the document",
+and the playtest documents) and look at each:
 
-- **이 게임만의 것** (이 게임의 구조 · 규칙 · 이름에 기대는 것) → 프로젝트의 CLAUDE.md "함정" 에 적을지 묻는다.
-- **이 게임만의 것이 아닌 것** (같은 엔진의 다른 게임도 걸릴 것, 키트 도구가 모자랐던 것) → `lesson` 으로 한 줄씩 `docs/kit-feedback.md` 에 쌓는다.
-  게임의 이름 · 파일 · 숫자를 빼고도 뜻이 통하게 쓴다: "무엇에 걸렸나 → 어떻게 피하나(확인하나)". 프로젝트의 CLAUDE.md 에도 필요하면 둘 다에 적는다.
+- **Specific to this game** (relies on this game's structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
+- **Not specific to this game** (another game on the same engine would hit it, or a kit tool fell short) → add one line each to `docs/kit-feedback.md` with `lesson`.
+  Write it so it makes sense without the game's names · files · numbers: "what tripped us → how to avoid (check) it". If the project's CLAUDE.md needs it too, write it in both.
 
-가르기 어려우면 묻는다: "다음에 다른 게임을 만들 때도 이걸 알아야 하는가?" 없으면 적지 않는다 — 억지로 채우지 않는다.
+If the split is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
 
-## 사이클 문서
+## Cycle document
 
 ```markdown
-# 사이클 NN — <짧은 이름>
+# 사이클 NN — <short name>
 
-시작: <날짜> · 커밋 <해시 7자> · 단계: 목표
+시작: <date> · 커밋 <7-char hash> · 단계: 목표
 
 ## 목표
-사용자의 말 그대로.
+In the user's own words (verbatim).
 
 ## 결정
-- [ ] D1. <질문> — ① … ② … · 권함: ① (누가 권했는지: 기획 | 디자인 | 계획)
-- [x] D2. <질문> → <사용자의 답 그대로> (<날짜>)
+- [ ] D1. <question> — ① … ② … · 권함: ① (who recommended it: 기획 | 디자인 | 계획)
+- [x] D2. <question> → <the user's answer verbatim> (<date>)
 
 ## 기획
 ## 디자인
@@ -150,17 +150,17 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<무엇에 걸렸나 → 
 ## 회고
 ```
 
-머리의 `단계:` 는 단계가 바뀔 때마다 `stage` 로 고친다. `next` 와 `status` 는 그 줄을 읽는다. 단계 이름은 짧게 — 사정은 그 절에 적는다.
+Update the header's `단계:` with `stage` every time the stage changes. `next` and `status` read that line. Keep the stage name short — circumstances go in that section.
 
 ## next
 
-`cycle.py next` 를 돌려 거기서 이어 간다 — 문서를 읽지 않는다. `## 기획` 절이 없는 문서(이 단계가 생기기 전에 만든 것)가 디자인이나 계획 앞에 서 있으면
-기획부터 부른다 — 기획자가 절을 만든다. 구현이 이미 시작된 문서는 그대로 이어 간다. 멈추는 곳(결정 · 내보낼지)에 서 있으면 다시 묻는다 — 답 없이 넘어가지 않는다.
+Run `cycle.py next` and continue from there — do not read the document. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
+call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions · whether to ship), ask again — do not move on without an answer.
 
 ## status
 
-`cycle.py status` 의 출력을 그대로 전한다.
+Relay the output of `cycle.py status` as-is.
 
-## 문서는 남긴다
+## Keep the documents
 
-끝난 사이클 문서도 지우지 않는다. 다음 사이클의 기획자 · 디자이너 · 개발자가 앞 사이클의 결정을 읽고 같은 질문을 다시 하지 않는다.
+Do not delete finished cycle documents either. The next cycle's systems designer · designer · developer read the previous cycles' decisions and do not ask the same questions again.

@@ -1,49 +1,49 @@
 
-## 역할 분담 (Godot)
+## Roles (Godot)
 
-- **사용자**: 에셋을 만들고 게임을 해 본다. 코드 · 씬 · 설정은 손대지 않는다.
-- **Claude**: 코드 · 씬 · 설정 · 문서 전부. 사용자에게 Godot 에디터 조작을 부탁하지 않는다 — 설정은 파일로 쓰고, 확인은 헤드리스 테스트와 캡처로 한다.
+- **User**: makes assets and plays the game. Does not touch code · scenes · settings.
+- **Claude**: all code · scenes · settings · documents. Do not ask the user to operate the Godot editor — write settings as files, and verify with headless tests and captures.
 
-## 실행
+## Running
 
-Godot 실행 파일은 기계마다 자리가 다르다 (`godot` 가 PATH 에 없는 경우가 많다). 아래에 기계별 경로를 적어 둔다 — 에이전트마다 되풀이해 넘기지 않게.
+The Godot executable lives in a different place on each machine (`godot` is often not on PATH). Write the per-machine paths below — so they are not passed again to every agent.
 
 ```bash
-<Godot 실행 파일> --path .                     # 게임
-<Godot 실행 파일> --headless --path . --import   # 새로 받은 저장소, 또는 모델 · 소리 · 재질 파일이 바뀐 뒤 — 테스트 전에 한 번
+<Godot executable> --path .                     # the game
+<Godot executable> --headless --path . --import   # a freshly cloned repo, or after model · sound · material files changed — once before tests
 ```
 
-- `--import` 는 **`project.godot` 을 다시 쓴다** (줄 순서가 바뀌고, 에디터 플러그인이 넣어 둔 오토로드 줄이 지워질 수 있다).
-  돌린 뒤 `git diff project.godot` 을 보고, 뜻하지 않게 바뀌었으면 되돌린다. 에디터가 켜진 채로는 돌리지 않는다.
-- `docs/` · `assets/_gen/` 처럼 Godot 이 가져오면 안 되는 폴더에는 빈 `.gdignore` 파일을 둔다.
+- `--import` **rewrites `project.godot`** (line order changes, and autoload lines added by editor plugins can be erased).
+  After running it look at `git diff project.godot`, and revert if it changed unintentionally. Do not run it while the editor is open.
+- Put an empty `.gdignore` file in folders Godot must not import, like `docs/` · `assets/_gen/`.
 
-## 검증
+## Verification
 
-화면 없이 확인되는 것은 전부 헤드리스 테스트로 만든다. 사용자에게 "해 보고 알려 달라" 고 하기 전에 돌린다.
+Everything that can be verified without a screen becomes a headless test. Run them before asking the user to "try it and tell me".
 
-- **규칙은 씬 없이.** 판정(되는가 · 안 되는가 · 몇 초인가)은 노드도 입력도 모르는 스크립트에 두고, 그 스크립트만 불러 돌리는 테스트를 쓴다 — 1초 안에 끝난다.
-- **흐름은 스모크로.** 게임이 실제로 띄우는 씬을 자식으로 붙여 입력을 넣고 상태를 본다: `<godot> --headless --path . res://tests/smoke_<이름>.tscn`.
-- **화면(색 · 배치 · HUD)은 캡처로.** 창을 잠깐 띄워 정해진 장면을 찍는 씬을 둔다 (`res://tests/capture_<이름>.tscn -- <폴더>`). 찍은 그림은 Claude 가 읽어 본다.
-  **화면이 잠겨 있거나 창이 가려지면 찍히지 않는다** (그리지 않는다). 창이 마우스를 잡으면 찍는 동안의 마우스 움직임이 구도를 바꾼다.
-- **움직임은 프레임으로.** `<godot> --path . --write-movie <폴더>/<장면>.png --fixed-fps 10 --resolution 800x450 res://tests/capture_play.tscn -- <장면>`.
-- 헤드리스 출력의 `Parameter "material" is null` 은 렌더러가 없어서 나는 소음이다. `SCRIPT ERROR` 만 본다.
-- **헤드리스는 셰이더를 컴파일하지 않는다.** 셰이더를 고쳤으면 캡처 씬을 창으로 한 번 돌려 출력의 `SHADER ERROR` 를 본다.
+- **Rules without scenes.** Keep rulings (does it work · does it not · how many seconds) in a script that knows neither nodes nor input, and write a test that loads and runs only that script — it finishes within 1 second.
+- **Flow by smoke test.** Attach the scene the game actually launches as a child, feed input and look at state: `<godot> --headless --path . res://tests/smoke_<name>.tscn`.
+- **Screen (color · layout · HUD) by capture.** Keep a scene that briefly opens a window and shoots set scenes (`res://tests/capture_<name>.tscn -- <folder>`). Claude reads the captured images.
+  **If the screen is locked or the window is covered, nothing is captured** (it does not draw). If the window grabs the mouse, mouse movement during the shot changes the framing.
+- **Motion by frames.** `<godot> --path . --write-movie <folder>/<scene>.png --fixed-fps 10 --resolution 800x450 res://tests/capture_play.tscn -- <scene>`.
+- `Parameter "material" is null` in headless output is noise from having no renderer. Look only at `SCRIPT ERROR`.
+- **Headless does not compile shaders.** If you changed a shader, run the capture scene once in a window and look for `SHADER ERROR` in the output.
 
-## 함정 (Godot)
+## Pitfalls (Godot)
 
-1. **`class_name` 을 쓰지 않는다 — `const X := preload("res://…")` 로 잡는다.** 새 `class_name` 은 에디터가 스캔하기 전까지 없는 클래스라,
-   새로 받은 저장소의 헤드리스 테스트가 뜨지 않는다. (키트가 까는 `Balance` 는 `--import` 한 번으로 스캔된다.)
-2. **입력 액션은 키 하나에 이벤트 둘** — `physical_keycode` 만 든 것과 `keycode` 만 든 것. 한 이벤트에 둘 다 채우면 Godot 은 keycode 로만 맞춰 보는데,
-   한글 입력 상태에서는 W 가 다른 keycode 로 와서 WASD 가 먹지 않는다.
-3. **테스트에서 한 번 누르는 키는 `Input.parse_input_event(InputEventAction)` 으로 넣는다.** `Input.action_press` 는 부른 프레임에만 "방금 눌렸다" 라서,
-   타이머 뒤에 부르면 게임의 `_process` 가 그 프레임을 이미 지나쳤다. 누르고 있는 키는 `action_press` 로 된다.
-4. **`project.godot` 에 주석을 쓰지 않는다.** 에디터나 임포트가 파일을 다시 쓸 때 `#` 줄은 깨진 키가 되고 바로 아래 설정 줄이 사라진다. 까닭은 CLAUDE.md 에 적는다.
-5. **오토로드를 `get_node("/root/이름")` 으로 잡았으면 그 반환값에 `:=` 를 쓰지 않는다.** 타입이 `Node` 라 "Cannot infer the type" 파스 오류가 나고,
-   그 스크립트를 쓰는 씬 전체가 뜨지 않는다 — 증상은 엉뚱한 곳에서 나온다. 타입을 직접 적는다 (`var x: Array[int] = …`).
-6. **물리 보간을 켠 프로젝트에서 `_process` 로 직접 옮기는 노드는 보간을 끈다.** 보간하면 한 틱 늦게 떤다.
-   보간되는 물체를 따라가는 것은 그 물체의 보간된 자리를 따라간다.
-7. **클립을 첫 프레임에 멈출 때 `speed_scale = 0` 을 쓰지 않는다.** 섞임(blend)도 같이 멈춰 앞 클립의 자세로 굳는다 — `play(clip, blend, 0.0)` 뒤 `seek(0.0, true)`.
-8. **제 스크립트의 메서드 이름이 GDScript 내장 함수와 겹치면 `self.` 를 붙여 부른다.** `wrap(...)` 처럼 맨 이름으로 부르면 내장 함수로 읽혀 파스 오류가 난다.
-9. **일시정지를 쓰는 게임을 테스트가 자식으로 붙일 때** 테스트의 `process_mode` 가 ALWAYS 면 게임도 물려받아 일시정지가 먹지 않는다 — 게임 노드에 PAUSABLE 을 적는다.
-   메뉴가 트리를 멈추는 동안에는 타이머를 기다리는 테스트도 멈춘다.
-10. **웹 빌드는 1배로 그린다** — `project.godot` 에 `window/dpi/allow_hidpi.web=false`. 레티나에서 2배 픽셀로 그리면 4~5 fps 가 된다.
+1. **Do not use `class_name` — bind with `const X := preload("res://…")`.** A new `class_name` is a nonexistent class until the editor scans it,
+   so headless tests in a freshly cloned repo do not start. (The `Balance` the kit installs is scanned by one `--import`.)
+2. **Input actions get two events per key** — one with only `physical_keycode` and one with only `keycode`. If both are filled in one event Godot matches by keycode only,
+   and under Korean input mode W arrives as a different keycode, so WASD does not respond.
+3. **In tests, inject a key pressed once with `Input.parse_input_event(InputEventAction)`.** `Input.action_press` is "just pressed" only in the frame it is called,
+   so if called after a timer the game's `_process` has already passed that frame. A held key works with `action_press`.
+4. **Do not write comments in `project.godot`.** When the editor or import rewrites the file, a `#` line becomes a broken key and the setting line right below it disappears. Write the reason in CLAUDE.md.
+5. **If you got an autoload with `get_node("/root/Name")`, do not use `:=` on its return value.** The type is `Node`, so you get a "Cannot infer the type" parse error,
+   and every scene using that script fails to start — the symptom shows up somewhere unrelated. Write the type explicitly (`var x: Array[int] = …`).
+6. **In a project with physics interpolation on, turn interpolation off for nodes moved directly in `_process`.** Interpolated, they jitter one tick late.
+   Something that follows an interpolated object follows that object's interpolated position.
+7. **Do not use `speed_scale = 0` to hold a clip on its first frame.** The blend stops too and it freezes in the previous clip's pose — `play(clip, blend, 0.0)` then `seek(0.0, true)`.
+8. **If a method name in your own script collides with a GDScript built-in function, call it with `self.`.** Called by bare name like `wrap(...)`, it is read as the built-in and gives a parse error.
+9. **When a test attaches a game that uses pause as a child,** if the test's `process_mode` is ALWAYS the game inherits it and pause does not take effect — set PAUSABLE on the game node.
+   While a menu pauses the tree, a test waiting on a timer is paused too.
+10. **Web builds render at 1x** — `window/dpi/allow_hidpi.web=false` in `project.godot`. Rendering at 2x pixels on Retina gives 4~5 fps.
