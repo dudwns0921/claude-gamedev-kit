@@ -68,10 +68,13 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 ```
 
 - `sections` — GDD sections whose table rows belong here. `ids` — row IDs (globs) that belong here whatever their section; wins over `sections`.
-- `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "게임 전체".
+- `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "미분류".
 - `words` — words that pull playtest tasks and open questions without a table ID to this stage.
 - `image` — the card's picture (a capture). Without it the first art thumbnail is used. `loop` — consecutive stages that repeat get one bracket.
-- Rows, assets and questions no stage claims are shown under "게임 전체" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
+- Rows, assets and questions no stage claims are shown under "미분류" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
+
+- `"ignore"` (beside `flow`) — asset names (globs) not to count: planned in a cycle document, then dropped.
+- "미분류" is not part of the completion %. It is a to-do for the flow: place what is there, or ignore it.
 
 Other keys: `"out"`, `"gdd"`, `"cycles"`, `"playtests"`, `"gen"`, `"notes"`, `"reload_sec"`.
 

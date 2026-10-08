@@ -31,7 +31,8 @@ DEFAULTS = {
     "assets": "assets",
     "notes": "docs/board-notes.md",  # 사용자가 해 보고 적는 것: `- 단계 | 칸 | 문제 | 글`
     "open_heading": "미정",         # GDD 에서 "아직 못 정한 것" 을 적는 절의 제목에 든 말
-    "common": "게임 전체",          # 어느 단계에도 안 드는 것이 모이는 곳
+    "common": "미분류",             # 어느 단계에도 안 드는 것이 모이는 곳 — 완성 % 에는 들지 않는다
+    "ignore": [],                  # 세지 않을 에셋 이름 (glob) — 계획만 되고 버린 것
     "flow": [],                    # 플레이 순서의 단계들. 비면 GDD 절마다 하나
 }
 STATES = ["동기", "불일치", "미구현", "폐기"]
@@ -265,6 +266,8 @@ def asset_items(st, where, cycles, tasks):
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
             found[name] = dict(item("done", name, "기록 없음", audio=sound(path)), lane="사운드" if sound(path) else "아트")
     for name, it in found.items():
+        if any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
+            continue
         s = next((s for s in st if any(fnmatch.fnmatchcase(name, g) for g in s["assets"])), None)
         if not s:
             pat = re.compile(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])")
@@ -505,7 +508,7 @@ def index_html(name, st, asks, now, stamp):
     flow = [s for s in st if not s["common"]]
     everything = [i for s in st for lane in LANES for i in s["lanes"][lane]]
     c = tally(everything)
-    pcts = [p for p in (stage_pct(s) for s in st) if p is not None]
+    pcts = [p for p in (stage_pct(s) for s in flow) if p is not None]
     total = round(sum(pcts) / len(pcts)) if pcts else 0
     tiles = [("gold", "완성", f"{total}%"), ("", "지금", f'{now["num"]} · {now["stage"]}' if now else "—"), ("", "임시로 둔 것", c["temp"]),
              ("", "안 만든 것", c["none"]), ("red" if c["bad"] else "", "문제", c["bad"]), ("red" if asks else "", "못 정한 것", len(asks))]
@@ -529,7 +532,8 @@ def index_html(name, st, asks, now, stamp):
                     f'<b>{e(q["title"])}</b><span>{e(q["text"]) or "&nbsp;"}</span></a>' for q in shown)
     strip += f'<span class="ask more">+{len(asks) - len(shown)}</span>' if len(asks) > len(shown) else ""
     rest = st[-1]
-    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">단계 밖</span><b>{e(rest["name"])}</b>{lane_rows(rest)}'
+    stray = sum(len(v) for v in rest["lanes"].values())
+    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">어느 단계에도 안 든 것</span><b>{e(rest["name"])} {stray}</b>{lane_rows(rest)}'
                  f'<span class="chip go" style="margin-left:auto">자세히 →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
     body = (f'<header><div><div class="lab">항해도 · 플레이어가 겪는 순서대로</div><h1>{e(name)} <span>완성까지</span></h1>'
             f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}</div></div>'
@@ -614,8 +618,8 @@ def build(outdir, index_name):
                 touched.setdefault(i, []).append(f'{c["num"]}·{t["num"]}')
     for r in rows:
         s = place_row(st, r)
-        where[r["id"]] = s["i"]
         if r["state"] != "폐기":
+            where[r["id"]] = s["i"]
             s["lanes"]["기능"].append(item({"동기": "done", "불일치": "bad"}.get(r["state"], "none"), r["value"], r["note"], code=r["id"],
                                          tags=touched.get(r["id"], [])[-3:]))
     asset_items(st, where, cycles, [t for d in cycles + playtests for t in d["tasks"]])
