@@ -275,12 +275,13 @@ class Tools(unittest.TestCase):
                 self.assertIn("/gamedev-kit:gdd-sync", claude)
                 extra = os.path.join(KIT, "engines", engine, "CLAUDE.md")
                 if os.path.exists(extra):
-                    self.assertIn(open(extra, encoding="utf-8").read(), claude)
+                    self.assertIn(open(extra, encoding="utf-8").read().strip(), claude)
+                self.rules_block(init, root, engine, claude)
                 open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8").write("내 규칙")
                 again = run(init, root, engine).stdout
                 self.assertNotIn("새로", again, "두 번째에는 아무것도 만들지 않는다")
                 self.assertEqual(open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read(), "내 규칙")
-                self.assertIn("옮겨 적는다", again)
+                self.assertIn("블록이 없다 — `--rules`", again)
                 self.assertNotIn("없는 절", again, "방금 깐 설정에는 빠진 절이 없다")
                 engine_files = os.path.join(KIT, "engines", engine, "files")
                 if os.path.exists(engine_files):  # 값 파일을 옮긴 프로젝트 — 다시 깔아도 틀이 또 생기지 않는다
@@ -301,6 +302,53 @@ class Tools(unittest.TestCase):
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("같다", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
                     self.assertIn("| 동기 | 3 |", run(REPORT, root).stdout, "틀의 예시 세 행이 값 파일과 짝이 맞는다")
+
+    def rules_block(self, init, root, engine, fresh):
+        """CLAUDE.md 에서 키트의 것은 블록 하나다 — 판이 오르면 그 사이만 바뀌고 밖은 그대로다."""
+        path = os.path.join(root, "CLAUDE.md")
+        text = lambda: open(path, encoding="utf-8").read()
+        put = lambda s: open(path, "w", encoding="utf-8").write(s)
+        check = lambda: subprocess.run([sys.executable, init, "--rules-check"], cwd=root, capture_output=True, text=True).stdout
+        self.assertRegex(fresh, r"<!-- gamedev-kit 시작 · [0-9a-f]{8} ")
+        self.assertIn("<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙", fresh)
+        self.assertIn("지금 판과 같다", run(init, root, engine, "--rules").stdout)
+        self.assertEqual(check(), "", "같으면 조용하다")
+
+        old = "## 옛 규칙\n옛 말"
+        mark = __import__("hashlib").sha1(old.encode()).hexdigest()[:8]
+        put(f"# 내 게임\n\n<!-- gamedev-kit 시작 · {mark} — 옛 판 -->\n{old}\n<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n")
+        self.assertIn("옛 판이다", check())
+        self.assertIn("옛 판이다 — `--rules`", run(init, root, engine).stdout)
+        self.assertIn("지금 판으로 바꿨다", run(init, root, engine, "--rules").stdout)
+        self.assertTrue(text().startswith("# 내 게임\n\n<!-- gamedev-kit 시작 · "))
+        self.assertTrue(text().endswith("<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n"), "블록 밖은 그대로다")
+        self.assertNotIn("옛 말", text())
+        self.assertIn("/gamedev-kit:gdd-sync", text())
+        self.assertEqual(check(), "")
+
+        put(text().replace("## GDD 와 코드는 항상 같아야 한다", "## GDD 와 코드는 가끔 같아도 된다"))
+        self.assertIn("손으로 고쳐져", check())
+        self.assertIn("덮지 않는다", run(init, root, engine, "--rules", ok=False).stderr)
+        self.assertIn("가끔 같아도 된다", text())
+        run(init, root, engine, "--rules", "--force")
+        self.assertNotIn("가끔 같아도 된다", text())
+
+        put("# 옛 게임\n\n## 밸런스 값은 표에서 고친다\n이 게임에서 고쳐 쓴 말\n")
+        self.assertIn("블록이 없다", check())
+        out = run(init, root, engine, "--rules").stdout
+        self.assertIn("끝에 키트 규칙 블록을 붙였다", out)
+        self.assertIn("같은 제목의 절이 남아 있다 (옛 판을 옮겨 적은 것): 밸런스 값은 표에서 고친다", out)
+        self.assertTrue(text().startswith("# 옛 게임\n\n## 밸런스 값은 표에서 고친다\n이 게임에서 고쳐 쓴 말\n\n<!-- gamedev-kit 시작"))
+        put("# 옛 게임\n")
+        cfg_path = os.path.join(root, "kit.config.json")
+        whole = open(cfg_path, encoding="utf-8").read()
+        json.dump(dict(json.loads(whole), init={"rules": False}), open(cfg_path, "w"))
+        self.assertEqual(check(), "", "알리지 말라고 했으면 조용하다")
+        open(cfg_path, "w", encoding="utf-8").write(whole)
+        os.remove(path)
+        self.assertEqual(check(), "")
+        self.assertIn("새로 만들었다", run(init, root, engine, "--rules").stdout)
+        self.assertEqual(text().replace("\r", ""), fresh)
 
     def test_no_config(self):
         root = tempfile.mkdtemp(prefix="kit-none-")

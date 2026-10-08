@@ -4,7 +4,7 @@
 
 | 스킬 | 하는 일 |
 |---|---|
-| `/gamedev-kit:init` | 게임 저장소에 설정 · GDD 틀 · CLAUDE.md 규칙 · 런타임 틀을 깐다 |
+| `/gamedev-kit:init` | 게임 저장소에 설정 · GDD 틀 · CLAUDE.md 규칙 · 런타임 틀을 깐다. `rules` 는 키트가 판을 올린 뒤 CLAUDE.md 의 키트 규칙 블록만 맞춘다 |
 | `/gamedev-kit:gdd-sync` | GDD 부록 A 동기화 표와 코드의 `GDD: <ID>` 표식을 대조하고 한쪽으로 맞춘다 |
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
@@ -94,7 +94,7 @@ skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scr
 agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일만 에이전트로 둔다
 engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙 — 검증 방법과 함정. 게임에서 배운 것이 여기로 돌아온다) · files/(게임에 복사될 틀)
 templates/          GDD.md · DESIGN.md · CLAUDE.md — 게임 저장소에 깔리는 틀
-hooks/              세션의 컨텍스트가 커지면 새 세션을 권하게 하는 훅 하나
+hooks/              훅 둘 — 세션의 컨텍스트가 커지면 새 세션을 권하게 하고, 게임의 CLAUDE.md 에 든 키트 규칙이 옛 판이면 알린다
 tools/              session_usage.py — 게임 저장소의 세션 기록에서 토큰이 어디로 갔는지 센다 · kit_feedback.py — 게임들에 쌓인 "키트로 올릴 것" 을 모은다
 tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사
 ```

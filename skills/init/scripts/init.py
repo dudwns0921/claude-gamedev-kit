@@ -4,23 +4,110 @@
   python3 init.py              깔 수 있는 엔진을 적는다
   python3 init.py <엔진>       설정 · GDD 틀 · 런타임 틀을 깐다
   python3 init.py <엔진> --files   이미 깐 프로젝트에서 엔진 틀(값 파일 · 런타임)도 없는 것을 다시 깐다
+  python3 init.py <엔진> --rules   CLAUDE.md 의 키트 규칙 블록을 지금 판으로 맞춘다 (없으면 끝에 붙인다). 블록 밖은 건드리지 않는다
+  python3 init.py --rules-check    블록이 없거나 옛 판이면 한 줄 적는다 (세션이 시작될 때 훅이 부른다. 같으면 조용하다)
 
 이미 있는 파일은 건드리지 않는다 — 몇 번을 돌려도 같다.
 이미 깐 프로젝트(kit.config.json 이 있다)에서 다시 돌리면 엔진 틀은 건너뛴다: 값 파일을 옮겼거나 틀을 일부러 지운 프로젝트에
 같은 파일을 또 만들지 않게 (Godot 은 `class_name` 이 둘이면 뜨지 않는다). 대신 그 뒤로 키트에 생긴 설정 절을 알려 준다.
+
+CLAUDE.md 에서 키트의 것은 `<!-- gamedev-kit 시작 … -->` 과 `<!-- gamedev-kit 끝 -->` 사이뿐이다 (공통 규칙 + 엔진 규칙).
+키트가 판을 올리면 --rules 가 그 사이만 통째로 바꾼다 — 게임의 규칙은 블록 밖에 있고 건드리지 않는다.
+블록 안을 손으로 고쳤으면 덮지 않고 멈춘다 (고친 것을 밖으로 옮기거나 --force).
 """
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 
 KIT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 ENGINES = os.path.join(KIT, "engines")
 LOCK_LINE = "~$*.xlsx"
+START, END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"
+BLOCK_RE = re.compile(re.escape(START) + r" · ([0-9a-f]+)[^\n]*-->\n(.*?)\n" + re.escape(END), re.S)
+OWN = """
+## 이 게임의 규칙
+
+이 게임에만 맞는 구조 · 함정 · 확인 방법을 여기부터 적는다. 위 블록과 어긋나면 여기 적힌 것이 앞선다.
+"""
 
 
 def engines():
     return sorted(d for d in os.listdir(ENGINES) if os.path.exists(os.path.join(ENGINES, d, "kit.config.json")))
+
+
+def rules(engine):
+    """(머리, 규칙 본문) — 본문은 공통 틀의 절들과 그 엔진의 규칙이다."""
+    head, body = open(os.path.join(KIT, "templates", "CLAUDE.md"), encoding="utf-8").read().split("\n## ", 1)
+    extra = os.path.join(ENGINES, engine, "CLAUDE.md")  # 그 엔진에서만 맞는 규칙 (실행 · 검증 · 함정)
+    more = open(extra, encoding="utf-8").read().strip() if os.path.exists(extra) else ""
+    return head.strip() + "\n", ("## " + body.strip() + ("\n\n" + more if more else "")).strip()
+
+
+def digest(body):
+    return hashlib.sha1(body.strip().encode("utf-8")).hexdigest()[:8]
+
+
+def block(body):
+    return (f"{START} · {digest(body)} — 이 사이는 키트의 규칙이다. 고치지 않는다 (`/gamedev-kit:init rules` 가 통째로 바꾼다). "
+            f"이 게임의 규칙은 블록 밖에 적는다. -->\n{body.strip()}\n{END}\n")
+
+
+def rules_state(root, engine):
+    """none(블록이 없다) · same · stale(키트가 판을 올렸다) · edited(블록 안을 손으로 고쳤다). CLAUDE.md 가 없으면 None."""
+    path = os.path.join(root, "CLAUDE.md")
+    if not os.path.exists(path):
+        return None
+    m = BLOCK_RE.search(open(path, encoding="utf-8").read())
+    if not m:
+        return "none"
+    if digest(m.group(2)) != m.group(1):
+        return "edited"
+    return "same" if m.group(1) == digest(rules(engine)[1]) else "stale"
+
+
+def sync_rules(root, engine, force):
+    path = os.path.join(root, "CLAUDE.md")
+    head, body = rules(engine)
+    state = rules_state(root, engine)
+    if state is None:
+        open(path, "w", encoding="utf-8").write(head + "\n" + block(body) + OWN)
+        return print("CLAUDE.md 를 새로 만들었다 — `<게임 이름>` 을 채운다")
+    text = open(path, encoding="utf-8").read()
+    if state == "same":
+        return print("CLAUDE.md 의 키트 규칙은 지금 판과 같다")
+    if state == "edited" and not force:
+        sys.exit("CLAUDE.md 의 키트 규칙 블록 안이 손으로 고쳐졌다 — 덮지 않는다. 고친 것을 블록 밖으로 옮기고 다시 돌리거나, 버려도 되면 --force")
+    if state == "none":
+        titles = [t for t in re.findall(r"^## (.+)$", body, re.M) if re.search(rf"^## {re.escape(t)}\s*$", text, re.M)]
+        open(path, "w", encoding="utf-8").write(text.rstrip("\n") + "\n\n" + block(body))
+        print("CLAUDE.md 끝에 키트 규칙 블록을 붙였다 — 있던 글은 그대로다")
+        if titles:
+            print("블록 밖에 같은 제목의 절이 남아 있다 (옛 판을 옮겨 적은 것): " + " · ".join(titles)
+                  + "\n겹치는 말은 블록 밖에서 지우고, 이 게임에서 고쳐 쓴 말만 밖에 남긴다 — 지우기 전에 사용자에게 보인다")
+        return None
+    open(path, "w", encoding="utf-8").write(BLOCK_RE.sub(lambda m: block(body).rstrip("\n"), text, count=1))
+    print("CLAUDE.md 의 키트 규칙 블록을 지금 판으로 바꿨다 — 블록 밖은 그대로다")
+
+
+def check_rules():
+    """세션이 시작될 때 훅이 부른다. 할 말이 없으면 조용하다. 무슨 일이 있어도 0 으로 끝난다."""
+    d = os.getcwd()
+    while not os.path.exists(os.path.join(d, "kit.config.json")):
+        if os.path.dirname(d) == d:
+            return
+        d = os.path.dirname(d)
+    cfg = json.load(open(os.path.join(d, "kit.config.json"), encoding="utf-8"))
+    if cfg.get("engine") not in engines() or cfg.get("init", {}).get("rules") is False:
+        return
+    say = {"none": "CLAUDE.md 에 키트 규칙 블록이 없다 (키트의 새 규칙이 이 프로젝트에 들어오지 않는다)",
+           "stale": "CLAUDE.md 의 키트 규칙이 옛 판이다 (키트가 규칙을 고쳤다)",
+           "edited": "CLAUDE.md 의 키트 규칙 블록 안이 손으로 고쳐져 있다 (판을 맞출 수 없다)"}.get(rules_state(d, cfg["engine"]))
+    if say:
+        print(f"[gamedev-kit] {say}. 하던 일을 막지 않는다 — 끊을 자리에서 사용자에게 한 줄로 알린다: `/gamedev-kit:init rules` 로 맞출 수 있다. "
+              "알리지 않게 하려면 kit.config.json 에 `\"init\": {\"rules\": false}`.")
 
 
 def place(src, dst, root, done):
@@ -41,8 +128,14 @@ def main():
         i = args.index("--root")
         root = os.path.abspath(args[i + 1])
         del args[i:i + 2]
-    again_files = "--files" in args
-    args = [a for a in args if a != "--files"]
+    if "--rules-check" in args:
+        try:
+            check_rules()
+        except Exception:
+            pass
+        return
+    again_files, only_rules, force = "--files" in args, "--rules" in args, "--force" in args
+    args = [a for a in args if a not in ("--files", "--rules", "--force")]
     if not args:
         sys.exit("엔진을 고른다: " + " · ".join(engines()))
     engine = args[0]
@@ -50,6 +143,8 @@ def main():
         sys.exit(f"모르는 엔진 {engine} — " + " · ".join(engines()))
     src = os.path.join(ENGINES, engine)
     done = []
+    if only_rules:
+        return sync_rules(root, engine, force)
 
     config = os.path.join(root, "kit.config.json")
     had = os.path.exists(config)
@@ -74,11 +169,11 @@ def main():
 
     place(os.path.join(KIT, "templates", "GDD.md"), os.path.join(root, "docs", "GDD.md"), root, done)
     place(os.path.join(KIT, "templates", "DESIGN.md"), os.path.join(root, "docs", "DESIGN.md"), root, done)
-    made_claude = place(os.path.join(KIT, "templates", "CLAUDE.md"), os.path.join(root, "CLAUDE.md"), root, done)
-    extra = os.path.join(src, "CLAUDE.md")  # 그 엔진에서만 맞는 규칙 (실행 · 검증 · 함정)
-    if made_claude and os.path.exists(extra):
-        with open(os.path.join(root, "CLAUDE.md"), "a", encoding="utf-8") as f:
-            f.write(open(extra, encoding="utf-8").read())
+    made_claude = not os.path.exists(os.path.join(root, "CLAUDE.md"))
+    if made_claude:
+        head, body = rules(engine)
+        open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8").write(head + "\n" + block(body) + OWN)
+    done.append(f"  {'새로  ' if made_claude else '그대로'}  CLAUDE.md")
 
     ignore = os.path.join(root, ".gitignore")
     text = open(ignore, encoding="utf-8").read() if os.path.exists(ignore) else ""
@@ -96,10 +191,11 @@ def main():
                                                          for s in v if s not in have[k]]
         if missing:
             print(f"\nkit.config.json 에 없는 절: {' · '.join(missing)} — 쓰려면 이 틀에서 옮겨 적는다: {os.path.join(src, 'kit.config.json')}")
-    if not made_claude and "gdd-sync" not in open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read():
-        print(f"\nCLAUDE.md 에 동기화 규칙이 없다 — 이 틀의 절을 옮겨 적는다: {os.path.join(KIT, 'templates', 'CLAUDE.md')}")
-        if os.path.exists(extra):
-            print(f"엔진 규칙도: {extra}")
+    state = rules_state(root, engine)
+    if state != "same":
+        print("\nCLAUDE.md 의 키트 규칙: " + {"none": "블록이 없다 — `--rules` 가 끝에 붙인다 (있던 글은 건드리지 않는다)",
+                                           "stale": "옛 판이다 — `--rules` 가 블록만 바꾼다",
+                                           "edited": "블록 안이 손으로 고쳐졌다 — 고친 것을 밖으로 옮긴 뒤 `--rules`"}[state])
     notes = os.path.join(src, "NOTES.md")
     if os.path.exists(notes):
         print("\n" + open(notes, encoding="utf-8").read().strip())
