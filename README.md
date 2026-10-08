@@ -11,7 +11,7 @@
 | `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
 | `/gamedev-kit:handoff` | 세션을 바꿀 때 하던 일을 짧은 메모(`docs/handoff/`)로 남기고, 새 세션에서 그 메모로 잇는다 |
 | `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더 |
-| `/gamedev-kit:board` | 현황판 — GDD 동기화 표(절마다 얼마나 됐나)와 사이클 문서(단계 · 사용자의 결정 · 차수별 작업)를 스크립트가 HTML 한 장으로 그린다. 한 번 그리면 턴이 끝날 때마다 훅이 다시 그린다 |
+| `/gamedev-kit:board` | 현황판(항해도) — 플레이 순서의 단계마다 카드 하나: 기능 · 아트 · 사운드 · 검증이 얼마나 됐나 (됨 · 임시 · 안 만듦 · 문제). 카드를 누르면 그 단계의 쪽 — GDD 행 · 에셋 그림(눌러 확대) · 소리(재생) · 플레이테스트 · 못 정한 것 · 건드린 작업. GDD 표 · 에셋 기록 · 사이클 · 플레이테스트 문서에서 스크립트가 읽어 그린다. 한 번 그리면 턴이 끝날 때 스스로 다시 그린다 |
 | `/gamedev-kit:video` | 영상 — 대본 → 컷 표(화면 글자 · 초) → 사람이 승인 → HTML 컴포지션([HyperFrames](https://github.com/heygen-com/hyperframes)) → 렌더.<br>게임 밖(트레일러 · devlog 클립)은 mp4, 게임 안에서 트는 컷씬은 엔진이 읽는 형식으로. 올리지는 않는다 |
 | `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올리고 (check · build · push · status), 그 빌드의 itch.io devlog 초안을 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
 
@@ -85,7 +85,7 @@ Roblox 와 Unity 설정은 0.9.0 에서 뺐다 — 게임 하나를 끝까지 �
 
 테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs 서버 · 가짜 hyperframes/ffmpeg 로 돈다 — 밖으로는 아무것도 나가지 않는다.
 배포 도구(butler push)를 이 키트로 진짜 itch.io 에 올려 본 기록은 아직 여기 없다.
-현황판(board)은 사이클을 일곱 번 돈 Godot 게임 하나의 문서로 그려 보았다 (GDD 140행 · 결정과 작업 카드) — 며칠 열어 두고 쓴 기록은 아직 없다.
+현황판(board)은 Godot 게임 둘의 문서로 그려 보았다 (사이클 일곱 번 · GDD 140행인 것과 사이클 두 번 · 39행인 것). 단계의 순서(`board.flow`)는 게임마다 한 번 써 줘야 한다 — 며칠 열어 두고 쓴 기록은 아직 없다.
 영상 도구(video)는 HyperFrames 문서의 명령과 플래그에 맞춰 썼고, 진짜 HyperFrames 로 렌더해 Godot 에서 틀어 본 기록은 아직 여기 없다.
 에셋 도구는 Godot 4.7 게임 하나에서 진짜 API 로 모델 44개 · 소리 56개를 뽑아 넣었다 (2026-10-08). 다듬기(Blender 5.2)와 Godot 가져오기도 확인했다.
 Godot 의 엔진 규칙(`engines/godot/CLAUDE.md` — 검증 방법과 함정)은 Godot 게임 둘을 만들며 걸려 넘어진 것을 옮긴 것이다.
