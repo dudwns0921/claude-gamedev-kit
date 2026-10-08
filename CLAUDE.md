@@ -41,3 +41,13 @@ python3 tools/session_usage.py ~/projects/personal/<게임>    # 메인 세션�
 
 게임 저장소에서 엔진 설정을 손으로 한 것, 걸려 넘어진 함정, 확인하는 방법은 `engines/<엔진>/NOTES.md`(깐 뒤 할 일)와
 `engines/<엔진>/CLAUDE.md`(게임의 규칙이 될 것)에 옮겨 적는다. 다음 게임이 같은 일을 다시 겪지 않게.
+
+길은 이렇다: 게임의 사이클 회고에서 이 게임만의 것이 아닌 배움이 `docs/kit-feedback.md` 에 한 줄씩 쌓인다 (`cycle.py lesson`). 여기서 모아 반영한다:
+
+```bash
+python3 tools/kit_feedback.py list ~/projects/personal/<게임> …       # 아직 반영하지 않은 줄
+python3 tools/kit_feedback.py done ~/projects/personal/<게임> 1,3 0.7.2 # 반영한 줄을 [x] 로
+```
+
+줄마다 맞는 자리를 고른다 — 되풀이될 함정과 확인 방법은 엔진의 CLAUDE.md, 깔 때 한 번 하는 일은 NOTES.md, 도구가 막을 수 있는 것은 스크립트(글로 적는 것보다 낫다),
+한 스킬의 일이면 그 스킬 문서. 한 게임에서만 본 것은 그렇다고 적어 둔다 — 두 번째 게임에서 다시 보이면 그때 굳힌다.

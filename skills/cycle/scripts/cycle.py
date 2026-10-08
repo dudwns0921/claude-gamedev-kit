@@ -10,10 +10,12 @@
   python3 cycle.py ask <기획|디자인|계획> "<질문 — ① … ② … · 권함: ①>"   결정을 하나 더하고 번호(D4)를 적는다
   python3 cycle.py decide D2 "<사용자의 답 그대로>"
   python3 cycle.py stage <단계>                 머리의 `단계:` 를 고친다
+  python3 cycle.py lesson "<무엇에 걸렸나 → 어떻게 피하나>"   이 게임만의 것이 아닌 배움을 docs/kit-feedback.md 에 한 줄 (키트로 올릴 것)
 
 문서는 가장 새 것(번호가 가장 큰 것)이다. 다른 문서면 `--doc <경로>`.
 """
 import datetime
+import json
 import os
 import re
 import subprocess
@@ -21,6 +23,13 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
+FEEDBACK = os.path.join("docs", "kit-feedback.md")
+FEEDBACK_HEAD = """# 키트로 올릴 것
+
+이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것** — 같은 엔진의 다음 게임도 걸려 넘어질 함정, 쓸 만한 확인 방법, 키트 도구의 모자란 점.
+사이클의 회고에서 한 줄씩 쌓인다 (`cycle.py lesson`). 키트 저장소에서 `python3 tools/kit_feedback.py list <이 저장소>` 로 모아 반영하고, 반영한 줄은 `[x]` 가 된다.
+
+"""
 TEMPLATE = """# 사이클 {num} — {name}
 
 시작: {date} · 커밋 {commit} · 단계: 목표
@@ -212,6 +221,16 @@ def cmd_decide(path, num, answer):
     print(f"{num}: 답을 적었다")
 
 
+def cmd_lesson(path, text):
+    engine = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("engine", "?")
+    num = re.match(r"\d+", os.path.basename(path))
+    out = os.path.join(ROOT, FEEDBACK)
+    old = read(out) if os.path.exists(out) else FEEDBACK_HEAD
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    write(out, old.rstrip("\n") + f"\n- [ ] ({engine} · 사이클 {num.group(0) if num else '?'} · {datetime.date.today()}) {' '.join(text.split())}\n")
+    print(f"{FEEDBACK} 에 적었다")
+
+
 def cmd_new(name, goal):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
         sys.exit(f"이름은 소문자 · 숫자 · 붙임표다: {name!r}")
@@ -235,7 +254,7 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "stage": 1}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "stage": 1, "lesson": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -257,6 +276,8 @@ def main():
         cmd_ask(path, *rest)
     elif cmd == "decide":
         cmd_decide(path, *rest)
+    elif cmd == "lesson":
+        cmd_lesson(path, rest[0])
     else:
         text = read(path)
         if not re.search(r"단계: *.+", text):

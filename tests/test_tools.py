@@ -32,6 +32,7 @@ CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
+FEEDBACK = os.path.join(KIT, "tools/kit_feedback.py")
 
 
 def raw_glb():
@@ -280,6 +281,23 @@ class Tools(unittest.TestCase):
                 self.assertNotIn("새로", again, "두 번째에는 아무것도 만들지 않는다")
                 self.assertEqual(open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read(), "내 규칙")
                 self.assertIn("옮겨 적는다", again)
+                self.assertNotIn("없는 절", again, "방금 깐 설정에는 빠진 절이 없다")
+                engine_files = os.path.join(KIT, "engines", engine, "files")
+                if os.path.exists(engine_files):  # 값 파일을 옮긴 프로젝트 — 다시 깔아도 틀이 또 생기지 않는다
+                    moved = json.load(open(os.path.join(root, "kit.config.json"), encoding="utf-8"))["balance-table"]["code"]
+                    os.remove(os.path.join(root, moved))
+                    whole = open(os.path.join(root, "kit.config.json"), encoding="utf-8").read()
+                    cfg = json.loads(whole)
+                    cfg.pop("deploy")
+                    cfg["balance-table"].pop("table")
+                    json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+                    third = run(init, root, engine).stdout
+                    self.assertIn("건너뜀  엔진 틀 1개", third)
+                    self.assertFalse(os.path.exists(os.path.join(root, moved)))
+                    self.assertIn("없는 절: ", third)
+                    self.assertIn("deploy · balance-table.table", third.split("없는 절: ")[1])
+                    self.assertIn("새로    " + moved, run(init, root, engine, "--files").stdout)
+                    open(os.path.join(root, "kit.config.json"), "w", encoding="utf-8").write(whole)
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("같다", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
                     self.assertIn("| 동기 | 3 |", run(REPORT, root).stdout, "틀의 예시 세 행이 값 파일과 짝이 맞는다")
@@ -608,6 +626,22 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("02-shop.md — 단계: 플레이 · 작업 [x] 3 · [ ] 0 · [!] 0 · 답 없는 결정 1", out[1])
         self.assertIn("단계: 목표", run(CYCLE, root, "next", "--doc", "docs/cycle/01-dash.md").stdout)
         self.assertIn("그런 작업이 없다", run(CYCLE, root, "task", "T9", ok=False).stderr)
+
+        # 배운 것이 키트로 돌아가는 길
+        open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
+        run(CYCLE, root, "lesson", "헤드리스는 셰이더를  컴파일하지 않는다 → 창으로 한 번 돌린다")
+        run(CYCLE, root, "lesson", "둘째 줄")
+        fb = lambda *a, ok=True: subprocess.run([sys.executable, FEEDBACK, *a], capture_output=True, text=True)
+        out = fb("list", root, os.path.join(root, "없는곳")).stdout
+        self.assertRegex(out, r"1\. \(godot · 사이클 02 · \d{4}-\d\d-\d\d\) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n  2\. ")
+        self.assertIn("kit-feedback.md 가 없다", out)
+        self.assertIn("1줄: [x]", fb("done", root, "1", "0.7.2").stdout)
+        out = fb("list", root).stdout
+        self.assertIn("1줄", out)
+        self.assertIn("1. (godot · 사이클 02", out)
+        self.assertIn("둘째 줄", out)
+        self.assertIn("창으로 한 번 돌린다 — 키트 0.7.2", open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read())
+        self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
 
     def test_playtest_ledger(self):
         root = tempfile.mkdtemp(prefix="kit-playtest-")
