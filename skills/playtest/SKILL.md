@@ -21,6 +21,15 @@ description: >-
 | `/gamedev-kit:playtest implement [문서] [T3 …]` | 구현만. 문서를 생략하면 `docs/playtest/` 의 가장 새 문서, 작업을 생략하면 남은 전부 |
 | `/gamedev-kit:playtest status` | 문서들의 남은 작업 |
 
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" status          # 문서마다 한 줄
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # 물을 것 · 다음 차수의 작업
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # 요약과 작업 하나만
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<이유>" · open
+```
+
+가장 새 문서에 한다 (다른 문서면 `--doc <경로>`).
+
 ## 1. 분석
 
 1. **목록을 받는다.** 사용자가 적은 문장을 다듬지 않는다. 목록이 메시지에 없으면 달라고 한다.
@@ -31,17 +40,17 @@ description: >-
 
 ## 2. 구현
 
-1. 문서의 "순서" 를 읽는다. 차수별로 나뉘어 있다.
+1. `next` 로 다음 차수의 작업을 본다 — 문서를 통째로 읽지 않는다 (수만 토큰이다).
 2. **할 작업을 고른다.** 다음은 건너뛴다 — 건너뛴다고 말한다:
    - "사용자에게 물을 것" 의 답 없는 질문에 걸린 작업
    - 분류가 **설계**인데 사용자의 결정이 문서에 적혀 있지 않은 작업
    - 앞 차수에서 막히거나 실패한 작업에 기대는 작업
 3. **차수마다, 작업 하나에 `gamedev-kit:developer` 에이전트 하나, `build T<n>` 으로.** 같은 차수의 작업은 한 번에(한 메시지에서) 부른다 —
-   분석가가 서로 다른 파일만 건드리게 묶어 두었다. 넘길 것은 문서 경로와 `build T<n>` 뿐이다. 작업 내용을 옮겨 적지 않는다.
+   분석가가 서로 다른 파일만 건드리게 묶어 두었다. 넘길 것은 세 줄이다 — `build T<n>`, 문서 경로, 작업 꺼내기 명령(`python3 <이 스킬의 playtest.py 절대 경로> task T<n> --doc <문서>`). 작업 내용을 옮겨 적지 않는다.
    앞 차수가 다 돌아온 뒤 다음 차수를 부른다.
-4. **돌아온 결과로 문서를 고친다** (에이전트는 문서를 고치지 않는다):
-   - 끝 → `### [x] T<n>`. "문서와 다르게 한 것" 이 있으면 작업 아래 `- **한 것**:` 한 줄.
-   - 막힘 · 실패 → `### [!] T<n>`, 작업 아래 `- **막힘**:` 에 이유. **여기서 직접 다시 분석해 고치지 않는다.**
+4. **돌아온 결과를 `mark` 로 적는다** (에이전트는 문서를 고치지 않는다. 문서를 열어 손으로 고치지 않는다):
+   - 끝 → `mark T1,T3 done`. "문서와 다르게 한 것" 이 있으면 `mark T1 done "<무엇을 왜>"`.
+   - 막힘 · 실패 → `mark T2 blocked "<이유>"`. **여기서 직접 다시 분석해 고치지 않는다.**
 5. **모든 차수가 끝나면 한 번에:**
    - 분류가 밸런스인 작업이 있었으면 balance-table 스킬로 `export` (표가 옛 값을 쥐고 있지 않게)
    - 값 · 규칙이 바뀌었으면 `/gamedev-kit:gdd-sync to-gdd`
@@ -59,7 +68,7 @@ description: >-
 
 ## status
 
-`docs/playtest/*.md` 마다 `[x]` · `[ ]` · `[!]` 수와 답 없는 질문 수를 한 줄씩.
+`playtest.py status` 의 출력을 그대로 전한다.
 
 ## 문서는 남긴다
 

@@ -28,6 +28,10 @@ TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
 SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
+CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
+PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
+WATCH = os.path.join(KIT, "hooks/context_watch.py")
+USAGE = os.path.join(KIT, "tools/session_usage.py")
 
 
 def raw_glb():
@@ -545,6 +549,138 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             self.assertEqual((w.getframerate(), w.getnchannels(), w.getsampwidth()), (22050, 1, 2))
         write(dir="")
         self.assertIn("asset.sound.dir", sound("status", ok=False))
+
+    def test_cycle(self):
+        root = tempfile.mkdtemp(prefix="kit-cycle-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        self.assertIn("문서가 없다", run(CYCLE, root, "next", ok=False).stderr)
+        self.assertIn("docs/cycle/01-dash.md", run(CYCLE, root, "new", "dash", "대시를 넣자").stdout)
+        self.assertIn("docs/cycle/02-shop.md", run(CYCLE, root, "new", "shop", "상점").stdout)
+        doc = os.path.join(root, "docs/cycle/02-shop.md")
+        text = lambda: open(doc, encoding="utf-8").read()
+        self.assertIn("## 목표\n상점\n", text())
+
+        self.assertEqual(run(CYCLE, root, "ask", "기획", "값을 어떻게 — ① 고정 ② 변동 · 권함: ①").stdout.strip(), "D1")
+        self.assertEqual(run(CYCLE, root, "ask", "디자인", "간판 색 — ① 빨강 ② 파랑").stdout.strip(), "D2")
+        self.assertIn("- [ ] D2. 간판 색 — ① 빨강 ② 파랑 (디자인)\n\n## 기획", text())
+        filled = text().replace("## 작업\n", """## 작업
+
+### [ ] T1. 상점 화면을 만든다
+- **고칠 곳**: shop.gd
+
+### [ ] T2. 값을 붙인다
+- **고칠 곳**: balance.gd — D1 의 답대로
+- **대기**: D1
+
+### [ ] T3. 간판을 단다
+- **고칠 곳**: sign.gd
+""").replace("## 순서\n", "## 순서\n- 1차: T1, T2 — 서로 다른 파일\n- 2차: T3 — T1 이 만든 화면에 단다\n")
+        open(doc, "w", encoding="utf-8").write(filled)
+
+        out = run(CYCLE, root, "next").stdout
+        self.assertIn("답 없는 결정 2", out)
+        self.assertIn("다음 차수: 1차", out)
+        self.assertIn("T2. 값을 붙인다 — 대기 D1", out)
+        self.assertNotIn("T3", out)
+        run(CYCLE, root, "decide", "D1", "고정으로 가자")
+        self.assertRegex(text(), r"- \[x\] D1\. 값을 어떻게 — ① 고정 ② 변동 · 권함: ① \(기획\) → 고정으로 가자 \(\d{4}-\d\d-\d\d\)")
+        self.assertNotIn("대기 D1", run(CYCLE, root, "next").stdout)
+
+        out = run(CYCLE, root, "task", "T2").stdout
+        self.assertIn("### [ ] T2. 값을 붙인다", out)
+        self.assertIn("걸린 결정:\n- [x] D1.", out)
+        self.assertNotIn("T1", out, "다른 작업은 꺼내지 않는다")
+        self.assertNotIn("D2", out, "걸리지 않은 결정은 꺼내지 않는다")
+
+        run(CYCLE, root, "mark", "T1,T2", "done")
+        run(CYCLE, root, "mark", "T3", "blocked", "sign.gd 가 없다")
+        self.assertIn("### [x] T2. 값을 붙인다", text())
+        self.assertIn("### [!] T3. 간판을 단다\n- **고칠 곳**: sign.gd\n- **막힘**: sign.gd 가 없다\n\n## 순서", text())
+        self.assertIn("막힌 작업: T3", run(CYCLE, root, "next").stdout)
+        run(CYCLE, root, "mark", "T3", "done", "sign.tscn 에 달았다")
+        self.assertIn("남은 작업이 없다", run(CYCLE, root, "next").stdout)
+        run(CYCLE, root, "stage", "플레이")
+        out = run(CYCLE, root, "status").stdout.strip().split("\n")
+        self.assertEqual(len(out), 2)
+        self.assertIn("02-shop.md — 단계: 플레이 · 작업 [x] 3 · [ ] 0 · [!] 0 · 답 없는 결정 1", out[1])
+        self.assertIn("단계: 목표", run(CYCLE, root, "next", "--doc", "docs/cycle/01-dash.md").stdout)
+        self.assertIn("그런 작업이 없다", run(CYCLE, root, "task", "T9", ok=False).stderr)
+
+    def test_playtest_ledger(self):
+        root = tempfile.mkdtemp(prefix="kit-playtest-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        os.makedirs(os.path.join(root, "docs/playtest"))
+        doc = os.path.join(root, "docs/playtest/2026-10-08-a.md")
+        open(doc, "w", encoding="utf-8").write("""# 분석
+
+## 요약
+걷는 속도가 가장 크다.
+
+## 사용자에게 물을 것
+없음
+
+## 작업
+
+### [ ] T1. 걷는 속도를 낮춘다
+- **분류**: 밸런스
+
+### [ ] T2. 문을 고친다
+- **분류**: 버그
+
+## 순서
+- 1차: T1, T2 — 서로 다른 파일
+
+## 이번에 하지 않는 것
+""")
+        out = run(PLAYTEST, root, "next").stdout
+        self.assertIn("T1. 걷는 속도를 낮춘다 (밸런스)", out)
+        self.assertNotIn("물을 것", out)
+        out = run(PLAYTEST, root, "task", "T2").stdout
+        self.assertIn("걷는 속도가 가장 크다", out)
+        self.assertIn("### [ ] T2. 문을 고친다", out)
+        self.assertNotIn("T1", out)
+        run(PLAYTEST, root, "mark", "T1", "done")
+        run(PLAYTEST, root, "mark", "T2", "blocked", "문이 없다")
+        self.assertIn("### [!] T2. 문을 고친다\n- **분류**: 버그\n- **막힘**: 문이 없다\n\n## 순서", open(doc, encoding="utf-8").read())
+        self.assertIn("작업 [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
+
+    def test_session_tools(self):
+        root = tempfile.mkdtemp(prefix="kit-session-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        log = os.path.join(root, "s1.jsonl")
+        turn = lambda i, read: json.dumps({"type": "assistant", "timestamp": f"2026-10-08T00:0{i}:00Z", "message": {
+            "id": f"m{i}", "model": "opus", "usage": {"input_tokens": 10, "cache_creation_input_tokens": 1000,
+                                                        "cache_read_input_tokens": read, "output_tokens": 50}}})
+        open(log, "w").write(turn(1, 50_000) + "\n" + turn(1, 50_000) + "\n" + turn(2, 250_000) + "\n")
+        os.makedirs(os.path.join(root, "s1/subagents"))
+        open(os.path.join(root, "s1/subagents/agent-a.jsonl"), "w").write(turn(1, 0) + "\n")
+        open(os.path.join(root, "s1/subagents/agent-a.meta.json"), "w").write('{"agentType": "gamedev-kit:developer"}')
+
+        out = subprocess.run([sys.executable, USAGE, log], capture_output=True, text=True).stdout
+        self.assertIn("메인 세션 2턴 · 컨텍스트 평균 151k · 최대 251k", out, "같은 응답이 두 줄로 적혀도 한 번만 센다")
+        self.assertIn("gamedev-kit:developer", out)
+
+        def watch(cwd, session="t1"):
+            p = subprocess.run([sys.executable, WATCH], capture_output=True, text=True, env=dict(os.environ, TMPDIR=root),
+                               input=json.dumps({"transcript_path": log, "cwd": cwd, "session_id": session}))
+            self.assertEqual(p.returncode, 0)
+            return p.stdout
+
+        out = watch(root)
+        self.assertIn("약 25만 토큰", out)
+        self.assertIn("/gamedev-kit:handoff resume", out)
+        self.assertEqual(watch(root), "", "같은 크기에서는 다시 말하지 않는다")
+        self.assertEqual(watch(tempfile.gettempdir(), "t2"), "", "게임 저장소 밖에서는 말하지 않는다")
+        open(log, "a").write(turn(3, 320_000) + "\n")
+        self.assertIn("약 32만 토큰", watch(root), "10만이 더 늘면 다시 말한다")
+        open(log, "a").write(turn(4, 40_000) + "\n")
+        self.assertEqual(watch(root), "", "줄어들면 조용하다")
+        open(log, "a").write(turn(5, 210_000) + "\n")
+        self.assertIn("약 21만 토큰", watch(root), "줄었다가 다시 넘으면 다시 말한다")
+        self.assertEqual(subprocess.run([sys.executable, WATCH], input="깨진 입력", capture_output=True, text=True).returncode, 0)
 
     def test_asset_no_config(self):
         root = tempfile.mkdtemp(prefix="kit-none-")

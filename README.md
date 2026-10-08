@@ -9,6 +9,7 @@
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
 | `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — 를 문서 하나(`docs/cycle/`)로 끌고 간다 |
+| `/gamedev-kit:handoff` | 세션을 바꿀 때 하던 일을 짧은 메모(`docs/handoff/`)로 남기고, 새 세션에서 그 메모로 잇는다 |
 | `/gamedev-kit:asset` | 3D 에셋 — 설명 → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더 |
 | `/gamedev-kit:deploy` | 빌드해서 butler 로 itch.io 에 올리고 (check · build · push · status), 그 빌드의 itch.io devlog 초안을 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
 
@@ -40,6 +41,13 @@
 
 밖으로 나가는 것은 배포 하나다: 올리기 전에 대상 · 버전 · 크기를 보여 주고 묻는다. butler 로그인은 사용자가 한 번 하고 저장소 밖에 둔다.
 **알리는 일(SNS)은 이 키트에 없다** — 사용자가 직접 한다. itch.io devlog 는 초안까지만 쓰고, 붙여 넣는 것도 사용자다.
+
+## 토큰과 시간
+
+실제 세션 기록으로 재 보면 토큰의 대부분은 **메인 세션이 턴마다 다시 읽는 양**에서 나간다 (한 세션을 며칠 이어 간 Keros 에서 67%).
+그래서: 사이클 · 플레이테스트 문서의 장부는 스크립트가 맡고(`cycle.py` · `playtest.py` — 문서를 통째로 읽지 않는다),
+컨텍스트가 20만 토큰을 넘으면 훅이 새 세션을 권하게 하고, 넘어갈 때는 사이클 문서나 `/gamedev-kit:handoff` 메모가 맥락을 들고 간다.
+고치기 전과 뒤는 `python3 tools/session_usage.py <게임 저장소>` 로 견준다.
 
 ## 엔진
 
@@ -84,6 +92,8 @@ skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scr
 agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일만 에이전트로 둔다
 engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙) · files/(게임에 복사될 틀)
 templates/          GDD.md · DESIGN.md · CLAUDE.md — 게임 저장소에 깔리는 틀
+hooks/              세션의 컨텍스트가 커지면 새 세션을 권하게 하는 훅 하나
+tools/              session_usage.py — 게임 저장소의 세션 기록에서 토큰이 어디로 갔는지 센다
 tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사
 ```
 
