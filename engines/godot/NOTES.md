@@ -14,3 +14,7 @@
   Add `assets/_gen/*/raw.glb` to `.gitignore`. The art style paragraph in `docs/DESIGN.md` and the API key are walked through by the asset skill on first use.
 - **Sound (asset skill)**: lands in `assets/sounds/<name>.mp3`. Godot reads mp3 as `AudioStreamMP3`. For looping sounds and music
   turn on **Loop** in the import settings (select the file, Import dock → Loop → Reimport) — even if made with `--loop`, with this setting off it plays only once.
+- **Video (video skill)**: in-game videos land in `assets/video/<name>.ogv`. Godot plays only Ogg Theora built in (`VideoStreamPlayer` + `VideoStreamTheora`),
+  so the skill converts with ffmpeg — the ffmpeg on PATH must have `libtheora` and `libvorbis` (`ffmpeg -encoders | grep theora`).
+  Add `video/*/renders/`, `video/*/comp/snapshots/` and `node_modules/` to `.gitignore`. Playing and skipping the video is game code.
+  Not yet checked in a real game with this kit — if playback stutters or seeking is off, write it in `docs/kit-feedback.md`.

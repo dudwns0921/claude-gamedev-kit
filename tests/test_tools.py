@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """도구 검사 — engines/ 의 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync 와 balance-table 을 끝까지 돌린다.
-deploy 는 가짜 butler 로, asset 은 가짜 API 서버로 돌린다 — 밖으로는 아무것도 나가지 않는다.
+deploy 는 가짜 butler 로, asset 은 가짜 API 서버로, video 는 가짜 hyperframes · ffmpeg 로 돌린다 — 밖으로는 아무것도 나가지 않는다.
 
   python3 tests/test_tools.py
 
@@ -28,6 +28,7 @@ TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
 SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
+VIDEO = os.path.join(KIT, "skills/video/scripts/video.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
@@ -570,6 +571,104 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             self.assertEqual((w.getframerate(), w.getnchannels(), w.getsampwidth()), (22050, 1, 2))
         write(dir="")
         self.assertIn("asset.sound.dir", sound("status", ok=False))
+
+    def test_video(self):
+        """컷 표 → 승인 → 컴포지션 → 렌더. 승인하지 않은 표는 컴포지션이 되지 않고, 표가 바뀌면 승인이 풀린다."""
+        for engine in CODE:
+            with self.subTest(engine=engine):
+                root = tempfile.mkdtemp(prefix=f"kit-video-{engine}-")
+                self.addCleanup(shutil.rmtree, root, True)
+                log = os.path.join(root, "calls.log")
+                hf, ff = os.path.join(root, "hyperframes"), os.path.join(root, "ffmpeg")
+                open(hf, "w").write(f"""#!/bin/sh
+echo "hf $HYPERFRAMES_SKIP_SKILLS $@" >> '{log}'
+case "$1" in
+  init) mkdir -p "$2" && echo '<div></div>' > "$2/index.html" ;;
+  lint) [ ! -e "$2/broken" ] ;;
+  snapshot) mkdir -p "$2/snapshots" && echo png > "$2/snapshots/frame-1.png" ;;
+  render) echo mp4 > "$4" ;;
+esac
+""")
+                open(ff, "w").write(f"#!/bin/sh\necho \"ff $@\" >> '{log}'\nfor a; do out=$a; done\necho converted > \"$out\"\n")
+                os.chmod(hf, 0o755)
+                os.chmod(ff, 0o755)
+                cfg = json.load(open(os.path.join(KIT, "engines", engine, "kit.config.json"), encoding="utf-8"))
+                game = cfg["video"]["game"]
+                cfg["video"].update(hyperframes=hf, ffmpeg=ff)
+                json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+                os.makedirs(os.path.join(root, "docs"))
+                design = os.path.join(root, "docs/DESIGN.md")
+                shutil.copy(os.path.join(KIT, "templates/DESIGN.md"), design)
+
+                def video(*args, ok=True, stdin=None):
+                    p = subprocess.run([sys.executable, VIDEO, "--root", root, *args], capture_output=True, text=True, input=stdin)
+                    if ok and p.returncode != 0:
+                        raise AssertionError(f"video.py {' '.join(args)} → {p.returncode}\n{p.stdout}\n{p.stderr}")
+                    return p
+
+                self.assertIn("영상의 결이 비어 있다", video("check", ok=False).stderr)
+                text = open(design, encoding="utf-8").read()
+                open(design, "w", encoding="utf-8").write(text.replace("<!-- video-style -->", "<!-- video-style -->\nDark, slow,\n one line at a time."))
+                self.assertIn("만들 수 있다 — page · game", video("check").stdout)
+
+                self.assertIn("video/intro/video.json", video("new", "intro", "--for", "game", "게임을 켜면 나오는 것").stdout)
+                self.assertIn("이미 있다", video("new", "intro", "--for", "game", "또", ok=False).stderr)
+                self.assertIn("python3 video.py", video("new", "x", "--for", "tv", "어디", ok=False).stderr)
+                self.assertIn("컷 표 없음 — 승인한 컷 표만", video("compose", "intro", ok=False).stderr)
+                self.assertIn("2번째 줄", video("cuts", "intro", "-", stdin="2 | 제목\n셋 | 글자\n", ok=False).stderr)
+                out = video("cuts", "intro", "-", stdin="# 머리\n2.5 | 제목 | 떨어진다\n1 | 이 글자는 일 초에 읽기에는 너무 길다\n4 |  | 화면 셋이 지나간다\n").stdout
+                self.assertIn(" 2    2.5s +1s  이 글자는 일 초에 읽기에는 너무 길다 ← 읽기 빠듯하다", out)
+                self.assertIn(" 3    3.5s +4s  (글자 없음)\n      움직임: 화면 셋이 지나간다", out)
+                self.assertIn("모두 7.5초 · 컷 3개", out)
+                self.assertNotIn("빠듯", out.split("\n")[0])
+                self.assertIn("승인한 컷 표만", video("render", "intro", ok=False).stderr)
+                self.assertFalse(os.path.exists(log), "승인 전에는 아무 도구도 부르지 않는다")
+
+                video("approve", "intro")
+                out = video("compose", "intro").stdout
+                self.assertIn("컴포지션: video/intro/comp/index.html", out)
+                self.assertIn("결: Dark, slow, one line at a time.", out)
+                self.assertIn("모두 7.5초", out)
+                video("compose", "intro")
+                calls = open(log).read().strip().split("\n")
+                self.assertEqual(calls, ["hf 1 init comp --non-interactive --resolution landscape"], "틀은 한 번만 만든다")
+                self.assertIn("frame-1.png", video("frames", "intro").stdout)
+                self.assertIn("--frames 3", open(log).read())
+
+                comp = os.path.join(root, "video/intro/comp")
+                open(os.path.join(comp, "broken"), "w").close()
+                self.assertIn("검사에 걸렸다", video("render", "intro", ok=False).stderr)
+                self.assertNotIn("hf 1 render", open(log).read(), "검사에 걸리면 렌더하지 않는다")
+                os.remove(os.path.join(comp, "broken"))
+                out = video("render", "intro", "--draft").stdout
+                placed = f"{game['dir']}/intro.{game['ext']}"
+                self.assertIn(f"intro: {placed} — 7.5초", out)
+                self.assertIn("초안 화질", out)
+                self.assertEqual(open(os.path.join(root, placed)).read(), "converted\n")
+                last = open(log).read().strip().split("\n")[-2:]
+                self.assertTrue(last[0].endswith("renders/intro.mp4 --quality draft"), last[0])
+                self.assertIn(" ".join(game["convert"]), last[1])
+                self.assertIn(f"놓임 {placed} (초안)", video("status").stdout)
+
+                video("cuts", "intro", "-", stdin="3 | 제목\n")
+                self.assertIn("컷 표 승인 대기", video("status").stdout, "표가 바뀌면 다시 본다")
+
+                video("new", "trailer", "--for", "page", "--size", "square", "페이지에 거는 것")
+                video("cuts", "trailer", "-", stdin="3 | 제목\n")
+                video("approve", "trailer")
+                video("compose", "trailer")
+                self.assertIn("docs/video/trailer.mp4", video("render", "trailer").stdout)
+                self.assertEqual(open(os.path.join(root, "docs/video/trailer.mp4")).read(), "mp4\n", "게임 밖 영상은 바꾸지 않는다")
+                self.assertIn("--resolution square", open(log).read())
+                self.assertTrue(open(log).read().strip().endswith("--quality standard"))
+
+                cfg["video"]["game"] = {"dir": ""}
+                json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+                video("approve", "intro")
+                self.assertIn("video.game 가 덜 채워졌다", video("render", "intro", ok=False).stderr)
+                cfg["video"]["ffmpeg"] = os.path.join(root, "no-ffmpeg")
+                json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+                self.assertIn("no-ffmpeg 가 없다", video("check", ok=False).stderr)
 
     def test_cycle(self):
         root = tempfile.mkdtemp(prefix="kit-cycle-")

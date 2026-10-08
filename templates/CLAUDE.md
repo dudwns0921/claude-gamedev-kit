@@ -55,6 +55,10 @@ The user approves images. The record stays in `assets/_gen/<name>/asset.json`.
 Sound effects · looping sounds · music are made with the same skill (ElevenLabs). The sound style is the `<!-- sound-style -->` paragraph.
 Claude cannot hear sound — after making it, give the path and the user listens. The record is `assets/_gen/<name>/sound.json`.
 
+Videos — a trailer or devlog clip (`page`), or a cutscene the game plays as a file (`game`) — are made with `/gamedev-kit:video`:
+cut table (on-screen text · seconds) → the user looks and approves → composition → render. The video style is the `<!-- video-style -->` paragraph.
+Claude cannot see motion — after rendering, give the path and the user watches. The record is `video/<name>/video.json`. The skill makes files; it posts nothing.
+
 ## Keep sessions short
 
 The longer the conversation, the more is re-read every turn, costing tokens and time. At the cycle's break points (where a decision was asked · when it is time to play · where the cycle ended)
