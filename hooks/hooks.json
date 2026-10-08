@@ -21,6 +21,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" --if-stale",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

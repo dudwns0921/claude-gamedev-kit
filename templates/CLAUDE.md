@@ -59,6 +59,9 @@ Videos — a trailer or devlog clip (`page`), or a cutscene the game plays as a 
 cut table (on-screen text · seconds) → the user looks and approves → composition → render. The video style is the `<!-- video-style -->` paragraph.
 Claude cannot see motion — after rendering, give the path and the user watches. The record is `video/<name>/video.json`. The skill makes files; it posts nothing.
 
+The status board (`docs/board/index.html`) is drawn by `/gamedev-kit:board` from the GDD table and the cycle documents, and redraws itself when a turn ends.
+Do not read it or edit it — fix the GDD table (gdd-sync) or the cycle document and it follows.
+
 ## Keep sessions short
 
 The longer the conversation, the more is re-read every turn, costing tokens and time. At the cycle's break points (where a decision was asked · when it is time to play · where the cycle ended)
