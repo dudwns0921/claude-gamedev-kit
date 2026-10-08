@@ -24,12 +24,13 @@ read the GDD or cycle documents to describe the board.** The page is for the use
 
 ## What it shows, and from where
 
-Three kinds of page, all written next to each other in `docs/board/`:
+Two kinds of page, written next to each other in `docs/board/`:
 
 - `index.html` — **the chart (항해도).** One screen: the stages of play in the order the player meets them, one card each, with a completion ring
   and four meters. Nothing else. A card links to its stage page.
-- `stage-N.html` — one stage: its GDD rows, art thumbnails, sounds (playable), checks, open questions, and the cycle tasks that touched it.
-- `log.html` — the full sync table by GDD section and the cycle record (stage, the user's decisions in their own words, tasks by wave).
+- `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, and the cycle tasks that touched it.
+
+The board shows the flow, not the history: answered decisions and the per-cycle record stay in the cycle documents.
 
 Every state is read, never judged:
 

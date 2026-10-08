@@ -5,7 +5,6 @@
   python3 board.py --if-stale   판이 이미 있고 원천이 더 새로울 때만 다시 쓴다. 아무것도 적지 않고 늘 0 으로 끝난다 (훅이 부른다)
 
 index.html 은 항해도 — 플레이 순서의 단계마다 카드 하나, 기능 · 아트 · 사운드 · 검증이 얼마나 됐나. stage-N.html 은 단계 하나의 속.
-log.html 은 옛 판 — GDD 절마다의 표와 사이클마다의 단계 · 사용자의 결정(말 그대로) · 차수별 작업.
 상태는 적힌 그대로다 (여기서 코드를 뒤지지 않는다).
 
 읽기만 한다 — 쓰는 것은 <out> 의 폴더 안뿐이다. 설정은 프로젝트 루트 kit.config.json 의 "board" (없어도 된다).
@@ -35,7 +34,6 @@ DEFAULTS = {
     "common": "게임 전체",          # 어느 단계에도 안 드는 것이 모이는 곳
     "flow": [],                    # 플레이 순서의 단계들. 비면 GDD 절마다 하나
 }
-STAGES = ["목표", "기획", "디자인", "계획", "구현", "플레이", "배포", "회고"]
 STATES = ["동기", "불일치", "미구현", "폐기"]
 ROW_RE = re.compile(r"^\|\s*([A-Z]+(?:\.[A-Z0-9_]+)+)\s*\|(.*)$")
 ID_RE = re.compile(r"[A-Z]+(?:\.[A-Z0-9_]+)+")
@@ -146,160 +144,9 @@ def cycle(path):
             "decisions": [decision(*m.groups()) for m in DECISION_RE.finditer(section(text, "결정"))], "tasks": tasks}
 
 
-# ── 그리기 ────────────────────────────────────────────────────────────
-
-def bar(counts):
-    total = sum(counts.values()) or 1
-    return '<div class="bar">' + "".join(
-        f'<i class="s-{s}" style="width:{counts[s] * 100 / total:.2f}%" title="{s} {counts[s]}"></i>'
-        for s in STATES if counts.get(s)) + "</div>"
-
-
-def count(rows):
-    return {s: sum(1 for r in rows if r["state"] == s) for s in STATES}
-
-
-def legend(c):
-    return " · ".join(f'<span class="k s-{s}">{s} {c[s]}</span>' for s in STATES if c[s])
-
-
-def gdd_html(titles, rows, touched):
-    groups = {}
-    for r in rows:
-        groups.setdefault(r["src"], []).append(r)
-    order = sorted(groups, key=lambda s: [int(x) for x in s.split(".")] if s else [999])
-    out = []
-    for src in order:
-        rs, c = groups[src], count(groups[src])
-        live = len(rs) - c["폐기"]
-        lines = []
-        for r in rs:
-            tags = "".join(f'<a class="tag" href="#c{n}" title="{e(title)}">{e(n)}·{t}</a>' for n, t, title in touched.get(r["id"], []))
-            lines.append(f'<li class="row" data-state="{r["state"]}" data-kind="{r["id"].split(".")[0]}">'
-                         f'<span class="dot s-{r["state"]}" title="{r["state"]}"></span><code>{e(r["id"])}</code>'
-                         f'<b>{e(r["value"])}</b><span class="note">{e(r["note"])}</span>{tags}'
-                         + (f'<span class="where">{e(r["where"])}</span>' if r["where"] not in ("", "—") else "") + "</li>")
-        name = f"{src} {titles.get(src, '')}".strip() if src else "출처 없음"
-        out.append(f'<details class="card" id="g{e(src)}"><summary><h3>{e(name)}</h3>'
-                   f'<span class="num">{c["동기"]}<small>/{live}</small></span>{bar(c)}<p>{legend(c)}</p></summary>'
-                   f'<ul>{"".join(lines)}</ul></details>')
-    return "".join(out)
-
-
-def cycle_html(c, latest):
-    at = next((i for i, s in enumerate(STAGES) if c["stage"].startswith(s)), -1)
-    steps = "".join(f'<li class="{"past" if i < at else "now" if i == at else ""}">{s}</li>' for i, s in enumerate(STAGES))
-    marks = [t["mark"] for t in c["tasks"]]
-    waiting = sum(1 for d in c["decisions"] if not d["done"])
-    ds = "".join(
-        f'<li class="decision{"" if d["done"] else " open"}"><div class="q"><b>{d["num"]}</b> {e(d["title"])}'
-        f'<small>{e(" · ".join(x for x in (d["who"], d["date"]) if x))}</small></div>'
-        + (f'<blockquote>{e(d["answer"])}</blockquote>' if d["done"] else '<blockquote class="wait">답을 기다린다</blockquote>')
-        + (f'<details><summary>선택지 · 권함 {e(d["pick"])}</summary><p>{e(d["options"])}</p></details>' if d["options"] else "")
-        + "</li>" for d in c["decisions"])
-    cols = []
-    for w in sorted({t["wave"] for t in c["tasks"]}, key=lambda w: w or 999):
-        cards = "".join(
-            f'<li class="task m-{ {"x": "done", "!": "blocked"}.get(t["mark"], "open")}" title="{e(t["did"] or t["blocked"])}">'
-            f'<b>{t["num"]}</b> {e(t["title"])}'
-            + (f'<small class="why">막힘: {e(t["blocked"])}</small>' if t["mark"] == "!" and t["blocked"] else "")
-            + (f'<small>GDD {len(t["ids"])}</small>' if t["ids"] else "") + "</li>"
-            for t in c["tasks"] if t["wave"] == w)
-        cols.append(f'<div class="wave"><h4>{f"{w}차" if w else "차수 없음"}</h4><ul>{cards}</ul></div>')
-    return (f'<details class="cycle" id="c{e(c["num"])}"{" open" if latest else ""}><summary>'
-            f'<h3><span class="n">{e(c["num"])}</span> {e(c["name"])}</h3><ol class="steps">{steps}</ol>'
-            f'<p>{e(c["start"])} · 작업 {marks.count("x")}/{len(marks)}'
-            + (f' · <span class="k s-불일치">막힘 {marks.count("!")}</span>' if "!" in marks else "")
-            + (f' · <span class="k s-불일치">답 없는 결정 {waiting}</span>' if waiting else "") + "</p></summary>"
-            + (f'<blockquote class="goal">{e(c["goal"])}</blockquote>' if c["goal"] else "")
-            + (f'<h4>결정 — 사용자의 말 그대로</h4><ul class="decisions">{ds}</ul>' if ds else "")
-            + (f'<h4>작업</h4><div class="waves">{"".join(cols)}</div>' if cols else "") + "</details>")
-
-
-CSS = """
-:root{--bg:#f6f5f1;--card:#fff;--ink:#1c1b19;--dim:#6b6860;--line:#dedbd2;--ok:#2f8f5b;--bad:#c8402f;--todo:#b9b5aa;--drop:#d9d6cd;--user:#b4530a;--now:#1c1b19}
-@media (prefers-color-scheme:dark){:root{--bg:#0e0f11;--card:#17191c;--ink:#ecebe6;--dim:#9a988f;--line:#2a2d32;--ok:#4cc38a;--bad:#f0604d;--todo:#4a4d54;--drop:#2a2d32;--user:#f0a35a;--now:#ecebe6}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,"Pretendard","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
-main{max-width:1180px;margin:0 auto;padding:28px 16px 80px}
-header h1{font-size:28px;margin:0 0 2px;letter-spacing:-.02em}header p,summary p,small,.note,.where{color:var(--dim)}
-header p{margin:0 0 20px;font-size:13px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
-.stats div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.stats b{display:block;font-size:26px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}.stats span{font-size:12px;color:var(--dim)}
-h2{font-size:13px;letter-spacing:.08em;color:var(--dim);margin:36px 0 12px;font-weight:600}
-h3{font-size:16px;margin:0}h4{font-size:12px;color:var(--dim);margin:18px 0 8px;font-weight:600}
-.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--drop);margin:8px 0}
-.bar i{display:block}.s-동기{--c:var(--ok)}.s-불일치{--c:var(--bad)}.s-미구현{--c:var(--todo)}.s-폐기{--c:var(--drop)}
-.bar i,.dot{background:var(--c)}.k{font-size:12px}.k::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--c);margin-right:5px}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 14px}
-.chips button{font:inherit;font-size:12px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:99px;padding:4px 11px;cursor:pointer}
-.chips button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px;align-items:start}
-details.card,details.cycle{background:var(--card);border:1px solid var(--line);border-radius:10px}
-details.card[open]{grid-column:1/-1}
-summary{list-style:none;cursor:pointer;padding:14px 16px;position:relative}summary::-webkit-details-marker{display:none}
-summary p{margin:0;font-size:12px}.card .num{position:absolute;right:16px;top:12px;font-size:20px;font-variant-numeric:tabular-nums}.card .num small{font-size:13px}
-.card h3{padding-right:70px}
-ul,ol{list-style:none;margin:0;padding:0}.card ul{border-top:1px solid var(--line);padding:6px 16px 12px}
-.row{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}.row:last-child{border:0}
-.row[data-state=폐기] code,.row[data-state=폐기] b{text-decoration:line-through;color:var(--dim)}
-.dot{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
-code,.where{font:12px ui-monospace,SFMono-Regular,Menlo,monospace}.note{flex:1 1 260px;min-width:0}.where{flex-basis:100%;padding-left:18px;overflow-wrap:anywhere}
-.tag{font-size:11px;color:var(--user);border:1px solid currentColor;border-radius:4px;padding:0 5px;text-decoration:none}
-.cycle{margin-bottom:10px}.cycle>summary{display:grid;gap:8px}.cycle>:not(summary){margin-left:16px;margin-right:16px}.cycle>:last-child{margin-bottom:16px}
-.n{color:var(--dim);font-variant-numeric:tabular-nums;margin-right:4px}
-.steps{display:flex;flex-wrap:wrap;gap:4px}.steps li{font-size:12px;padding:2px 9px;border-radius:99px;border:1px solid var(--line);color:var(--dim)}
-.steps .past{background:var(--drop);color:var(--ink);border-color:transparent}.steps .now{background:var(--now);color:var(--bg);border-color:var(--now);font-weight:600}
-blockquote{margin:0;padding:8px 12px;border-left:3px solid var(--user);background:color-mix(in srgb,var(--user) 8%,transparent);border-radius:0 6px 6px 0;font-size:14px}
-.goal{font-size:14px}.wait{border-color:var(--bad);color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,transparent)}
-.decisions{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
-.decision{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px;align-content:start}.decision.open{border-color:var(--bad)}
-.q{font-size:13px}.q small{display:block;font-size:11px}.decision summary{padding:0;font-size:12px;color:var(--dim)}.decision details p{font-size:12px;color:var(--dim);margin:6px 0 0}
-.waves{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}.wave{flex:0 0 220px}.wave h4{margin-top:0}
-.task{border:1px solid var(--line);border-left:3px solid var(--todo);border-radius:6px;padding:7px 10px;margin-bottom:6px;font-size:13px}
-.task small{display:block;font-size:11px}.task .why{color:var(--bad)}.m-done{border-left-color:var(--ok)}.m-blocked{border-left-color:var(--bad)}
-.hide{display:none!important}
-"""
-JS = """
-const K='board:'+location.pathname, keep=()=>{try{sessionStorage.setItem(K,JSON.stringify([...document.querySelectorAll('details[id][open]')].map(d=>d.id)))}catch(e){}};
-try{const o=JSON.parse(sessionStorage.getItem(K)||'null');if(o)document.querySelectorAll('details[id]').forEach(d=>d.open=o.includes(d.id))}catch(e){}
-document.addEventListener('toggle',keep,true);
-let pick='';document.querySelectorAll('.chips button').forEach(b=>b.onclick=()=>{pick=pick===b.dataset.f?'':b.dataset.f;
- document.querySelectorAll('.chips button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.f===pick));
- document.querySelectorAll('.row').forEach(r=>r.classList.toggle('hide',!!pick&&r.dataset.state!==pick&&r.dataset.kind!==pick));
- document.querySelectorAll('details.card').forEach(c=>{const n=c.querySelectorAll('.row:not(.hide)').length;c.classList.toggle('hide',!n);if(pick)c.open=n>0&&n<40})});
-const every=RELOAD;if(every)setInterval(()=>{if(!document.hidden&&!pick){keep();location.reload()}},every*1000);
-"""
-
-
-def build_log(name, titles, rows, cycles):
-    touched = {}
-    for c in cycles:
-        for t in c["tasks"]:
-            for i in t["ids"]:
-                touched.setdefault(i, []).append((c["num"], t["num"], t["title"]))
-    c = count(rows)
-    live = len(rows) - c["폐기"]
-    now = cycles[-1] if cycles else None
-    waiting = sum(1 for cy in cycles for d in cy["decisions"] if not d["done"])
-    stats = [(f'{c["동기"] * 100 // live if live else 0}%', f'GDD 항목 {live}개 중 동기 {c["동기"]}'), (c["불일치"], "불일치"), (c["미구현"], "미구현"),
-             (f'{now["num"]} · {now["stage"]}' if now else "—", "지금 사이클 · 단계"), (waiting, "답 없는 결정")]
-    kinds = sorted({r["id"].split(".")[0] for r in rows})
-    chips = "".join(f'<button data-f="{e(f)}" aria-pressed="false">{e(f)}</button>' for f in [s for s in STATES if c[s]] + kinds)
-    page = (f'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{e(name)} 기록</title><style>{CSS}</style><main><header><p><a href="index.html" style="color:inherit">← 항해도</a></p><h1>{e(name)} <small style="font-weight:400;color:var(--dim)">기록</small></h1>'
-            f'<p>{datetime.datetime.now():%Y-%m-%d %H:%M} 에 그렸다 · 상태는 GDD 표에 적힌 그대로다 (gdd-sync 가 맞춘다)</p>'
-            '<div class="stats">' + "".join(f"<div><b>{e(str(v))}</b><span>{e(k)}</span></div>" for v, k in stats) + f"</div>{bar(c)}</header>"
-            + (f'<h2>기획한 것 중 얼마나 됐나 — GDD 절마다</h2><div class="chips">{chips}</div><div class="grid">{gdd_html(titles, rows, touched)}</div>'
-               if rows else f'<h2>GDD</h2><p>{e(CFG["gdd"])} 의 부록 A 에 행이 없다.</p>')
-            + ('<h2>일이 어떻게 흘렀나 — 사이클마다</h2>' + "".join(cycle_html(cy, cy is now) for cy in reversed(cycles)) if cycles else "")
-            + f'</main><script>{JS.replace("RELOAD", str(int(CFG["reload_sec"])))}</script></html>\n')
-    return page, f'GDD 동기 {c["동기"]}/{live} · 불일치 {c["불일치"]} · 사이클 {len(cycles)}개 · 답 없는 결정 {waiting}'
-
-
 # ── 항해도 — 플레이 순서대로, 한 화면 ─────────────────────────────────
 #
-# 첫 화면(index)은 단계 카드만. 카드를 누르면 그 단계의 쪽(stage-N.html)으로 간다. 옛 판(표 · 사이클 기록)은 log.html.
+# 첫 화면(index)은 단계 카드만. 카드를 누르면 그 단계의 쪽(stage-N.html)으로 간다.
 # 단계는 kit.config.json 의 board.flow 가 정한다 (없으면 GDD 절마다 하나). 상태는 전부 읽어서 뽑는다:
 #   기능   — GDD 부록 A 의 행 (동기 · 미구현 · 불일치)
 #   아트 · 사운드 — 에셋 기록(assets/_gen)과 사이클 문서의 "필요한 에셋" 표 (없음 · 임시)
@@ -411,7 +258,7 @@ def asset_items(st, where, cycles, tasks):
                                                                  else not (have.startswith("없음") or have in ("", "—"))))
             it["st"] = "temp" if "임시" in have else "done" if there else "none"
             it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — 적힌 파일이 없다" if cited and not there else "")
-            it["tags"] = [(f'{c["num"]}', f'log.html#c{c["num"]}')]
+            it["tags"] = [f'사이클 {c["num"]}']
             it["audio"] = it["audio"] or sound(files.get(n["name"], ""))
             found[n["name"]] = it
     for name, path in files.items():  # 기록 없이 게임에 든 소리 · 모델도 센다 (손으로 넣은 것)
@@ -435,7 +282,7 @@ def check_items(st, where, cycles, playtests):
             for i in {where[x] for x in t["ids"] if x in where}:
                 hit.setdefault(i, []).append(t)
         for i, ts in hit.items():
-            st[i]["lanes"]["검증"].append(item(state, f'사이클 {c["num"]} — {c["name"]}', said, tags=[("기록", f'log.html#c{c["num"]}')]))
+            st[i]["lanes"]["검증"].append(item(state, f'사이클 {c["num"]} — {c["name"]}', said))
             st[i]["work"].append((c, ts))
     for p in playtests:
         date = re.match(r"\d{4}-\d\d-\d\d", p["file"])
@@ -466,10 +313,9 @@ def open_questions(st, cycles):
     for c in cycles:
         out += [{"title": f'{d["num"]} {d["title"]}', "text": "답을 기다린다", "from": f'사이클 {c["num"]}'} for d in c["decisions"] if not d["done"]]
     for q in out:
-        s = place_words(st, q["title"] + " " + q["text"])
-        q["stage"] = s["i"] if s else None
-        if s:
-            s["open"].append(q)
+        s = place_words(st, q["title"] + " " + q["text"]) or st[-1]
+        q["stage"] = s["i"]
+        s["open"].append(q)
     return out
 
 
@@ -652,7 +498,7 @@ def lane_rows(s):
 
 
 def ask_href(q):
-    return "log.html" if q["stage"] is None else "stage-%d.html" % (q["stage"] + 1)
+    return "stage-%d.html" % (q["stage"] + 1)
 
 
 def index_html(name, st, asks, now, stamp):
@@ -694,12 +540,12 @@ def index_html(name, st, asks, now, stamp):
             + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">못 정한 것 {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
             + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>{rest_html}'
             f'<footer><span>{stamp} 에 그렸다 · 상태는 GDD 표 · 에셋 기록 · 사이클 · 플레이테스트 문서에서 읽은 그대로다</span>'
-            f'<a href="log.html">표와 사이클 기록 →</a></footer>')
+            '</footer>')
     return shell(f"{name} 항해도", body), total
 
 
 def it_html(i):
-    tags = "".join(f'<a class="tag" href="{e(h)}">{e(t)}</a>' for t, h in i["tags"])
+    tags = "".join(f'<span class="tag">{e(t)}</span>' for t in i["tags"])
     play = f'<button class="play" data-src="{rel(i["audio"])}">▶</button>' if i["audio"] else ""
     head = f'<code>{e(i["code"])}</code> ' if i["code"] else ""
     return (f'<li class="it st-{i["st"]}"><i class="s-{i["st"]}" title="{WORD[i["st"]]}"></i>{play}<div class="t">{head}<b>{e(i["title"])}</b>{tags}'
@@ -736,7 +582,7 @@ def stage_html(name, s, st):
     asks = "".join(f'<div class="ask" style="margin-bottom:6px"><b style="white-space:normal">{e(q["title"])}</b>'
                    f'<span style="white-space:normal">{e(q["text"])} <em class="lab">{e(q["from"])}</em></span></div>' for q in s["open"])
     mark = {"x": "", "!": " blocked"}
-    work = "".join(f'<h4><a href="log.html#c{c["num"]}">사이클 {e(c["num"])} — {e(c["name"])} · {e(c["stage"])}</a></h4>'
+    work = "".join(f'<h4>사이클 {e(c["num"])} — {e(c["name"])} · {e(c["stage"])}</h4>'
                    + "".join(f'<span class="task{mark.get(t["mark"], " open")}" title="{e(t["did"])}"><b>{t["num"]}</b> {e(t["title"])}</span>' for t in ts)
                    for c, ts in reversed(s["work"]))
     body = (f'<div class="bar"><a class="btn" href="index.html">← 항해도</a><div class="tabs">{tabs}</div></div>'
@@ -756,13 +602,16 @@ def build(outdir, index_name):
     name, titles, rows = gdd()
     cycles = [cycle(p) for p in cycle_docs()]
     playtests = [cycle(p) for p in playtest_docs()]
-    log, line = build_log(name, titles, rows, cycles)
+    live = [r for r in rows if r["state"] != "폐기"]
+    waiting = sum(1 for c in cycles for d in c["decisions"] if not d["done"])
+    line = (f'GDD 동기 {sum(1 for r in live if r["state"] == "동기")}/{len(live)} · 불일치 {sum(1 for r in live if r["state"] == "불일치")}'
+            f' · 사이클 {len(cycles)}개 · 답 없는 결정 {waiting}')
     st = make_stages(titles, rows)
     touched, where = {}, {}
     for c in cycles:
         for t in c["tasks"]:
             for i in t["ids"]:
-                touched.setdefault(i, []).append((f'{c["num"]}·{t["num"]}', f'log.html#c{c["num"]}'))
+                touched.setdefault(i, []).append(f'{c["num"]}·{t["num"]}')
     for r in rows:
         s = place_row(st, r)
         where[r["id"]] = s["i"]
@@ -774,7 +623,7 @@ def build(outdir, index_name):
     asks = open_questions(st, cycles)
     stamp = f"{datetime.datetime.now():%Y-%m-%d %H:%M}"
     index, total = index_html(name, st, asks, cycles[-1] if cycles else None, stamp)
-    pages = {index_name: index, "log.html": log}
+    pages = {index_name: index}
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     return pages, f"{line} · 완성 {total}%"
 
@@ -807,6 +656,9 @@ def main():
             return
         pages, line = build(os.path.dirname(out), os.path.basename(out))
         os.makedirs(os.path.dirname(out), exist_ok=True)
+        old = os.path.join(os.path.dirname(out), "log.html")  # 0.12.0 이 쓰던 쪽 — 이제 그리지 않는다
+        if os.path.exists(old):
+            os.remove(old)
         for fn, page in pages.items():
             with open(os.path.join(os.path.dirname(out), fn), "w", encoding="utf-8") as f:
                 f.write(page)
