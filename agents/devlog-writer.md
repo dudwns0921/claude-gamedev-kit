@@ -28,7 +28,7 @@ tools: Read, Grep, Glob, Bash, Write
 
 - **Title**: <버전을 넣는다 — "0.1.3 — 한 줄 요약">
 - **Post type**: <아래에서 하나> — <고른 이유 한 줄>
-- **Attachments**: <이번에 올린 빌드 — 채널과 버전. 예: outis-html5.zip 0.1.3 · outis-windows.zip 0.1.3>
+- **Attachments**: <이번에 올린 빌드 — 채널과 버전. 예: <게임>-html5.zip 0.1.3 · <게임>-windows.zip 0.1.3>
 - **Tags**: <서넛>
 - **Languages**: <본문의 언어>
 - **Cover image**: <어느 장면의 스크린샷 — 16:9, 가로 500px 넘게. 사용자가 찍는다>

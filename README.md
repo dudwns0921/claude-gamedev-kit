@@ -44,7 +44,7 @@
 
 ## 토큰과 시간
 
-실제 세션 기록으로 재 보면 토큰의 대부분은 **메인 세션이 턴마다 다시 읽는 양**에서 나간다 (한 세션을 며칠 이어 간 Keros 에서 67%).
+실제 세션 기록으로 재 보면 토큰의 대부분은 **메인 세션이 턴마다 다시 읽는 양**에서 나간다 (한 세션을 며칠 이어 간 게임에서 67%).
 그래서: 사이클 · 플레이테스트 문서의 장부는 스크립트가 맡고(`cycle.py` · `playtest.py` — 문서를 통째로 읽지 않는다),
 컨텍스트가 20만 토큰을 넘으면 훅이 새 세션을 권하게 하고, 넘어갈 때는 사이클 문서나 `/gamedev-kit:handoff` 메모가 맥락을 들고 간다.
 고치기 전과 뒤는 `python3 tools/session_usage.py <게임 저장소>` 로 견준다.
@@ -59,15 +59,15 @@
 
 테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs 서버로 돈다 — 밖으로는 아무것도 나가지 않는다.
 배포 도구(butler push)를 이 키트로 진짜 itch.io 에 올려 본 기록은 아직 여기 없다.
-에셋 도구는 Keros(Godot 4.7)에서 진짜 API 로 모델 44개 · 소리 56개를 뽑아 게임에 넣었다 (2026-10-08). 다듬기(Blender 5.2)와 Godot 가져오기도 확인했다.
-Godot 의 엔진 규칙(`engines/godot/CLAUDE.md` — 검증 방법과 함정)은 Outis · Keros 를 만들며 걸려 넘어진 것을 옮긴 것이다.
+에셋 도구는 Godot 4.7 게임 하나에서 진짜 API 로 모델 44개 · 소리 56개를 뽑아 넣었다 (2026-10-08). 다듬기(Blender 5.2)와 Godot 가져오기도 확인했다.
+Godot 의 엔진 규칙(`engines/godot/CLAUDE.md` — 검증 방법과 함정)은 Godot 게임 둘을 만들며 걸려 넘어진 것을 옮긴 것이다.
 
 ## 설치
 
 게임 저장소에서:
 
 ```bash
-claude plugin marketplace add git@github.com-personal:dudwns0921/claude-gamedev-kit.git
+claude plugin marketplace add dudwns0921/claude-gamedev-kit
 ```
 
 ```bash
@@ -100,3 +100,7 @@ tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검�
 ```
 
 도구는 플러그인 안에 있고 게임은 밖에 있다. 스크립트는 지금 폴더에서 위로 올라가며 `kit.config.json` 을 찾아 그곳을 게임 루트로 본다.
+
+## 라이선스
+
+[MIT](LICENSE)
