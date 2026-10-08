@@ -41,6 +41,7 @@ API = os.environ.get("ELEVENLABS_API_BASE", "https://api.elevenlabs.io/v1")  # �
 KEY = "ELEVENLABS_API_KEY"
 OPEN, CLOSE = "<!-- sound-style -->", "<!-- /sound-style -->"
 LIMITS = {"sfx": (0.5, 30), "music": (3, 600)}
+LONGEST = 450  # 효과음 설명의 길이 한도 — 결 문단이 붙은 뒤의 길이다
 
 ROOT = ""
 CFG = dict(DEFAULTS)
@@ -134,6 +135,8 @@ def make(rec):
     if rec.get("seconds") is not None and not lo <= rec["seconds"] <= hi:
         sys.exit(f"{name}: {'효과음' if kind == 'sfx' else '음악'}은 {lo}~{hi}초다")
     prompt = rec["subject"] + (f". {style()}" if style() else "")
+    if kind == "sfx" and len(prompt) > LONGEST:
+        sys.exit(f"{name}: 설명이 {len(prompt)}자다 — 결 문단까지 합쳐 {LONGEST}자 안이어야 한다 (결 문단 {len(style())}자)")
     if kind == "sfx":
         body = {"text": prompt, "prompt_influence": rec["influence"], "loop": rec["loop"]}
         if rec.get("seconds") is not None:

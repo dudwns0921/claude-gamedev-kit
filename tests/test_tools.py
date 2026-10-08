@@ -532,6 +532,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual((seen[2][2]["loop"], seen[2][2]["prompt_influence"]), (True, 0.6))
         self.assertNotIn("duration_seconds", seen[2][2], "길이를 안 주면 알아서 정하게 둔다")
 
+        self.assertIn("450자 안이어야", sound("sfx", "long", "가" * 445, ok=False), "결 문단이 붙은 뒤의 길이로 잰다")
+        self.assertEqual(len(seen), 3)
         self.assertIn("3~600초", sound("music", "theme", "--seconds", "1", "x", ok=False))
         sound("music", "theme", "--seconds", "45", "Calm exploration theme")
         self.assertEqual(seen[3][0].split("?")[0], "/music")

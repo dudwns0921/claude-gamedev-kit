@@ -57,8 +57,10 @@
 | Roblox | ○ | ○ | ○ `serve` 가 내주는 JSON 을 Studio 가 가져온다 | — Studio 에서 올린다 | — | 도구 테스트 · Lune 으로 런타임 실행 · Studio 플레이 테스트에서 실시간 반영 (0.741, 2026-10-06) |
 | Unity | ○ | ○ | — | △ 에디터에서 빌드한 폴더를 올린다 | — | 도구 테스트만 |
 
-배포 · 에셋 도구는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs 서버로만 돌려 보았다 (`tests/test_tools.py`). 진짜 itch.io 에 올린 적,
-진짜 API 로 에셋을 뽑은 적은 아직 없다. 에셋의 다듬기(Blender 5.2)는 진짜로 돌렸고, 나온 glb 를 Godot 4.7 이 헤드리스로 가져와 크기와 원점이 맞는 것까지 확인했다.
+테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs 서버로 돈다 — 밖으로는 아무것도 나가지 않는다.
+배포 도구(butler push)를 이 키트로 진짜 itch.io 에 올려 본 기록은 아직 여기 없다.
+에셋 도구는 Keros(Godot 4.7)에서 진짜 API 로 모델 44개 · 소리 56개를 뽑아 게임에 넣었다 (2026-10-08). 다듬기(Blender 5.2)와 Godot 가져오기도 확인했다.
+Godot 의 엔진 규칙(`engines/godot/CLAUDE.md` — 검증 방법과 함정)은 Outis · Keros 를 만들며 걸려 넘어진 것을 옮긴 것이다.
 
 ## 설치
 
@@ -90,7 +92,7 @@ claude plugin update gamedev-kit@claude-gamedev-kit
 .claude-plugin/     plugin.json · marketplace.json (이 저장소가 플러그인이자 마켓플레이스다)
 skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scripts/ 에
 agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일만 에이전트로 둔다
-engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙) · files/(게임에 복사될 틀)
+engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙 — 검증 방법과 함정. 게임에서 배운 것이 여기로 돌아온다) · files/(게임에 복사될 틀)
 templates/          GDD.md · DESIGN.md · CLAUDE.md — 게임 저장소에 깔리는 틀
 hooks/              세션의 컨텍스트가 커지면 새 세션을 권하게 하는 훅 하나
 tools/              session_usage.py — 게임 저장소의 세션 기록에서 토큰이 어디로 갔는지 센다
