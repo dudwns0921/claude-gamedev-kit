@@ -19,6 +19,7 @@
 
   python3 voice.py setup <저장소 주소>     폴더가 없으면 받고(clone), 보이스가 이미 있으면 그 폴더를 저장소로 만들어 원격을 붙인다. 공개 저장소면 멈춘다
   python3 voice.py autopush on             묻지 않고 올려도 된다는 사용자의 허락을 이 기기에 적는다 (off 로 거둔다). 비공개로 확인된 저장소만
+                                           (로그인 없이는 읽히지 않는 저장소 — git 이 가진 로그인으로 본다)
   python3 voice.py sync ["<한 줄>"]         바뀐 것을 커밋하고, 원격의 것을 받고, 허락이 있으면 올린다. 읽기 전과 쓴 뒤에 돌린다
   python3 voice.py sync --push             허락이 없을 때 — 사용자에게 묻고 난 뒤 한 번 올린다
 
@@ -43,6 +44,7 @@ LOG_HEAD = """# 보이스 예측 장부
 `[ ]` 채점 전 · `[o]` 맞음 · `[x]` 빗나감 · `[-]` 모름 (근거가 될 원칙이 없어 예측하지 않음)
 
 """
+ANON_GIT = os.environ.get("VOICE_ANON_GIT", "git")  # 테스트가 바꾼다
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
 PARTS_RE = re.compile(r"^(?P<q>.*?)(?: \((?P<who>기획|디자인|계획)\))?(?: → (?P<a>.*?)(?: \((?P<date>\d{4}-\d\d-\d\d)\))?)?$")
@@ -211,12 +213,14 @@ def is_repo():
 
 
 def is_private(url):
-    """gh 로 묻는다. True · False, 알 수 없으면(gh 가 없다 · GitHub 의 것이 아니다) None."""
-    try:
-        p = subprocess.run(["gh", "repo", "view", url, "--json", "isPrivate", "-q", ".isPrivate"], capture_output=True, text=True)
-    except OSError:
+    """로그인 없이도 읽히면 공개다. 로그인해야만 읽히면 True, 로그인 없이 읽히면 False, 아예 닿지 않으면 None.
+    git 이 이미 가진 로그인만 쓴다 — 따로 깔거나 로그인할 것이 없다."""
+    if subprocess.run(["git", "ls-remote", url], capture_output=True, text=True).returncode:
         return None
-    return {"true": True, "false": False}.get(p.stdout.strip()) if p.returncode == 0 else None
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_ASKPASS", "SSH_ASKPASS")}
+    env.update(GIT_TERMINAL_PROMPT="0", GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
+    anon = subprocess.run([ANON_GIT, "-c", "credential.helper=", "ls-remote", url], capture_output=True, text=True, env=env)
+    return anon.returncode != 0
 
 
 def cmd_setup(url):
@@ -246,7 +250,7 @@ def cmd_setup(url):
         git("remote", "add", "origin", url)
         print(f"{HOME} — 있던 보이스를 저장소로 만들었다. `sync` 가 커밋하고 올린다")
     if private is None:
-        print("비공개인지 확인하지 못했다 (gh 가 없거나 GitHub 의 저장소가 아니다) — 사용자가 직접 확인한다. 묻지 않고 올리기는 켤 수 없다")
+        print("저장소에 닿지 못해 비공개인지 확인하지 못했다 — 주소와 git 로그인을 본다. 묻지 않고 올리기는 켤 수 없다")
     else:
         print("비공개 저장소다. 묻지 않고 올려도 되는지 사용자에게 묻는다 — 된다고 하면 `autopush on`")
 

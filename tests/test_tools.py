@@ -274,9 +274,12 @@ class Tools(unittest.TestCase):
         old = "## 옛 규칙\n옛 말"
         mark = __import__("hashlib").sha1(old.encode()).hexdigest()[:8]
         put(f"# 내 게임\n\n<!-- gamedev-kit 시작 · {mark} — 옛 판 -->\n{old}\n<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n")
-        self.assertIn("옛 판이다", check())
         self.assertIn("옛 판이다 — `--rules`", run(init, root, engine).stdout)
         self.assertIn("지금 판으로 바꿨다", run(init, root, engine, "--rules").stdout)
+        stale = text()
+        put(f"# 내 게임\n\n<!-- gamedev-kit 시작 · {mark} — 옛 판 -->\n{old}\n<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n")
+        self.assertIn("지금 판으로 바꿨다 (블록 밖은 그대로다)", check(), "세션이 시작될 때 훅이 스스로 맞춘다")
+        self.assertEqual(text(), stale)
         self.assertTrue(text().startswith("# 내 게임\n\n<!-- gamedev-kit 시작 · "))
         self.assertTrue(text().endswith("<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n"), "블록 밖은 그대로다")
         self.assertNotIn("옛 말", text())
@@ -881,27 +884,27 @@ esac
         self.assertFalse(os.path.exists(os.path.join(root, "docs/VOICE.md")), "게임 저장소에는 보이스를 두지 않는다")
 
     def test_voice_sync(self):
-        """보이스 폴더는 비공개 저장소의 클론이다 — 기기 둘이 같은 저장소로 맞춘다. gh 는 가짜다."""
+        """보이스 폴더는 비공개 저장소의 클론이다 — 기기 둘이 같은 저장소로 맞춘다. 로그인 없이 읽어 보는 git 만 가짜다."""
         top = tempfile.mkdtemp(prefix="kit-voice-sync-")
         self.addCleanup(shutil.rmtree, top, True)
         remote, a, b, bin_dir = (os.path.join(top, n) for n in ("remote.git", "a", "b", "bin"))
         subprocess.run(["git", "init", "-q", "--bare", remote], check=True)
         os.makedirs(bin_dir)
-        gh = os.path.join(bin_dir, "gh")
-        open(gh, "w").write('#!/bin/sh\n[ -n "$FAKE_GH" ] && echo "$FAKE_GH" || exit 1\n')
-        os.chmod(gh, 0o755)
-        base = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"], GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+        anon = os.path.join(bin_dir, "anon-git")  # 로그인 없이 읽히면(0) 공개다
+        open(anon, "w").write('#!/bin/sh\n[ "$FAKE_PUBLIC" = 1 ]\n')
+        os.chmod(anon, 0o755)
+        base = dict(os.environ, VOICE_ANON_GIT=anon, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
                     GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
 
-        def voice(home, *args, private="true", ok=True):
+        def voice(home, *args, public=False, ok=True):
             p = subprocess.run([sys.executable, VOICE, *args], capture_output=True, text=True,
-                               env=dict(base, GAMEDEV_KIT_VOICE=home, FAKE_GH=private))
+                               env=dict(base, GAMEDEV_KIT_VOICE=home, FAKE_PUBLIC="1" if public else "0"))
             self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
             return p.stdout + p.stderr
 
         put = lambda home, text: open(os.path.join(home, "VOICE.md"), "w", encoding="utf-8").write(text)
         self.assertIn("저장소가 아니다", voice(a, "sync"))
-        self.assertIn("공개 저장소다", voice(a, "setup", remote, private="false", ok=False))
+        self.assertIn("공개 저장소다", voice(a, "setup", remote, public=True, ok=False))
         self.assertFalse(os.path.exists(a))
 
         # 보이스가 이미 있는 기기 — 그 폴더가 저장소가 된다
@@ -911,15 +914,15 @@ esac
         out = voice(a, "sync", "voice: 첫 판")
         self.assertIn("커밋했다", out)
         self.assertIn("올리지 않은 커밋 1 — 사용자에게 묻고", out)
-        self.assertIn("확인된 저장소가 아니다", voice(a, "autopush", "on", private="", ok=False))
+        self.assertIn("확인된 저장소가 아니다", voice(a, "autopush", "on", public=True, ok=False))
         self.assertIn("묻지 않고 올린다", voice(a, "autopush", "on"))
         self.assertIn("올렸다 — 커밋 1", voice(a, "sync"))
         self.assertIn("저장소와 같다", voice(a, "sync"))
 
         # 다른 기기 — 받기만 하면 같은 보이스다. 허락은 기기마다 따로다
-        out = voice(b, "setup", remote, private="")
-        self.assertIn("받았다", out)
-        self.assertIn("비공개인지 확인하지 못했다", out)
+        self.assertIn("받지 못했다", voice(b, "setup", os.path.join(top, "없는곳.git"), ok=False))
+        self.assertFalse(os.path.exists(b))
+        self.assertIn("받았다", voice(b, "setup", remote))
         self.assertIn("V1. 하나", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
         open(os.path.join(b, "log.md"), "w", encoding="utf-8").write("- [o] 둘째 01 D1 (계획) → ② · V1\n")
         self.assertIn("올리지 않은 커밋 1", voice(b, "sync"))

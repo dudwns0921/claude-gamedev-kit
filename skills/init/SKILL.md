@@ -42,15 +42,20 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 6. **Fill in deploy · assets when you use them.** `deploy.itch` in `kit.config.json` (itch.io `user/game`), the asset API key, and
    the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the deploy · asset skills guide how to fill them.
 
-7. **Say where the user's voice is, in one line.** The voice (how this user decides — it grows across every game) lives outside the game, in a private repository of the user's.
-   Run `python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" sync`: if it says the home is not a repository, tell the user that
-   `/gamedev-kit:voice setup <private repo url>` brings their voice to this machine (or starts one). Do not set it up unasked.
+7. **Go on to the voice — do not wait to be asked.** The voice (how this user decides — it grows across every game) lives outside the game, in a private repository of the user's.
+   Run `python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" sync` and continue by what it says:
+   - **The home is a repository** (it synced): the voice is already on this machine. If `voice.py collect new` prints decisions from this game, follow the voice skill's
+     "Writing · updating"; otherwise say in one line that the voice is connected and will be used when the cycle asks decisions.
+   - **The home is not a repository**: ask the user for the address of their private voice repository. If they have none yet, say what to do in one line —
+     make an empty **private** repository on GitHub (no README) and paste its address — and wait for it. With the address, follow the voice skill's "setup" to the end
+     (connect → sync → the one question about pushing → write the voice if this game has decisions). If the user says later, say that
+     `/gamedev-kit:voice setup <address>` picks it up, and finish.
 
 ## Aligning the kit rules (`/gamedev-kit:init rules`)
 
 In the game's CLAUDE.md, the kit's part is the single span between `<!-- gamedev-kit 시작 … -->` and `<!-- gamedev-kit 끝 -->` — it holds the common rules (GDD sync · balance table · cycle …) and
 that engine's rules (Running · Verification · Pitfalls). When the kit bumps its version, replace only that span wholesale. **Outside the block is the game's and is not touched.**
-At session start a hook looks at the block and reports in one line if it is missing or an old version.
+At session start a hook looks at the block: **an old version it replaces by itself** (only the block, and only if nobody edited inside it) and says so in one line; a missing or hand-edited block it only reports. So after the kit is updated there is normally nothing to run.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --rules
@@ -62,7 +67,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --rules
   rewrote or added (gather it under "This game's rules"). **Before deleting, show the user what is deleted and what is kept, and get an answer** — the user wrote that text.
   Overlap between the engine rules' pitfalls and the game's "Pitfalls" is handled the same way.
 - **If the inside of the block was edited by hand**, the script stops. Move the edited text outside the block and run again — text outside takes precedence over the block. `--force` only when the user says it may be discarded.
-- If the user does not want the block, put `"init": { "rules": false }` in `kit.config.json` — the hook does not report.
+- If the user does not want the block, put `"init": { "rules": false }` in `kit.config.json` — the hook neither replaces nor reports.
 
 ## Adding an engine (plugin-side work)
 

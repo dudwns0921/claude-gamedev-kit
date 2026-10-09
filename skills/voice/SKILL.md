@@ -52,17 +52,20 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" sync "<one line: what changed>"  
 
 ## setup — once per machine
 
-The user makes an empty **private** repository themselves (logging in to GitHub is theirs) and gives its address.
+The user makes an empty **private** repository themselves and gives its address. Nothing else to install or log in to — the script uses the login git already has.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" setup <repo url>
 ```
 
-On a machine with no voice it clones; on a machine that already has one it turns that folder into the repository. It stops if the repository is public,
-and if both the repository and this machine hold a voice — which one stays is the user's call. Then run `sync`.
+On a machine with no voice it clones; on a machine that already has one it turns that folder into the repository. It stops if the repository can be read without logging in
+(public), and if both the repository and this machine hold a voice — which one stays is the user's call.
+
+Then go straight on, without waiting to be asked for each step: `sync` → the one question below → if this is a game with decisions the voice has not read
+(`collect new` prints any), "Writing · updating". One call from the user should end with a voice in the repository.
 
 **Pushing is going outward, so it is asked.** Ask once: "may the voice be pushed to this repository without asking each time?" — if yes, `voice.py autopush on`
-(kept on this machine only; the script refuses unless `gh` confirms the repository is private). Without that, `sync` reports unpushed commits and you ask before `sync --push`.
+(kept on this machine only; the script refuses unless the repository is private). Without that, `sync` reports unpushed commits and you ask before `sync --push`.
 
 If `sync` says the home is not a repository, say in one line that the voice stays on this machine until `/gamedev-kit:voice setup <private repo url>` — once, not every time.
 

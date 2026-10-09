@@ -5,7 +5,7 @@
   python3 init.py <엔진>       설정 · GDD 틀 · 런타임 틀을 깐다
   python3 init.py <엔진> --files   이미 깐 프로젝트에서 엔진 틀(값 파일 · 런타임)도 없는 것을 다시 깐다
   python3 init.py <엔진> --rules   CLAUDE.md 의 키트 규칙 블록을 지금 판으로 맞춘다 (없으면 끝에 붙인다). 블록 밖은 건드리지 않는다
-  python3 init.py --rules-check    블록이 없거나 옛 판이면 한 줄 적는다 (세션이 시작될 때 훅이 부른다. 같으면 조용하다)
+  python3 init.py --rules-check    세션이 시작될 때 훅이 부른다: 블록이 옛 판이면 지금 판으로 바꾸고 한 줄 적는다. 블록이 없거나 손으로 고쳐졌으면 알리기만 한다. 같으면 조용하다
 
 이미 있는 파일은 건드리지 않는다 — 몇 번을 돌려도 같다.
 이미 깐 프로젝트(kit.config.json 이 있다)에서 다시 돌리면 엔진 틀은 건너뛴다: 값 파일을 옮겼거나 틀을 일부러 지운 프로젝트에
@@ -102,9 +102,16 @@ def check_rules():
     cfg = json.load(open(os.path.join(d, "kit.config.json"), encoding="utf-8"))
     if cfg.get("engine") not in engines() or cfg.get("init", {}).get("rules") is False:
         return
+    state = rules_state(d, cfg["engine"])
+    if state == "stale":  # 블록은 키트의 것이다 — 손대지 않은 블록은 묻지 않고 맞춘다
+        path = os.path.join(d, "CLAUDE.md")
+        text = open(path, encoding="utf-8").read()
+        open(path, "w", encoding="utf-8").write(BLOCK_RE.sub(lambda m: block(rules(cfg["engine"])[1]).rstrip("\n"), text, count=1))
+        return print("[gamedev-kit] 키트가 규칙을 고쳐서 CLAUDE.md 의 키트 규칙 블록을 지금 판으로 바꿨다 (블록 밖은 그대로다). "
+                     "바뀐 것은 `git diff CLAUDE.md` — 끊을 자리에서 사용자에게 한 줄로 알린다. "
+                     "스스로 맞추지 않게 하려면 kit.config.json 에 `\"init\": {\"rules\": false}`.")
     say = {"none": "CLAUDE.md 에 키트 규칙 블록이 없다 (키트의 새 규칙이 이 프로젝트에 들어오지 않는다)",
-           "stale": "CLAUDE.md 의 키트 규칙이 옛 판이다 (키트가 규칙을 고쳤다)",
-           "edited": "CLAUDE.md 의 키트 규칙 블록 안이 손으로 고쳐져 있다 (판을 맞출 수 없다)"}.get(rules_state(d, cfg["engine"]))
+           "edited": "CLAUDE.md 의 키트 규칙 블록 안이 손으로 고쳐져 있다 (판을 맞출 수 없다)"}.get(state)
     if say:
         print(f"[gamedev-kit] {say}. 하던 일을 막지 않는다 — 끊을 자리에서 사용자에게 한 줄로 알린다: `/gamedev-kit:init rules` 로 맞출 수 있다. "
               "알리지 않게 하려면 kit.config.json 에 `\"init\": {\"rules\": false}`.")
