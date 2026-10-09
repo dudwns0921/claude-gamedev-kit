@@ -86,11 +86,11 @@ If the answer is to make it, follow the asset skill's procedure alongside the bu
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
 options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
-If `docs/VOICE.md` exists, between `ask` and asking the user, follow the voice skill's "Predict": read that document and record one prediction per decision
-(`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" predict D2 ② V3`, or `predict D2 -` when no principle applies). Do not show the predictions with the questions —
+If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game), between `ask` and asking the user,
+follow the voice skill's "Predict": `voice.py sync`, read that document and record one prediction per decision (`voice.py predict D2 ② V3`, or `predict D2 -` when no principle applies). Do not show the predictions with the questions —
 the user still answers every one.
 
-When answers come, record them with `decide D1 "<the user's words verbatim>"` — then, if predictions were recorded, the voice skill's "Score" (`voice.py score`) and relay hits and misses in a line each. If an answer changes the spec · design · plan (scope cut · a different option chosen),
+When answers come, record them with `decide D1 "<the user's words verbatim>"` — then, if predictions were recorded, the voice skill's "Score" (`voice.py score`, then `voice.py sync`) and relay hits and misses in a line each. If an answer changes the spec · design · plan (scope cut · a different option chosen),
 call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
 
 ### 5. 구현
@@ -131,7 +131,7 @@ and the playtest documents) and look at each:
 
 If the split is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
 
-If this cycle answered decisions, recommend in one line bringing the voice up to date (`/gamedev-kit:voice`) — the first time, once two cycles' decisions exist.
+If this cycle answered decisions, recommend in one line bringing the voice up to date (`/gamedev-kit:voice`).
 
 ## Cycle document
 

@@ -36,6 +36,7 @@ VOICE = os.path.join(KIT, "skills/voice/scripts/voice.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
 FEEDBACK = os.path.join(KIT, "tools/kit_feedback.py")
+PRIVATE = os.path.join(KIT, "tools/private_check.py")
 
 
 def raw_glb():
@@ -795,22 +796,30 @@ esac
         self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
 
     def test_voice(self):
-        root = tempfile.mkdtemp(prefix="kit-voice-")
-        self.addCleanup(shutil.rmtree, root, True)
-        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        top = tempfile.mkdtemp(prefix="kit-voice-")
+        self.addCleanup(shutil.rmtree, top, True)
+        root, other, home = (os.path.join(top, n) for n in ("first game", "second", "home"))
+        for game, cfg in ((root, "{}"), (other, '{"voice": {"name": "둘째"}}')):
+            os.makedirs(game)
+            open(os.path.join(game, "kit.config.json"), "w", encoding="utf-8").write(cfg)
+        os.environ["GAMEDEV_KIT_VOICE"] = home  # 보이스는 게임 밖에 산다
+        self.addCleanup(os.environ.pop, "GAMEDEV_KIT_VOICE")
+        self.assertIn("보이스가 아직 없다", run(VOICE, root, "path", ok=False).stderr)
         self.assertIn("답이 난 결정이 없다", run(VOICE, root, "collect").stdout)
         run(CYCLE, root, "new", "dash", "대시를\n넣자")
         run(CYCLE, root, "ask", "기획", "대시 뒤 — ① 무적 ② 그대로 · 권함: ①")
         run(CYCLE, root, "ask", "디자인", "잔상 — ① 있다 ② 없다 · 권함: ①")
         run(CYCLE, root, "ask", "계획", "범위 — ① 전부 ② 반만 · 권함: ②")
         run(CYCLE, root, "ask", "계획", "순서 — ① 화면 먼저 ② 값 먼저")
-        log = lambda: open(os.path.join(root, "docs/voice-log.md"), encoding="utf-8").read()
+        log = lambda: open(os.path.join(home, "log.md"), encoding="utf-8").read()
 
         # 근거가 될 원칙이 보이스에 있어야 예측한다
         self.assertIn("근거 원칙이", run(VOICE, root, "predict", "D1", "②", "V1", ok=False).stderr)
-        open(os.path.join(root, "docs/VOICE.md"), "w", encoding="utf-8").write(
-            "# 보이스\n\n갱신: 2000-01-01 · 결정 2개에서\n\n## 원칙\n- V1. 봐주는 규칙은 넣지 않는다 — 근거: 01 D1\n- V2. 작게 자른다\n")
-        self.assertIn("01 D1 (기획) → ② · V1", run(VOICE, root, "predict", "D1", "2", "V1").stdout)
+        os.makedirs(home)
+        open(os.path.join(home, "VOICE.md"), "w", encoding="utf-8").write(
+            "# 보이스\n\n갱신: 2000-01-01 · 결정 2개 · 게임 1개에서\n\n## 원칙\n- V1. 봐주는 규칙은 넣지 않는다\n- V2. 작게 자른다\n")
+        self.assertEqual(run(VOICE, root, "path").stdout.strip(), os.path.join(home, "VOICE.md"))
+        self.assertIn("first-game 01 D1 (기획) → ② · V1", run(VOICE, root, "predict", "D1", "2", "V1").stdout)
         run(VOICE, root, "predict", "D2", "②", "V1,V2")
         run(VOICE, root, "predict", "D3", "②", "V2")
         self.assertIn("질문에 없는 선택지", run(VOICE, root, "predict", "D4", "③", "V1", ok=False).stderr)
@@ -829,24 +838,128 @@ esac
         self.assertIn("가릴 수 없다: 01 D3 예측 ② · 답: 일단 반만 하자", out)
         self.assertIn("채점할 예측이 없다", run(VOICE, root, "score", "01", "D1", "hit", ok=False).stderr)
         self.assertIn("01 D3: 맞음", run(VOICE, root, "score", "01", "D3", "hit").stdout)
-        self.assertRegex(log(), r"- \[o\] 01 D1 \(기획\) → ② · V1 \(\d{4}-\d\d-\d\d\)\n- \[x\] 01 D2 .*\n- \[o\] 01 D3 .*\n- \[-\] 01 D4 \(계획\) → 모름")
+        self.assertRegex(log(), r"- \[o\] first-game 01 D1 \(기획\) → ② · V1 \(\d{4}-\d\d-\d\d\)\n- \[x\] first-game 01 D2 .*\n"
+                                r"- \[o\] first-game 01 D3 .*\n- \[-\] first-game 01 D4 \(계획\) → 모름")
         out = run(VOICE, root, "stats").stdout
         self.assertIn("적중 2/3 (66%) · 모름 1 · 채점 전 0 · 예측 4", out)
         self.assertIn("계획: 1/1 (100%) · 모름 1", out)
         self.assertIn("V1: 1/2 (50%)", out)
         self.assertIn("V2: 1/2 (50%)", out)
+        self.assertNotIn("first-game:", out, "게임이 하나면 게임별 줄은 없다")
 
         out = run(VOICE, root, "collect").stdout
-        self.assertIn("사이클 01 — dash\n목표: 대시를 넣자\n", out)
-        self.assertIn("01 D1 [갈림] (기획) 대시 뒤 — ① 무적 ② 그대로 · 권함: ① → ②. 봐주지 말자 (", out)
+        self.assertIn("게임: first-game\n\n사이클 01 — dash\n목표: 대시를 넣자\n", out)
+        self.assertIn("first-game 01 D1 [갈림] (기획) 대시 뒤 — ① 무적 ② 그대로 · 권함: ① → ②. 봐주지 말자 (", out)
         self.assertIn("01 D2 [같음]", out)
         self.assertIn("01 D3 [?]", out)
         self.assertIn("결정 4 · 권함과 갈림 1 · 같음 1 · 읽어서 가릴 것 2", out)
+
+        # 보이스에 읽힌 결정은 다음 갱신에서 다시 나오지 않는다
         self.assertIn("결정 4", run(VOICE, root, "collect", "new").stdout)
-        voice = os.path.join(root, "docs/VOICE.md")
-        moved = open(voice, encoding="utf-8").read().replace("2000-01-01", "2999-01-01")
-        open(voice, "w", encoding="utf-8").write(moved)
-        self.assertIn("답이 난 결정이 없다 (2999-01-01 부터)", run(VOICE, root, "collect", "new").stdout)
+        self.assertIn("4개를 읽힌 것으로 적었다", run(VOICE, root, "collect", "done").stdout)
+        self.assertIn("답이 난 결정이 없다 (아직 읽히지 않은 것 가운데)", run(VOICE, root, "collect", "new").stdout)
+        run(CYCLE, root, "ask", "기획", "문 — ① 연다 ② 닫는다 · 권함: ①")
+        run(CYCLE, root, "decide", "D5", "①")
+        out = run(VOICE, root, "collect", "new").stdout
+        self.assertIn("01 D5 [같음]", out)
+        self.assertIn("결정 1 ·", out)
+        self.assertIn("결정 5 ·", run(VOICE, root, "collect").stdout)
+
+        # 다른 게임의 결정이 같은 보이스에 쌓인다 — 줄마다 어느 게임의 것인지 적힌다
+        run(CYCLE, other, "new", "shop", "상점")
+        run(CYCLE, other, "ask", "계획", "범위 — ① 전부 ② 반만 · 권함: ①")
+        self.assertIn("둘째 01 D1 (계획) → ② · V2", run(VOICE, other, "predict", "D1", "②", "V2").stdout)
+        run(CYCLE, other, "decide", "D1", "②")
+        self.assertIn("채점할 예측이 없다", run(VOICE, root, "score").stdout, "다른 게임의 예측은 채점하지 않는다")
+        self.assertIn("01 D1: 맞음", run(VOICE, other, "score").stdout)
+        self.assertIn("결정 1 · 권함과 갈림 1", run(VOICE, other, "collect", "new").stdout)
+        out = run(VOICE, other, "stats").stdout
+        self.assertIn("적중 3/4 (75%) · 모름 1 · 채점 전 0 · 예측 5", out)
+        self.assertIn("first-game: 2/3 (66%) · 모름 1", out)
+        self.assertIn("둘째: 1/1 (100%) · 모름 0", out)
+        self.assertIn("V2: 2/3 (66%)", out)
+        self.assertFalse(os.path.exists(os.path.join(root, "docs/VOICE.md")), "게임 저장소에는 보이스를 두지 않는다")
+
+    def test_voice_sync(self):
+        """보이스 폴더는 비공개 저장소의 클론이다 — 기기 둘이 같은 저장소로 맞춘다. gh 는 가짜다."""
+        top = tempfile.mkdtemp(prefix="kit-voice-sync-")
+        self.addCleanup(shutil.rmtree, top, True)
+        remote, a, b, bin_dir = (os.path.join(top, n) for n in ("remote.git", "a", "b", "bin"))
+        subprocess.run(["git", "init", "-q", "--bare", remote], check=True)
+        os.makedirs(bin_dir)
+        gh = os.path.join(bin_dir, "gh")
+        open(gh, "w").write('#!/bin/sh\n[ -n "$FAKE_GH" ] && echo "$FAKE_GH" || exit 1\n')
+        os.chmod(gh, 0o755)
+        base = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"], GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+
+        def voice(home, *args, private="true", ok=True):
+            p = subprocess.run([sys.executable, VOICE, *args], capture_output=True, text=True,
+                               env=dict(base, GAMEDEV_KIT_VOICE=home, FAKE_GH=private))
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        put = lambda home, text: open(os.path.join(home, "VOICE.md"), "w", encoding="utf-8").write(text)
+        self.assertIn("저장소가 아니다", voice(a, "sync"))
+        self.assertIn("공개 저장소다", voice(a, "setup", remote, private="false", ok=False))
+        self.assertFalse(os.path.exists(a))
+
+        # 보이스가 이미 있는 기기 — 그 폴더가 저장소가 된다
+        os.makedirs(a)
+        put(a, "# 보이스\n- V1. 하나\n")
+        self.assertIn("저장소로 만들었다", voice(a, "setup", remote))
+        out = voice(a, "sync", "voice: 첫 판")
+        self.assertIn("커밋했다", out)
+        self.assertIn("올리지 않은 커밋 1 — 사용자에게 묻고", out)
+        self.assertIn("확인된 저장소가 아니다", voice(a, "autopush", "on", private="", ok=False))
+        self.assertIn("묻지 않고 올린다", voice(a, "autopush", "on"))
+        self.assertIn("올렸다 — 커밋 1", voice(a, "sync"))
+        self.assertIn("저장소와 같다", voice(a, "sync"))
+
+        # 다른 기기 — 받기만 하면 같은 보이스다. 허락은 기기마다 따로다
+        out = voice(b, "setup", remote, private="")
+        self.assertIn("받았다", out)
+        self.assertIn("비공개인지 확인하지 못했다", out)
+        self.assertIn("V1. 하나", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
+        open(os.path.join(b, "log.md"), "w", encoding="utf-8").write("- [o] 둘째 01 D1 (계획) → ② · V1\n")
+        self.assertIn("올리지 않은 커밋 1", voice(b, "sync"))
+        self.assertIn("올렸다 — 커밋 1", voice(b, "sync", "--push"))
+        put(a, "# 보이스\n- V1. 하나\n- V2. 둘\n")
+        out = voice(a, "sync")
+        self.assertIn("받았다 — 커밋 1", out)
+        self.assertIn("올렸다 — 커밋 1", out)
+        self.assertTrue(os.path.exists(os.path.join(a, "log.md")))
+
+        # 같은 줄을 두 기기가 다르게 고쳤다 — 멈추고 사람에게 넘긴다. 이 기기의 것은 그대로다
+        put(b, "# 보이스\n- V1. 다르게\n")
+        self.assertIn("손으로 합친다", voice(b, "sync", ok=False))
+        self.assertIn("V1. 다르게", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
+
+        # 저장소에도 이 기기에도 보이스가 있으면 고르지 않는다
+        c = os.path.join(top, "c")
+        os.makedirs(c)
+        put(c, "# 보이스\n")
+        self.assertIn("어느 쪽을 남길지", voice(c, "setup", remote, ok=False))
+        self.assertFalse(os.path.exists(os.path.join(c, ".git")))
+
+    def test_private(self):
+        """공개 저장소에 낱낱의 기록(게임의 이름 · 날짜)이 없다 — 막을 낱말은 저장소 밖의 파일에서 읽는다."""
+        check = lambda *a, **env: subprocess.run([sys.executable, PRIVATE, *a], capture_output=True, text=True, env=dict(os.environ, **env))
+        p = check()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        home = tempfile.mkdtemp(prefix="kit-private-")
+        self.addCleanup(shutil.rmtree, home, True)
+        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# 게임의 이름\nHyperFrames\n")
+        p = check(GAMEDEV_KIT_VOICE=home)
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("README.md:", p.stderr)
+        msg = os.path.join(home, "msg")
+        open(msg, "w", encoding="utf-8").write("0.1.0 — 고쳤다\n# 2026-01-01 은 git 이 붙인 주석이다\n")
+        self.assertEqual(check("--message", msg, GAMEDEV_KIT_VOICE=home).returncode, 0)
+        open(msg, "w", encoding="utf-8").write("0.1.0 — hyperframes 에서 배운 것\n")
+        self.assertIn("커밋 메시지:1: 막을 낱말", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
+        open(msg, "w", encoding="utf-8").write("0.1.0 — 2026-01-01 에 잰 것\n")
+        self.assertIn("날짜가 있다", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
 
     def test_playtest_ledger(self):
         root = tempfile.mkdtemp(prefix="kit-playtest-")

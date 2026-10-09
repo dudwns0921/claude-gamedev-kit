@@ -1,38 +1,56 @@
 #!/usr/bin/env python3
-"""보이스(docs/VOICE.md)의 재료와 채점 — 사이클 문서의 결정 줄만 꺼내고, 묻기 전에 적은 예측을 답과 견준다.
+"""보이스(사용자의 판단을 모은 한 장)의 재료와 채점 — 사이클 문서의 결정 줄만 꺼내고, 묻기 전에 적은 예측을 답과 견준다.
 
-  python3 voice.py collect                 사이클마다 목표와 답이 난 결정. 권함과 답이 갈렸는지 표시한다
-  python3 voice.py collect new             docs/VOICE.md 의 `갱신:` 날짜부터 답이 난 것만
+보이스는 게임이 아니라 사람의 것이라 게임 저장소 밖에 산다: ~/.config/gamedev-kit/voice/ (환경 변수 GAMEDEV_KIT_VOICE 로 바꾼다).
+거기에 VOICE.md(사람이 읽고 고치는 것) · log.md(예측 장부) · seen.txt(보이스에 이미 읽힌 결정)가 있고, 줄마다 어느 게임의 것인지 적힌다.
+게임의 이름은 게임 폴더의 이름이다 (kit.config.json 의 "voice": {"name": …} 로 바꾼다).
+
+  python3 voice.py path                    보이스 문서의 경로. 아직 없으면 그렇다고 하고 1 로 끝난다
+  python3 voice.py collect                 이 게임의 사이클마다 목표와 답이 난 결정. 권함과 답이 갈렸는지 표시한다
+  python3 voice.py collect new             보이스에 아직 읽히지 않은 것만
+  python3 voice.py collect done            지금 답이 난 결정을 전부 읽힌 것으로 적는다 (보이스를 쓴 뒤에)
   python3 voice.py predict D2 ② V3,V5      묻기 전에 예측을 적는다 — 고를 것과 근거 원칙. 답이 난 결정에는 적지 못한다
   python3 voice.py predict D2 -            근거가 될 원칙이 없다 (모름)
   python3 voice.py score                   답이 난 결정의 예측을 채점한다. 답에서 번호를 가릴 수 없는 것은 줄로 내놓는다
   python3 voice.py score 03 D2 hit         가릴 수 없던 것을 손으로 (hit · miss)
-  python3 voice.py stats                   적중률 — 전체 · 누가 물은 것 · 원칙별
+  python3 voice.py stats                   적중률 — 전체 · 게임별 · 누가 물은 것 · 원칙별
+
+보이스 폴더는 비공개 git 저장소의 클론이다 — 복사본을 두지 않는다. 다른 기기에서는 같은 저장소를 받는다.
+
+  python3 voice.py setup <저장소 주소>     폴더가 없으면 받고(clone), 보이스가 이미 있으면 그 폴더를 저장소로 만들어 원격을 붙인다. 공개 저장소면 멈춘다
+  python3 voice.py autopush on             묻지 않고 올려도 된다는 사용자의 허락을 이 기기에 적는다 (off 로 거둔다). 비공개로 확인된 저장소만
+  python3 voice.py sync ["<한 줄>"]         바뀐 것을 커밋하고, 원격의 것을 받고, 허락이 있으면 올린다. 읽기 전과 쓴 뒤에 돌린다
+  python3 voice.py sync --push             허락이 없을 때 — 사용자에게 묻고 난 뒤 한 번 올린다
 
 predict 는 가장 새 사이클 문서(번호가 가장 큰 것)의 결정을 본다. 다른 문서면 `--doc <경로>`.
 """
 import datetime
+import json
 import os
 import re
+import subprocess
 import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
-VOICE = os.path.join("docs", "VOICE.md")
-LOG = os.path.join("docs", "voice-log.md")
+HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")
+VOICE = os.path.join(HOME, "VOICE.md")
+LOG = os.path.join(HOME, "log.md")
+SEEN = os.path.join(HOME, "seen.txt")
 LOG_HEAD = """# 보이스 예측 장부
 
-결정을 묻기 전에 보이스(docs/VOICE.md)로 적은 예측과 그 채점 (`voice.py predict` · `score`). 손으로 고치지 않는다.
+결정을 묻기 전에 보이스(VOICE.md)로 적은 예측과 그 채점 (`voice.py predict` · `score`). 손으로 고치지 않는다.
 `[ ]` 채점 전 · `[o]` 맞음 · `[x]` 빗나감 · `[-]` 모름 (근거가 될 원칙이 없어 예측하지 않음)
 
 """
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
 PARTS_RE = re.compile(r"^(?P<q>.*?)(?: \((?P<who>기획|디자인|계획)\))?(?: → (?P<a>.*?)(?: \((?P<date>\d{4}-\d\d-\d\d)\))?)?$")
-LOG_RE = re.compile(r"^- \[(.)\] (\d+) (D\d+) \(([^)]*)\) → (\S+)(?: · (V\d+(?:, V\d+)*))?", re.M)
+LOG_RE = re.compile(r"^- \[(.)\] (\S+) (\d+) (D\d+) \(([^)]*)\) → (\S+)(?: · (V\d+(?:, V\d+)*))?", re.M)
 WORD = {"o": "맞음", "x": "빗나감"}
 
 ROOT = ""
+GAME = ""
 
 
 def find_root(start):
@@ -99,18 +117,20 @@ def split_tag(d):
     return "같음" if d["rec"] == d["chose"] else "갈림"
 
 
-def cmd_collect(only_new):
-    since = ""
-    if only_new:
-        path = os.path.join(ROOT, VOICE)
-        m = re.search(r"갱신: *(\d{4}-\d\d-\d\d)", read(path)) if os.path.exists(path) else None
-        if not m:
-            sys.exit(f"{VOICE} 에 `갱신: <날짜>` 가 없다 — `collect` 로 전부 본다")
-        since = m.group(1)
+def cmd_collect(mode):
+    seen = set(read(SEEN).split("\n")) if os.path.exists(SEEN) else set()
+    key = lambda path, num: f"{GAME} {number(path)} {num}"
     count = {"갈림": 0, "같음": 0, "?": 0}
+    if mode == "done":
+        new = [key(p, num) for p in docs() for num, d in decisions(read(p)).items() if d["answer"] is not None and key(p, num) not in seen]
+        if new:
+            write(SEEN, "\n".join(sorted(seen - {""}) + new) + "\n")
+        return print(f"{len(new)}개를 읽힌 것으로 적었다")
+    print(f"게임: {GAME}")
     for path in docs():
         text = read(path)
-        rows = [(num, d) for num, d in decisions(text).items() if d["answer"] is not None and d["date"] >= since]
+        rows = [(num, d) for num, d in decisions(text).items()
+                if d["answer"] is not None and not (mode == "new" and key(path, num) in seen)]
         if not rows:
             continue
         title = re.match(r"# *(.*)", text)
@@ -119,16 +139,15 @@ def cmd_collect(only_new):
         for num, d in rows:
             tag = split_tag(d)
             count[tag] += 1
-            print(f"  {number(path)} {num} [{tag}] ({d['who']}) {d['q']} → {d['answer']}" + (f" ({d['date']})" if d["date"] else ""))
+            print(f"  {GAME} {number(path)} {num} [{tag}] ({d['who']}) {d['q']} → {d['answer']}" + (f" ({d['date']})" if d["date"] else ""))
     total = sum(count.values())
     if not total:
-        return print("답이 난 결정이 없다" + (f" ({since} 부터)" if since else ""))
+        return print("답이 난 결정이 없다" + (" (아직 읽히지 않은 것 가운데)" if mode == "new" else ""))
     print(f"\n결정 {total} · 권함과 갈림 {count['갈림']} · 같음 {count['같음']} · 읽어서 가릴 것 {count['?']}")
 
 
 def log_text():
-    path = os.path.join(ROOT, LOG)
-    return read(path) if os.path.exists(path) else LOG_HEAD
+    return read(LOG) if os.path.exists(LOG) else LOG_HEAD
 
 
 def cmd_predict(path, num, pick, cites):
@@ -138,22 +157,21 @@ def cmd_predict(path, num, pick, cites):
     if ds[num]["answer"] is not None:
         sys.exit(f"{num}: 이미 답이 났다 — 예측은 묻기 전에 적는다")
     log = log_text()
-    if re.search(rf"^- \[.\] {number(path)} {num} ", log, re.M):
+    if re.search(rf"^- \[.\] {re.escape(GAME)} {number(path)} {num} ", log, re.M):
         sys.exit(f"{num}: 이미 예측을 적었다")
     if pick == "-":
-        line = f"- [-] {number(path)} {num} ({ds[num]['who']}) → 모름"
+        line = f"- [-] {GAME} {number(path)} {num} ({ds[num]['who']}) → 모름"
     else:
         pick = CIRCLED[int(pick) - 1] if re.fullmatch(r"[1-9]", pick) else pick
         if pick not in CIRCLED or pick not in ds[num]["q"]:
             sys.exit(f"{pick}: 질문에 없는 선택지다 — {ds[num]['q']}")
-        voice = os.path.join(ROOT, VOICE)
-        known = re.findall(r"^- (V\d+)\.", read(voice), re.M) if os.path.exists(voice) else []
+        known = re.findall(r"^- (V\d+)\.", read(VOICE), re.M) if os.path.exists(VOICE) else []
         used = [v for v in cites.split(",") if v]
         bad = [v for v in used if v not in known]
         if not used or bad:
             sys.exit(f"근거 원칙이 {VOICE} 에 없다: {' · '.join(bad) or '(안 적음)'} — 근거가 없으면 `predict {num} -`")
-        line = f"- [ ] {number(path)} {num} ({ds[num]['who']}) → {pick} · {', '.join(used)}"
-    write(os.path.join(ROOT, LOG), log.rstrip("\n") + f"\n{line} ({datetime.date.today()})\n")
+        line = f"- [ ] {GAME} {number(path)} {num} ({ds[num]['who']}) → {pick} · {', '.join(used)}"
+    write(LOG, log.rstrip("\n") + f"\n{line} ({datetime.date.today()})\n")
     print(line[2:])
 
 
@@ -162,8 +180,8 @@ def cmd_score(manual):
     by_num = {number(p): p for p in docs()}
     marked, unclear = [], []
     for m in LOG_RE.finditer(log):
-        mark, doc, num, _who, pick = m.group(1, 2, 3, 4, 5)
-        if mark != " ":
+        mark, game, doc, num, pick = m.group(1, 2, 3, 4, 6)
+        if mark != " " or game != GAME:
             continue
         d = decisions(read(by_num[doc])).get(num) if doc in by_num else None
         if not d or d["answer"] is None:
@@ -176,12 +194,102 @@ def cmd_score(manual):
             unclear.append(f"가릴 수 없다: {doc} {num} 예측 {pick} · 답: {d['answer']} — `score {doc} {num} hit|miss`")
             continue
         log = log.replace(m.group(0), m.group(0).replace("- [ ]", f"- [{new}]", 1), 1)
-        marked.append(f"{doc} {num}: {WORD[new]} — 예측 {pick}" + (f" ({m.group(6)})" if m.group(6) else "") + f" · 답: {d['answer']}")
+        marked.append(f"{doc} {num}: {WORD[new]} — 예측 {pick}" + (f" ({m.group(7)})" if m.group(7) else "") + f" · 답: {d['answer']}")
     if manual and not any(line.startswith(f"{manual[0]} {manual[1]}:") for line in marked):
         sys.exit(f"{manual[0]} {manual[1]}: 채점할 예측이 없다 (예측이 없거나, 답이 아직 없거나, 이미 채점했다)")
     if marked:
-        write(os.path.join(ROOT, LOG), log)
+        write(LOG, log)
     print("\n".join(marked + unclear) or "채점할 예측이 없다")
+
+
+def git(*args):
+    return subprocess.run(["git", "-C", HOME, *args], capture_output=True, text=True)
+
+
+def is_repo():
+    return os.path.isdir(os.path.join(HOME, ".git"))
+
+
+def is_private(url):
+    """gh 로 묻는다. True · False, 알 수 없으면(gh 가 없다 · GitHub 의 것이 아니다) None."""
+    try:
+        p = subprocess.run(["gh", "repo", "view", url, "--json", "isPrivate", "-q", ".isPrivate"], capture_output=True, text=True)
+    except OSError:
+        return None
+    return {"true": True, "false": False}.get(p.stdout.strip()) if p.returncode == 0 else None
+
+
+def cmd_setup(url):
+    private = is_private(url)
+    if private is False:
+        sys.exit(f"{url}: 공개 저장소다 — 보이스에는 사용자의 성향과 편향이 적힌다. 비공개로 바꾼 뒤 다시 돌린다")
+    if is_repo():
+        origin = git("remote", "get-url", "origin").stdout.strip()
+        if origin and origin != url:
+            sys.exit(f"{HOME} 은 이미 다른 저장소의 것이다: {origin}")
+        if not origin:
+            git("remote", "add", "origin", url)
+        print(f"{HOME} — 이미 저장소다")
+    elif not os.path.isdir(HOME) or not os.listdir(HOME):
+        os.makedirs(os.path.dirname(HOME), exist_ok=True)
+        p = subprocess.run(["git", "clone", "-q", url, HOME], capture_output=True, text=True)
+        if p.returncode:
+            sys.exit(f"받지 못했다: {p.stderr.strip()}")
+        print(f"{HOME} — 받았다" + ("" if os.path.exists(VOICE) else " (아직 빈 저장소다)"))
+    else:
+        heads = subprocess.run(["git", "ls-remote", "--heads", url], capture_output=True, text=True)
+        if heads.returncode:
+            sys.exit(f"저장소에 닿지 못했다: {heads.stderr.strip()}")
+        if heads.stdout.strip():
+            sys.exit(f"저장소에도 이 기기({HOME})에도 보이스가 있다 — 어느 쪽을 남길지 사용자가 정한다. 이 기기의 것을 옮겨 두고 다시 돌리면 저장소의 것을 받는다")
+        git("init", "-q")
+        git("remote", "add", "origin", url)
+        print(f"{HOME} — 있던 보이스를 저장소로 만들었다. `sync` 가 커밋하고 올린다")
+    if private is None:
+        print("비공개인지 확인하지 못했다 (gh 가 없거나 GitHub 의 저장소가 아니다) — 사용자가 직접 확인한다. 묻지 않고 올리기는 켤 수 없다")
+    else:
+        print("비공개 저장소다. 묻지 않고 올려도 되는지 사용자에게 묻는다 — 된다고 하면 `autopush on`")
+
+
+def cmd_autopush(state):
+    if not is_repo():
+        sys.exit(f"{HOME} 은 저장소가 아니다 — `setup <저장소 주소>`")
+    if state == "on" and is_private(git("remote", "get-url", "origin").stdout.strip()) is not True:
+        sys.exit("비공개로 확인된 저장소가 아니다 — 묻지 않고 올리지 않는다")
+    git("config", "voice.autopush", "true" if state == "on" else "false")
+    print("묻지 않고 올린다 (이 기기에서)" if state == "on" else "올리기 전에 묻는다")
+
+
+def cmd_sync(push, message):
+    if not is_repo():
+        return print(f"{HOME} 은 저장소가 아니다 — 보이스가 이 기기에만 남는다. `setup <비공개 저장소 주소>`")
+    if git("status", "--porcelain").stdout.strip():
+        git("add", "-A")
+        p = git("commit", "-q", "-m", message or f"voice: {datetime.date.today()}")
+        if p.returncode:
+            sys.exit(f"커밋하지 못했다: {(p.stderr or p.stdout).strip()}")
+        print("커밋했다")
+    if git("remote", "get-url", "origin").returncode:
+        return print("원격이 없다 — `setup <저장소 주소>`")
+    if git("fetch", "-q", "origin").returncode:
+        return print("원격에 닿지 못했다 — 이 기기의 것으로 계속한다")
+    branch = git("symbolic-ref", "--short", "HEAD").stdout.strip()
+    remote = f"origin/{branch}"
+    has = lambda ref: git("rev-parse", "-q", "--verify", ref).returncode == 0
+    count = lambda span: int(git("rev-list", "--count", span).stdout.strip() or 0)
+    if has(remote) and (not has("HEAD") or count(f"HEAD..{remote}")):
+        behind = count(f"HEAD..{remote}") if has("HEAD") else count(remote)
+        if git("pull", "-q", "--rebase", "origin", branch).returncode:
+            git("rebase", "--abort")
+            sys.exit(f"두 기기의 보이스가 서로 다르게 고쳐졌다 — {HOME} 에서 손으로 합친다 (git pull --rebase). 그 전에는 보이스를 쓰지 않는다")
+        print(f"받았다 — 커밋 {behind}")
+    ahead = count(f"{remote}..HEAD" if has(remote) else "HEAD") if has("HEAD") else 0
+    if not ahead:
+        return print("저장소와 같다")
+    if not push and git("config", "voice.autopush").stdout.strip() != "true":
+        return print(f"올리지 않은 커밋 {ahead} — 사용자에게 묻고 `sync --push` (늘 올려도 되면 `autopush on`)")
+    p = git("push", "-q", "-u", "origin", branch)
+    print(f"올렸다 — 커밋 {ahead}" if p.returncode == 0 else f"올리지 못했다: {p.stderr.strip()}")
 
 
 def cmd_stats():
@@ -192,11 +300,15 @@ def cmd_stats():
     tally = lambda picked: (sum(1 for r in picked if r[0] == "o"), sum(1 for r in picked if r[0] == "x"))
     marks = [r[0] for r in rows]
     print(f"적중 {rate(*tally(rows))} · 모름 {marks.count('-')} · 채점 전 {marks.count(' ')} · 예측 {len(rows)}")
-    for who in dict.fromkeys(r[3] for r in rows):
-        mine = [r for r in rows if r[3] == who]
+    if len({r[1] for r in rows}) > 1:
+        for game in dict.fromkeys(r[1] for r in rows):
+            mine = [r for r in rows if r[1] == game]
+            print(f"  {game}: {rate(*tally(mine))} · 모름 {sum(1 for r in mine if r[0] == '-')}")
+    for who in dict.fromkeys(r[4] for r in rows):
+        mine = [r for r in rows if r[4] == who]
         print(f"  {who}: {rate(*tally(mine))} · 모름 {sum(1 for r in mine if r[0] == '-')}")
-    for v in sorted({v for r in rows for v in re.findall(r"V\d+", r[5])}, key=lambda v: int(v[1:])):
-        print(f"  {v}: {rate(*tally([r for r in rows if v in re.findall(r'V[0-9]+', r[5])]))}")
+    for v in sorted({v for r in rows for v in re.findall(r"V\d+", r[6])}, key=lambda v: int(v[1:])):
+        print(f"  {v}: {rate(*tally([r for r in rows if v in re.findall(r'V[0-9]+', r[6])]))}")
 
 
 def main():
@@ -207,16 +319,33 @@ def main():
             i = args.index(flag)
             opts[flag] = args[i + 1]
             del args[i:i + 2]
+    push = "--push" in args
+    args = [a for a in args if a != "--push"]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"collect": (0, 1), "predict": (2, 3), "score": (0, 3), "stats": (0,)}
-    if cmd not in need or len(rest) not in need[cmd]:
+    need = {"path": (0,), "collect": (0, 1), "predict": (2, 3), "score": (0, 3), "stats": (0,),
+            "setup": (1,), "autopush": (1,), "sync": (0, 1)}
+    if cmd not in need or len(rest) not in need[cmd] or (cmd == "autopush" and rest[0] not in ("on", "off")):
         sys.exit(__doc__)
-    global ROOT
+    if cmd == "setup":
+        return cmd_setup(rest[0])
+    if cmd == "autopush":
+        return cmd_autopush(rest[0])
+    if cmd == "sync":
+        return cmd_sync(push, rest[0] if rest else "")
+    if cmd == "path":
+        if not os.path.exists(VOICE):
+            sys.exit(f"보이스가 아직 없다 ({VOICE}) — /gamedev-kit:voice 로 쓴다")
+        return print(VOICE)
+    if cmd == "stats":
+        return cmd_stats()
+    global ROOT, GAME
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
+    name = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("voice", {}).get("name")
+    GAME = "-".join((name or os.path.basename(ROOT)).split())
     if cmd == "collect":
-        if rest and rest[0] != "new":
+        if rest and rest[0] not in ("new", "done"):
             sys.exit(__doc__)
-        cmd_collect(bool(rest))
+        cmd_collect(rest[0] if rest else "")
     elif cmd == "predict":
         path = opts.get("--doc") or (docs() or [""])[-1]
         path = path if os.path.isabs(path) else os.path.join(ROOT, path)
@@ -227,8 +356,6 @@ def main():
         if rest and rest[2] not in ("hit", "miss"):
             sys.exit("채점은 hit · miss 다")
         cmd_score(rest)
-    else:
-        cmd_stats()
 
 
 if __name__ == "__main__":

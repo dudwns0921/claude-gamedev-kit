@@ -42,6 +42,10 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 6. **Fill in deploy · assets when you use them.** `deploy.itch` in `kit.config.json` (itch.io `user/game`), the asset API key, and
    the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the deploy · asset skills guide how to fill them.
 
+7. **Say where the user's voice is, in one line.** The voice (how this user decides — it grows across every game) lives outside the game, in a private repository of the user's.
+   Run `python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" sync`: if it says the home is not a repository, tell the user that
+   `/gamedev-kit:voice setup <private repo url>` brings their voice to this machine (or starts one). Do not set it up unasked.
+
 ## Aligning the kit rules (`/gamedev-kit:init rules`)
 
 In the game's CLAUDE.md, the kit's part is the single span between `<!-- gamedev-kit 시작 … -->` and `<!-- gamedev-kit 끝 -->` — it holds the common rules (GDD sync · balance table · cycle …) and
