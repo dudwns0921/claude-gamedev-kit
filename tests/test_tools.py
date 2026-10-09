@@ -32,6 +32,7 @@ VIDEO = os.path.join(KIT, "skills/video/scripts/video.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
+VOICE = os.path.join(KIT, "skills/voice/scripts/voice.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
 FEEDBACK = os.path.join(KIT, "tools/kit_feedback.py")
@@ -792,6 +793,60 @@ esac
         self.assertIn("둘째 줄", out)
         self.assertIn("창으로 한 번 돌린다 — 키트 0.7.2", open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read())
         self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
+
+    def test_voice(self):
+        root = tempfile.mkdtemp(prefix="kit-voice-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        self.assertIn("답이 난 결정이 없다", run(VOICE, root, "collect").stdout)
+        run(CYCLE, root, "new", "dash", "대시를\n넣자")
+        run(CYCLE, root, "ask", "기획", "대시 뒤 — ① 무적 ② 그대로 · 권함: ①")
+        run(CYCLE, root, "ask", "디자인", "잔상 — ① 있다 ② 없다 · 권함: ①")
+        run(CYCLE, root, "ask", "계획", "범위 — ① 전부 ② 반만 · 권함: ②")
+        run(CYCLE, root, "ask", "계획", "순서 — ① 화면 먼저 ② 값 먼저")
+        log = lambda: open(os.path.join(root, "docs/voice-log.md"), encoding="utf-8").read()
+
+        # 근거가 될 원칙이 보이스에 있어야 예측한다
+        self.assertIn("근거 원칙이", run(VOICE, root, "predict", "D1", "②", "V1", ok=False).stderr)
+        open(os.path.join(root, "docs/VOICE.md"), "w", encoding="utf-8").write(
+            "# 보이스\n\n갱신: 2000-01-01 · 결정 2개에서\n\n## 원칙\n- V1. 봐주는 규칙은 넣지 않는다 — 근거: 01 D1\n- V2. 작게 자른다\n")
+        self.assertIn("01 D1 (기획) → ② · V1", run(VOICE, root, "predict", "D1", "2", "V1").stdout)
+        run(VOICE, root, "predict", "D2", "②", "V1,V2")
+        run(VOICE, root, "predict", "D3", "②", "V2")
+        self.assertIn("질문에 없는 선택지", run(VOICE, root, "predict", "D4", "③", "V1", ok=False).stderr)
+        self.assertIn("→ 모름", run(VOICE, root, "predict", "D4", "-").stdout)
+        self.assertIn("이미 예측을 적었다", run(VOICE, root, "predict", "D1", "①", "V1", ok=False).stderr)
+        self.assertIn("채점할 예측이 없다", run(VOICE, root, "score").stdout)
+
+        run(CYCLE, root, "decide", "D1", "②. 봐주지 말자")
+        run(CYCLE, root, "decide", "D2", "1번으로")
+        run(CYCLE, root, "decide", "D3", "일단 반만 하자")
+        run(CYCLE, root, "decide", "D4", "① 화면부터")
+        self.assertIn("이미 답이 났다", run(VOICE, root, "predict", "D4", "①", "V1", ok=False).stderr)
+        out = run(VOICE, root, "score").stdout
+        self.assertIn("01 D1: 맞음 — 예측 ② (V1)", out)
+        self.assertIn("01 D2: 빗나감 — 예측 ② (V1, V2) · 답: 1번으로", out)
+        self.assertIn("가릴 수 없다: 01 D3 예측 ② · 답: 일단 반만 하자", out)
+        self.assertIn("채점할 예측이 없다", run(VOICE, root, "score", "01", "D1", "hit", ok=False).stderr)
+        self.assertIn("01 D3: 맞음", run(VOICE, root, "score", "01", "D3", "hit").stdout)
+        self.assertRegex(log(), r"- \[o\] 01 D1 \(기획\) → ② · V1 \(\d{4}-\d\d-\d\d\)\n- \[x\] 01 D2 .*\n- \[o\] 01 D3 .*\n- \[-\] 01 D4 \(계획\) → 모름")
+        out = run(VOICE, root, "stats").stdout
+        self.assertIn("적중 2/3 (66%) · 모름 1 · 채점 전 0 · 예측 4", out)
+        self.assertIn("계획: 1/1 (100%) · 모름 1", out)
+        self.assertIn("V1: 1/2 (50%)", out)
+        self.assertIn("V2: 1/2 (50%)", out)
+
+        out = run(VOICE, root, "collect").stdout
+        self.assertIn("사이클 01 — dash\n목표: 대시를 넣자\n", out)
+        self.assertIn("01 D1 [갈림] (기획) 대시 뒤 — ① 무적 ② 그대로 · 권함: ① → ②. 봐주지 말자 (", out)
+        self.assertIn("01 D2 [같음]", out)
+        self.assertIn("01 D3 [?]", out)
+        self.assertIn("결정 4 · 권함과 갈림 1 · 같음 1 · 읽어서 가릴 것 2", out)
+        self.assertIn("결정 4", run(VOICE, root, "collect", "new").stdout)
+        voice = os.path.join(root, "docs/VOICE.md")
+        moved = open(voice, encoding="utf-8").read().replace("2000-01-01", "2999-01-01")
+        open(voice, "w", encoding="utf-8").write(moved)
+        self.assertIn("답이 난 결정이 없다 (2999-01-01 부터)", run(VOICE, root, "collect", "new").stdout)
 
     def test_playtest_ledger(self):
         root = tempfile.mkdtemp(prefix="kit-playtest-")

@@ -45,6 +45,8 @@ The rules for screens and UI are in [docs/DESIGN.md](docs/DESIGN.md).
 
 **The user decides.** Claude does not decide scope · taste · numbers · whether to ship on the user's behalf. Offer options and one recommendation and ask,
 and write the answer in the cycle document's "결정" in the user's own words (verbatim).
+`/gamedev-kit:voice` gathers those answers into `docs/VOICE.md` (direction · principles · biases) and, before decisions are asked, records a prediction of each answer
+to score afterwards (`docs/voice-log.md` — written by the script only). A prediction is never an answer.
 
 ## 3D assets and sound come from one paragraph
 

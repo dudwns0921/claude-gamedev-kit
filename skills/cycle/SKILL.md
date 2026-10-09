@@ -86,7 +86,11 @@ If the answer is to make it, follow the asset skill's procedure alongside the bu
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
 options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
-When answers come, record them with `decide D1 "<the user's words verbatim>"`. If an answer changes the spec · design · plan (scope cut · a different option chosen),
+If `docs/VOICE.md` exists, between `ask` and asking the user, follow the voice skill's "Predict": read that document and record one prediction per decision
+(`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" predict D2 ② V3`, or `predict D2 -` when no principle applies). Do not show the predictions with the questions —
+the user still answers every one.
+
+When answers come, record them with `decide D1 "<the user's words verbatim>"` — then, if predictions were recorded, the voice skill's "Score" (`voice.py score`) and relay hits and misses in a line each. If an answer changes the spec · design · plan (scope cut · a different option chosen),
 call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
 
 ### 5. 구현
@@ -126,6 +130,8 @@ and the playtest documents) and look at each:
   Write it so it makes sense without the game's names · files · numbers: "what tripped us → how to avoid (check) it". If the project's CLAUDE.md needs it too, write it in both.
 
 If the split is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
+
+If this cycle answered decisions, recommend in one line bringing the voice up to date (`/gamedev-kit:voice`) — the first time, once two cycles' decisions exist.
 
 ## Cycle document
 
