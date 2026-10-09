@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """도구 검사 — engines/ 의 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync 와 balance-table 을 끝까지 돌린다.
-deploy 는 가짜 butler 로, asset 은 가짜 API 서버로, video 는 가짜 hyperframes · ffmpeg 로 돌린다 — 밖으로는 아무것도 나가지 않는다.
+deploy 는 가짜 butler 로, asset 은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 돌린다 — 밖으로는 아무것도 나가지 않는다.
 
   python3 tests/test_tools.py
 
@@ -28,7 +28,7 @@ TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
 SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
-VIDEO = os.path.join(KIT, "skills/video/scripts/video.py")
+CLIP = os.path.join(KIT, "skills/video/scripts/clip.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
@@ -578,103 +578,152 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         write(dir="")
         self.assertIn("asset.sound.dir", sound("status", ok=False))
 
-    def test_video(self):
-        """컷 표 → 승인 → 컴포지션 → 렌더. 승인하지 않은 표는 컴포지션이 되지 않고, 표가 바뀌면 승인이 풀린다."""
-        for engine in CODE:
-            with self.subTest(engine=engine):
-                root = tempfile.mkdtemp(prefix=f"kit-video-{engine}-")
-                self.addCleanup(shutil.rmtree, root, True)
-                log = os.path.join(root, "calls.log")
-                hf, ff = os.path.join(root, "hyperframes"), os.path.join(root, "ffmpeg")
-                open(hf, "w").write(f"""#!/bin/sh
-echo "hf $HYPERFRAMES_SKIP_SKILLS $@" >> '{log}'
-case "$1" in
-  init) mkdir -p "$2" && echo '<div></div>' > "$2/index.html" ;;
-  lint) [ ! -e "$2/broken" ] ;;
-  snapshot) mkdir -p "$2/snapshots" && echo png > "$2/snapshots/frame-1.png" ;;
-  render) echo mp4 > "$4" ;;
-esac
-""")
-                open(ff, "w").write(f"#!/bin/sh\necho \"ff $@\" >> '{log}'\nfor a; do out=$a; done\necho converted > \"$out\"\n")
-                os.chmod(hf, 0o755)
-                os.chmod(ff, 0o755)
-                cfg = json.load(open(os.path.join(KIT, "engines", engine, "kit.config.json"), encoding="utf-8"))
-                game = cfg["video"]["game"]
-                cfg["video"].update(hyperframes=hf, ffmpeg=ff)
-                json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-                os.makedirs(os.path.join(root, "docs"))
-                design = os.path.join(root, "docs/DESIGN.md")
-                shutil.copy(os.path.join(KIT, "templates/DESIGN.md"), design)
+    def test_clip(self):
+        """찍은 듯한 영상(Higgsfield) — 가짜 서버로: 그림을 올리고, 보내고, 기다리고, 받는다. 키는 Higgsfield 에만 붙는다."""
+        seen, polls = [], []
 
-                def video(*args, ok=True, stdin=None):
-                    p = subprocess.run([sys.executable, VIDEO, "--root", root, *args], capture_output=True, text=True, input=stdin)
-                    if ok and p.returncode != 0:
-                        raise AssertionError(f"video.py {' '.join(args)} → {p.returncode}\n{p.stdout}\n{p.stderr}")
-                    return p
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def reply(self, code, body=b"", ctype="application/json"):
+                self.send_response(code)
+                self.send_header("Content-Type", ctype)
+                self.end_headers()
+                self.wfile.write(body if isinstance(body, bytes) else json.dumps(body).encode())
 
-                self.assertIn("영상의 결이 비어 있다", video("check", ok=False).stderr)
-                text = open(design, encoding="utf-8").read()
-                open(design, "w", encoding="utf-8").write(text.replace("<!-- video-style -->", "<!-- video-style -->\nDark, slow,\n one line at a time."))
-                self.assertIn("만들 수 있다 — page · game", video("check").stdout)
+            def read(self):
+                return self.rfile.read(int(self.headers.get("Content-Length") or 0))
 
-                self.assertIn("video/intro/video.json", video("new", "intro", "--for", "game", "게임을 켜면 나오는 것").stdout)
-                self.assertIn("이미 있다", video("new", "intro", "--for", "game", "또", ok=False).stderr)
-                self.assertIn("python3 video.py", video("new", "x", "--for", "tv", "어디", ok=False).stderr)
-                self.assertIn("컷 표 없음 — 승인한 컷 표만", video("compose", "intro", ok=False).stderr)
-                self.assertIn("2번째 줄", video("cuts", "intro", "-", stdin="2 | 제목\n셋 | 글자\n", ok=False).stderr)
-                out = video("cuts", "intro", "-", stdin="# 머리\n2.5 | 제목 | 떨어진다\n1 | 이 글자는 일 초에 읽기에는 너무 길다\n4 |  | 화면 셋이 지나간다\n").stdout
-                self.assertIn(" 2    2.5s +1s  이 글자는 일 초에 읽기에는 너무 길다 ← 읽기 빠듯하다", out)
-                self.assertIn(" 3    3.5s +4s  (글자 없음)\n      움직임: 화면 셋이 지나간다", out)
-                self.assertIn("모두 7.5초 · 컷 3개", out)
-                self.assertNotIn("빠듯", out.split("\n")[0])
-                self.assertIn("승인한 컷 표만", video("render", "intro", ok=False).stderr)
-                self.assertFalse(os.path.exists(log), "승인 전에는 아무 도구도 부르지 않는다")
+            def do_POST(self):
+                body, here = json.loads(self.read()), f"http://127.0.0.1:{self.server.server_port}"
+                seen.append(("POST", self.path, self.headers.get("Authorization"), self.headers.get("Idempotency-Key"), body))
+                if self.path == "/files/generate-upload-url":
+                    return self.reply(200, {"public_url": f"{here}/cdn/in.png", "upload_url": f"{here}/store/in.png",
+                                            "upload_headers": {"Content-Type": body["content_type"], "x-amz-tagging": "retention=temporary"}})
+                if "터진다" in body.get("prompt", ""):
+                    return self.reply(422, {"detail": "안 된다"})
+                rid = "bad" if "야한" in body.get("prompt", "") else f"r{len(seen)}"
+                self.reply(200, {"status": "queued", "request_id": rid, "status_url": f"{here}/requests/{rid}/status"})
 
-                video("approve", "intro")
-                out = video("compose", "intro").stdout
-                self.assertIn("컴포지션: video/intro/comp/index.html", out)
-                self.assertIn("결: Dark, slow, one line at a time.", out)
-                self.assertIn("모두 7.5초", out)
-                video("compose", "intro")
-                calls = open(log).read().strip().split("\n")
-                self.assertEqual(calls, ["hf 1 init comp --non-interactive --resolution landscape"], "틀은 한 번만 만든다")
-                self.assertIn("frame-1.png", video("frames", "intro").stdout)
-                self.assertIn("--frames 3", open(log).read())
+            def do_PUT(self):
+                seen.append(("PUT", self.path, self.headers.get("Authorization"), self.headers.get("x-amz-tagging"), self.read()))
+                self.reply(200)
 
-                comp = os.path.join(root, "video/intro/comp")
-                open(os.path.join(comp, "broken"), "w").close()
-                self.assertIn("검사에 걸렸다", video("render", "intro", ok=False).stderr)
-                self.assertNotIn("hf 1 render", open(log).read(), "검사에 걸리면 렌더하지 않는다")
-                os.remove(os.path.join(comp, "broken"))
-                out = video("render", "intro", "--draft").stdout
-                placed = f"{game['dir']}/intro.{game['ext']}"
-                self.assertIn(f"intro: {placed} — 7.5초", out)
-                self.assertIn("초안 화질", out)
-                self.assertEqual(open(os.path.join(root, placed)).read(), "converted\n")
-                last = open(log).read().strip().split("\n")[-2:]
-                self.assertTrue(last[0].endswith("renders/intro.mp4 --quality draft"), last[0])
-                self.assertIn(" ".join(game["convert"]), last[1])
-                self.assertIn(f"놓임 {placed} (초안)", video("status").stdout)
+            def do_GET(self):
+                if self.path.startswith("/cdn/"):
+                    seen.append(("GET", self.path, self.headers.get("Authorization"), None, None))
+                    return self.reply(200, f"영상 {self.path}".encode() * 9, "video/mp4")
+                rid = self.path.split("/")[2]
+                polls.append(rid)
+                if rid == "bad":
+                    return self.reply(200, {"status": "nsfw", "request_id": rid})
+                self.reply(200, {"status": "in_progress", "request_id": rid} if polls.count(rid) < 2 else
+                           {"status": "completed", "request_id": rid, "video": {"url": f"http://127.0.0.1:{self.server.server_port}/cdn/{rid}.mp4"}})
 
-                video("cuts", "intro", "-", stdin="3 | 제목\n")
-                self.assertIn("컷 표 승인 대기", video("status").stdout, "표가 바뀌면 다시 본다")
+            def log_message(self, *a):
+                pass
 
-                video("new", "trailer", "--for", "page", "--size", "square", "페이지에 거는 것")
-                video("cuts", "trailer", "-", stdin="3 | 제목\n")
-                video("approve", "trailer")
-                video("compose", "trailer")
-                self.assertIn("docs/video/trailer.mp4", video("render", "trailer").stdout)
-                self.assertEqual(open(os.path.join(root, "docs/video/trailer.mp4")).read(), "mp4\n", "게임 밖 영상은 바꾸지 않는다")
-                self.assertIn("--resolution square", open(log).read())
-                self.assertTrue(open(log).read().strip().endswith("--quality standard"))
+        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        root = tempfile.mkdtemp(prefix="kit-clip-")
+        self.addCleanup(shutil.rmtree, root, True)
+        ffmpeg = os.path.join(root, "ffmpeg")
+        open(ffmpeg, "w").write('#!/bin/sh\nfor a; do last=$a; done\necho "$@" > "$last"\n')
+        os.chmod(ffmpeg, 0o755)
+        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
+        cfg["video"].update(env_file=os.path.join(root, "none.env"), ffmpeg=ffmpeg)
 
-                cfg["video"]["game"] = {"dir": ""}
-                json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-                video("approve", "intro")
-                self.assertIn("video.game 가 덜 채워졌다", video("render", "intro", ok=False).stderr)
-                cfg["video"]["ffmpeg"] = os.path.join(root, "no-ffmpeg")
-                json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-                self.assertIn("no-ffmpeg 가 없다", video("check", ok=False).stderr)
+        def write(**clip):
+            cfg["video"]["clip"] = dict(cfg["video"].get("clip", {}), **clip)
+            json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+
+        write()
+        env = dict(os.environ, HIGGSFIELD_API_BASE=f"http://127.0.0.1:{server.server_port}", VIDEO_POLL_SEC="0.01",
+                   HF_API_KEY_ID="kid", HF_API_KEY_SECRET="sec")
+
+        def clip(*args, ok=True, env=env):
+            p = subprocess.run([sys.executable, CLIP, "--root", root, *args], capture_output=True, text=True, env=env)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        rec = lambda name: json.load(open(os.path.join(root, "video", name, "clip.json"), encoding="utf-8"))
+        nokey = {k: v for k, v in env.items() if not k.startswith("HF_")}
+        out = clip("check", ok=False, env=nokey)
+        self.assertIn("HF_API_KEY_ID 가 없다", out)
+        self.assertIn("HF_API_KEY_SECRET 가 없다", out)
+        out = clip("check")
+        self.assertIn("모델: higgsfield/cinema-studio/4.0", out)
+        self.assertIn("돌릴 수 있다", out)
+        self.assertIn("클립이 없다", clip("status"))
+
+        self.assertIn("그림이 없다", clip("new", "gate", "--for", "game", "--image", "ref.png", "x", ok=False))
+        open(os.path.join(root, "ref.png"), "wb").write(b"\x89PNG pic")
+        os.makedirs(os.path.join(root, "docs"))
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- footage-style -->\nHand-painted,\nmuted.\n<!-- /footage-style -->\n")
+        out = clip("new", "gate", "--for", "game", "--seconds", "6", "--image", "ref.png", "A stone gate opens slowly.")
+        self.assertIn("승인을 기다린다 — 설명 · 기준 그림", out)
+        self.assertIn("보낼 설명: A stone gate opens slowly. Hand-painted, muted.", out, "화면의 결이 설명 뒤에 붙는다")
+        self.assertIn("승인이 없다", clip("make", "gate", ok=False))
+        self.assertEqual(seen, [], "승인 전에는 아무것도 나가지 않는다")
+        clip("approve", "gate")
+        out = clip("make", "gate")
+        self.assertIn("video/gate/clip.mp4", out)
+        ask, put, send, got = seen
+        self.assertEqual(ask[:3] + ask[4:], ("POST", "/files/generate-upload-url", "Key kid:sec", {"content_type": "image/png"}))
+        self.assertEqual(put[:4], ("PUT", "/store/in.png", None, "retention=temporary"), "저장소에는 키를 보내지 않고, 받은 헤더를 그대로 붙인다")
+        self.assertEqual(put[4], b"\x89PNG pic")
+        self.assertEqual(send[:3], ("POST", "/higgsfield/cinema-studio/4.0", "Key kid:sec"))
+        self.assertEqual(send[3], rec("gate")["request"]["key"])
+        self.assertEqual(send[4], {"resolution": "720p", "prompt": "A stone gate opens slowly. Hand-painted, muted.", "duration": 6,
+                                   "aspect_ratio": "16:9", "image_urls": [f"http://127.0.0.1:{server.server_port}/cdn/in.png"]})
+        self.assertEqual(got[:3], ("GET", "/cdn/r3.mp4", None))
+        self.assertEqual(polls, ["r3", "r3"])
+        self.assertIn("사람이 볼 차례", clip("status"))
+        self.assertIn("이미 만들었다", clip("make", "gate", ok=False))
+        self.assertEqual(len(seen), 4, "같은 것을 두 번 만들지 않는다")
+
+        # 사람이 본 뒤에 놓는다 — 게임 안의 것은 엔진이 읽는 형식으로
+        self.assertIn("assets/video/gate.ogv", clip("place", "gate"))
+        self.assertIn("libtheora", open(os.path.join(root, "assets/video/gate.ogv")).read())
+        self.assertIn("놓았다 — assets/video/gate.ogv", clip("status"))
+
+        # 보내고 끊긴 것은 이어서 기다린다 — 다시 보내지 않는다
+        made = rec("gate")
+        made["request"]["mark"] = made["made"]["mark"]
+        del made["made"]
+        json.dump(made, open(os.path.join(root, "video/gate/clip.json"), "w"))
+        self.assertIn("만드는 중", clip("status"))
+        clip("make", "gate")
+        self.assertEqual([s[:2] for s in seen[4:]], [("GET", "/cdn/r3.mp4")])
+        clip("make", "gate", "--again")
+        self.assertEqual(seen[-2][1], "/higgsfield/cinema-studio/4.0")
+        self.assertNotEqual(seen[-2][3], send[3], "한 번 더 뽑을 때는 새 요청이다")
+
+        # 설명이 바뀌면 승인도 다시
+        clip("new", "gate", "--for", "page", "--size", "portrait", "A stone gate closes.")
+        self.assertIn("승인이 없다", clip("make", "gate", ok=False))
+        self.assertIn("지금 설명으로 만든 영상이 없다", clip("place", "gate", ok=False))
+        clip("approve", "gate")
+        clip("make", "gate")
+        self.assertEqual(seen[-2][4], {"resolution": "720p", "prompt": "A stone gate closes. Hand-painted, muted.", "duration": 5, "aspect_ratio": "9:16"})
+        self.assertIn("docs/video/gate.mp4", clip("place", "gate"))
+
+        # 모델마다 입력의 이름이 다르다 — 설정이 정한다
+        write(model="kling-video/v2.5-turbo/pro/image-to-video", params={"cfg_scale": 0.5},
+              fields={"aspect": "", "images": "", "image": "image_url"})
+        clip("new", "walk", "--for", "page", "--image", "ref.png", "She walks.")
+        clip("approve", "walk")
+        clip("make", "walk")
+        self.assertEqual(seen[-2][1], "/kling-video/v2.5-turbo/pro/image-to-video")
+        self.assertEqual(seen[-2][4], {"cfg_scale": 0.5, "prompt": "She walks. Hand-painted, muted.", "duration": 5,
+                                       "image_url": f"http://127.0.0.1:{server.server_port}/cdn/in.png"})
+
+        clip("new", "bad", "--for", "page", "야한 것")
+        clip("approve", "bad")
+        self.assertIn("내용 검사에 걸렸다", clip("make", "bad", ok=False))
+        clip("new", "boom", "--for", "page", "터진다")
+        clip("approve", "boom")
+        self.assertIn("422: 안 된다", clip("make", "boom", ok=False))
+        self.assertFalse(os.path.exists(os.path.join(root, "video/boom/clip.mp4")))
 
     def test_board(self):
         """GDD 표와 사이클 문서가 판 한 장이 된다. 훅은 판이 있고 원천이 더 새로울 때만 다시 그린다."""
@@ -797,6 +846,38 @@ esac
         self.assertIn("둘째 줄", out)
         self.assertIn("창으로 한 번 돌린다 — 키트 0.7.2", open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read())
         self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
+
+        # 자동 모드 — 대신 정한 것은 [~]. 걸린 작업은 돌고, 사용자가 받아들이거나 뒤집을 때까지 확인 전이다
+        run(CYCLE, root, "new", "auto", "알아서")
+        auto = os.path.join(root, "docs/cycle/03-auto.md")
+        atext = lambda: open(auto, encoding="utf-8").read()
+        for q in ("문 — ① 연다 ② 닫는다 · 권함: ①", "색 — ① 빨강 ② 파랑 · 권함: ①", "값 — ① 싸게 ② 비싸게", "길 — ① 짧게 ② 길게 · 권함: ②"):
+            run(CYCLE, root, "ask", "기획", q)
+        planned = atext().replace("## 작업\n", "## 작업\n\n### [ ] T1. 문\n- **대기**: D1\n\n### [ ] T2. 값\n- **대기**: D3\n")
+        open(auto, "w", encoding="utf-8").write(planned.replace("## 순서\n", "## 순서\n- 1차: T1, T2\n"))
+        self.assertIn("대신 정했다", run(CYCLE, root, "decide", "D1", "②", "--proxy", "V3, V5").stdout)
+        run(CYCLE, root, "decide", "D2", "①", "--proxy", "권함")
+        run(CYCLE, root, "decide", "D4", "②", "--proxy", "V7")
+        self.assertRegex(atext(), r"- \[~\] D1\. 문 — ① 연다 ② 닫는다 · 권함: ① \(기획\) → ② · 대리 V3, V5 \(\d{4}-\d\d-\d\d\)")
+        out = run(CYCLE, root, "next").stdout
+        self.assertIn("답 없는 결정 1 · 대리 결정 3 (확인 전)", out)
+        self.assertIn("대리 결정 (확인 전): D1.", out)
+        self.assertIn("답 없는 결정: D3.", out)
+        self.assertIn("  T1. 문\n", out, "대신 정한 결정에 걸린 작업은 돈다")
+        self.assertIn("T2. 값 — 대기 D3", out, "아무도 정하지 않은 결정에 걸린 작업은 서 있다")
+        self.assertIn("확인을 기다리는 대리 결정이 아니다", run(CYCLE, root, "confirm", "D3", ok=False).stderr)
+        self.assertIn("받아들였다: D1", run(CYCLE, root, "confirm", "D1").stdout)
+        self.assertRegex(atext(), r"- \[x\] D1\. 문 — ① 연다 ② 닫는다 · 권함: ① \(기획\) → ② — 대리\(V3, V5\)를 받아들임 \(\d{4}")
+        run(CYCLE, root, "decide", "D2", "파랑으로 하자")
+        self.assertRegex(atext(), r"- \[x\] D2\. 색 — ① 빨강 ② 파랑 · 권함: ① \(기획\) → 파랑으로 하자 \(\d{4}")
+        self.assertIn("사용자가 이미 답했다", run(CYCLE, root, "decide", "D2", "①", "--proxy", "V1", ok=False).stderr)
+        self.assertIn("받아들였다: D4", run(CYCLE, root, "confirm", "all").stdout)
+        self.assertIn("답 없는 결정 1\n", run(CYCLE, root, "status").stdout.split("03-auto")[1] + "\n")
+        out = subprocess.run([sys.executable, VOICE, "--root", root, "collect"], capture_output=True, text=True,
+                             env=dict(os.environ, GAMEDEV_KIT_VOICE=os.path.join(root, "voice-home"))).stdout
+        self.assertIn("03 D1 [받음]", out, "받아들인 대리 결정은 스스로 고른 것과 가려 센다")
+        self.assertIn("대리를 받음 2", out)
+        run(CYCLE, root, "decide", "D3", "①")
 
     def test_voice(self):
         top = tempfile.mkdtemp(prefix="kit-voice-")
@@ -952,14 +1033,14 @@ esac
         self.assertEqual(p.returncode, 0, p.stderr)
         home = tempfile.mkdtemp(prefix="kit-private-")
         self.addCleanup(shutil.rmtree, home, True)
-        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# 게임의 이름\nHyperFrames\n")
+        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# 게임의 이름\nHiggsfield\n")
         p = check(GAMEDEV_KIT_VOICE=home)
         self.assertEqual(p.returncode, 1)
         self.assertIn("README.md:", p.stderr)
         msg = os.path.join(home, "msg")
         open(msg, "w", encoding="utf-8").write("0.1.0 — 고쳤다\n# 2026-01-01 은 git 이 붙인 주석이다\n")
         self.assertEqual(check("--message", msg, GAMEDEV_KIT_VOICE=home).returncode, 0)
-        open(msg, "w", encoding="utf-8").write("0.1.0 — hyperframes 에서 배운 것\n")
+        open(msg, "w", encoding="utf-8").write("0.1.0 — higgsfield 에서 배운 것\n")
         self.assertIn("커밋 메시지:1: 막을 낱말", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
         open(msg, "w", encoding="utf-8").write("0.1.0 — 2026-01-01 에 잰 것\n")
         self.assertIn("날짜가 있다", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)

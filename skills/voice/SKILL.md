@@ -2,12 +2,12 @@
 name: voice
 description: >-
   Keeps the user's voice — one short document of how this user decides, whatever the game or engine: the principles their past decisions
-  follow, their biases, and what is not yet known — written from the decisions recorded in every game's cycle documents (docs/cycle/).
-  It lives outside the game repos (~/.config/gamedev-kit/voice/) and grows across games.
-  Before decisions are asked it records a prediction of each answer, then scores the predictions against what the user actually said,
-  so the hit rate shows how far the voice can be trusted. It does not decide for the user. Use when the user says "보이스 만들어줘",
-  "보이스 갱신", "내 판단 정리해줘", "내 성향 문서", "내 편향이 뭐야", "예측 얼마나 맞아", "적중률"; when the cycle skill reaches the point
-  of asking decisions and a voice exists (predict), gets the answers (score), or writes the 회고 (update).
+  follow, their biases, and what is not yet known. It lives outside the game repos (~/.config/gamedev-kit/voice/, a private repository)
+  and grows across games. It works behind the cycle without being shown: predicts each answer before a decision is asked, scores the
+  prediction against what the user said, and folds the answer into the voice — and in the cycle's auto mode it is what decides in the
+  user's place. The user sees it only when they ask or when a cycle ends. Use when the user says "보이스 보자", "보이스 보여줘",
+  "내 판단 정리해줘", "내 편향이 뭐야", "보이스 고쳐줘", "예측 얼마나 맞아", "적중률"; when the cycle skill asks decisions (predict),
+  gets the answers (score · learn), decides in auto mode (decide), or writes the 회고 (review); when tying the voice to its repository (setup).
 ---
 
 # voice
@@ -28,12 +28,12 @@ and every game the user makes adds to the same document. Where a game is headed 
 takes what another machine pushed, and pushes. Run it **before reading the voice and after writing to it** (it says so in one line; relay only what is not "저장소와 같다").
 If it stops because two machines edited the same lines, do not write to the voice until the user has merged it.
 
-It is **a measured guess, not a stand-in.** The user still answers every decision. What this skill adds is a prediction written down before the question is asked
-and scored after — the hit rate says which kinds of decisions the voice already gets right.
+**It stays in the background.** Predicting, scoring and learning happen without a word to the user — no predictions, no hit rates, no "I updated your voice".
+The user sees the voice at two moments only: when a cycle ends (회고) and when they ask ("보이스 보자"). Everything else in this skill is done silently and briefly.
 
 | Call | Meaning |
 |---|---|
-| `/gamedev-kit:voice` | Write the voice, or bring it up to date with the decisions made since |
+| `/gamedev-kit:voice` | Review — show what the voice has picked up since the user last looked, and correct it |
 | `/gamedev-kit:voice stats` | The hit rate of the predictions so far |
 | `/gamedev-kit:voice setup <repo url>` | Tie the voice home to the user's private repository — once per machine |
 
@@ -62,21 +62,24 @@ On a machine with no voice it clones; on a machine that already has one it turns
 (public), and if both the repository and this machine hold a voice — which one stays is the user's call.
 
 Then go straight on, without waiting to be asked for each step: `sync` → the one question below → if this is a game with decisions the voice has not read
-(`collect new` prints any), "Writing · updating". One call from the user should end with a voice in the repository.
+(`collect new` prints any), "Learn". One call from the user should end with a voice in the repository.
 
 **Pushing is going outward, so it is asked.** Ask once: "may the voice be pushed to this repository without asking each time?" — if yes, `voice.py autopush on`
 (kept on this machine only; the script refuses unless the repository is private). Without that, `sync` reports unpushed commits and you ask before `sync --push`.
 
 If `sync` says the home is not a repository, say in one line that the voice stays on this machine until `/gamedev-kit:voice setup <private repo url>` — once, not every time.
 
-## Writing · updating
+## Learn — folding answers into the voice
 
-1. Run `sync`, then `path`. Then `collect new` — in a game the voice has never read, that is everything. `[갈림]` marks an answer that went against the recommendation, `[같음]` one that followed it,
-   `[?]` one where the answer names no option — read those and tell which way it went.
-2. Write `VOICE.md` in the voice home in the shape below. When updating, read the document (it is short) and change only what the new decisions move.
-3. Show the user what was added or changed, principle by principle, and ask what is wrong. **What the user corrects outranks what was inferred** —
-   write it in their words and cite it as `근거: 사용자가 적음 (<date>)`.
-4. Run `collect done`, so the next update starts after these, then `sync "<what changed, one line>"`.
+Done silently: after "Score" in a cycle, at setup, and whenever `collect new` has decisions the voice has not read.
+
+1. Run `sync`, then `collect new` — in a game the voice has never read, that is everything. `[갈림]` marks an answer that went against the recommendation, `[같음]` one that followed it,
+   `[?]` one where the answer names no option — read those and tell which way it went. `[받음]` is a proxy decision (auto mode) the user accepted — it counts like `같음`,
+   never as proof of the principle that made it.
+2. Read `VOICE.md` (it is short) and change only what the new decisions move: add the decision to the principle it agrees with, note the one it goes against,
+   promote a "모르는 것" that now has two decisions behind it. If nothing moves, change nothing.
+3. **End every line you added or reworded with `· 안 봄`** — the user has not seen it yet. A line that only gained a citation keeps its state.
+4. Run `collect done`, then `sync "<what changed, one line>"`. Say nothing to the user.
 
 ```markdown
 # 보이스
@@ -106,23 +109,47 @@ If `sync` says the home is not a repository, say in one line that the voice stay
 - **Numbers are never reused.** The prediction log cites `V3`; when a principle turns out wrong, strike it through (`~~V3. …~~`) and add a new number.
 - Keep the document under sixty lines. When it grows past that, merge principles that always fire together.
 - Set `갱신:` to today and bring the counts up to date.
+- **What the user wrote or corrected outranks what was inferred** — keep it in their words, cite it as `근거: 사용자가 적음 (<date>)`, and do not reword it when learning.
 
 ## Predict — before decisions are asked
 
-Called from the cycle skill, once the decisions are numbered (`cycle.py ask`) and before the user sees them. Run `sync`, then `path` — skip the rest if there is no voice yet.
+Called from the cycle skill, once the decisions are numbered (`cycle.py ask`) and before the user sees them. Run `sync`, then `path` — skip the rest if there is no voice yet. Silent.
 
 Read the voice. For each unanswered decision, either a principle picks one option — `predict D2 ② V3` — or none does — `predict D2 -`.
 **Do not stretch a principle to cover a decision it does not speak to;** 모름 is an answer, and a forced guess makes the hit rate mean nothing.
 The script refuses a prediction for a decision that already has an answer, so this cannot be done afterwards.
 
-**Do not show the predictions with the questions.** A prediction beside a question pulls the answer toward it, and then the score measures the pull.
+**Do not show the predictions, with the questions or after.** A prediction beside a question pulls the answer toward it, and then the score measures the pull.
 
 ## Score — after the answers
 
 Once the answers are recorded (`cycle.py decide`), run `score`. It compares the option each answer names with the prediction. Where an answer names no option
 it prints the line — judge it and run `score <cycle> <D> hit|miss`. An answer that takes neither option as offered is a miss.
+A principle that has missed twice (`stats` shows it) is reworded or struck in "Learn". Then go on to "Learn". **Relay none of this.**
 
-Then `sync`. Relay the result in one line per decision, then one line of `stats`. For each miss, say which principle it was predicted from — a principle that misses twice is rewritten at the next update.
+## Decide — in the cycle's auto mode
+
+Called from the cycle skill's "Auto mode" in place of asking. Run `sync`, read the voice, and for each unanswered decision:
+
+- **A principle picks an option** → `predict D2 ② V3`, then `cycle.py decide D2 "②" --proxy V3`. A `한 게임` principle decides in the game it came from; in another game it decides
+  only if nothing in "편향" or "모르는 것" speaks against it.
+- **No principle speaks to it** → `predict D2 -`, then take the asking agent's recommendation: `cycle.py decide D2 "①" --proxy 권함`. This is not the voice deciding — it is the fallback,
+  and it is reported first when the user is back.
+- **Never decided in the user's place**, whatever the voice says — leave these unanswered: anything that spends money or credits (generating assets), shipping or posting anything outward,
+  deleting or discarding the user's work, and a decision with no recommendation and no principle.
+
+Proxy decisions are written `[~]` and are **not evidence**: the voice learns from them only after the user accepts (`cycle.py confirm`) or overturns (`cycle.py decide`) them —
+an overturned one is a miss for the principle that made it.
+
+## Review — when a cycle ends, or the user asks
+
+The one place the voice is shown. Run `sync` and read the voice.
+
+- **At 회고** (called from the cycle skill): if any line ends with `· 안 봄`, show those lines only, one per line in plain words, and ask if any is wrong. If none, say nothing.
+- **When the user asks** ("보이스 보자"): show the whole voice — 원칙 · 편향 · 모르는 것 — in plain words, the `안 봄` lines marked as new, and one line from `stats`.
+
+Take corrections in the user's words (cite `근거: 사용자가 적음 (<date>)`); strike what they reject (`~~V3. …~~`). Then remove `· 안 봄` from every line shown and `sync "<what changed>"`.
+The user may also edit `VOICE.md` by hand at any time — treat what you find there as theirs.
 
 ## stats
 

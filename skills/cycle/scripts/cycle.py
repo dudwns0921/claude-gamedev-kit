@@ -9,6 +9,8 @@
   python3 cycle.py mark T2 blocked "<이유>"     작업 아래 `- **막힘**:` 한 줄. done 뒤의 글은 `- **한 것**:`
   python3 cycle.py ask <기획|디자인|계획> "<질문 — ① … ② … · 권함: ①>"   결정을 하나 더하고 번호(D4)를 적는다
   python3 cycle.py decide D2 "<사용자의 답 그대로>"
+  python3 cycle.py decide D2 "②" --proxy V3     자동 모드 — 사용자 대신 정한 것. [~] 로 적힌다 (근거: 보이스의 원칙 번호, 없으면 `권함`)
+  python3 cycle.py confirm D2,D5                대리 결정을 사용자가 받아들였다 — [x] 가 된다. 전부면 `confirm all`. 뒤집을 때는 `decide D2 "<사용자의 답>"`
   python3 cycle.py stage <단계>                 머리의 `단계:` 를 고친다
   python3 cycle.py lesson "<무엇에 걸렸나 → 어떻게 피하나>"   이 게임만의 것이 아닌 배움을 docs/kit-feedback.md 에 한 줄 (키트로 올릴 것)
 
@@ -128,7 +130,7 @@ def decisions(text):
 def waiting(block, ds):
     """작업 블록의 `대기: D2` 중 아직 답이 없는 것."""
     line = re.search(r"\*\*대기\*\*:(.*)", block)
-    return [d for d in re.findall(r"D\d+", line.group(1)) if ds.get(d, (" ",))[0] != "x"] if line else []
+    return [d for d in re.findall(r"D\d+", line.group(1)) if ds.get(d, (" ",))[0] not in "x~"] if line else []
 
 
 def waves(text):
@@ -144,9 +146,10 @@ def waves(text):
 def summary(path):
     text = read(path)
     marks = [t[0] for t in tasks(text).values()]
-    open_d = sum(1 for d in decisions(text).values() if d[0] != "x")
+    dmarks = [d[0] for d in decisions(text).values()]
+    open_d, proxy = sum(1 for m in dmarks if m not in "x~"), dmarks.count("~")
     return (f"{os.path.relpath(path, ROOT)} — 단계: {stage_of(text)} · 작업 [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
-            f"[!] {marks.count('!')} · 답 없는 결정 {open_d}")
+            f"[!] {marks.count('!')} · 답 없는 결정 {open_d}" + (f" · 대리 결정 {proxy} (확인 전)" if proxy else ""))
 
 
 def cmd_next(path):
@@ -154,7 +157,9 @@ def cmd_next(path):
     ts, ds = tasks(text), decisions(text)
     print(summary(path))
     for num, (mark, line) in ds.items():
-        if mark != "x":
+        if mark == "~":
+            print(f"대리 결정 (확인 전): {line[6:]}")
+        elif mark != "x":
             print(f"답 없는 결정: {line[6:]}")
     for num, (mark, title, a, b) in ts.items():
         if mark == "!":
@@ -211,14 +216,35 @@ def cmd_ask(path, who, question):
     print(num)
 
 
-def cmd_decide(path, num, answer):
+PROXY_RE = re.compile(r"^(.*) → (.*?) · 대리 (.*?) \(\d{4}-\d\d-\d\d\)$")
+
+
+def cmd_decide(path, num, answer, proxy):
+    """사용자의 답은 [x]. 자동 모드가 대신 정한 것은 [~] — 사용자가 받아들이거나(confirm) 뒤집을(decide) 때까지 확인 전이다."""
     text = read(path)
     ds = decisions(text)
     if num not in ds:
         sys.exit(f"{num}: 그런 결정이 없다 — " + " · ".join(ds))
-    old = ds[num][1]
-    write(path, text.replace(old, f"- [x]{old[5:]} → {answer.strip()} ({datetime.date.today()})", 1))
-    print(f"{num}: 답을 적었다")
+    mark, old = ds[num]
+    if proxy and mark == "x":
+        sys.exit(f"{num}: 사용자가 이미 답했다 — 대신 정하지 않는다")
+    ask = PROXY_RE.match(old).group(1) if mark == "~" else old
+    tail = f" · 대리 {proxy}" if proxy else ""
+    write(path, text.replace(old, f"- [{'~' if proxy else 'x'}]{ask[5:]} → {answer.strip()}{tail} ({datetime.date.today()})", 1))
+    print(f"{num}: " + ("대신 정했다 (확인 전)" if proxy else "답을 적었다"))
+
+
+def cmd_confirm(path, names):
+    text = read(path)
+    ds = decisions(text)
+    picked = [n for n, d in ds.items() if d[0] == "~"] if names == "all" else names.split(",")
+    for num in picked:
+        if num not in ds or ds[num][0] != "~":
+            sys.exit(f"{num}: 확인을 기다리는 대리 결정이 아니다")
+        ask, pick, basis = PROXY_RE.match(ds[num][1]).groups()
+        text = text.replace(ds[num][1], f"- [x]{ask[5:]} → {pick} — 대리({basis})를 받아들임 ({datetime.date.today()})", 1)
+    write(path, text)
+    print(f"받아들였다: {' · '.join(picked)}" if picked else "확인을 기다리는 대리 결정이 없다")
 
 
 def cmd_lesson(path, text):
@@ -248,13 +274,13 @@ def cmd_new(name, goal):
 def main():
     args = sys.argv[1:]
     opts = {}
-    for flag in ("--root", "--doc"):
+    for flag in ("--root", "--doc", "--proxy"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "stage": 1, "lesson": 1}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "stage": 1, "lesson": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -275,7 +301,9 @@ def main():
     elif cmd == "ask":
         cmd_ask(path, *rest)
     elif cmd == "decide":
-        cmd_decide(path, *rest)
+        cmd_decide(path, *rest, opts.get("--proxy", ""))
+    elif cmd == "confirm":
+        cmd_confirm(path, rest[0])
     elif cmd == "lesson":
         cmd_lesson(path, rest[0])
     else:

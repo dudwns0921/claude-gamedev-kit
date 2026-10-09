@@ -1,122 +1,77 @@
 ---
 name: video
 description: >-
-  Makes motion-graphics videos from a script: cut table (on-screen text · seconds) → human approves → HTML composition (HyperFrames) →
-  stills checked → render → placed where it is used. Two uses: `page` — outside the game (trailer, itch.io page, devlog clip) as mp4;
-  `game` — a cutscene the game plays as a video file (intro, ending, title card), converted to the format the engine reads.
-  One video style paragraph in docs/DESIGN.md is applied to every video, and each video's cut table and result are recorded.
+  Makes footage — a shot that looks filmed — with Higgsfield: description (· reference images) → human approves → generated →
+  human watches → placed where it is used. Two uses: `page` — outside the game (trailer, itch.io page, devlog clip) as mp4;
+  `game` — a cutscene the game plays as a video file (intro, ending), converted to the format the engine reads. One footage style
+  paragraph in docs/DESIGN.md is attached to every description, and each clip's description and result are recorded.
   Use when the user says "영상 만들어줘", "트레일러 만들자", "컷씬 만들어줘", "인트로 영상", "엔딩 영상", "devlog 에 넣을 영상",
-  asks to change the text, timing, colors or motion of an existing video, or approves a cut table; when the cycle's design section lists
-  a cutscene or trailer that does not exist; when first setting the video style paragraph or installing HyperFrames.
+  "힉스필드로 만들어줘", "이 그림을 움직이게", "한 번 더 뽑아줘"; approves a shot description or says a clip is good; when the cycle's
+  design section lists a cutscene or trailer that does not exist; when first setting the footage style, the Higgsfield keys or the model.
 ---
 
 # video
 
 ```
-what it is + script ─▶ cut table ─▶ [human looks] ─▶ composition ─▶ stills ─▶ render ─▶ where it is used
-new                    cuts          approve          compose        frames    render    docs/video · game folder
+what happens (+ reference images) ─▶ [human looks] ─▶ generate ─▶ [human watches] ─▶ where it is used
+new                                   approve          make        place
 ```
 
-**The human looks at two places: the cut table and the finished video.** The table is cheap — rewrite it as often as needed. Writing the
-composition and rendering take minutes and tokens, so only an approved table becomes a composition. You can check stills, but **you cannot
-see motion** — after rendering, give the path and the user watches.
+**The human looks twice: at what will be sent, and at what came back.** Generating costs credits and takes minutes, so only an approved description is sent,
+and the result is placed only after the user has watched it — **you cannot see motion.**
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" check
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" new <name> --for game|page [--size landscape|portrait|square] "<what video this is>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" cuts <name> [<file>|-]
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" approve <name>
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" compose <name>
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" lint <name>
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" frames <name>
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" render <name> [--draft]
-python3 "${CLAUDE_SKILL_DIR}/scripts/video.py" status
+python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" check
+python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" new <name> --for game|page [--seconds <n>] [--size landscape|portrait|square] [--image <path>]... "<what happens — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" approve <name>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" make <name>... [--again]
+python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" place <name>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" status
 ```
+
+1. **`check`** first. It says what is missing — the keys, the model, where game videos go, the footage style paragraph.
+2. **`new`.** Write in English **what happens in the shot** — who or what, doing what, where, how the camera moves — one shot, one action. Do not write the look:
+   the footage style paragraph is appended to every description. Give reference images with `--image` (paths from the game root) when the shot must match
+   something that exists — a character, a place, a frame to start from. The game's own art (asset images, screenshots) makes the footage look like the game.
+3. **Show the user** the line `new` prints ("보낼 설명") and the reference images, with the seconds and the model. When they agree, `approve`. Changing the description, the images,
+   the length or the model undoes the approval.
+4. **`make`.** Tell the user it costs credits before the first one of a session. It uploads the images, sends the request, waits and downloads `<work>/<name>/clip.mp4`.
+   If the wait is cut off, `make` again continues waiting — it does not send a second request. Run several names in one call only when each was approved.
+5. **Give the path and wait.** The user watches. Not right → change the description (`new` again, then approve · make), or `make --again` for another take of the same description.
+   Each take costs credits — say so, and do not retake unasked.
+6. **`place`** when the user says it is good: `page` stays mp4 in `video.page.dir`; `game` is converted with `video.game.convert` into `video.game.dir`.
+
+**Footage style** — one English paragraph between `<!-- footage-style -->` and `<!-- /footage-style -->` in `docs/DESIGN.md`: medium and rendering (painted, photoreal, stop-motion …),
+palette, light, lens and grain, how the camera behaves. It is optional but without it every clip comes out in a different look — write it with the user before the second clip.
+
+**The model is a setting.** `video.clip.model` is the Higgsfield endpoint ID; the user picks the model in the Higgsfield console and its page gives the ID and its inputs.
+Models name their inputs differently — set them in `video.clip.fields`, and what is always sent in `video.clip.params`:
+
+```json
+"clip": { "model": "higgsfield/cinema-studio/4.0", "seconds": 5, "params": { "resolution": "720p" },
+          "fields": { "prompt": "prompt", "seconds": "duration", "aspect": "aspect_ratio", "images": "image_urls", "image": "" } }
+```
+
+`images` is for a model that takes a list of reference images, `image` for one that takes a single start image (then set `images` to `""`). An empty name is not sent.
+When changing the model, read that model's page for its allowed lengths and sizes — do not guess them. A model that returns an image or audio, not a video, does not work here.
+
+- **Keys** (the user's, kept outside the repository): `HF_API_KEY_ID` and `HF_API_KEY_SECRET` in `~/.config/gamedev-kit/asset.env`, from the Higgsfield console. The user writes them in — do not ask for them in chat.
+- Results stay on Higgsfield's servers for about a week; the downloaded `clip.mp4` is the copy that lasts. Commit `clip.json`; add `<work>/*/clip.mp4` to `.gitignore` if the files are large.
+- Rejected by content moderation → the description or an image has to change; sending the same thing again does not help.
+- Text inside generated footage comes out garbled. Put words on screen in the engine or an editor, not in the description.
 
 ## Which use
 
 - **`page`** — a trailer, the video on the itch.io page, a clip for a devlog. Stays mp4, lands in `video.page.dir`.
   This skill makes the file. **It does not upload or post it anywhere** — the user does that.
-- **`game`** — the game plays the file: an intro, an ending, a chapter card, a logo. Converted with `video.game.convert` into `video.game.dir`.
-  This is text, shapes, images and sound moving on a flat screen. **A cutscene where the game's characters act in the game's world is not this** —
-  that is made in the engine (development work, a cycle task). If the user asks for that, say so before starting.
-  The code that plays the file and lets the player skip it is also development work.
+- **`game`** — the game plays the file: an intro, an ending, a shot between chapters. Converted with `video.game.convert` into `video.game.dir`
+  (the engine's config sets the format). If `game.dir` is empty, this game has no in-game video. The code that plays the file and lets the player skip it is development work.
 
-## Procedure
-
-1. **`check`.** If a tool is missing, see "First time only". If the video style paragraph is empty, fill it first ("Video style" below).
-2. **Look at what exists.** `status`. To change an existing video, change its cut table or composition — do not start a new name.
-3. **`new`.** One sentence on what the video is for and who watches it.
-4. **Write the cut table** — one line per cut, `seconds | on-screen text | what moves`:
-
-   ```
-   2.5 | <게임>              | title drops in letter by letter, holds
-   3   | 혼자서는 못 나간다   | line types on; background darkens
-   4   |                     | three gameplay stills slide past (assets/shots/a.png …)
-   ```
-
-   - **On-screen text is not the script.** From a narration or story text, pull only the few words that must be read; the rest is said by motion or left out.
-   - **Seconds come from reading, not from taste.** The script marks cuts too tight to read (`← 읽기 빠듯하다`) — shorten the text or lengthen the cut.
-     If there is narration or music, the cuts add up to its length.
-   - A cut may have no text. Then the third column says what is seen.
-   - Name image, video and sound files that already exist in the game by path. Missing art and sound are made with the asset skill first.
-
-   Save it with `cuts <name> -` (stdin) or a file. Changing the table clears the approval.
-5. **Show the table as the script printed it and ask.** On a yes, `approve`. If the user said "make it" after seeing this exact table, that is the approval.
-6. **`compose`.** The first time it scaffolds the composition folder (`hyperframes init`); every time it prints the style paragraph and each cut's start time.
-   Write `comp/index.html` from that — one clip per cut, start and duration **exactly as printed**. Do not retime while animating; to retime, go back to `cuts`.
-   The attribute and timeline rules belong to the installed HyperFrames version — read them from it, not from memory:
-   `npx hyperframes docs data-attributes`, `npx hyperframes docs gsap`.
-   Colors, fonts and sizes come from `docs/DESIGN.md` — the video is part of the same game.
-7. **`lint`, then `frames`, and read the stills.** Check on each: is the text inside the frame, readable against the background, the right cut's text,
-   nothing overlapping. Fix and repeat. Stills show layout, not motion.
-8. **`render --draft`** and give the path. The user watches and says what to change. Text, color and size edits are composition edits — render again.
-   When they say it is good, `render` without `--draft`. For a live look while editing, `npx hyperframes preview <work>/<name>/comp` opens a browser studio
-   (it keeps running — stop it with `--stop` when done).
-9. During a cycle, write the path in the "있는가" cell of the design section's "필요한 에셋" table.
-
-## Video style
-
-The paragraph between `<!-- video-style -->` and `<!-- /video-style -->` in `docs/DESIGN.md`, in English, things true of every video of this game:
-background, type (family, weight, how big against the frame), how things enter and leave (snap, ease, typewriter), pace, how much is on screen at once,
-what never appears. Derive it from the game's own colors and fonts already in that document.
-
-If it is empty: ask the user for two or three screenshots of videos with the feel they want, describe what those have in common, write the paragraph, and
-show it before making the first video. Changing it later makes new videos differ from old ones — say so.
-
-## Config
-
-```json
-"video": {
-  "work": "video",
-  "size": "landscape",
-  "quality": "standard",
-  "page": { "dir": "docs/video" },
-  "game": { "dir": "assets/video", "ext": "ogv", "convert": ["-c:v", "libtheora", "-q:v", "7", "-c:a", "libvorbis", "-q:a", "4"] }
-}
-```
-
-- `game.ext` · `game.convert` — the format the engine plays and the ffmpeg arguments that produce it. They come with the engine's `kit.config.json`.
-  If `game.dir` is empty, this game has no in-game video.
-- `hyperframes` · `ffmpeg` — the commands to call, if not `npx hyperframes` and `ffmpeg`.
-- `read_cps` — characters per second a viewer can read (default 8). Lower it for dense scripts or young players.
-- Commit `<work>/<name>/video.json` and `comp/`. Add `<work>/*/renders/`, `<work>/*/comp/snapshots/` and `node_modules/` to `.gitignore`.
-
-## First time only (done by the user)
-
-- **Node.js 22+ and FFmpeg** on PATH. FFmpeg must include the encoder named in `game.convert`.
-- **HyperFrames** is fetched by `npx hyperframes` on first run, and it downloads a browser for rendering. Tell the user this before the first run and let them start it.
-  `npx hyperframes doctor` shows what is missing.
-
-## Pitfalls
-
-- **Long videos cost more than they look.** Each cut is HTML you write and frames the renderer captures. Past about a minute, split into several videos and join them.
-- **Do not put the whole script on screen.** A frame full of text reads as a slide, not a video.
-- **Rendering is deterministic but fonts are not.** A font that exists only on this machine renders differently elsewhere — use the game's font files by path.
-- **Do not say "it came out well".** You saw stills. Say what you checked on them and give the path.
+One clip is one shot. A trailer or a cutscene of several shots is several clips, joined by the user or with ffmpeg — and anything where the game's characters
+must act exactly as they do in play is made in the engine, not here. Say so before starting.
 
 ## Not covered
 
-- Voice narration is not made here. If the user records one, name the file in the cut table and time the cuts to it.
-- Recording gameplay footage. Use stills or clips the user captured.
+- Moving text — title cards, captions, credits. The kit used to render these from HTML (HyperFrames); that was taken out in 0.18.0 and is in the git history.
+- Voice narration, and recording gameplay footage. Use what the user recorded.
 - Uploading, posting, or embedding on a store page.

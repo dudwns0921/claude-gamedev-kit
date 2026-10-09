@@ -2,9 +2,10 @@
 name: cycle
 description: >-
   Drives one game-dev cycle — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — through a single document (docs/cycle/).
-  Systems designer, designer, developer and deploy agents work stage by stage; every decision goes back to the user.
-  Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자", "이번엔 ○○ 를 넣자"); says "사이클 이어서",
-  "다음 단계", "어디까지 했지"; or answers a decision ("D2 는 ①로"). Not for one-line fixes.
+  Systems designer, designer, developer and deploy agents work stage by stage; every decision goes back to the user — or, in auto mode,
+  is made by the user's voice up to the point of playing. Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자",
+  "이번엔 ○○ 를 넣자"); says "사이클 이어서", "다음 단계", "어디까지 했지"; answers a decision ("D2 는 ①로"); or wants it run without them
+  ("자동으로 돌려줘", "알아서 만들어 놔", "나 없는 동안 진행해줘", "auto"). Not for one-line fixes.
 ---
 
 # cycle
@@ -26,6 +27,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # one task and on
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<reason>" · open
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <기획|디자인|계획> "<question — ① … ② … · 권함: ①>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # auto mode: decided in the user's place — written [~]
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (in 회고)
 ```
@@ -41,11 +44,13 @@ Do not chain two or more cycles in one session. If you were also doing work outs
 
 **The user decides.** No agent decides for them. Agents return "Decisions needed" as options plus one recommendation,
 this skill collects and asks them, and writes the answers in the document's "결정" section in the user's own words (verbatim). Do not do work that hangs on an unanswered decision.
+The one exception is **auto mode** (below): the user has asked, for this run, that their voice decide in their place — and even then every such decision is marked and waits for them.
 
 | Call | Meaning |
 |---|---|
 | `/gamedev-kit:cycle <goal>` | New cycle. Runs through spec · design · plan, then asks the decisions |
 | `/gamedev-kit:cycle next` | Next stage of the newest cycle |
+| `/gamedev-kit:cycle auto <goal>` · `auto next` | Auto mode — run to the point of playing without asking; the user's voice decides |
 | `/gamedev-kit:cycle status` | Per cycle: current stage · remaining tasks · unanswered decisions |
 
 ## Stages
@@ -86,11 +91,12 @@ If the answer is to make it, follow the asset skill's procedure alongside the bu
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
 options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
-If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game), between `ask` and asking the user,
-follow the voice skill's "Predict": `voice.py sync`, read that document and record one prediction per decision (`voice.py predict D2 ② V3`, or `predict D2 -` when no principle applies). Do not show the predictions with the questions —
-the user still answers every one.
+**The voice works behind this, unseen.** If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game),
+between `ask` and asking the user, follow the voice skill's "Predict": `voice.py sync`, read that document and record one prediction per decision
+(`voice.py predict D2 ② V3`, or `predict D2 -` when no principle applies). After the answers are recorded, follow its "Score" and "Learn".
+**Say nothing about any of it** — no predictions, no hits or misses, no "updated the voice". The user just answers questions.
 
-When answers come, record them with `decide D1 "<the user's words verbatim>"` — then, if predictions were recorded, the voice skill's "Score" (`voice.py score`, then `voice.py sync`) and relay hits and misses in a line each. If an answer changes the spec · design · plan (scope cut · a different option chosen),
+When answers come, record them with `decide D1 "<the user's words verbatim>"`. If an answer changes the spec · design · plan (scope cut · a different option chosen),
 call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
 
 ### 5. 구현
@@ -131,7 +137,7 @@ and the playtest documents) and look at each:
 
 If the split is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
 
-If this cycle answered decisions, recommend in one line bringing the voice up to date (`/gamedev-kit:voice`).
+Last, the voice skill's "Review" — the one place the voice is shown: the lines it picked up this cycle that the user has not seen, if any, for them to correct.
 
 ## Cycle document
 
@@ -158,9 +164,37 @@ In the user's own words (verbatim).
 
 Update the header's `단계:` with `stage` every time the stage changes. `next` and `status` read that line. Keep the stage name short — circumstances go in that section.
 
+## Auto mode
+
+`/gamedev-kit:cycle auto <goal>` starts a cycle, `/gamedev-kit:cycle auto next` continues the newest one — **for this run only**; a plain `next` later is the ordinary mode again.
+It is for when the user is away: the cycle runs from 목표 to the end of 구현 without asking anything, and stops where the user has to play.
+It needs a voice (`voice.py path`). Without one, say so and run the ordinary mode.
+
+What changes from the stages above:
+
+- **Decisions are not asked.** Wherever a stage says to ask the user — the rule-splitting decisions before 디자인, and all of them after 계획 — follow the voice skill's "Decide" instead:
+  a principle picks (`decide D2 "②" --proxy V3`), or failing that the agent's recommendation stands (`--proxy 권함`). Both are written `[~]`, and work that hangs on them goes ahead.
+- **Some decisions stay the user's** and are left unanswered: spending money or credits, anything going outward, discarding the user's work, and anything with neither a principle nor a recommendation.
+  Tasks that wait on them do not run — `next` shows them as 대기. Go on with the rest.
+- **Assets that do not exist are placeholders.** Do not generate models, sounds or videos — that costs money and needs the user's eye. Write the need down as an unanswered decision (`ask`).
+- **A blocked task gets one more try**: call `plan` again with "Why blocked" attached, run the reworked task once. Still blocked → leave it `[!]`.
+- **Anything else you would have asked** becomes an unanswered decision (`ask`) and you go on. Do not stop to wait, and do not recommend a new session mid-run.
+- **It ends at 플레이.** After the wrap-up (gdd-sync · table export · the project's verification), set the stage to 플레이 and stop. Never ship, never start a second cycle —
+  a cycle built on one nobody played stacks guesses on guesses.
+
+The last message of the run is what the user reads when they are back. Keep it to this:
+
+1. What was built and what to play and look at (as at the end of 구현).
+2. **Decided in your place** — one line each: the decision, what was chosen, and whether the voice chose it (`V3`) or it was only the agent's recommendation (`권함`). The `권함` ones first.
+3. **Left for you** — the unanswered decisions and the tasks waiting on them; blocked tasks and why.
+4. If verification failed, say so first of all, with what failed.
+
+When the user is back, each proxy decision is accepted (`confirm D2,D5` · `confirm all`) or overturned (`decide D2 "<their words>"`). An overturned decision is an answer that changes the plan:
+call the agent whose section it touches, then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently.
+
 ## next
 
-Run `cycle.py next` and continue from there — do not read the document. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
+Run `cycle.py next` and continue from there — do not read the document. If it lists "대리 결정 (확인 전)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions · whether to ship), ask again — do not move on without an answer.
 
 ## status

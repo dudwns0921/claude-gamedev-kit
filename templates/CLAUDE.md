@@ -45,8 +45,11 @@ The rules for screens and UI are in [docs/DESIGN.md](docs/DESIGN.md).
 
 **The user decides.** Claude does not decide scope · taste · numbers · whether to ship on the user's behalf. Offer options and one recommendation and ask,
 and write the answer in the cycle document's "결정" in the user's own words (verbatim).
-`/gamedev-kit:voice` gathers those answers into the user's voice (principles · biases) — one document for every game they make, kept outside this repository
-(`~/.config/gamedev-kit/voice/`) — and, before decisions are asked, records a prediction of each answer to score afterwards. A prediction is never an answer.
+Those answers build the user's voice (how they decide — principles · biases), one document for every game they make, kept outside this repository
+(`~/.config/gamedev-kit/voice/`). It works unseen: it is not shown or mentioned except when a cycle ends or the user asks ("보이스 보자").
+
+**Auto mode is the one exception**, and only when the user asks for it (`/gamedev-kit:cycle auto …`): the cycle runs to the point of playing without asking, the voice deciding in the
+user's place. Every such decision is marked `[~]` in the cycle document and waits for the user to accept or overturn it. Auto mode never ships, never spends money, never starts a second cycle.
 
 ## 3D assets and sound come from one paragraph
 
@@ -57,9 +60,9 @@ The user approves images. The record stays in `assets/_gen/<name>/asset.json`.
 Sound effects · looping sounds · music are made with the same skill (ElevenLabs). The sound style is the `<!-- sound-style -->` paragraph.
 Claude cannot hear sound — after making it, give the path and the user listens. The record is `assets/_gen/<name>/sound.json`.
 
-Videos — a trailer or devlog clip (`page`), or a cutscene the game plays as a file (`game`) — are made with `/gamedev-kit:video`:
-cut table (on-screen text · seconds) → the user looks and approves → composition → render. The video style is the `<!-- video-style -->` paragraph.
-Claude cannot see motion — after rendering, give the path and the user watches. The record is `video/<name>/video.json`. The skill makes files; it posts nothing.
+Videos — a trailer or devlog clip (`page`), or a cutscene the game plays as a file (`game`) — are made with `/gamedev-kit:video` (Higgsfield):
+description (· reference images) → the user looks and approves → generated (costs credits) → the user watches → placed. The footage style is the `<!-- footage-style -->` paragraph.
+Claude cannot see motion — give the path and the user watches. The record is `video/<name>/clip.json`. The skill makes files; it posts nothing.
 
 The status board (`docs/board/index.html`) is drawn by `/gamedev-kit:board` from the GDD table and the cycle documents, and redraws itself when a turn ends.
 Do not read it or edit it — fix the GDD table (gdd-sync) or the cycle document and it follows.

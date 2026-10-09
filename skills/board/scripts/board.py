@@ -106,7 +106,7 @@ def decision(mark, num, rest):
     cut = re.search(r" — (?=①)", ask) or re.search(r" — ", ask)  # 제목 안의 줄표가 아니라 선택지 앞의 것
     title, options = (ask[:cut.start()], ask[cut.end():]) if cut else (ask, "")
     pick = re.sub(r"\s*\([^()]*\)\s*$", "", pick)
-    return {"num": num, "done": mark == "x", "title": title.strip(), "options": options.strip(), "pick": pick.strip(),
+    return {"num": num, "done": mark == "x", "proxy": mark == "~", "title": title.strip(), "options": options.strip(), "pick": pick.strip(),
             "who": who.group(1) if who else "", "answer": (answer[:date.start()] if date else answer).strip(),
             "date": date.group(1) if date else ""}
 
@@ -314,7 +314,7 @@ def open_questions(st, cycles):
             t = re.match(r"\*\*(.+?)\*\*:?\s*(.*)", b) or re.match(r"(.+?)(?: — |: | \(|\. )(.*)", b)  # 굵은 제목이 없으면 첫 마디
             out.append({"title": (t.group(1) if t else b).replace("**", ""), "text": (t.group(2) if t else "").replace("**", ""), "from": "GDD"})
     for c in cycles:
-        out += [{"title": f'{d["num"]} {d["title"]}', "text": "답을 기다린다", "from": f'사이클 {c["num"]}'} for d in c["decisions"] if not d["done"]]
+        out += [{"title": f'{d["num"]} {d["title"]}', "text": "대신 정했다 — 확인을 기다린다" if d["proxy"] else "답을 기다린다", "from": f'사이클 {c["num"]}'} for d in c["decisions"] if not d["done"]]
     for q in out:
         s = place_words(st, q["title"] + " " + q["text"]) or st[-1]
         q["stage"] = s["i"]

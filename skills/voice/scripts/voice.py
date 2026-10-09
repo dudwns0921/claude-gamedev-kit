@@ -114,6 +114,8 @@ def decisions(text):
 
 
 def split_tag(d):
+    if "를 받아들임" in d["answer"]:  # 자동 모드가 대신 정한 것을 받아들였다 — 스스로 고른 것보다 약한 근거다
+        return "받음"
     if not d["rec"] or not d["chose"]:
         return "?"
     return "같음" if d["rec"] == d["chose"] else "갈림"
@@ -122,7 +124,7 @@ def split_tag(d):
 def cmd_collect(mode):
     seen = set(read(SEEN).split("\n")) if os.path.exists(SEEN) else set()
     key = lambda path, num: f"{GAME} {number(path)} {num}"
-    count = {"갈림": 0, "같음": 0, "?": 0}
+    count = {"갈림": 0, "같음": 0, "?": 0, "받음": 0}
     if mode == "done":
         new = [key(p, num) for p in docs() for num, d in decisions(read(p)).items() if d["answer"] is not None and key(p, num) not in seen]
         if new:
@@ -145,7 +147,8 @@ def cmd_collect(mode):
     total = sum(count.values())
     if not total:
         return print("답이 난 결정이 없다" + (" (아직 읽히지 않은 것 가운데)" if mode == "new" else ""))
-    print(f"\n결정 {total} · 권함과 갈림 {count['갈림']} · 같음 {count['같음']} · 읽어서 가릴 것 {count['?']}")
+    print(f"\n결정 {total} · 권함과 갈림 {count['갈림']} · 같음 {count['같음']} · 읽어서 가릴 것 {count['?']}"
+          + (f" · 대리를 받음 {count['받음']}" if count["받음"] else ""))
 
 
 def log_text():

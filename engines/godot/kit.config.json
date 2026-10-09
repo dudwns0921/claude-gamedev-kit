@@ -32,6 +32,7 @@
   "video": {
     "size": "landscape",
     "page": { "dir": "docs/video" },
+    "clip": { "model": "higgsfield/cinema-studio/4.0", "seconds": 5, "params": { "resolution": "720p" } },
     "game": { "dir": "assets/video", "ext": "ogv", "convert": ["-c:v", "libtheora", "-q:v", "7", "-c:a", "libvorbis", "-q:a", "4"] }
   }
 }
