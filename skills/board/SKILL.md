@@ -80,6 +80,11 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 
 Other keys: `"out"`, `"gdd"`, `"cycles"`, `"playtests"`, `"gen"`, `"notes"`, `"reload_sec"`.
 
+**The asset sheet** (`assets.html`, linked from the first screen) lays every asset record out in one grid — models and images side by side, sounds in a row to play one after another —
+under the three layers attached to every asset (화풍 · 세계 · 배운 것, read from `docs/DESIGN.md`; another file → `board.design`). Each tile says where the asset stands (그림만 · 승인 · 게임에 있음)
+and marks: **옛 화풍** (drawn under a 화풍 paragraph that has since changed), **물림** (turned down — hover for what the user said), 견본 (a style reference), 레퍼런스 (made from a photo).
+It is for the user's eye — do not read the page or the images to judge consistency yourself unless asked.
+
 Add `docs/board/` to `.gitignore` — the pages are redrawn from the documents and carry a timestamp, so committing them only makes noise.
 
 ## Not covered

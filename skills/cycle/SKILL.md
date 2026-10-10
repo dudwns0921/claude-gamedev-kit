@@ -115,7 +115,8 @@ The spec's numbers went in as "시작" values — also say which values in the t
 and the user looks once, not every few tasks.
 
 1. List them from the "필요한 에셋" table — every row still 없음 or 임시 that was decided "make". Say how many and what it will cost (images are cheap, meshes and sounds cost credits).
-2. Follow the asset skill's procedure for all of them together: every image first, then **show the user all of them in one sitting** and take approvals and redraws together; then meshes and sounds.
+2. Follow the asset skill's procedure for all of them together: every image first, then **show the user all of them in one sitting** — the board's asset sheet (`docs/board/assets.html`)
+   has them side by side — and take approvals and redraws together; then meshes and sounds.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.
 4. Write each path in the table's "있는가" cell, run the verification again, and only then tell the user what to play.
 

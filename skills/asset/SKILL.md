@@ -23,9 +23,12 @@ new            image                   approve          mesh    (mesh continues 
 so only approved images become meshes, and after approval it runs to the end without asking.
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" new <name> --size <meters> [--poly <triangle count>] "<what it is — in English>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <name>... [--view back]
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" new <name> --size <meters> [--poly <triangle count>] [--ref <photo> [--as-is]] "<what it is — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <name>... [--view back] [--ref <photo>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" approve <name>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" reject <name> "<the user's words>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" learn "<one line — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" look
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" mesh <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" finish <name>... [--size <meters>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
@@ -40,16 +43,40 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
 3. **`new`.** Write the description in English, **only what the thing is** — shape, proportions, material, color, two or three standout parts. Do not write art style, background, lighting or composition
    (the script attaches them). `--size` is the length of the longest side in meters. If the user did not say, look in the GDD or the design section; if absent, ask.
    Give `--poly` only for things that appear large or small on screen (default is the configured value).
+   **If the user gave a reference photo for this thing, pass it with `--ref <path>`** (from the game root) — the image model is shown the photo itself and told to redraw that
+   exact object in the game's style. Do not turn the photo into words and drop it: a description cannot carry a silhouette. Still write the description — it names the thing and what must stay.
+   `--as-is` uses the photo as the first view without redrawing (png, a clean straight-on shot of one object) — closest to the photo, but the look is the photo's, not the game's. Ask which they want when it is not obvious.
 4. **`image`.** For several, give the names at once. When done, give the user the image paths and tell them to open the images themselves.
    **Do not Read the images yourself** — a picture stays in this session to the end and is re-read every turn. The one who looks is the user.
    If the user asks you to screen them first, call `gamedev-kit:designer` with `review`, pass the paths, and get text back.
-5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>`.
-   **Do not `approve` because it looks good to you.** `approve` only assets the user said are good.
+5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>`;
+   if they now hand you a photo, `image <name> --ref <path>`. **Do not `approve` because it looks good to you.** `approve` only assets the user said are good.
+   **When they turn one down, record what they said** — `reject <name> "<their words>"` — before redrawing. Then ask yourself whether it is about this one object or about every asset
+   ("the metal is too shiny" is about every asset). If every: `learn "<the rule, one English line>"` and show them that line. See "What is attached to every asset".
 6. **`mesh`.** Give all approved ones at once — they are made concurrently. It takes minutes, so run it in the background. If interrupted, rerunning the same command
    resumes waiting on the same job (it does not buy a new one). Once the mesh arrives it continues through finishing.
 7. **Report the result.** File path, triangle count, size, credits spent. Opening it in the engine is the user's job.
    If only the size is wrong, `finish <name> --size <meters>` — do not call Meshy again.
 8. During a cycle, write the path in the "있는가" cell of the design section's "필요한 에셋" table.
+
+## What is attached to every asset
+
+Three layers in `docs/DESIGN.md`, joined in this order behind every description (`look` prints them and their length):
+
+| Layer | Between | What it is | Changes |
+|---|---|---|---|
+| **화풍** — how it is drawn | `<!-- asset-style -->` | rendering, palette, amount of detail, material feel, proportions | fixed. Changing it sets new assets against old ones |
+| **세계** — what exists | `<!-- asset-world -->` | era and place, the materials things are made of, motifs and shapes that recur | grows slowly, with the user |
+| **배운 것** — what turning assets down taught | `<!-- asset-learned -->` | one line per rule, from the user's own words | one line at a time, by `learn` |
+
+- **세계** is optional. Write it with the user from the GDD's setting when the second or third asset shows the need — it is also what you read before writing a new asset's description.
+- **배운 것 comes only from what the user said**, never from what you see in images they approved — your reading of their taste is not their taste. One line, in English, true of every asset
+  ("Metal is matte, never glossy"). Show the line when you add it. The script stops at twelve lines: merge lines that overlap, or — with the user — move a rule that always holds up into 화풍.
+- The three do not contradict: if a learned line fights the 화풍 paragraph, the paragraph is what needs the user's decision, not a thirteenth line.
+
+**Seeing them together.** Consistency shows only side by side. The board's asset sheet (`docs/board/assets.html`, drawn by the board skill's script, no model) lays every asset out in one grid
+under these three layers, and marks the ones drawn under an older 화풍 paragraph, the ones turned down and why, and the style references. After making a batch, give the user that page rather than a list of paths.
+What they point at there is `reject` · `learn` material.
 
 ## Art style
 
