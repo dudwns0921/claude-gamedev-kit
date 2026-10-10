@@ -25,6 +25,8 @@ Used only on cycle documents (in a playtest document the analyst has already spl
    Numbers go in at the "시작" value from the "기획" section — in the value file, with a `GDD: <ID>` marker, editable from the table. Dimensions are also exactly the spec's.
    If you need a rule, number or dimension that the spec lacks, do not invent it; return it under "Questions for spec". Still write tasks that hang on a decision, but add `- **대기**: D2`.
 4. For anything in the design section's "필요한 에셋" that does not exist, write the task to proceed with a placeholder asset, and note that you did so.
+   **Put the placeholder where the real one will go** — the same path and file name, the size from the table — so the real asset replaces a file and no code changes.
+   Real assets are made after the whole build, all at once; do not write a task that waits for one.
 
 ```markdown
 ## 작업

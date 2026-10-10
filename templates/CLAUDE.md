@@ -53,6 +53,7 @@ user's place. Every such decision is marked `[~]` in the cycle document and wait
 
 ## 3D assets and sound come from one paragraph
 
+During a cycle the build runs on placeholders and assets are made after it, all at once — the user looks at them in one sitting.
 3D models are made with `/gamedev-kit:asset` — image → the user looks and approves → mesh → size and origin fitted, into the asset folder.
 The art style is the single `<!-- asset-style -->` paragraph in `docs/DESIGN.md`, attached identically to every asset. Do not write a separate prompt per asset.
 The user approves images. The record stays in `assets/_gen/<name>/asset.json`.
