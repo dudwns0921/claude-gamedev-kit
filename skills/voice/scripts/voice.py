@@ -6,7 +6,7 @@
 게임의 이름은 게임 폴더의 이름이다 (kit.config.json 의 "voice": {"name": …} 로 바꾼다).
 
   python3 voice.py path                    보이스 문서의 경로. 아직 없으면 그렇다고 하고 1 로 끝난다
-  python3 voice.py collect                 이 게임의 사이클마다 목표와 답이 난 결정. 권함과 답이 갈렸는지 표시한다
+  python3 voice.py collect                 이 게임의 사이클마다 목표와 답이 난 결정. 권함과 답이 갈렸는지, 답을 바꿨는지([바꿈]) 표시한다
   python3 voice.py collect new             보이스에 아직 읽히지 않은 것만
   python3 voice.py collect done            지금 답이 난 결정을 전부 읽힌 것으로 적는다 (보이스를 쓴 뒤에)
   python3 voice.py predict D2 ② V3,V5      묻기 전에 예측을 적는다 — 고를 것과 근거 원칙. 답이 난 결정에는 적지 못한다
@@ -101,21 +101,25 @@ def choice(text):
 
 
 def decisions(text):
-    """결정 번호 → 질문 · 누가 물었나 · 권함 · 답 · 답한 날 · 답에서 가린 번호."""
+    """결정 번호 → 질문 · 누가 물었나 · 권함 · 답 · 답한 날 · 답에서 가린 번호 · 답이 몇 번 났나.
+    답을 바꾸면 앞의 답 뒤에 ` → 새 답` 이 붙는다 — 고른 번호는 마지막 답에서 가린다."""
     out = {}
     for mark, num, rest in DECISION_RE.findall(section(text, "결정")):
         p = PARTS_RE.match(rest.strip()).groupdict()
         rec = re.search(rf"권함: *([{CIRCLED}])", p["q"])
         answered = mark == "x" and p["a"] is not None
+        chain = p["a"].split(" → ") if answered else []
         out[num] = {"q": p["q"].strip(), "who": p["who"] or "?", "rec": rec.group(1) if rec else "",
                     "answer": p["a"] if answered else None, "date": p["date"] or "",
-                    "chose": choice(p["a"]) if answered else ""}
+                    "chose": choice(chain[-1]) if answered else "", "answers": len(chain)}
     return out
 
 
 def split_tag(d):
     if "를 받아들임" in d["answer"]:  # 자동 모드가 대신 정한 것을 받아들였다 — 스스로 고른 것보다 약한 근거다
         return "받음"
+    if d["answers"] > 1:  # 답을 바꿨다 — 무엇이 달라져서 바꿨는가가 보이스에 가장 쓸모 있다
+        return "바꿈"
     if not d["rec"] or not d["chose"]:
         return "?"
     return "같음" if d["rec"] == d["chose"] else "갈림"
@@ -123,10 +127,11 @@ def split_tag(d):
 
 def cmd_collect(mode):
     seen = set(read(SEEN).split("\n")) if os.path.exists(SEEN) else set()
-    key = lambda path, num: f"{GAME} {number(path)} {num}"
-    count = {"갈림": 0, "같음": 0, "?": 0, "받음": 0}
+    # 답을 바꾼 결정은 읽힌 뒤에도 다시 나온다 — 몇 번째 답인지가 이름에 붙는다
+    key = lambda path, num, d: f"{GAME} {number(path)} {num}" + (f" #{d['answers']}" if d["answers"] > 1 else "")
+    count = {"갈림": 0, "같음": 0, "?": 0, "받음": 0, "바꿈": 0}
     if mode == "done":
-        new = [key(p, num) for p in docs() for num, d in decisions(read(p)).items() if d["answer"] is not None and key(p, num) not in seen]
+        new = [key(p, num, d) for p in docs() for num, d in decisions(read(p)).items() if d["answer"] is not None and key(p, num, d) not in seen]
         if new:
             write(SEEN, "\n".join(sorted(seen - {""}) + new) + "\n")
         return print(f"{len(new)}개를 읽힌 것으로 적었다")
@@ -134,7 +139,7 @@ def cmd_collect(mode):
     for path in docs():
         text = read(path)
         rows = [(num, d) for num, d in decisions(text).items()
-                if d["answer"] is not None and not (mode == "new" and key(path, num) in seen)]
+                if d["answer"] is not None and not (mode == "new" and key(path, num, d) in seen)]
         if not rows:
             continue
         title = re.match(r"# *(.*)", text)
@@ -148,7 +153,7 @@ def cmd_collect(mode):
     if not total:
         return print("답이 난 결정이 없다" + (" (아직 읽히지 않은 것 가운데)" if mode == "new" else ""))
     print(f"\n결정 {total} · 권함과 갈림 {count['갈림']} · 같음 {count['같음']} · 읽어서 가릴 것 {count['?']}"
-          + (f" · 대리를 받음 {count['받음']}" if count["받음"] else ""))
+          + (f" · 대리를 받음 {count['받음']}" if count["받음"] else "") + (f" · 답을 바꿈 {count['바꿈']}" if count["바꿈"] else ""))
 
 
 def log_text():

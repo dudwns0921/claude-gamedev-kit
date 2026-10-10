@@ -75,9 +75,17 @@ Done silently: after "Score" in a cycle, at setup, and whenever `collect new` ha
 
 1. Run `sync`, then `collect new` — in a game the voice has never read, that is everything. `[갈림]` marks an answer that went against the recommendation, `[같음]` one that followed it,
    `[?]` one where the answer names no option — read those and tell which way it went. `[받음]` is a proxy decision (auto mode) the user accepted — it counts like `같음`,
-   never as proof of the principle that made it.
+   never as proof of the principle that made it. `[바꿈]` is a decision the user answered and later answered again — both answers are on the line, old → new.
+   It comes back in `collect new` even if the voice read the first answer. **This is the best material there is: read what changed between the two answers** —
+   what was built, played or learned in between — and which way the user moved.
 2. Read `VOICE.md` (it is short) and change only what the new decisions move: add the decision to the principle it agrees with, note the one it goes against,
    promote a "모르는 것" that now has two decisions behind it. If nothing moves, change nothing.
+   **When an answer goes against a principle** — a missed prediction, an overturned proxy, a `[바꿈]`, a `[갈림]` the principle did not expect — do not strike the principle first.
+   The same person answers the same question differently when the situation differs, so look for the situation:
+   - **The answer says why** ("because it has to run on the web", "it felt slow once I played it") → write that as a condition on the principle, in the user's words:
+     `V7. … — 다만 <그 상황>이면 <반대쪽>`. Cite the decision.
+   - **The answer does not say why** → do not guess the reason. Add one line under "모르는 것": `왜 달랐나 — V7 인데 <게임> 03 D2 는 ②: "<the answer verbatim>"`. It is asked at "Review".
+   - Strike or reword the principle only when it has gone wrong twice with no situation that explains it.
 3. **End every line you added or reworded with `· 안 봄`** — the user has not seen it yet. A line that only gained a citation keeps its state.
 4. Run `collect done`, then `sync "<what changed, one line>"`. Say nothing to the user.
 
@@ -102,6 +110,8 @@ Done silently: after "Score" in a cycle, at setup, and whenever `collect new` ha
 - A principle seen in one game only is marked `한 게임`. It predicts in that game as usual; in another game treat it as weaker, and drop the mark when a second game agrees.
 
 - **A principle needs two decisions behind it.** One answer goes under "모르는 것" until a second agrees. Do not fill a principle in from what seems likely of the user.
+- **A principle may carry its conditions.** "Picks the cheap route first — 다만 it is the heart of the project and the costly route is clearly better, then straight to that" is one principle,
+  not two that contradict. A condition is added only from a reason the user gave; a principle with more than two conditions is really two principles — split it.
 - **A principle settles a split.** "prefers simplicity" predicts nothing; "between a new rule and stretching an existing one, stretches the existing one" does.
   If it could not pick between two options of a real decision, it is not a principle yet.
 - `갈림` weighs more than `같음` — following the recommendation says little about the user; going against it says a lot. Count them in the citation.
@@ -147,6 +157,10 @@ The one place the voice is shown. Run `sync` and read the voice.
 
 - **At 회고** (called from the cycle skill): if any line ends with `· 안 봄`, show those lines only, one per line in plain words, and ask if any is wrong. If none, say nothing.
 - **When the user asks** ("보이스 보자"): show the whole voice — 원칙 · 편향 · 모르는 것 — in plain words, the `안 봄` lines marked as new, and one line from `stats`.
+
+**Then ask why, for what went against a principle without a reason** — the `왜 달랐나` lines under "모르는 것". At most three per review, the newest first, one line each:
+what the principle says, what they chose that time, "what was different?". The answer becomes a condition on that principle in their words; "no reason, I just changed my mind" or
+no answer → drop the line and count it as a plain miss. This is the only place such a question is asked — never during a cycle's decisions.
 
 Take corrections in the user's words (cite `근거: 사용자가 적음 (<date>)`); strike what they reject (`~~V3. …~~`). Then remove `· 안 봄` from every line shown and `sync "<what changed>"`.
 The user may also edit `VOICE.md` by hand at any time — treat what you find there as theirs.

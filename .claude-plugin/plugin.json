@@ -1,7 +1,7 @@
 {
   "name": "gamedev-kit",
   "description": "게임 개발 워크플로 — 한 사이클(기획 · 디자인 · 구현 · 플레이 · itch.io 배포), 3D 에셋 · 소리 생성, 트레일러 · 컷씬 영상, GDD ↔ 코드 동기화 · 현황판, 엑셀 밸런스 표 (Godot).",
-  "version": "0.18.1",
+  "version": "0.18.2",
   "author": { "name": "dudwns0921" },
   "repository": "https://github.com/dudwns0921/claude-gamedev-kit",
   "license": "MIT"

@@ -960,6 +960,22 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("결정 1 ·", out)
         self.assertIn("결정 5 ·", run(VOICE, root, "collect").stdout)
 
+        # 답을 바꾼 결정 — 앞의 답과 뒤의 답이 같이 나오고, 읽힌 뒤에도 다시 나온다. 고른 번호는 마지막 답에서 가린다
+        run(VOICE, root, "collect", "done")
+        self.assertIn("답이 난 결정이 없다", run(VOICE, root, "collect", "new").stdout)
+        run(CYCLE, root, "decide", "D5", "해 보니 좁다. ② 로 바꾸자")
+        out = run(VOICE, root, "collect", "new").stdout
+        self.assertRegex(out, r"01 D5 \[바꿈\] \(기획\) 문 — ① 연다 ② 닫는다 · 권함: ① → ① \(\d{4}-\d\d-\d\d\) → 해 보니 좁다. ② 로 바꾸자 \(")
+        self.assertIn("결정 1 · 권함과 갈림 0 · 같음 0 · 읽어서 가릴 것 0 · 답을 바꿈 1", out)
+        run(VOICE, root, "collect", "done")
+        self.assertIn("first-game 01 D5 #2\n", open(os.path.join(home, "seen.txt"), encoding="utf-8").read())
+        self.assertIn("답이 난 결정이 없다", run(VOICE, root, "collect", "new").stdout)
+        run(CYCLE, root, "ask", "기획", "창 — ① 연다 ② 닫는다 · 권함: ①")
+        run(VOICE, root, "predict", "D6", "②", "V1")
+        run(CYCLE, root, "decide", "D6", "①")
+        run(CYCLE, root, "decide", "D6", "아니 ②")
+        self.assertIn("01 D6: 맞음", run(VOICE, root, "score").stdout, "바꾼 답으로 채점한다")
+
         # 다른 게임의 결정이 같은 보이스에 쌓인다 — 줄마다 어느 게임의 것인지 적힌다
         run(CYCLE, other, "new", "shop", "상점")
         run(CYCLE, other, "ask", "계획", "범위 — ① 전부 ② 반만 · 권함: ①")
@@ -969,8 +985,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("01 D1: 맞음", run(VOICE, other, "score").stdout)
         self.assertIn("결정 1 · 권함과 갈림 1", run(VOICE, other, "collect", "new").stdout)
         out = run(VOICE, other, "stats").stdout
-        self.assertIn("적중 3/4 (75%) · 모름 1 · 채점 전 0 · 예측 5", out)
-        self.assertIn("first-game: 2/3 (66%) · 모름 1", out)
+        self.assertIn("적중 4/5 (80%) · 모름 1 · 채점 전 0 · 예측 6", out)
+        self.assertIn("first-game: 3/4 (75%) · 모름 1", out)
         self.assertIn("둘째: 1/1 (100%) · 모름 0", out)
         self.assertIn("V2: 2/3 (66%)", out)
         self.assertFalse(os.path.exists(os.path.join(root, "docs/VOICE.md")), "게임 저장소에는 보이스를 두지 않는다")
