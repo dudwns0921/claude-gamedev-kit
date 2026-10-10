@@ -430,7 +430,7 @@ background:conic-gradient(var(--gold) calc(var(--p)*1%),#2a2a38 0);animation:spi
 .chip{font:10px var(--mono);padding:2px 7px;border:1px solid var(--line2);color:var(--tx2)}
 .chip.bad{border-color:var(--red);color:var(--red2)}.chip.go{margin-left:auto;border-color:var(--gold);color:var(--gold2)}
 .rest{display:flex;gap:14px;align-items:center;border:1px solid var(--line);background:rgba(16,16,23,.8);padding:8px 14px;font-size:12px;color:var(--tx2)}
-.rest b{color:var(--tx)}.rest .lane{flex:1;max-width:220px}
+.tile.warn b{color:var(--gold)}.rest b{color:var(--tx)}.rest .lane{flex:1;max-width:220px}
 footer{display:flex;gap:16px;font:10px var(--mono);color:var(--tx3)}footer a{color:var(--tx2);border-bottom:1px solid var(--line2)}
 /* 단계 쪽 */
 .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -504,13 +504,20 @@ def ask_href(q):
     return "stage-%d.html" % (q["stage"] + 1)
 
 
+def stray_of(st):
+    """어느 단계에도 안 든 것의 수 — 완성 % 에 들지 않으니 따로 보여야 놓치지 않는다. (전부, 그 가운데 에셋)"""
+    lanes = st[-1]["lanes"]
+    return sum(len(v) for v in lanes.values()), len(lanes["아트"]) + len(lanes["사운드"])
+
+
 def index_html(name, st, asks, now, stamp):
     flow = [s for s in st if not s["common"]]
+    stray, stray_assets = stray_of(st)
     everything = [i for s in st for lane in LANES for i in s["lanes"][lane]]
     c = tally(everything)
     pcts = [p for p in (stage_pct(s) for s in flow) if p is not None]
     total = round(sum(pcts) / len(pcts)) if pcts else 0
-    tiles = [("gold", "완성", f"{total}%"), ("", "지금", f'{now["num"]} · {now["stage"]}' if now else "—"), ("", "임시로 둔 것", c["temp"]),
+    tiles = [("gold", "완성", f"{total}%"), ("warn" if stray else "", f'{CFG["common"]} · % 밖', stray), ("", "지금", f'{now["num"]} · {now["stage"]}' if now else "—"), ("", "임시로 둔 것", c["temp"]),
              ("", "안 만든 것", c["none"]), ("red" if c["bad"] else "", "문제", c["bad"]), ("red" if asks else "", "못 정한 것", len(asks))]
     cards = []
     for s in flow:
@@ -532,11 +539,11 @@ def index_html(name, st, asks, now, stamp):
                     f'<b>{e(q["title"])}</b><span>{e(q["text"]) or "&nbsp;"}</span></a>' for q in shown)
     strip += f'<span class="ask more">+{len(asks) - len(shown)}</span>' if len(asks) > len(shown) else ""
     rest = st[-1]
-    stray = sum(len(v) for v in rest["lanes"].values())
-    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">어느 단계에도 안 든 것</span><b>{e(rest["name"])} {stray}</b>{lane_rows(rest)}'
+    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">어느 단계에도 안 든 것 — 완성 % 에 들지 않는다</span>'
+                 f'<b>{e(rest["name"])} {stray}</b><span>에셋 {stray_assets}</span>{lane_rows(rest)}'
                  f'<span class="chip go" style="margin-left:auto">자세히 →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
     body = (f'<header><div><div class="lab">항해도 · 플레이어가 겪는 순서대로</div><h1>{e(name)} <span>완성까지</span></h1>'
-            f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}</div></div>'
+            f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}{f" · 이 가운데 {e(CFG['common'])} {stray} (에셋 {stray_assets}) 은 완성 % 밖" if stray else ""}</div></div>'
             '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + "</div></header>"
             '<div class="total">' + "".join(f'<div style="flex:1" title="{e(s["name"])}"><i style="width:{stage_pct(s) or 0}%"></i></div>' for s in flow) + "</div>"
             '<div class="legend"><span><i class="s-done"></i>됨</span><span><i class="s-temp"></i>임시 — 돌아가지만 다시 만들 것</span>'
@@ -629,7 +636,8 @@ def build(outdir, index_name):
     index, total = index_html(name, st, asks, cycles[-1] if cycles else None, stamp)
     pages = {index_name: index}
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
-    return pages, f"{line} · 완성 {total}%"
+    stray, stray_assets = stray_of(st)
+    return pages, f"{line} · 완성 {total}%" + (f' · {CFG["common"]} {stray} (에셋 {stray_assets} — 완성 % 밖)' if stray else "")
 
 
 def sources():

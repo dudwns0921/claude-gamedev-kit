@@ -74,7 +74,8 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 - Rows, assets and questions no stage claims are shown under "미분류" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
 
 - `"ignore"` (beside `flow`) — asset names (globs) not to count: planned in a cycle document, then dropped.
-- "미분류" is not part of the completion %. It is a to-do for the flow: place what is there, or ignore it.
+- "미분류" is not part of the completion %. It is a to-do for the flow: place what is there, or ignore it. Because it is outside the %, its count is shown beside it —
+  a tile on the first screen, the bar under the stages, and the line the script prints ("미분류 N (에셋 M — 완성 % 밖)"). When relaying the %, relay that count with it.
 
 Other keys: `"out"`, `"gdd"`, `"cycles"`, `"playtests"`, `"gen"`, `"notes"`, `"reload_sec"`.
 
