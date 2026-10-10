@@ -432,7 +432,10 @@ background:conic-gradient(var(--gold) calc(var(--p)*1%),#2a2a38 0);animation:spi
 .chip{font:10px var(--mono);padding:2px 7px;border:1px solid var(--line2);color:var(--tx2)}
 .chip.bad{border-color:var(--red);color:var(--red2)}.chip.go{margin-left:auto;border-color:var(--gold);color:var(--gold2)}
 .rest{display:flex;gap:14px;align-items:center;border:1px solid var(--line);background:rgba(16,16,23,.8);padding:8px 14px;font-size:12px;color:var(--tx2)}
-.tile.warn b{color:var(--gold)}.rest b{color:var(--tx)}.rest .lane{flex:1;max-width:220px}
+.tile.warn b{color:var(--gold)}
+a.tile.go{border-color:var(--sea);background:linear-gradient(180deg,rgba(47,214,200,.26),var(--card));box-shadow:0 0 18px rgba(47,214,200,.28);transition:transform .15s,box-shadow .15s}
+a.tile.go b{color:var(--sea);white-space:nowrap}a.tile.go .lab{color:var(--tx2)}a.tile.go:hover{transform:translateY(-3px);box-shadow:0 0 26px rgba(47,214,200,.55)}
+a.btn.go{border-color:var(--sea);color:var(--sea);background:rgba(47,214,200,.12)}.rest b{color:var(--tx)}.rest .lane{flex:1;max-width:220px}
 footer{display:flex;gap:16px;font:10px var(--mono);color:var(--tx3)}footer a{color:var(--tx2);border-bottom:1px solid var(--line2)}
 /* 단계 쪽 */
 .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -546,12 +549,12 @@ def index_html(name, st, asks, now, stamp, sheet):
                  f'<span class="chip go" style="margin-left:auto">자세히 →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
     body = (f'<header><div><div class="lab">항해도 · 플레이어가 겪는 순서대로</div><h1>{e(name)} <span>완성까지</span></h1>'
             f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}{f" · 이 가운데 {e(CFG['common'])} {stray} (에셋 {stray_assets}) 은 완성 % 밖" if stray else ""}</div></div>'
-            '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + "</div></header>"
+            '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + sheet_link(sheet) + "</div></header>"
             '<div class="total">' + "".join(f'<div style="flex:1" title="{e(s["name"])}"><i style="width:{stage_pct(s) or 0}%"></i></div>' for s in flow) + "</div>"
             '<div class="legend"><span><i class="s-done"></i>됨</span><span><i class="s-temp"></i>임시 — 돌아가지만 다시 만들 것</span>'
             '<span><i class="s-none"></i>안 만듦</span><span><i class="s-bad"></i>문제 · 못 정함</span></div>'
             + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">못 정한 것 {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
-            + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>{rest_html}{sheet_link(sheet)}'
+            + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>{rest_html}'
             f'<footer><span>{stamp} 에 그렸다 · 상태는 GDD 표 · 에셋 기록 · 사이클 · 플레이테스트 문서에서 읽은 그대로다</span>'
             '</footer>')
     return shell(f"{name} 항해도", body), total
@@ -619,7 +622,28 @@ def sheet_data():
         if isinstance(rec, dict) and rec.get("out") and os.path.exists(os.path.join(ROOT, rec["out"])):
             sub = " · ".join(x for x in (rec.get("kind", ""), f'{rec["seconds"]:g}초' if rec.get("seconds") else "") if x)
             sounds.append(item("done", name, sub, rec.get("subject", ""), audio=os.path.join(ROOT, rec["out"])))
-    return {"style": style, "world": " ".join(design_block("asset-world").split()),
+    # 기록 없이 게임에 든 것(손으로 넣은 그림 · 모델 · 소리)도 놓는다 — 시트에 없으면 통일성을 볼 때 빠진다
+    adir, loose = os.path.join(ROOT, CFG["assets"]), []
+    known = {os.path.abspath(os.path.join(ROOT, r["out"])) for n in (os.listdir(gdir) if os.path.isdir(gdir) else [])
+             for r in (load_json(os.path.join(gdir, n, "asset.json")), load_json(os.path.join(gdir, n, "sound.json")))
+             if isinstance(r, dict) and r.get("out")}
+    names = {m["name"] for m in models}
+    for base, _dirs, files in os.walk(adir):
+        if os.path.abspath(base).startswith(os.path.abspath(gdir)):
+            continue
+        beside = [f.split(".")[0] for f in files if f.lower().endswith(MODEL_EXT)]  # 이 폴더의 모델들
+        for fn in sorted(files):
+            path, stem, low = os.path.join(base, fn), fn.split(".")[0], fn.lower()
+            if os.path.abspath(path) in known or fn.endswith(".import"):
+                continue
+            if low.endswith(IMG_EXT) and any(stem.startswith(m + "_") for m in beside):
+                continue  # 모델 옆에 그 이름으로 풀려 나온 텍스처 — 따로 만든 에셋이 아니다
+            if low.endswith(SOUND_EXT):
+                sounds.append(item("done", stem, "기록 없음", os.path.relpath(path, ROOT), audio=path))
+            elif low.endswith(IMG_EXT + MODEL_EXT) and stem not in names:
+                loose.append({"name": fn, "img": path if low.endswith(IMG_EXT) else "", "st": "done", "state": "기록 없음", "old": False, "ref": False,
+                              "from": "", "said": [], "what": os.path.relpath(path, ROOT)})
+    return {"loose": loose, "style": style, "world": " ".join(design_block("asset-world").split()),
             "learned": [re.sub(r"^[-*]\s*", "", x.strip()) for x in design_block("asset-learned").split("\n") if x.strip()],
             "sound": " ".join(design_block("sound-style").split()),
             "refs": [os.path.join(ROOT, r) for r in refs if os.path.exists(os.path.join(ROOT, r))], "models": models, "sounds": sounds}
@@ -648,8 +672,11 @@ def sheet_html(name, d):
     def rule(title, text, empty):
         return f'<h4>{title}</h4><p class="sub" style="margin:0 0 6px">{e(text) if text else empty}</p>'
 
-    grid = (f'<div class="thumbs" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">{"".join(map(sheet_tile, d["models"]))}</div>'
-            if d["models"] else '<p class="sub">에셋 기록이 없다.</p>')
+    wide = 'style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"'
+    grid = (f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["models"]))}</div>' if d["models"] else '<p class="sub">에셋 기록이 없다.</p>')
+    if d["loose"]:
+        grid += (f'<h3 style="margin-top:16px">기록 없이 든 것<small>{len(d["loose"])}</small></h3>'
+                 f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["loose"]))}</div>')
     body = ('<div class="bar"><a class="btn" href="index.html">← 항해도</a></div>'
             f'<div class="banner"><div><div class="lab">에셋 시트 · 나란히 놓고 본다</div><h1>{e(name)}</h1>'
             f'<div class="sub">모델 · 그림 {len(d["models"])} · 소리 {len(d["sounds"])}'
@@ -666,11 +693,11 @@ def sheet_html(name, d):
 
 
 def sheet_link(d):
-    if not d["models"] and not d["sounds"]:
+    if not d["models"] and not d["sounds"] and not d["loose"]:
         return ""
     old = sum(1 for m in d["models"] if m["old"])
-    return (f'<div class="bar"><a class="btn" href="assets.html">에셋 시트 — 모델 · 그림 {len(d["models"])} · 소리 {len(d["sounds"])}'
-            + (f" · 옛 화풍 {old}" if old else "") + " →</a></div>")
+    return (f'<a class="tile go" href="assets.html"><span class="lab">모델 · 그림 {len(d["models"])} · 소리 {len(d["sounds"])}'
+            + (f" · 옛 화풍 {old}" if old else "") + (f' · 기록 없음 {len(d["loose"])}' if d["loose"] else "") + "</span><b>에셋 시트 →</b></a>")
 
 
 def stage_html(name, s, st):
@@ -685,7 +712,7 @@ def stage_html(name, s, st):
     work = "".join(f'<h4>사이클 {e(c["num"])} — {e(c["name"])} · {e(c["stage"])}</h4>'
                    + "".join(f'<span class="task{mark.get(t["mark"], " open")}" title="{e(t["did"])}"><b>{t["num"]}</b> {e(t["title"])}</span>' for t in ts)
                    for c, ts in reversed(s["work"]))
-    body = (f'<div class="bar"><a class="btn" href="index.html">← 항해도</a><div class="tabs">{tabs}</div></div>'
+    body = (f'<div class="bar"><a class="btn" href="index.html">← 항해도</a><a class="btn go" href="assets.html">에셋 시트 →</a><div class="tabs">{tabs}</div></div>'
             f'<div class="banner">' + (f'<button class="pic zoom" data-zoom="{pic}" data-cap="{e(s["name"])}" style="background-image:url({pic})"></button>' if pic else "") + ring(p, "big")
             + f'<div><div class="lab">{stage_label(s, "단계 ")}</div><h1>{e(s["name"])}</h1><div class="sub">{e(s["about"])}</div></div>'
             f'<div class="tiles">{tiles}</div></div>'
@@ -751,10 +778,16 @@ def main():
         ROOT = os.path.abspath(root) if root else find_root(os.getcwd())
         if not ROOT:
             raise RuntimeError(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
-        CFG = dict(DEFAULTS, **json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get(SECTION, {}))
+        whole = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8"))
+        CFG = dict(DEFAULTS, **whole.get(SECTION, {}))
+        if "gen" not in whole.get(SECTION, {}) and whole.get("asset", {}).get("work"):
+            CFG["gen"] = whole["asset"]["work"]  # 에셋 기록의 자리를 asset 스킬이 옮겼으면 따라간다
         out = os.path.join(ROOT, CFG["out"])
-        if quiet and (not os.path.exists(out)
-                      or os.path.getmtime(out) >= max(os.path.getmtime(p) for p in sources() if os.path.exists(p))):
+        if quiet and not os.path.exists(out):
+            return
+        # 원천이 더 새롭거나, 이 스크립트가 더 새롭거나(키트가 판을 올렸다), 그려야 할 쪽이 빠져 있으면 다시 그린다
+        newest = max(os.path.getmtime(p) for p in sources() + [os.path.abspath(__file__)] if os.path.exists(p))
+        if quiet and os.path.getmtime(out) >= newest and os.path.exists(os.path.join(os.path.dirname(out), "assets.html")):
             return
         pages, line = build(os.path.dirname(out), os.path.basename(out))
         os.makedirs(os.path.dirname(out), exist_ok=True)
