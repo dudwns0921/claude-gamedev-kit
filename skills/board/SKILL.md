@@ -4,7 +4,7 @@ description: >-
   Draws the game's status board (항해도) — HTML pages made by a script. First screen: the stages of play in the order the player meets them,
   one card each, with how complete it is across 기능 · 아트 · 사운드 · 검증 (됨 · 임시 · 안 만듦 · 문제). A card opens that stage's page: GDD rows,
   art, sounds, checks, open questions, the cycle tasks that touched it. Everything is read from the GDD table, asset records, cycle and playtest
-  documents. Once drawn, it redraws itself at the end of every turn.
+  documents. Once drawn, it redraws itself as the documents change — a hook runs the script, no model involved.
   Use when the user says "현황판", "보드 보여줘", "지금 어디까지 됐어", "진행 상황 한눈에", "얼마나 만들었어", asks to see progress or the decisions so far
   as a page, or says the board looks stale or wrong.
 ---
@@ -19,7 +19,8 @@ It writes `docs/board/index.html` (and the stage pages beside it) and prints the
 read the GDD or cycle documents to describe the board.** The page is for the user's eyes; opening it costs nothing, reading it into the session does.
 
 1. Run the script. Give the user the path (they open it in a browser and leave it open — the page reloads itself every 30 seconds).
-2. The first run is the opt-in. From then on the plugin's hook redraws it when a turn ends and the GDD or a cycle document has changed. Nothing to do per turn.
+2. The first run is the opt-in. From then on the plugin's hooks redraw it whenever the GDD, a cycle or playtest document or an asset record has changed — after each edit or command,
+   when an agent finishes, and when a turn ends. The hook is the script alone (it compares file times and exits if nothing is newer); the open page reloads itself every `reload_sec` seconds. Nothing to do per turn.
 3. To stop: delete `docs/board/`. The hook only redraws a board that exists.
 
 ## What it shows, and from where

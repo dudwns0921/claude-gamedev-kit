@@ -176,35 +176,15 @@ Update the header's `단계:` with `stage` every time the stage changes. `next` 
 
 ## Auto mode
 
-`/gamedev-kit:cycle auto <goal>` starts a cycle, `/gamedev-kit:cycle auto next` continues the newest one — **for this run only**; a plain `next` later is the ordinary mode again.
-It is for when the user is away: the cycle runs from 목표 to the end of 구현 without asking anything, and stops where the user has to play.
-It needs a voice (`voice.py path`). Without one, say so and run the ordinary mode.
-
-What changes from the stages above:
-
-- **Decisions are not asked.** Wherever a stage says to ask the user — the rule-splitting decisions before 디자인, and all of them after 계획 — follow the voice skill's "Decide" instead:
-  a principle picks (`decide D2 "②" --proxy V3`), or failing that the agent's recommendation stands (`--proxy 권함`). Both are written `[~]`, and work that hangs on them goes ahead.
-- **Some decisions stay the user's** and are left unanswered: spending money or credits, anything going outward, discarding the user's work, and anything with neither a principle nor a recommendation.
-  Tasks that wait on them do not run — `next` shows them as 대기. Go on with the rest.
-- **Assets that do not exist are placeholders.** Do not generate models, sounds or videos — that costs money and needs the user's eye. Write the need down as an unanswered decision (`ask`).
-- **A blocked task gets one more try**: call `plan` again with "Why blocked" attached, run the reworked task once. Still blocked → leave it `[!]`.
-- **Anything else you would have asked** becomes an unanswered decision (`ask`) and you go on. Do not stop to wait, and do not recommend a new session mid-run.
-- **It ends at 플레이.** After the wrap-up (gdd-sync · table export · the project's verification), set the stage to 플레이 and stop. Never ship, never start a second cycle —
-  a cycle built on one nobody played stacks guesses on guesses.
-
-The last message of the run is what the user reads when they are back. Keep it to this:
-
-1. What was built and what to play and look at (as at the end of 구현).
-2. **Decided in your place** — one line each: the decision, what was chosen, and whether the voice chose it (`V3`) or it was only the agent's recommendation (`권함`). The `권함` ones first.
-3. **Left for you** — the unanswered decisions and the tasks waiting on them; blocked tasks and why.
-4. If verification failed, say so first of all, with what failed.
-
-When the user is back, each proxy decision is accepted (`confirm D2,D5` · `confirm all`) or overturned (`decide D2 "<their words>"`). An overturned decision is an answer that changes the plan:
-call the agent whose section it touches, then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently.
+`/gamedev-kit:cycle auto <goal>` starts a cycle and `/gamedev-kit:cycle auto next` continues the newest one **without asking** — the user's voice decides, and it stops where the user has to play.
+It holds for that run only. **When called with `auto`, read `${CLAUDE_SKILL_DIR}/auto.md` first and follow it** — it changes how decisions, missing assets and blocked tasks are handled.
+Without `auto`, do not read it.
 
 ## next
 
-Run `cycle.py next` and continue from there — do not read the document. If it lists "대리 결정 (확인 전)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
+Run `cycle.py next` and continue from there — do not read the document. If it lists "대리 결정 (확인 전)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
+Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`. An overturned decision is an answer that changes the plan: call the agent whose section it touches,
+then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions · whether to ship), ask again — do not move on without an answer.
 
 ## status
