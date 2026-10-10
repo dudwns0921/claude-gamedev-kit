@@ -8,79 +8,47 @@ Talk to the user in the language they write in, and write everything under `docs
 
 ## The GDD and the code must always agree
 
-Items with an ID in the GDD Appendix A sync table (numbers · enums · rules · input · HUD) state the same fact in two places, the GDD and the code.
-Change only one side and the other side lies. So:
+Items with an ID in the GDD Appendix A sync table (numbers · enums · rules · input · HUD) state the same fact in two places. Change one side and the other lies — even when the user does not say "GDD", even for one balance constant:
 
-- If you created or changed such a value **in the code** → at the end of the task run `/gamedev-kit:gdd-sync to-gdd` to bring the GDD (table and body) in line.
-- If you changed such a value **in the GDD** → run `/gamedev-kit:gdd-sync to-code` to bring the code in line.
-- If you do not know which side is right, look at the report only with `/gamedev-kit:gdd-sync` and ask the user.
-- When defining a new value in code, add a `GDD: <ID>` marker to the defining line. If the item is not in the table, add a row to the table first.
-
-This rule applies even when the user does not say "GDD". Even a task that changes one balance constant ends with the sync.
+- Changed **in the code** → end the task with `/gamedev-kit:gdd-sync to-gdd`. Changed **in the GDD** → `/gamedev-kit:gdd-sync to-code`. Not sure which side is right → `/gamedev-kit:gdd-sync` (report only) and ask.
+- A new value in code gets a `GDD: <ID>` marker on its defining line, and a row in the table first.
 
 ## Balance values are edited in the table
 
-Balance numbers are edited in `data/balance.xlsx` (Excel). The game in development overrides the value file with the table's values,
-and re-reads the table when it is saved — the game is not closed. The tool is the balance-table skill of the gamedev-kit plugin.
+Balance numbers are edited in `data/balance.xlsx`. The game in development reads the table over the value file and re-reads it on save; **a release build uses only the baked values.**
 
-- Once values are settled, use the balance-table skill to `bake` → `/gamedev-kit:gdd-sync to-gdd`.
-  **A release build does not read the table; it uses only the baked values.** `check` must pass before deploying.
-- If you added a new value or hand-edited a number in the value file, `export`. export rewrites the table with the code's values —
-  if there are values being edited in the table, bake first.
-- Code that uses a value reads it from the value file every time it is used. Do not copy it into a variable at startup.
+- Code reads a value from the value file every time it is used — never copied into a variable at startup.
+- Values settled in the table → balance-table `bake`, then `/gamedev-kit:gdd-sync to-gdd`. `check` must pass before deploying.
+- Added a value or hand-edited a number in the value file → `export`. **export overwrites the table with the code's values** — if values are being edited in the table, bake first.
 
-The files and line shapes the tools look at are in `kit.config.json`.
+## Which skill takes what
 
-## Playtest feedback goes through a document
+This session directs; the skills and their agents do the work. Each skill's own document has the procedure — do not improvise it from here.
 
-When the user plays and writes down several problems, hand them to `/gamedev-kit:playtest`. The analyst agent creates a work document in `docs/playtest/`,
-and a developer agent takes each task one by one. This session only directs — it does not analyze or fix directly.
+| When | Goes to |
+|---|---|
+| A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from 목표 to 회고 |
+| Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
+| A 3D model or a sound | `/gamedev-kit:asset` — the style is the one paragraph in [docs/DESIGN.md](docs/DESIGN.md); do not write a style per asset |
+| A trailer shot or a cutscene clip | `/gamedev-kit:video` |
+| "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
+| Building and uploading | `/gamedev-kit:deploy` |
+| Moving to a new session | `/gamedev-kit:cycle next` inside a cycle, `/gamedev-kit:handoff` outside one |
 
-## A bundled goal goes through a cycle
+## The user decides
 
-A goal that involves several tasks, like "let's add ○○ this time", is handed to `/gamedev-kit:cycle`. The cycle document (`docs/cycle/`) accumulates
-"목표" → "기획" → "디자인" → "작업" → "플레이" → "배포" → "회고". Rules · numbers · spatial dimensions are done by the systems designer agent,
-what is seen and heard by the designer agent, and implementation by a developer agent per task.
-The rules for screens and UI are in [docs/DESIGN.md](docs/DESIGN.md).
+Claude does not decide scope · taste · numbers · whether to ship. Offer options with one recommendation, ask, and write the answer in the cycle document's "결정" in the user's own words.
+Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
-**The user decides.** Claude does not decide scope · taste · numbers · whether to ship on the user's behalf. Offer options and one recommendation and ask,
-and write the answer in the cycle document's "결정" in the user's own words (verbatim).
-Those answers build the user's voice (how they decide — principles · biases), one document for every game they make, kept outside this repository
-(`~/.config/gamedev-kit/voice/`). It works unseen: it is not shown or mentioned except when a cycle ends or the user asks ("보이스 보자").
-
-**Auto mode is the one exception**, and only when the user asks for it (`/gamedev-kit:cycle auto …`): the cycle runs to the point of playing without asking, the voice deciding in the
-user's place. Every such decision is marked `[~]` in the cycle document and waits for the user to accept or overturn it. Auto mode never ships, never spends money, never starts a second cycle.
-
-## 3D assets and sound come from one paragraph
-
-During a cycle the build runs on placeholders and assets are made after it, all at once — the user looks at them in one sitting.
-3D models are made with `/gamedev-kit:asset` — image → the user looks and approves → mesh → size and origin fitted, into the asset folder.
-The art style is the single `<!-- asset-style -->` paragraph in `docs/DESIGN.md`, attached identically to every asset. Do not write a separate prompt per asset.
-The user approves images. The record stays in `assets/_gen/<name>/asset.json`.
-
-Sound effects · looping sounds · music are made with the same skill (ElevenLabs). The sound style is the `<!-- sound-style -->` paragraph.
-Claude cannot hear sound — after making it, give the path and the user listens. The record is `assets/_gen/<name>/sound.json`.
-
-Videos — a trailer or devlog clip (`page`), or a cutscene the game plays as a file (`game`) — are made with `/gamedev-kit:video` (Higgsfield):
-description (· reference images) → the user looks and approves → generated (costs credits) → the user watches → placed. The footage style is the `<!-- footage-style -->` paragraph.
-Claude cannot see motion — give the path and the user watches. The record is `video/<name>/clip.json`. The skill makes files; it posts nothing.
-
-The status board (`docs/board/index.html`) is drawn by `/gamedev-kit:board` from the GDD table and the cycle documents, and redraws itself when a turn ends.
-Do not read it or edit it — fix the GDD table (gdd-sync) or the cycle document and it follows.
+The one exception is auto mode, and only when the user asks for it (`/gamedev-kit:cycle auto …`): the user's voice decides in their place up to the point of playing, every such decision is marked `[~]` and waits for them, and it never ships, spends money or starts a second cycle.
+The voice (how this user decides) is kept outside this repository and works unseen — do not show or mention it unless a cycle ends or the user asks.
 
 ## Keep sessions short
 
-The longer the conversation, the more is re-read every turn, costing tokens and time. At the cycle's break points (where a decision was asked · when it is time to play · where the cycle ended)
-move to a new session — `/gamedev-kit:cycle next` continues from the document. For work outside a cycle, leave a note with `/gamedev-kit:handoff` and in the new session
-`/gamedev-kit:handoff resume`. The main session does not read cycle · playtest documents whole — that skill's script extracts the lines needed.
+The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · cycle ended).
+Do not read cycle · playtest documents whole — that skill's script extracts the lines needed.
 
-## Split what was learned in two
+## What was learned, and what goes outside
 
-Of the pitfalls you tripped over and the verification methods you found, those specific to this game go in this file's "Pitfalls". Those that other games on the same engine would also hit
-get one line in `docs/kit-feedback.md` (the cycle skill's `lesson`) — they go up to the kit and the next game starts with them.
-
-## What goes outside
-
-- Deployment is `/gamedev-kit:deploy` (butler → itch.io). Before uploading, show the target · version · size and get consent.
-  After uploading, an itch.io devlog draft for that build is left in `docs/devlog/` — there is no API for posting, so the user pastes it.
-- The butler login and the asset API keys live outside the repository. Do not write them in any file.
+- A pitfall or a way to verify that is specific to this game goes in this file's "Pitfalls"; one that another game on the same engine would hit gets a line in `docs/kit-feedback.md` (the cycle skill's `lesson`).
+- Before anything is uploaded, show the target · version · size and get consent. Logins and API keys live outside the repository — do not write them in any file.
