@@ -880,7 +880,9 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         open(os.path.join(root, "kit.config.json"), "w").write("{}")
         self.assertIn("문서가 없다", run(CYCLE, root, "next", ok=False).stderr)
         self.assertIn("docs/cycle/01-dash.md", run(CYCLE, root, "new", "dash", "대시를 넣자").stdout)
-        self.assertIn("docs/cycle/02-shop.md", run(CYCLE, root, "new", "shop", "상점").stdout)
+        out = run(CYCLE, root, "new", "shop", "상점").stdout
+        self.assertIn("docs/cycle/02-shop.md", out)
+        self.assertIn("앞 사이클이 아직 목표 단계다: docs/cycle/01-dash.md", out, "플레이까지 못 간 사이클은 닫지 않는다")
         doc = os.path.join(root, "docs/cycle/02-shop.md")
         text = lambda: open(doc, encoding="utf-8").read()
         self.assertIn("## 목표\n상점\n", text())
@@ -947,8 +949,17 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("창으로 한 번 돌린다 — 키트 0.7.2", open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read())
         self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
 
+        # 닫는 단계는 없다 — 플레이에 서 있던 사이클은 다음 사이클이 생길 때 끝이 되고, 남은 것 · 미뤄 둔 것을 알린다
+        run(CYCLE, root, "later", "간판에  불을 켜는 건 다음에")
+        self.assertIn("## 플레이\n- 다음에: 간판에 불을 켜는 건 다음에\n", text())
+        self.assertNotIn("## 회고", text())
+        out = run(CYCLE, root, "new", "auto", "알아서").stdout
+        self.assertIn("닫았다: docs/cycle/02-shop.md", out)
+        self.assertIn("앞 사이클에 남은 것: 답 없는 결정 1", out)
+        self.assertIn("미뤄 둔 것: 간판에 불을 켜는 건 다음에", out)
+        self.assertIn("단계: 끝", text())
+
         # 자동 모드 — 대신 정한 것은 [~]. 걸린 작업은 돌고, 사용자가 받아들이거나 뒤집을 때까지 확인 전이다
-        run(CYCLE, root, "new", "auto", "알아서")
         auto = os.path.join(root, "docs/cycle/03-auto.md")
         atext = lambda: open(auto, encoding="utf-8").read()
         for q in ("문 — ① 연다 ② 닫는다 · 권함: ①", "색 — ① 빨강 ② 파랑 · 권함: ①", "값 — ① 싸게 ② 비싸게", "길 — ① 짧게 ② 길게 · 권함: ②"):
@@ -1199,6 +1210,10 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         run(PLAYTEST, root, "mark", "T2", "blocked", "문이 없다")
         self.assertIn("### [!] T2. 문을 고친다\n- **분류**: 버그\n- **막힘**: 문이 없다\n\n## 순서", open(doc, encoding="utf-8").read())
         self.assertIn("작업 [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
+        open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
+        run(PLAYTEST, root, "lesson", "문은 씬을 다시 열어야 보인다 → 씬을 다시 연다")
+        self.assertRegex(open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read(),
+                         r"- \[ \] \(godot · 플레이테스트 · \d{4}-\d\d-\d\d\) 문은 씬을 다시 열어야 보인다 → 씬을 다시 연다\n")
 
     def test_session_tools(self):
         root = tempfile.mkdtemp(prefix="kit-session-")

@@ -6,15 +6,25 @@
   python3 playtest.py task T3                   요약과 작업 하나만 (구현 에이전트가 읽는 것)
   python3 playtest.py mark T1,T3 done           [x]. `blocked` 는 [!], `open` 은 [ ]
   python3 playtest.py mark T2 blocked "<이유>"  작업 아래 `- **막힘**:` 한 줄. done 뒤의 글은 `- **한 것**:`
+  python3 playtest.py lesson "<무엇에 걸렸나 → 어떻게 피하나>"   이 게임만의 것이 아닌 배움을 docs/kit-feedback.md 에 한 줄 (키트로 올릴 것)
 
 문서는 가장 새 것(이름순으로 마지막)이다. 다른 문서면 `--doc <경로>`.
 """
+import datetime
+import json
 import os
 import re
 import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "playtest")
+FEEDBACK = os.path.join("docs", "kit-feedback.md")
+FEEDBACK_HEAD = """# 키트로 올릴 것
+
+이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것** — 같은 엔진의 다음 게임도 걸려 넘어질 함정, 쓸 만한 확인 방법, 키트 도구의 모자란 점.
+걸려 넘어진 그 자리에서 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`). 키트 저장소에서 `python3 tools/kit_feedback.py list <이 저장소>` 로 모아 반영하고, 반영한 줄은 `[x]` 가 된다.
+
+"""
 BOX = {"done": "x", "blocked": "!", "open": " "}
 NOTE = {"done": "한 것", "blocked": "막힘"}
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
@@ -75,6 +85,16 @@ def summary(path):
             + ("" if not ask or ask.startswith("없음") else " · 사용자에게 물을 것이 있다"))
 
 
+def lesson(said):
+    engine = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("engine", "?")
+    out = os.path.join(ROOT, FEEDBACK)
+    old = open(out, encoding="utf-8").read() if os.path.exists(out) else FEEDBACK_HEAD
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
+        f.write(old.rstrip("\n") + f"\n- [ ] ({engine} · 플레이테스트 · {datetime.date.today()}) {' '.join(said.split())}\n")
+    print(f"{FEEDBACK} 에 적었다")
+
+
 def main():
     args = sys.argv[1:]
     opts = {}
@@ -84,13 +104,15 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"status": (0,), "next": (0,), "task": (1,), "mark": (2, 3)}
+    need = {"status": (0,), "next": (0,), "task": (1,), "mark": (2, 3), "lesson": (1,)}
     if cmd not in need or len(rest) not in need[cmd]:
         sys.exit(__doc__)
     global ROOT
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
     if cmd == "status":
         return print("\n".join(summary(p) for p in docs()) or f"{DIR}/ 에 분석 문서가 없다")
+    if cmd == "lesson":
+        return lesson(rest[0])
     path = pick(opts.get("--doc"))
     text = open(path, encoding="utf-8").read()
     ts = tasks(text)

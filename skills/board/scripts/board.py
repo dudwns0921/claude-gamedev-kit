@@ -280,7 +280,7 @@ def asset_items(st, where, cycles, tasks):
 
 def check_items(st, where, cycles, playtests):
     for c in cycles:
-        state = "done" if re.match(r"회고|배포", c["stage"]) else "temp" if c["stage"].startswith("플레이") else "none"
+        state = "done" if re.match(r"끝|회고|배포", c["stage"]) else "temp" if c["stage"].startswith("플레이") else "none"
         said = {"done": "해 봤다", "temp": "해 볼 차례", "none": f'{c["stage"]} 단계'}[state]
         hit = {}
         for t in c["tasks"]:

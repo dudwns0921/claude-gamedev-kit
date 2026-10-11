@@ -1,8 +1,8 @@
 ---
 name: cycle
 description: >-
-  Drives one game-dev cycle — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 → 배포 → 회고 — through a single document (docs/cycle/).
-  Systems designer, designer, developer and deploy agents work stage by stage; every decision goes back to the user — or, in auto mode,
+  Drives one game-dev cycle — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 — through a single document (docs/cycle/).
+  Systems designer, designer and developer agents work stage by stage; every decision goes back to the user — or, in auto mode,
   is made by the user's voice up to the point of playing. Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자",
   "이번엔 ○○ 를 넣자"); says "사이클 이어서", "다음 단계", "어디까지 했지"; answers a decision ("D2 는 ①로"); or wants it run without them
   ("자동으로 돌려줘", "알아서 만들어 놔", "나 없는 동안 진행해줘", "auto"). Not for one-line fixes.
@@ -10,7 +10,7 @@ description: >-
 
 # cycle
 
-One cycle runs **until one goal reaches the player's hands**. At each stage the agent in charge works, and results accumulate in one cycle document —
+One cycle runs **until one goal is built and in the user's hands to play** — and stays open there while they play and feed back. At each stage the agent in charge works, and results accumulate in one cycle document —
 later stages read the earlier stages' sections. **This session only directs.** Doing spec or design here, or reading and editing code, defeats the split.
 
 ## Ledger by script, sessions short
@@ -30,13 +30,14 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer ver
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # auto mode: decided in the user's place — written [~]
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (in 회고)
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (when it happens)
 ```
 
-These act on the newest document (for another, `--doc <path>`). Use Edit only for writing long sections (플레이 · 배포 · 회고) — and even then read only that section's line range, not the whole document.
+These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (플레이) — and even then read only that section's line range, not the whole document.
 
 **Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
-where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the cycle ended. On reaching one, recommend in one line:
+where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one, recommend in one line:
 "Opening a new session here and continuing with `/gamedev-kit:cycle next` is lighter." If the user says just go on, go on.
 Do not chain two or more cycles in one session. If you were also doing work outside the cycle (assets · settings · another repo), leave a note with the handoff skill and move on.
 
@@ -62,15 +63,15 @@ The one exception is **auto mode** (below): the user has asked, for this run, th
 | 3 | 디자인 | `gamedev-kit:designer` `design` | 디자인 | |
 | 4 | 계획 | `gamedev-kit:developer` `plan` | 작업 · 순서 | **ask the decisions** |
 | 5 | 구현 | `gamedev-kit:developer` `build T<n>`, one per task | task checkboxes | |
-| 6 | 플레이 | user (problems go to `/gamedev-kit:playtest`) | 플레이 | **ask whether to ship** |
-| 7 | 배포 | deploy skill | 배포 | |
-| 8 | 회고 | this session writes, the user corrects | 회고 | **the user sets the next goal** |
+| 6 | 플레이 | user (problems go to `/gamedev-kit:playtest`) | 플레이 | **stays here** — the next cycle closes it |
 
 ### 1. 목표
 
 Create the document with `new` — pass the goal in the user's words as-is, unpolished. Even if the goal looks several cycles big, do not shrink it — whether to shrink is asked as an option at the 계획 stage.
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
-If the previous cycle's "회고" has a "다음에", remind the user in one line.
+**`new` also closes the previous cycle** — there is no closing stage. A document that stood at 플레이 becomes `끝`, and the script prints what that cycle left: open and blocked tasks,
+unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before 플레이, say so and go on.
+Then the voice skill's "Review" — the one place the voice is shown unasked: the lines it picked up that the user has not seen, if any. Show them in the same message and go on to 기획 without waiting.
 
 ### 2. 기획 · 3. 디자인 · 4. 계획
 
@@ -102,10 +103,12 @@ call that agent again to fix its section, and realign the sections of the stages
 ### 5. 구현
 
 `next` lists the next wave's tasks (pending ones are shown as 대기 — do not run them). Per wave, one developer agent per task. Call the same wave all at once in one message.
+**Call `build` with `model: sonnet`** — the task says where and how, so the build does not need the model that planned it (`plan` runs on the agent's own model; do not pass one).
 Pass three lines — `build T<n>`, the document path, and the task-extraction command (`python3 <absolute path to this skill's cycle.py> task T<n> --doc <document>`). **Do not copy out the task content.**
 Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
 Record returned results with `mark` (agents do not edit the document): done → `mark T1,T3 done`, blocked · failed → `mark T2 blocked "<reason>"`.
 Do not fix a blocked task here yourself — ask the user whether to call `plan` again with "Why blocked" attached.
+A blocked task or a returned "Deviations from the document" may be something learned — see "What was learned" below.
 
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
 the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "플레이해서 볼 것" and the design's "사람이 봐야 아는 것".
@@ -124,31 +127,25 @@ If the user would rather play on placeholders first and make assets after that r
 
 ### 6. 플레이
 
-The user does this. If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "플레이" section.
-If given screenshots, you may call the designer with `review`. Any number of rounds is fine.
+**The last stage, and it stays open.** The user plays and feeds back, round after round — that is the normal shape, not an overrun. Do not ask whether the cycle is done
+and do not write a wrap-up: the cycle is closed by the next one (`new`).
+
+If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "플레이" section.
+If given screenshots, you may call the designer with `review` (pass `model: opus` — checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
-**The user says whether to ship.** Ask but do not recommend — if `[ ]` · `[!]` tasks or open playtest documents remain, state only those as facts.
+When the user puts something off ("나중에", "다음에 하자"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
+**Shipping is not a stage.** A build goes out when the user asks for one (`/gamedev-kit:deploy`), usually after several cycles — do not ask about it or offer it here.
 
-### 7. 배포
+## What was learned — when it happens
 
-When the user says ship, follow the deploy skill's procedure. That word is consent up to preparation; the answer given after you show target · version · size before uploading is the consent to upload.
-Deploy goes as far as a draft itch.io devlog to attach to the build — the deploy skill writes it, the user pastes it.
-If the cycle is not deployed (an internal-only build), skip and record that.
-
-### 8. 회고
-
-Write the "회고" section — facts only: which goals were met and which were not, tasks that were blocked and why, how many playtest rounds, what was deferred.
-Under it, in "다음에", list deferred items and things that came out of play as candidates. Do not pick.
-**Split what was learned in two.** Collect what tripped this cycle up · engine settings done by hand · newly found ways to check (from the reasons tasks were blocked, the agents' returned "Deviations from the document",
-and the playtest documents) and look at each:
+There is no end-of-cycle step to save this for. Look at two moments: when a 구현 wave returns a blocked task or "Deviations from the document", and when a playtest round's build returns
+(the playtest skill does this itself for its own tasks — do not repeat it). What counts: what tripped us up · engine settings done by hand · a newly found way to check. **Split each in two:**
 
 - **Specific to this game** (relies on this game's structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
 - **Not specific to this game** (another game on the same engine would hit it, or a kit tool fell short) → add one line each to `docs/kit-feedback.md` with `lesson`.
   Write it so it makes sense without the game's names · files · numbers: "what tripped us → how to avoid (check) it". If the project's CLAUDE.md needs it too, write it in both.
 
 If the split is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
-
-Last, the voice skill's "Review" — the one place the voice is shown: the lines it picked up this cycle that the user has not seen, if any, for them to correct.
 
 ## Cycle document
 
@@ -169,8 +166,6 @@ In the user's own words (verbatim).
 ## 작업
 ## 순서
 ## 플레이
-## 배포
-## 회고
 ```
 
 Update the header's `단계:` with `stage` every time the stage changes. `next` and `status` read that line. Keep the stage name short — circumstances go in that section.
@@ -186,7 +181,8 @@ Without `auto`, do not read it.
 Run `cycle.py next` and continue from there — do not read the document. If it lists "대리 결정 (확인 전)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
 Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`. An overturned decision is an answer that changes the plan: call the agent whose section it touches,
 then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
-call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions · whether to ship), ask again — do not move on without an answer.
+call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.
+A document standing at 배포 or 회고 (made when those were stages) is in 플레이 — treat it so, and write nothing in those sections.
 
 ## status
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """사이클 문서(docs/cycle/NN-이름.md)의 장부 — 문서를 통째로 읽거나 손으로 고치지 않고 필요한 줄만 꺼내고 바꾼다.
 
-  python3 cycle.py new <짧은-이름> "<목표 — 사용자의 말 그대로>"   새 문서. 번호는 있는 문서 다음
+  python3 cycle.py new <짧은-이름> "<목표 — 사용자의 말 그대로>"   새 문서. 번호는 있는 문서 다음. 플레이에 서 있던 앞 사이클은 `끝` 이 되고, 거기 남은 것 · 미뤄 둔 것을 알린다
   python3 cycle.py status                       문서마다 단계 · 작업 수 · 답 없는 결정 수
   python3 cycle.py next                         지금 단계, 답 없는 결정, 다음에 돌릴 차수의 작업
   python3 cycle.py task T3                      작업 하나와 그 작업에 걸린 결정만 (구현 에이전트가 읽는 것)
@@ -12,6 +12,7 @@
   python3 cycle.py decide D2 "②" --proxy V3     자동 모드 — 사용자 대신 정한 것. [~] 로 적힌다 (근거: 보이스의 원칙 번호, 없으면 `권함`)
   python3 cycle.py confirm D2,D5                대리 결정을 사용자가 받아들였다 — [x] 가 된다. 전부면 `confirm all`. 뒤집을 때는 `decide D2 "<사용자의 답>"`
   python3 cycle.py stage <단계>                 머리의 `단계:` 를 고친다
+  python3 cycle.py later "<사용자의 말 그대로>"   미뤄 둔 것을 "플레이" 절에 `- 다음에:` 한 줄. 다음 사이클을 만들 때 `new` 가 보여 준다
   python3 cycle.py lesson "<무엇에 걸렸나 → 어떻게 피하나>"   이 게임만의 것이 아닌 배움을 docs/kit-feedback.md 에 한 줄 (키트로 올릴 것)
 
 문서는 가장 새 것(번호가 가장 큰 것)이다. 다른 문서면 `--doc <경로>`.
@@ -29,7 +30,7 @@ FEEDBACK = os.path.join("docs", "kit-feedback.md")
 FEEDBACK_HEAD = """# 키트로 올릴 것
 
 이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것** — 같은 엔진의 다음 게임도 걸려 넘어질 함정, 쓸 만한 확인 방법, 키트 도구의 모자란 점.
-사이클의 회고에서 한 줄씩 쌓인다 (`cycle.py lesson`). 키트 저장소에서 `python3 tools/kit_feedback.py list <이 저장소>` 로 모아 반영하고, 반영한 줄은 `[x]` 가 된다.
+걸려 넘어진 그 자리에서 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`). 키트 저장소에서 `python3 tools/kit_feedback.py list <이 저장소>` 로 모아 반영하고, 반영한 줄은 `[x]` 가 된다.
 
 """
 TEMPLATE = """# 사이클 {num} — {name}
@@ -50,10 +51,6 @@ TEMPLATE = """# 사이클 {num} — {name}
 ## 순서
 
 ## 플레이
-
-## 배포
-
-## 회고
 """
 BOX = {"done": "x", "blocked": "!", "open": " "}
 NOTE = {"done": "한 것", "blocked": "막힘"}
@@ -257,9 +254,40 @@ def cmd_lesson(path, text):
     print(f"{FEEDBACK} 에 적었다")
 
 
+LATER_RE = re.compile(r"^- 다음에: *(.+)$", re.M)
+OPEN_STAGE = re.compile(r"플레이|배포|회고")  # 배포 · 회고 는 그것이 단계이던 때의 문서
+
+
+def cmd_later(path, said):
+    text = read(path)
+    span = section(text, "플레이") or sys.exit("문서에 `## 플레이` 절이 없다")
+    body = text[span[0]:span[1]].rstrip("\n")
+    write(path, text[:span[0]] + body + f"\n- 다음에: {' '.join(said.split())}\n\n" + text[span[1]:])
+    print("미뤄 두었다")
+
+
+def close(path):
+    """앞 사이클을 닫는다 — 닫는 단계는 따로 없다. 플레이에 서 있던 문서는 다음 사이클이 생길 때 `끝` 이 된다."""
+    text = read(path)
+    rel, stage = os.path.relpath(path, ROOT), stage_of(text)
+    if OPEN_STAGE.match(stage):
+        write(path, re.sub(r"(단계: *).+", lambda m: m.group(1) + "끝", text, count=1))
+        print(f"닫았다: {rel}")
+    elif stage != "끝":
+        print(f"앞 사이클이 아직 {stage} 단계다: {rel}")
+    marks, ds = [t[0] for t in tasks(text).values()], [d[0] for d in decisions(text).values()]
+    left = [f"{label} {n}" for label, n in (("[ ]", marks.count(" ")), ("[!]", marks.count("!")),
+                                            ("답 없는 결정", sum(1 for m in ds if m not in "x~")), ("대리 결정", ds.count("~"))) if n]
+    if left:
+        print("앞 사이클에 남은 것: " + " · ".join(left))
+    for said in LATER_RE.findall(text):
+        print(f"미뤄 둔 것: {said}")
+
+
 def cmd_new(name, goal):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
         sys.exit(f"이름은 소문자 · 숫자 · 붙임표다: {name!r}")
+    before = docs()
     num = max([int(os.path.basename(p).split("-")[0]) for p in docs()] or [0]) + 1
     path = os.path.join(ROOT, DIR, f"{num:02d}-{name}.md")
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -267,6 +295,8 @@ def cmd_new(name, goal):
     write(path, TEMPLATE.format(num=f"{num:02d}", name=name, date=datetime.date.today(),
                                 commit=git("rev-parse", "--short", "HEAD") or "없음", goal=goal.strip()))
     print(os.path.relpath(path, ROOT))
+    if before:
+        close(before[-1])
     if git("status", "--porcelain"):
         print("커밋 안 된 변경이 있다")
 
@@ -280,7 +310,7 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "stage": 1, "lesson": 1}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "stage": 1, "later": 1, "lesson": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -304,6 +334,8 @@ def main():
         cmd_decide(path, *rest, opts.get("--proxy", ""))
     elif cmd == "confirm":
         cmd_confirm(path, rest[0])
+    elif cmd == "later":
+        cmd_later(path, rest[0])
     elif cmd == "lesson":
         cmd_lesson(path, rest[0])
     else:

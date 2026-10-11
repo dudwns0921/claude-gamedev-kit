@@ -39,7 +39,7 @@ Every state is read, never judged:
 |---|---|---|
 | 기능 | `docs/GDD.md` appendix A — 동기 / — / 미구현 / 불일치 | `/gamedev-kit:gdd-sync` |
 | 아트 · 사운드 | asset records in `assets/_gen` (a record whose file is in the game = 됨) and the `### 필요한 에셋` table of each cycle document (있는가: `없음` = 안 만듦, `임시 …` = 임시) | `/gamedev-kit:asset`, the designer agent |
-| 검증 | each cycle that touched the stage (회고 · 배포 = 됨, 플레이 = 임시 "해 볼 차례", earlier = 안 만듦); playtest tasks (`[ ]` = 문제); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
+| 검증 | each cycle that touched the stage (끝 — closed by the next cycle — = 됨, 플레이 = 임시 "해 볼 차례", earlier = 안 만듦); playtest tasks (`[ ]` = 문제); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
 | 못 정한 것 | unstruck bullets of the GDD section whose heading contains `미정`, and unanswered cycle decisions | the GDD, `cycle.py` |
 
 **If the user says something on the board is wrong after playing** ("엔딩 소리가 이상해", "이건 아직 임시야"), do not edit the HTML. If it is a list of

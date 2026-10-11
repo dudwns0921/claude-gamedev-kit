@@ -5,7 +5,7 @@ description: >-
   status (what is uploaded), devlog. The deploy section of kit.config.json sets the build command and the target. The deployer agent uploads;
   the devlog-writer agent drafts the devlog. There is no API for posting a devlog, so the user pastes it.
   Use when the user says "배포해줘", "itch 에 올려줘", "빌드 올려", "devlog 써줘", "올라갔어?", or mentions butler, a new version, release notes,
-  or what is on itch now; when the cycle skill reaches the deploy step; when first filling in the deploy section.
+  or what is on itch now; when first filling in the deploy section. Not part of a cycle — a build goes out when the user asks, usually after several cycles.
 ---
 
 # deploy
@@ -30,14 +30,14 @@ runs without asking; **push** runs only after the user has said to upload this b
 4. **Show what came back as is and ask** — target (`user/game:channel`), version, folder size. If blocked, relay the reason and stop.
    If the build is broken, ask whether to fix it. Do not add the check-skipping flag (`--dirty`) here — only when the user says to.
 5. **On approval, call the agent with `push`.** When done, report the address (`https://<user>.itch.io/<game>`) and the version.
-6. **Devlog draft.** Once the build is uploaded, call the `gamedev-kit:devlog-writer` agent. Pass: what to write about (the cycle document path,
-   or if none, the commit range since the last deploy), the itch.io address, the version, the uploaded channel. Do not compose sentences yourself to pass along.
+6. **Devlog draft.** Once the build is uploaded, call the `gamedev-kit:devlog-writer` agent. Pass: what to write about (the cycle documents since the last deploy —
+   those in `docs/cycle/` that no earlier draft names: `grep -h '^근거:' docs/devlog/*.md` — or if none, the commit range since the last deploy), the itch.io address, the version, the uploaded channel. Do not compose sentences yourself to pass along.
    Show the returned draft (`docs/devlog/<date>-<version>.md`) **as is, field by field** — Title, Post type, Attachments, Tags, Languages, Cover image, Content.
    The user copies it top to bottom into itch.io dashboard → game → Devlog → new post. **You cannot post this.**
    The content is written unformatted — bold and headings are done in the editor. The user takes the Cover image and screenshots.
    If asked for changes, edit the draft. If the user gives the address of the posted devlog, add one line `게시: <address>` at the end of the draft.
    If they decide not to post, keep the draft and note that — the deploy is complete without a devlog.
-7. During a cycle, write the date, version, channel, commit, and devlog draft path (and posted address) in the "배포" section of the cycle document.
+   The draft is the record of the deploy (what it covers · version · channels) — nothing is written in the cycle documents.
 
 Run `status` directly, without an agent:
 

@@ -48,7 +48,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
    `--as-is` uses the photo as the first view without redrawing (png, a clean straight-on shot of one object) — closest to the photo, but the look is the photo's, not the game's. Ask which they want when it is not obvious.
 4. **`image`.** For several, give the names at once. When done, give the user the image paths and tell them to open the images themselves.
    **Do not Read the images yourself** — a picture stays in this session to the end and is re-read every turn. The one who looks is the user.
-   If the user asks you to screen them first, call `gamedev-kit:designer` with `review`, pass the paths, and get text back.
+   If the user asks you to screen them first, call `gamedev-kit:designer` with `review` and `model: opus`, pass the paths, and get text back.
 5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>`;
    if they now hand you a photo, `image <name> --ref <path>`. **Do not `approve` because it looks good to you.** `approve` only assets the user said are good.
    **When they turn one down, record what they said** — `reject <name> "<their words>"` — before redrawing. Then ask yourself whether it is about this one object or about every asset

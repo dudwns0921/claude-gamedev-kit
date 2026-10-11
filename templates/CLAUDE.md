@@ -27,7 +27,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 
 | When | Goes to |
 |---|---|
-| A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from 목표 to 회고 |
+| A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from 목표 to 플레이 |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
 | A 3D model or a sound | `/gamedev-kit:asset` — the style is the one paragraph in [docs/DESIGN.md](docs/DESIGN.md); do not write a style per asset |
 | A trailer shot or a cutscene clip | `/gamedev-kit:video` |
@@ -41,14 +41,14 @@ Claude does not decide scope · taste · numbers · whether to ship. Offer optio
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
 The one exception is auto mode, and only when the user asks for it (`/gamedev-kit:cycle auto …`): the user's voice decides in their place up to the point of playing, every such decision is marked `[~]` and waits for them, and it never ships, spends money or starts a second cycle.
-The voice (how this user decides) is kept outside this repository and works unseen — do not show or mention it unless a cycle ends or the user asks.
+The voice (how this user decides) is kept outside this repository and works unseen — do not show or mention it unless a new cycle starts or the user asks.
 
 ## Keep sessions short
 
-The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · cycle ended).
+The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · a new goal).
 Do not read cycle · playtest documents whole — that skill's script extracts the lines needed.
 
 ## What was learned, and what goes outside
 
-- A pitfall or a way to verify that is specific to this game goes in this file's "Pitfalls"; one that another game on the same engine would hit gets a line in `docs/kit-feedback.md` (the cycle skill's `lesson`).
+- A pitfall or a way to verify that is specific to this game goes in this file's "Pitfalls"; one that another game on the same engine would hit gets a line in `docs/kit-feedback.md` (`lesson` of the cycle or playtest skill — written when it happens, not saved up).
 - Before anything is uploaded, show the target · version · size and get consent. Logins and API keys live outside the repository — do not write them in any file.

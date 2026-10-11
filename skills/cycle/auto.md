@@ -6,6 +6,7 @@ It needs a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path`
 
 Everything in `SKILL.md` holds except what is listed here. What changes from its stages:
 
+- **Nothing is shown at the start.** Skip the voice skill's "Review" in 목표 — put what `new` printed about the previous cycle in the last message instead.
 - **Decisions are not asked.** Wherever a stage says to ask the user — the rule-splitting decisions before 디자인, and all of them after 계획 — follow the voice skill's "Decide" instead:
   a principle picks (`decide D2 "②" --proxy V3`), or failing that the agent's recommendation stands (`--proxy 권함`). Both are written `[~]`, and work that hangs on them goes ahead.
 - **Some decisions stay the user's** and are left unanswered: spending money or credits, anything going outward, discarding the user's work, and anything with neither a principle nor a recommendation.

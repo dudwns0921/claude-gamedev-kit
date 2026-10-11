@@ -2,7 +2,7 @@
 name: playtest
 description: >-
   Playtest → analysis → build flow. The analyst agent (playtest-analyst, Fable) turns the problem list the user wrote after playing
-  into a task document in docs/playtest/, and one developer agent (developer, Opus) per task handles it.
+  into a task document in docs/playtest/, and one developer agent (developer, Sonnet) per task handles it.
   Use when the user lists several problems or to-dos ("플레이해 봤는데", "해 보니까 이게 문제야", "플레이테스트", "이것들 고쳐줘");
   asks to analyze a problem list or organize feedback; or says "분석 문서대로 구현해줘", "playtest 문서 진행해줘", "T3 부터 해줘".
   Not for a single problem with an obvious cause — just fix that.
@@ -26,6 +26,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" status          # one line per
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # questions to ask · next wave's tasks
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # the summary and one task only
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<reason>" · open
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit
 ```
 
 These act on the newest document (for another, `--doc <path>`).
@@ -45,7 +46,7 @@ These act on the newest document (for another, `--doc <path>`).
    - tasks hanging on an unanswered question in "사용자에게 물을 것"
    - tasks whose 분류 is **설계** with no user decision written in the document
    - tasks that depend on a task blocked or failed in an earlier wave
-3. **Per wave, one `gamedev-kit:developer` agent per task, with `build T<n>`.** Call a wave's tasks all at once (in one message) —
+3. **Per wave, one `gamedev-kit:developer` agent per task, with `build T<n>` and `model: sonnet`.** Call a wave's tasks all at once (in one message) —
    the analyst grouped them so they touch different files. Pass three lines — `build T<n>`, the document path, the task-extraction command (`python3 <absolute path to this skill's playtest.py> task T<n> --doc <document>`). Do not copy out the task content.
    Call the next wave after the previous wave has fully returned.
 4. **Record returned results with `mark`** (agents do not edit the document. Do not open the document and edit it by hand):
@@ -65,6 +66,9 @@ These act on the newest document (for another, `--doc <path>`).
    ```
 
    If any task is blocked, ask whether to re-analyze. Re-analysis means calling the analyst again with that task's "Why blocked" attached.
+7. **What was learned — now, not later.** From the reasons tasks were blocked and the "Deviations from the document" that came back this round: what tripped us up · engine settings done by hand · a newly found way to check.
+   Specific to this game (relies on its structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls". Another game on the same engine would hit it, or a kit tool fell short →
+   one line with `lesson`, written so it makes sense without the game's names · files · numbers. If there is nothing, write nothing.
 
 ## status
 

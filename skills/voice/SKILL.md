@@ -5,9 +5,9 @@ description: >-
   follow, their biases, and what is not yet known. It lives outside the game repos (~/.config/gamedev-kit/voice/, a private repository)
   and grows across games. It works behind the cycle without being shown: predicts each answer before a decision is asked, scores the
   prediction against what the user said, and folds the answer into the voice — and in the cycle's auto mode it is what decides in the
-  user's place. The user sees it only when they ask or when a cycle ends. Use when the user says "보이스 보자", "보이스 보여줘",
+  user's place. The user sees it only when they ask or when a new cycle starts. Use when the user says "보이스 보자", "보이스 보여줘",
   "내 판단 정리해줘", "내 편향이 뭐야", "보이스 고쳐줘", "예측 얼마나 맞아", "적중률"; when the cycle skill asks decisions (predict),
-  gets the answers (score · learn), decides in auto mode (decide), or writes the 회고 (review); when tying the voice to its repository (setup).
+  gets the answers (score · learn), decides in auto mode (decide), or starts a new cycle (review); when tying the voice to its repository (setup).
 ---
 
 # voice
@@ -29,7 +29,7 @@ takes what another machine pushed, and pushes. Run it **before reading the voice
 If it stops because two machines edited the same lines, do not write to the voice until the user has merged it.
 
 **It stays in the background.** Predicting, scoring and learning happen without a word to the user — no predictions, no hit rates, no "I updated your voice".
-The user sees the voice at two moments only: when a cycle ends (회고) and when they ask ("보이스 보자"). Everything else in this skill is done silently and briefly.
+The user sees the voice at two moments only: when a new cycle starts and when they ask ("보이스 보자"). Everything else in this skill is done silently and briefly.
 
 | Call | Meaning |
 |---|---|
@@ -151,11 +151,12 @@ Called from the cycle skill's "Auto mode" in place of asking. Run `sync`, read t
 Proxy decisions are written `[~]` and are **not evidence**: the voice learns from them only after the user accepts (`cycle.py confirm`) or overturns (`cycle.py decide`) them —
 an overturned one is a miss for the principle that made it.
 
-## Review — when a cycle ends, or the user asks
+## Review — when a new cycle starts, or the user asks
 
 The one place the voice is shown. Run `sync` and read the voice.
 
-- **At 회고** (called from the cycle skill): if any line ends with `· 안 봄`, show those lines only, one per line in plain words, and ask if any is wrong. If none, say nothing.
+- **When a new cycle starts** (called from the cycle skill's 목표; not in auto mode): if any line ends with `· 안 봄`, show those lines only, one per line in plain words, and ask if any is wrong. If none, say nothing.
+  The cycle does not wait for the answer — corrections are taken whenever they come.
 - **When the user asks** ("보이스 보자"): show the whole voice — 원칙 · 편향 · 모르는 것 — in plain words, the `안 봄` lines marked as new, and one line from `stats`.
 
 **Then ask why, for what went against a principle without a reason** — the `왜 달랐나` lines under "모르는 것". At most three per review, the newest first, one line each:
