@@ -1,0 +1,4 @@
+.godot/
+/android/
+build/
+assets/_gen/*/raw.glb

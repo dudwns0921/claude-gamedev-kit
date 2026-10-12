@@ -220,14 +220,29 @@ def is_repo():
     return os.path.isdir(os.path.join(HOME, ".git"))
 
 
+def anon_url(url):
+    """로그인 없이 물어볼 주소. SSH 주소는 그대로 물으면 SSH 키가 로그인해 버려 비공개 저장소도 읽힌다 (~/.ssh/config 의 별칭도 같다) —
+    GitHub 것이면 같은 저장소의 https 주소로 바꾸고, 바꿀 수 없는 호스트의 SSH 주소는 None (물어볼 수 없다)."""
+    m = re.match(r"ssh://(?:[^@/]+@)?([^:/]+)(?::\d+)?/(.+)$", url) or ("://" not in url and re.match(r"(?:[^@/:]+@)?([^:/]+):(.+)$", url))
+    if not m or os.path.exists(url):  # https · 이 기기의 경로 따위는 키가 붙지 않는다
+        return url
+    host, path = m.group(1).lower(), m.group(2).strip("/")
+    if host == "github.com" or host.startswith("github.com-"):
+        return f"https://github.com/{path}" + ("" if path.endswith(".git") else ".git")
+    return None
+
+
 def is_private(url):
-    """로그인 없이도 읽히면 공개다. 로그인해야만 읽히면 True, 로그인 없이 읽히면 False, 아예 닿지 않으면 None.
+    """로그인 없이도 읽히면 공개다. 로그인해야만 읽히면 True, 로그인 없이 읽히면 False, 닿지 않거나 로그인 없이 물어볼 수 없으면 None.
     git 이 이미 가진 로그인만 쓴다 — 따로 깔거나 로그인할 것이 없다."""
     if subprocess.run(["git", "ls-remote", url], capture_output=True, text=True).returncode:
         return None
+    ask = anon_url(url)
+    if ask is None:
+        return None
     env = {k: v for k, v in os.environ.items() if k not in ("GIT_ASKPASS", "SSH_ASKPASS")}
     env.update(GIT_TERMINAL_PROMPT="0", GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)
-    anon = subprocess.run([ANON_GIT, "-c", "credential.helper=", "ls-remote", url], capture_output=True, text=True, env=env)
+    anon = subprocess.run([ANON_GIT, "-c", "credential.helper=", "ls-remote", ask], capture_output=True, text=True, env=env)
     return anon.returncode != 0
 
 
@@ -258,7 +273,7 @@ def cmd_setup(url):
         git("remote", "add", "origin", url)
         print(f"{HOME} — 있던 보이스를 저장소로 만들었다. `sync` 가 커밋하고 올린다")
     if private is None:
-        print("저장소에 닿지 못해 비공개인지 확인하지 못했다 — 주소와 git 로그인을 본다. 묻지 않고 올리기는 켤 수 없다")
+        print("비공개인지 확인하지 못했다 — 저장소에 닿지 못했거나(주소와 git 로그인을 본다), 로그인 없이 물어볼 수 없는 SSH 주소다. 묻지 않고 올리기는 켤 수 없다")
     else:
         print("비공개 저장소다. 묻지 않고 올려도 되는지 사용자에게 묻는다 — 된다고 하면 `autopush on`")
 

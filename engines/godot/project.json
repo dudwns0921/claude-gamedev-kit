@@ -1,0 +1,21 @@
+{
+  "marker": "project.godot",
+  "editor": {
+    "name": "Godot",
+    "env": "GODOT",
+    "path": ["godot", "godot4"],
+    "darwin": { "glob": ["/Applications/Godot*.app/Contents/MacOS/Godot"] },
+    "missing": [
+      "Godot 4 를 깐다 (https://godotengine.org/download) — 키트의 명령은 `godot` 으로 부르니 PATH 에 그 이름으로 둔다.",
+      "다른 자리에 있으면 실행 파일의 경로를 환경 변수 GODOT 에 넣고 다시 돌린다."
+    ]
+  },
+  "modules": [],
+  "create": {
+    "files": { "project.godot": "config_version=5\n\n[application]\n\nconfig/name=\"\"\nconfig/version=\"0.1.0\"\n" }
+  },
+  "import": {
+    "run": [["{editor}", "--headless", "--path", "{root}", "--import"]],
+    "error": "SCRIPT ERROR|Parse Error"
+  }
+}

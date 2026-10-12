@@ -27,6 +27,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 
 | When | Goes to |
 |---|---|
+| A new game with no cycle yet — the GDD, the look, the first goal | `/gamedev-kit:start` — it reads where the game stands from the files |
 | A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from 목표 to 플레이 |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
 | A 3D model or a sound | `/gamedev-kit:asset` — the style is the one paragraph in [docs/DESIGN.md](docs/DESIGN.md); do not write a style per asset |

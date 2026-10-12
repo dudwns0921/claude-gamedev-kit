@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """도구 검사 — engines/ 의 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync 와 balance-table 을 끝까지 돌린다.
-deploy 는 가짜 butler 로, asset 은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 돌린다 — 밖으로는 아무것도 나가지 않는다.
+init 의 엔진 프로젝트 만들기는 가짜 에디터로, deploy 는 가짜 butler 로, asset 과 start 의 컨셉 그림은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 돌린다 — 밖으로는 아무것도 나가지 않는다.
 
   python3 tests/test_tools.py
 
@@ -33,6 +33,9 @@ BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 VOICE = os.path.join(KIT, "skills/voice/scripts/voice.py")
+INIT = os.path.join(KIT, "skills/init/scripts/init.py")
+START = os.path.join(KIT, "skills/start/scripts/start.py")
+CONCEPT = os.path.join(KIT, "skills/start/scripts/concept.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
 FEEDBACK = os.path.join(KIT, "tools/kit_feedback.py")
@@ -275,6 +278,96 @@ class Tools(unittest.TestCase):
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("같다", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
                     self.assertIn("| 동기 | 3 |", run(REPORT, root).stdout, "틀의 예시 세 행이 값 파일과 짝이 맞는다")
+
+    def test_init_project(self):
+        """엔진 프로젝트를 알아보고 · 에디터와 모듈을 찾고 · 만든다. 에디터는 가짜다 — 엔진마다 다른 것은 engines/<엔진>/project.json 에서만 온다."""
+        top = tempfile.mkdtemp(prefix="kit-init-project-")
+        self.addCleanup(shutil.rmtree, top, True)
+        home = os.path.join(top, "Hub", "Editor", "6000.1.2f1")
+        unity = os.path.join(home, "Unity.app", "Contents", "MacOS", "Unity")
+        os.makedirs(os.path.dirname(unity))
+        open(unity, "w").write("""#!/bin/sh
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -createProject) mkdir -p "$2/ProjectSettings" && echo "m_EditorVersion: 6000.1.2f1" > "$2/ProjectSettings/ProjectVersion.txt"; shift;;
+    -projectPath|--path) [ -f "$2/BROKEN" ] && echo "Assets/A.cs(1,1): error CS1002: ; expected"; shift;;
+  esac
+  shift
+done
+exit 0
+""")
+        os.chmod(unity, 0o755)
+        spec = json.load(open(os.path.join(KIT, "engines/unity/project.json"), encoding="utf-8"))
+        modules = os.path.normpath(os.path.join(os.path.dirname(unity), spec["editor"].get(sys.platform, {}).get("modules", "x")))
+        root = os.path.join(top, "game")
+        os.makedirs(os.path.join(root, "docs"))
+        open(os.path.join(root, ".gitignore"), "w").write("Library/\n*.keystore")
+
+        def init(*args, ok=True, **env):
+            p = subprocess.run([sys.executable, INIT, "--root", root, *args], capture_output=True, text=True,
+                               env=dict({k: v for k, v in os.environ.items() if k not in ("UNITY", "GODOT")}, **env))
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        out = init("--detect")
+        self.assertIn("엔진 프로젝트가 아니다 — 고를 수 있는 엔진: godot · unity", out)
+        self.assertIn("아직 깔리지 않았다", out)
+        self.assertIn("가리키는 파일이 없다", init("unity", "--editor", ok=False, UNITY=os.path.join(top, "없다")))
+        if "modules" in spec["editor"].get(sys.platform, {}):
+            out = init("unity", "--editor", ok=False, UNITY=unity)
+            self.assertIn(f"Unity 6000.1.2f1 — {unity}", out)
+            self.assertIn("없음  Android Build Support", out)
+            self.assertIn("install-modules --version 6000.1.2f1 -m android android-sdk-ndk-tools android-open-jdk", out)
+            for part in ("SDK", "NDK"):
+                os.makedirs(os.path.join(modules, "AndroidPlayer", part))
+            self.assertIn("OpenJDK 가 빠졌다", init("unity", "--editor", ok=False, UNITY=unity))
+            os.makedirs(os.path.join(modules, "AndroidPlayer", "OpenJDK"))
+            out = init("unity", "--editor", UNITY=unity)
+            self.assertIn("있음  Android Build Support (SDK · NDK · OpenJDK)", out)
+            self.assertIn(f"`## This game's rules` 아래에 적는다 (그 제목은 이미 있다 — 새로 만들지 않는다): 에디터 실행 파일 `{unity}` · 깔린 모듈 Android Build Support", out)
+
+        self.assertIn("unity 프로젝트를 만들었다", init("unity", "--create", UNITY=unity))
+        self.assertTrue(os.path.exists(os.path.join(root, "docs")), "있던 것은 그대로다")
+        self.assertIn("unity — ProjectSettings/ProjectVersion.txt 가 있다", init("--detect"))
+        self.assertIn("이미 unity 프로젝트다", init("unity", "--create", UNITY=unity))
+        self.assertIn("이미 unity 프로젝트다 — godot 프로젝트를 그 위에 만들지 않는다", init("godot", "--create", ok=False))
+        out = init("unity")
+        self.assertIn("더함    .gitignore (unity — 10줄: Temp/", out, "이미 있는 두 줄은 다시 적지 않는다")
+        self.assertNotIn("아직 unity 프로젝트가 아니다", out)
+        self.assertIn("키트는 unity 로 이미 깔려 있다", init("--detect"))
+        self.assertIn("줄이 이미 다 있다", init("unity", "--gitignore"))
+        ignore = open(os.path.join(root, ".gitignore"), encoding="utf-8").read().split("\n")
+        for line in open(os.path.join(KIT, "engines/unity/gitignore"), encoding="utf-8").read().split():
+            self.assertEqual(ignore.count(line), 1, line)
+        self.assertNotIn("error", init("unity", "--import", UNITY=unity))
+        open(os.path.join(root, "BROKEN"), "w").close()
+        self.assertIn("error CS1002", init("unity", "--import", ok=False, UNITY=unity))
+
+        # Godot 은 만드는 명령이 없다 — 파일 하나가 프로젝트다. 에디터가 없어도 만든다
+        root = os.path.join(top, "game2")
+        os.makedirs(root)
+        self.assertIn("아직 godot 프로젝트가 아니다", init("godot"))
+        self.assertIn("godot 프로젝트를 만들었다", init("godot", "--create"))
+        self.assertIn('config/version="0.1.0"', open(os.path.join(root, "project.godot"), encoding="utf-8").read())
+        self.assertIn("godot — project.godot 가 있다", init("--detect"))
+        self.assertIn("--headless --path", init("godot", "--import", GODOT=unity))
+
+        # 판이 여럿이면 가장 새 것 — 숫자로 견준다. 스크립트는 엔진의 이름을 모른다: 폴더 하나가 엔진 하나다
+        engines = os.path.join(top, "engines")
+        os.makedirs(os.path.join(engines, "toy"))
+        json.dump({"engine": "toy"}, open(os.path.join(engines, "toy", "kit.config.json"), "w"))
+        toy = {"marker": "toy.project", "create": {"files": {"toy.project": ""}}, "modules": [{"name": "모듈", "dir": "m"}],
+               "editor": {"name": "Toy", "env": "TOY", "version": "/ed/([^/]+)/", "missing": ["Toy 를 깐다"],
+                          sys.platform: {"glob": [os.path.join(top, "ed", "*", "toy")], "modules": "mods"}}}
+        json.dump(toy, open(os.path.join(engines, "toy", "project.json"), "w"))
+        self.assertIn("Toy 에디터를 찾지 못했다 — 사용자가 깐다:\n  Toy 를 깐다", init("toy", "--editor", ok=False, GAMEDEV_KIT_ENGINES=engines))
+        for version in ("9.2", "10.1"):
+            os.makedirs(os.path.join(top, "ed", version, "mods", "m"))
+            open(os.path.join(top, "ed", version, "toy"), "w").close()
+        out = init("toy", "--editor", GAMEDEV_KIT_ENGINES=engines)
+        self.assertIn(f"Toy 10.1 — {os.path.join(top, 'ed', '10.1', 'toy')}", out)
+        self.assertIn("깔린 판 9.2 · 10.1 가운데 가장 새 것을 골랐다", out)
+        self.assertIn("있음  모듈", out)
 
     def rules_block(self, init, root, engine, fresh):
         """CLAUDE.md 에서 키트의 것은 블록 하나다 — 판이 오르면 그 사이만 바뀌고 밖은 그대로다."""
@@ -590,6 +683,99 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertNotIn("옛 화풍", sheet.split("<span>jar</span>")[1].split("</div></div>")[0])
 
     @unittest.skipUnless(shutil.which("blender"), "blender 가 없다")
+    def test_start(self):
+        """빈 게임이 첫 사이클에 닿기까지 — 어디에 서 있는지는 파일에서 읽는다. 컨셉 그림은 가짜 API 서버가 그린다."""
+        none = tempfile.mkdtemp(prefix="kit-start-none-")
+        self.addCleanup(shutil.rmtree, none, True)
+        self.assertIn("/gamedev-kit:init", run(START, none, "status", ok=False).stderr)
+        p = subprocess.run([sys.executable, START, "status"], cwd=none, capture_output=True, text=True)
+        self.assertEqual((p.returncode, "/gamedev-kit:init" in p.stderr), (1, True))
+
+        root, _asset, seen, env = self.asset_project("blender")
+        self.assertIn("틀이 생긴다", run(START, root, "status", ok=False).stderr)
+        gdd = os.path.join(root, "docs/GDD.md")
+        shutil.copy(os.path.join(KIT, "templates/GDD.md"), gdd)
+
+        def fill(title):
+            text = open(gdd, encoding="utf-8").read()
+            open(gdd, "w", encoding="utf-8").write(text.replace(f"{title}\n", f"{title}\n\n정한 것\n", 1))
+
+        out = run(START, root, "status").stdout
+        self.assertIn("[할 것] GDD (docs/GDD.md) — 비어 있는 절: 개요 · 게임 구조 · 규칙 · 제작 범위 · 비어 있어도 되는 절: 톤 · 사운드", out, "틀에 있던 줄은 글이 아니다")
+        self.assertIn("다음: GDD 단계", out)
+        self.assertTrue(os.path.exists(out.strip().split(": ")[-1]), out)
+        self.assertTrue(out.strip().endswith(os.path.join("stages", "gdd.md")))
+        for title in ("## 1. 개요", "## 2. 게임 구조", "## 4. 규칙과 시스템"):
+            fill(title)
+        self.assertIn("비어 있는 절: 제작 범위", run(START, root, "status").stdout)
+        self.assertIn("건너뛴다", run(START, root, "skip", "gdd").stdout)
+        self.assertIn("gdd · concept", run(START, root, "skip", "goal", ok=False).stderr)
+        out = run(START, root, "status").stdout
+        self.assertIn("[건너뜀] GDD", out)
+        self.assertIn("건너뛴 단계: GDD", out)
+        self.assertIn("다음: 컨셉 단계", out)
+        self.assertEqual(json.load(open(os.path.join(root, "docs/start/state.json"), encoding="utf-8")), {"skip": ["gdd"]})
+        run(START, root, "unskip", "gdd")
+        fill("## 7. 제작 범위")
+        out = run(START, root, "status").stdout
+        self.assertIn("[됨] GDD (docs/GDD.md) — 글이 있는 절: 개요 · 게임 구조 · 규칙 · 제작 범위 · 비어 있어도 되는 절: 톤 · 사운드\n", out)
+        self.assertNotIn("건너뛴 단계", out)
+        self.assertIn("아트 방향 절이 비어 있다 · docs/concept/ 에 그림이 없다", out)
+        self.assertTrue(out.strip().endswith(os.path.join("stages", "concept.md")))
+
+        def concept(*args, ok=True, env=env):
+            p = subprocess.run([sys.executable, CONCEPT, "--root", root, *args], capture_output=True, text=True, env=env)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        posts = lambda path: [b for m, p, b in seen if m == "POST" and p == path]
+        self.assertIn("그림이 없다", concept("list"))
+        self.assertIn("OPENAI_API_KEY 가 없다", concept("new", "look_a", "x", ok=False, env={k: v for k, v in env.items() if k != "OPENAI_API_KEY"}))
+        self.assertIn("소문자", concept("new", "Look A", "x", ok=False))
+        self.assertEqual(seen, [])
+        self.assertIn("docs/concept/look_a.png — 사용자가 열어 본다", concept("new", "look_a", "A small room seen from above,\n soft light"))
+        first = posts("/images/generations")[0]
+        self.assertEqual((first["prompt"], first["size"], first["model"], first["quality"]),
+                         ("A small room seen from above, soft light", "1024x1536", "gpt-image-2.5-flare", "medium"))
+        self.assertNotIn("background", first, "컨셉 그림은 배경을 비우지 않는다")
+        self.assertEqual(open(os.path.join(root, "docs/concept/look_a.png"), "rb").read(), b"png1")
+        self.assertIn("이미 있다 — 덮어쓰지 않는다", concept("new", "look_a", "another", ok=False))
+        self.assertEqual(len(seen), 1, "있는 이름이면 그리지 않는다")
+        self.assertIn("레퍼런스가 없다", concept("new", "look_b", "--ref", "nothing", "x", ok=False))
+        concept("new", "look_b", "--size", "1536x1024", "--ref", "look_a", "warmer light")
+        edit = posts("/images/edits")[0]
+        self.assertIn(b'name="image[]"; filename="look_a.png"', edit, "마음에 든 그림을 보고 고쳐 그린다")
+        self.assertIn(b"png1", edit)
+        self.assertIn(b"Change only what is asked below and leave everything else as it is. warmer light", edit)
+        self.assertIn(b"1536x1024", edit)
+        open(os.path.join(root, "docs/concept/photo.jpg"), "wb").write(b"jpg")
+        out = concept("list")
+        self.assertIn("docs/concept/look_a.png — 1024x1536 · A small room seen from above, soft light", out)
+        self.assertIn("docs/concept/look_b.png — 1536x1024 · docs/concept/look_a.png 에서 고쳐 그림 · warmer light", out)
+        self.assertIn("docs/concept/photo.jpg — 사용자가 넣은 그림", out)
+
+        out = run(START, root, "status").stdout
+        self.assertIn("[할 것] 컨셉 — docs/GDD.md 의 아트 방향 절이 비어 있다", out)
+        self.assertNotIn("그림이 없다", out)
+        fill("## 5. 아트 방향")
+        out = run(START, root, "status").stdout
+        self.assertIn("[됨] 컨셉 — 아트 방향이 적혀 있고 그림이 3장 있다", out)
+        self.assertIn("다음: 첫 목표 단계", out)
+        self.assertTrue(out.strip().endswith(os.path.join("stages", "goal.md")))
+        run(CYCLE, root, "new", "first", "한 바퀴를 돈다")
+        out = run(START, root, "status").stdout
+        self.assertIn("시작은 끝났다 — 사이클 문서가 있다 (docs/cycle/01-first.md). 이어 가는 것은 `/gamedev-kit:cycle`", out)
+        self.assertNotIn("다음:", out)
+
+        # GDD 를 다른 자리에 둔 게임 · 틀을 고쳐 쓴 GDD — 없는 제목은 비었다고 하지 않는다
+        other = tempfile.mkdtemp(prefix="kit-start-other-")
+        self.addCleanup(shutil.rmtree, other, True)
+        json.dump({"gdd-sync": {"gdd": "design/GDD.md"}}, open(os.path.join(other, "kit.config.json"), "w"))
+        os.makedirs(os.path.join(other, "design"))
+        open(os.path.join(other, "design/GDD.md"), "w", encoding="utf-8").write("# 게임\n\n## 개요\n글\n\n## 규칙\n\n## 부록 A\n")
+        out = run(START, other, "status").stdout
+        self.assertIn("[할 것] GDD (design/GDD.md) — 비어 있는 절: 규칙 · 글이 있는 절: 개요 · 틀의 제목이 없어 보지 못한 절: 게임 구조 · 제작 범위 · 아트 방향", out)
+
     def test_asset_blender(self):
         root, asset, seen, _env = self.asset_project("blender")
         open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- asset-style -->\nLow-poly.\n<!-- /asset-style -->\n")
@@ -1168,6 +1354,27 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         put(c, "# 보이스\n")
         self.assertIn("어느 쪽을 남길지", voice(c, "setup", remote, ok=False))
         self.assertFalse(os.path.exists(os.path.join(c, ".git")))
+
+        # SSH 주소(~/.ssh/config 의 별칭)는 키가 로그인해 버린다 — 로그인 없이는 같은 저장소의 https 주소로 묻는다. 가짜 ssh 가 위의 저장소를 내준다
+        ssh, asked = os.path.join(bin_dir, "ssh"), os.path.join(top, "asked.txt")
+        open(ssh, "w").write(f'#!/bin/sh\nexec git upload-pack "{remote}"\n')
+        os.chmod(ssh, 0o755)
+        open(anon, "w").write(f'#!/bin/sh\necho "$@" >> "{asked}"\n[ "$FAKE_PUBLIC" = 1 ]\n')
+        base.update(GIT_SSH_COMMAND=ssh, GIT_SSH_VARIANT="simple")
+        alias = "git@github.com-someone:owner/repo.git"
+        d, e2 = os.path.join(top, "d"), os.path.join(top, "e")
+        self.assertIn("공개 저장소다", voice(d, "setup", alias, public=True, ok=False))
+        self.assertIn("비공개 저장소다", voice(d, "setup", alias))
+        self.assertIn("V1. 하나", open(os.path.join(d, "VOICE.md"), encoding="utf-8").read())
+        self.assertIn("묻지 않고 올린다", voice(d, "autopush", "on"))
+        lines = open(asked, encoding="utf-8").read().strip().split("\n")
+        self.assertTrue(all(line.endswith("ls-remote https://github.com/owner/repo.git") for line in lines), lines)
+        os.remove(asked)
+        out = voice(e2, "setup", "git@git.example.com:owner/repo.git")  # 바꿀 수 없는 호스트 — 공개라고도 비공개라고도 하지 않는다
+        self.assertIn("받았다", out)
+        self.assertIn("확인하지 못했다", out)
+        self.assertIn("확인된 저장소가 아니다", voice(e2, "autopush", "on", ok=False))
+        self.assertFalse(os.path.exists(asked), "키가 붙는 주소로는 묻지 않는다")
 
     def test_private(self):
         """공개 저장소에 낱낱의 기록(게임의 이름 · 날짜)이 없다 — 막을 낱말은 저장소 밖의 파일에서 읽는다."""

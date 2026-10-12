@@ -2,7 +2,12 @@
 """게임 저장소에 gamedev-kit 이 쓰는 파일을 깐다. 게임 저장소 루트에서 돌린다.
 
   python3 init.py              깔 수 있는 엔진을 적는다
-  python3 init.py <엔진>       설정 · GDD 틀 · 런타임 틀을 깐다
+  python3 init.py --detect     이 폴더가 이미 어느 엔진의 프로젝트인지 (아니면 고를 수 있는 엔진)
+  python3 init.py <엔진> --editor     이 기기의 에디터 실행 파일과 빌드에 드는 모듈 — 없으면 무엇을 깔아야 하는지 적고 1 로 끝난다
+  python3 init.py <엔진> --create     엔진 프로젝트가 없으면 이 폴더에 만든다 (.git · docs/ 가 이미 있어도 된다)
+  python3 init.py <엔진>       설정 · GDD 틀 · 런타임 틀을 깐다. 엔진의 .gitignore 줄도 더한다
+  python3 init.py <엔진> --import     깐 파일을 엔진이 한 번 읽게 한다 (컴파일 · 임포트). 오류 줄이 있으면 1 로 끝난다
+  python3 init.py <엔진> --gitignore  엔진의 .gitignore 줄만 더한다 (이미 있는 줄은 다시 적지 않는다)
   python3 init.py <엔진> --files   이미 깐 프로젝트에서 엔진 틀(값 파일 · 런타임)도 없는 것을 다시 깐다
   python3 init.py <엔진> --rules   CLAUDE.md 의 키트 규칙 블록을 지금 판으로 맞춘다 (없으면 끝에 붙인다). 블록 밖은 건드리지 않는다
   python3 init.py --rules-check    세션이 시작될 때 훅이 부른다: 블록이 옛 판이면 지금 판으로 바꾸고 한 줄 적는다. 블록이 없거나 손으로 고쳐졌으면 알리기만 한다. 같으면 조용하다
@@ -14,16 +19,26 @@
 CLAUDE.md 에서 키트의 것은 `<!-- gamedev-kit 시작 … -->` 과 `<!-- gamedev-kit 끝 -->` 사이뿐이다 (공통 규칙 + 엔진 규칙).
 키트가 판을 올리면 --rules 가 그 사이만 통째로 바꾼다 — 게임의 규칙은 블록 밖에 있고 건드리지 않는다.
 블록 안을 손으로 고쳤으면 덮지 않고 멈춘다 (고친 것을 밖으로 옮기거나 --force).
+
+엔진 프로젝트를 알아보고 · 에디터를 찾고 · 만드는 법은 engines/<엔진>/project.json 에 있다 (게임에 복사되지 않는다):
+  marker    이 파일이 있으면 그 엔진의 프로젝트다
+  editor    env(실행 파일을 가리키는 환경 변수) · path(PATH 에서 찾을 이름) · <sys.platform>.glob(깔리는 자리 — 여럿이면 version 정규식으로 가장 새 것) ·
+            <sys.platform>.modules(실행 파일의 폴더에서 모듈 폴더까지) · missing(없을 때 사용자에게 할 말)
+  modules   빌드에 드는 모듈마다 name · dir · must(그 안에 있어야 하는 것) · install(없을 때 할 말. {version} 이 채워진다)
+  create · import   files(없으면 쓰는 파일) · run(명령들 — {editor} · {root} · {log}) · error(출력에서 찾을 오류 줄의 정규식)
 """
+import glob
 import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 
 KIT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
-ENGINES = os.path.join(KIT, "engines")
+ENGINES = os.environ.get("GAMEDEV_KIT_ENGINES") or os.path.join(KIT, "engines")  # 테스트가 바꾼다
 LOCK_LINE = "~$*.xlsx"
 START, END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"
 BLOCK_RE = re.compile(re.escape(START) + r" · ([0-9a-f]+)[^\n]*-->\n(.*?)\n" + re.escape(END), re.S)
@@ -36,6 +51,133 @@ Structure, pitfalls and verification methods specific to this game go here. Wher
 
 def engines():
     return sorted(d for d in os.listdir(ENGINES) if os.path.exists(os.path.join(ENGINES, d, "kit.config.json")))
+
+
+def project(engine):
+    """그 엔진의 프로젝트를 알아보고 · 에디터를 찾고 · 만드는 법. 게임의 설정(kit.config.json)과 달리 게임에 복사되지 않는다."""
+    path = os.path.join(ENGINES, engine, "project.json")
+    return json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+
+
+def detect(root):
+    """이 폴더가 이미 프로젝트인 엔진들 — 보통 하나이거나 없다."""
+    return [e for e in engines() if project(e).get("marker") and os.path.exists(os.path.join(root, project(e)["marker"]))]
+
+
+def find_editor(engine):
+    """(실행 파일, 판, 깔린 판 전부). 환경 변수 → PATH → 깔리는 자리 순서. 없으면 (None, "", [])."""
+    ed = project(engine).get("editor", {})
+
+    def version(path):
+        m = re.search(ed["version"], path.replace(os.sep, "/")) if ed.get("version") else None
+        return m.group(1) if m else ""
+
+    named = os.environ.get(ed.get("env") or "", "")
+    if named:
+        if not os.path.exists(named):
+            sys.exit(f"환경 변수 {ed['env']} 가 가리키는 파일이 없다: {named}")
+        return named, version(named), []
+    for name in ed.get("path", []):
+        if shutil.which(name):
+            return shutil.which(name), "", []
+    found = [p for pattern in ed.get(sys.platform, {}).get("glob", []) for p in glob.glob(os.path.expanduser(pattern))]
+    if not found:
+        return None, "", []
+    found.sort(key=lambda p: [int(n) for n in re.findall(r"\d+", version(p))])  # 판은 숫자끼리 견준다 (10 이 9 보다 새것이다)
+    return found[-1], version(found[-1]), [version(p) for p in found if version(p)]
+
+
+def need_editor(engine):
+    exe, version, _all = find_editor(engine)
+    if not exe:
+        ed = project(engine).get("editor", {})
+        sys.exit(f"{ed.get('name', engine)} 에디터를 찾지 못했다 — 사용자가 깐다:\n" + "\n".join(f"  {line}" for line in ed.get("missing", [])))
+    return exe, version
+
+
+def cmd_editor(engine):
+    spec = project(engine)
+    ed = spec.get("editor", {})
+    exe, version = need_editor(engine)
+    versions = find_editor(engine)[2]
+    print(f"{ed.get('name', engine)} {version} — {exe}".replace("  ", " ")
+          + (f"\n  깔린 판 {' · '.join(versions)} 가운데 가장 새 것을 골랐다 (다른 판을 쓰려면 환경 변수 {ed['env']})" if len(versions) > 1 else ""))
+    base, have, lack = ed.get(sys.platform, {}).get("modules"), [], []
+    for mod in spec.get("modules", []):
+        if base is None:
+            print(f"  모름  {mod['name']} — 이 기기에서는 어디에 깔리는지 모른다. 에디터에서 직접 본다")
+            continue
+        folder = os.path.normpath(os.path.join(os.path.dirname(exe), base, mod["dir"]))
+        gone = [m for m in mod.get("must", []) if not os.path.exists(os.path.join(folder, m))]
+        if os.path.isdir(folder) and not gone:
+            have.append(mod["name"])
+            print(f"  있음  {mod['name']}" + (f" ({' · '.join(mod['must'])})" if mod.get("must") else ""))
+        else:
+            lack.append(mod["name"])
+            print(f"  없음  {mod['name']} — " + (f"{' · '.join(gone)} 가 빠졌다" if os.path.isdir(folder) else f"{folder} 가 없다"))
+            print("\n".join(f"        {line.replace('{version}', version)}" for line in mod.get("install", [])))
+    print("\nCLAUDE.md 의 `## This game's rules` 아래에 적는다 (그 제목은 이미 있다 — 새로 만들지 않는다): "
+          f"에디터 실행 파일 `{exe}`" + (f" · 깔린 모듈 {' · '.join(have)}" if have else ""))
+    if lack:
+        sys.exit(f"\n빌드에 드는 모듈이 없다: {' · '.join(lack)} — 까는 것은 사용자가 정한다 (받는 양이 크다). 깐 뒤 다시 돌린다")
+
+
+def run_step(engine, step, root):
+    """project.json 의 create · import 를 돌린다: 없는 파일을 쓰고, 에디터 명령을 돌리고, 출력에서 오류 줄을 찾는다."""
+    spec = project(engine).get(step)
+    if not spec:
+        return print(f"{engine}: {step} 에 할 일이 없다")
+    for rel, text in spec.get("files", {}).items():
+        path = os.path.join(root, rel)
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, "w", encoding="utf-8").write(text)
+            print(f"  새로    {rel}")
+    if not spec.get("run"):
+        return None
+    exe = need_editor(engine)[0]
+    for argv in spec["run"]:
+        log = os.path.join(tempfile.mkdtemp(prefix="kit-init-"), "editor.log")
+        cmd = [a.replace("{editor}", exe).replace("{root}", root).replace("{log}", log) for a in argv]
+        print("  돌린다  " + " ".join(cmd) + "  (몇 분 걸릴 수 있다)", flush=True)
+        p = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        out = p.stdout + p.stderr + (open(log, encoding="utf-8", errors="replace").read() if os.path.exists(log) else "")
+        shutil.rmtree(os.path.dirname(log), True)
+        bad = [line for line in out.split("\n") if spec.get("error") and re.search(spec["error"], line)]
+        if p.returncode or bad:
+            tail = bad[:20] or out.strip().split("\n")[-20:]
+            sys.exit(f"{step} 이 실패했다 (종료 코드 {p.returncode}" + (f" · 오류 줄 {len(bad)}" if bad else "") + ") — 에디터가 이 프로젝트를 열고 있으면 닫는다:\n"
+                     + "\n".join(tail))
+
+
+def cmd_create(engine, root):
+    marker = project(engine).get("marker")
+    if not marker:
+        sys.exit(f"{engine}: engines/{engine}/project.json 에 만드는 법이 없다")
+    here = detect(root)
+    if engine in here:
+        return print(f"이미 {engine} 프로젝트다 ({marker}) — 만들지 않는다")
+    if here:
+        sys.exit(f"이 폴더는 이미 {' · '.join(here)} 프로젝트다 — {engine} 프로젝트를 그 위에 만들지 않는다")
+    run_step(engine, "create", root)
+    if not os.path.exists(os.path.join(root, marker)):
+        sys.exit(f"만들었다는데 {marker} 가 없다 — 에디터의 로그를 본다")
+    print(f"{engine} 프로젝트를 만들었다 ({marker}). 이어서 키트 파일을 깐다: `init.py {engine}` → `init.py {engine} --import`")
+
+
+def add_ignore(engine, root, done):
+    """엔진의 .gitignore 줄 가운데 아직 없는 것만 끝에 붙인다."""
+    src = os.path.join(ENGINES, engine, "gitignore")
+    if not os.path.exists(src):
+        return
+    path = os.path.join(root, ".gitignore")
+    text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+    have = {line.strip() for line in text.split("\n")}
+    new = [line.strip() for line in open(src, encoding="utf-8") if line.strip() and line.strip() not in have]
+    if new:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(("" if not text or text.endswith("\n") else "\n") + f"\n# {engine} 이 만드는 것 · 저장소에 두지 않는 것\n" + "\n".join(new) + "\n")
+    done.append(f"  {'더함  ' if new else '그대로'}  .gitignore ({engine} — " + (f"{len(new)}줄: {' · '.join(new)}" if new else "줄이 이미 다 있다") + ")")
 
 
 def rules(engine):
@@ -141,8 +283,15 @@ def main():
         except Exception:
             pass
         return
+    if "--detect" in args:
+        here, config = detect(root), os.path.join(root, "kit.config.json")
+        has = json.load(open(config, encoding="utf-8")).get("engine", "") if os.path.exists(config) else ""
+        print("\n".join(f"{e} — {project(e)['marker']} 가 있다" for e in here)
+              or "엔진 프로젝트가 아니다 — 고를 수 있는 엔진: " + " · ".join(engines()))
+        return print(f"키트는 {has} 로 이미 깔려 있다 (kit.config.json)" if has else "키트는 아직 깔리지 않았다 (kit.config.json 이 없다)")
     again_files, only_rules, force = "--files" in args, "--rules" in args, "--force" in args
-    args = [a for a in args if a not in ("--files", "--rules", "--force")]
+    steps = [a for a in args if a in ("--editor", "--create", "--import", "--gitignore")]
+    args = [a for a in args if a not in ("--files", "--rules", "--force", *steps)]
     if not args:
         sys.exit("엔진을 고른다: " + " · ".join(engines()))
     engine = args[0]
@@ -152,6 +301,15 @@ def main():
     done = []
     if only_rules:
         return sync_rules(root, engine, force)
+    if steps:  # 엔진 프로젝트 쪽 일 — 하나씩 따로 부른다
+        if steps[0] == "--editor":
+            return cmd_editor(engine)
+        if steps[0] == "--create":
+            return cmd_create(engine, root)
+        if steps[0] == "--import":
+            return run_step(engine, "import", root)
+        add_ignore(engine, root, done)
+        return print("\n".join(done) or f"{engine}: 더할 .gitignore 줄이 없다")
 
     config = os.path.join(root, "kit.config.json")
     had = os.path.exists(config)
@@ -189,6 +347,7 @@ def main():
             f.write(("" if not text or text.endswith("\n") else "\n")
                     + "\n# 엑셀이 파일을 열어 둔 동안 만드는 잠금 파일\n" + LOCK_LINE + "\n")
         done.append("  더함    .gitignore (엑셀 잠금 파일)")
+    add_ignore(engine, root, done)
 
     print(f"gamedev-kit — {engine}\n" + "\n".join(done))
     if had:  # 그 뒤로 키트에 생긴 설정 절
@@ -203,6 +362,9 @@ def main():
         print("\nCLAUDE.md 의 키트 규칙: " + {"none": "블록이 없다 — `--rules` 가 끝에 붙인다 (있던 글은 건드리지 않는다)",
                                            "stale": "옛 판이다 — `--rules` 가 블록만 바꾼다",
                                            "edited": "블록 안이 손으로 고쳐졌다 — 고친 것을 밖으로 옮긴 뒤 `--rules`"}[state])
+    marker = project(engine).get("marker")
+    if marker and not os.path.exists(os.path.join(root, marker)):
+        print(f"\n이 폴더는 아직 {engine} 프로젝트가 아니다 ({marker} 가 없다) — `init.py {engine} --create` 가 만든다")
     notes = os.path.join(src, "NOTES.md")
     if os.path.exists(notes):
         print("\n" + open(notes, encoding="utf-8").read().strip())

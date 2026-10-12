@@ -1,0 +1,12 @@
+Library/
+Temp/
+Logs/
+obj/
+UserSettings/
+build/
+*.csproj
+*.sln
+*.slnx
+*.keystore
+*.jks
+assets/_gen/*/raw.glb

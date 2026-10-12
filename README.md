@@ -4,7 +4,8 @@
 
 | 스킬 | 하는 일 |
 |---|---|
-| `/gamedev-kit:init` | 게임 저장소에 설정 · GDD 틀 · CLAUDE.md 규칙 · 런타임 틀을 깐다. `rules` 는 키트가 판을 올린 뒤 CLAUDE.md 의 키트 규칙 블록만 맞춘다 |
+| `/gamedev-kit:init` | 빈 폴더에서 시작해도 된다 — 어느 엔진인지 묻고, 이 기기의 에디터와 빌드에 드는 모듈을 찾고(없으면 무엇을 깔지 알린다), 엔진 프로젝트가 없으면 만든 뒤, 게임 저장소에 설정 · GDD 틀 · CLAUDE.md 규칙 · 런타임 틀 · 엔진의 `.gitignore` 줄을 깐다. 끝나면 `start` 로 넘긴다. `rules` 는 키트가 판을 올린 뒤 CLAUDE.md 의 키트 규칙 블록만 맞춘다 |
+| `/gamedev-kit:start` | 키트를 깐 빈 게임을 첫 사이클까지 데려간다 — GDD(한 바퀴를 플레이어의 자리에서 듣고, 한 번에 하나씩 물어 확인된 것만 적는다) → 컨셉(화면 방향 · 시점 · 2D/3D 를 먼저 묻고, 레퍼런스나 컨셉 그림으로 생김새를 맞춘다) → 첫 목표(가장 안쪽 루프 한 바퀴) → `cycle` 로 넘긴다. 어디까지 왔는지는 파일에서 읽으니 세션을 끊어도 이어진다. 단계는 건너뛸 수 있다 |
 | `/gamedev-kit:gdd-sync` | GDD 부록 A 동기화 표와 코드의 `GDD: <ID>` 표식을 대조하고 한쪽으로 맞춘다 |
 | `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
 | `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
@@ -112,7 +113,7 @@ itch.io devlog 는 초안까지만 쓰고, 붙여 넣는 것은 사용자다.
 | Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | ○ `Web` 프리셋을 빌드해 올린다 | ○ glb · mp3 | ○ mp4 · ogv |
 | Unity | ○ | ○ | ✕ 구운 값으로 돈다 | ✕ 대신 Google Play 용 AAB 를 빌드한다 (`build android`) — 올리는 것은 사용자가 Play Console 에서 | ○ fbx · mp3 | ○ mp4 |
 
-테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs/Higgsfield 서버 · 가짜 ffmpeg 로 돈다 — 밖으로는 아무것도 나가지 않는다.
+테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs/Higgsfield 서버 · 가짜 ffmpeg · 가짜 에디터로 돈다 — 밖으로는 아무것도 나가지 않는다.
 
 ## 설치
 
@@ -126,7 +127,7 @@ claude plugin marketplace add dudwns0921/claude-gamedev-kit
 claude plugin install gamedev-kit@claude-gamedev-kit --scope project
 ```
 
-그다음 Claude 에게 `/gamedev-kit:init`.
+그다음 Claude 에게 `/gamedev-kit:init` — 엔진 프로젝트가 없는 빈 폴더여도 된다. 깔고 나면 `/gamedev-kit:start` 가 GDD · 컨셉 · 첫 사이클의 목표까지 간다.
 
 올린 뒤 받기:
 
@@ -145,6 +146,7 @@ claude plugin update gamedev-kit@claude-gamedev-kit
 skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scripts/ 에
 agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일만 에이전트로 둔다
 engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙 — 검증 방법과 함정. 게임에서 배운 것이 여기로 돌아온다) · files/(게임에 복사될 틀)
+                    project.json(프로젝트를 알아보고 · 에디터를 찾고 · 만드는 법 — init 이 읽는다. 게임에 복사되지 않는다) · gitignore(게임의 .gitignore 에 더할 줄)
 templates/          GDD.md · DESIGN.md · CLAUDE.md — 게임 저장소에 깔리는 틀
 hooks/              훅 둘 — 세션의 컨텍스트가 커지면 새 세션을 권하게 하고, 게임의 CLAUDE.md 에 든 키트 규칙이 옛 판이면 알린다
 tools/              session_usage.py — 게임 저장소의 세션 기록에서 토큰이 어디로 갔는지 센다 · kit_feedback.py — 게임들에 쌓인 "키트로 올릴 것" 을 모은다

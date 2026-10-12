@@ -547,8 +547,9 @@ def index_html(name, st, asks, now, stamp, sheet):
     rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">어느 단계에도 안 든 것 — 완성 % 에 들지 않는다</span>'
                  f'<b>{e(rest["name"])} {stray}</b><span>에셋 {stray_assets}</span>{lane_rows(rest)}'
                  f'<span class="chip go" style="margin-left:auto">자세히 →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
+    outside = f" · 이 가운데 {e(CFG['common'])} {stray} (에셋 {stray_assets}) 은 완성 % 밖" if stray else ""  # 3.9 는 f-string 안에 같은 따옴표를 못 쓴다
     body = (f'<header><div><div class="lab">항해도 · 플레이어가 겪는 순서대로</div><h1>{e(name)} <span>완성까지</span></h1>'
-            f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}{f" · 이 가운데 {e(CFG['common'])} {stray} (에셋 {stray_assets}) 은 완성 % 밖" if stray else ""}</div></div>'
+            f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}{outside}</div></div>'
             '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + sheet_link(sheet) + "</div></header>"
             '<div class="total">' + "".join(f'<div style="flex:1" title="{e(s["name"])}"><i style="width:{stage_pct(s) or 0}%"></i></div>' for s in flow) + "</div>"
             '<div class="legend"><span><i class="s-done"></i>됨</span><span><i class="s-temp"></i>임시 — 돌아가지만 다시 만들 것</span>'
