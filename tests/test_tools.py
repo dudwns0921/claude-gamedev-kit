@@ -56,7 +56,7 @@ def raw_glb():
             + struct.pack("<I4s", len(b), b"BIN\0") + b)
 
 # 엔진이 버전을 적어 두는 파일의 한 줄 (deploy.version 이 이것을 집어야 한다)
-VERSION_LINE = {"godot": 'config/version="1.2.3"'}
+VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3"}
 
 GDD = """# 게임
 
@@ -97,6 +97,22 @@ static func can_pickup() -> bool:  # GDD: RULE.COIN.PICKUP
 
 static var STRAY := 1  # GDD: BAL.STRAY.ONE
 """, "can_pickup"),
+    "unity": ("""public static class Balance
+{
+    /// 시작 체력
+    public static int PLAYER_HP = 100; // GDD: BAL.PLAYER.HP
+    public static float PLAYER_WALK_SPEED = 4.0f; // GDD: BAL.PLAYER.WALK_SPEED
+    public static int COIN_VALUE = 5; // GDD: BAL.COIN.VALUE
+    public static float UNMARKED = 2.5f; // 표식 없는 값
+
+    public static bool CanPickup() // GDD: RULE.COIN.PICKUP
+    {
+        return true;
+    }
+
+    public static int STRAY = 1; // GDD: BAL.STRAY.ONE
+}
+""", "CanPickup"),
 }
 
 

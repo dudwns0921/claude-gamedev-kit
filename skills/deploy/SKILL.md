@@ -64,6 +64,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/deploy.py" status
   If `build` is empty, nothing is built and what is in `dir` is uploaded. `must` is a file that must exist in that folder.
 - `version` — the file holding the version and the regex that captures it. If left empty, the commit hash is the version.
 - `pre` — commands such as tests and lint whose failure must block the upload.
+- **A store this script has no upload path for** (Google Play, for example): `itch` stays empty and only `build <channel>` is run, directly —
+  `check` and `push` are for itch.io. Report where the built file is; the user uploads it in that store's console. Do not ask them to fill `itch`.
 
 Engine-specific build commands are in the `kit.config.json` installed by init. If the engine needs more preparation, such as export presets,
 it is in the guidance init printed at the end (the engine's NOTES).

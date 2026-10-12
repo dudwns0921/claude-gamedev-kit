@@ -2,7 +2,7 @@
 name: init
 description: >-
   Installs the files gamedev-kit (gdd-sync · balance-table) uses into a game repo — engine config (kit.config.json), GDD template,
-  CLAUDE.md rules, the balance value file and the runtime template that re-reads the table while running. The engine currently included is Godot.
+  CLAUDE.md rules, the balance value file and the runtime template that re-reads the table while running. The engines currently included are Godot and Unity.
   Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game, on "gamedev-kit 깔아줘",
   "키트 규칙 맞춰줘", "init rules", "GDD 동기화 세팅", "밸런스 표 세팅", or when gdd-sync or balance-table says it cannot find kit.config.json.
 ---
@@ -18,13 +18,13 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 
 ## Procedure
 
-1. **Decide the engine.** The only engine currently included is `godot` (run without arguments to list included engines). If the repo belongs to another engine (no `project.godot`, and
-   another engine's project file exists), do not install and say so — this kit has never been verified on that engine.
+1. **Decide the engine.** Included: `godot` (`project.godot` at the root) and `unity` (`ProjectSettings/ProjectVersion.txt`) — run without arguments to list them.
+   If the repo belongs to any other engine, do not install and say so.
 
 2. **Install.**
 
    ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" godot
+   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine>
    ```
 
    Installed: `kit.config.json` · `docs/GDD.md` · `docs/DESIGN.md` · `CLAUDE.md` · the engine's value file and runtime template · one `.gitignore` line.

@@ -1,6 +1,6 @@
 # claude-gamedev-kit
 
-게임을 Claude Code 로 만들 때 쓰는 플러그인. 지금은 **Godot** 용이다 — 엔진마다 다른 것은 `engines/<엔진>/` 한 폴더에 모여 있어서, 다른 엔진은 폴더 하나를 더하는 일이다.
+게임을 Claude Code 로 만들 때 쓰는 플러그인. 지금은 **Godot** 과 **Unity**(Android) 용이다 — 엔진마다 다른 것은 `engines/<엔진>/` 한 폴더에 모여 있어서, 다른 엔진은 폴더 하나를 더하는 일이다.
 
 | 스킬 | 하는 일 |
 |---|---|
@@ -110,6 +110,7 @@ itch.io devlog 는 초안까지만 쓰고, 붙여 넣는 것은 사용자다.
 | 엔진 | gdd-sync | 표 ↔ 코드 | 실행 중에 표 다시 읽기 | itch.io 배포 | 3D 에셋 · 소리 | 영상 |
 |---|---|---|---|---|---|---|
 | Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | ○ `Web` 프리셋을 빌드해 올린다 | ○ glb · mp3 | ○ mp4 · ogv |
+| Unity | ○ | ○ | ✕ 구운 값으로 돈다 | ✕ 대신 Google Play 용 AAB 를 빌드한다 (`build android`) — 올리는 것은 사용자가 Play Console 에서 | ○ fbx · mp3 | ○ mp4 |
 
 테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs/Higgsfield 서버 · 가짜 ffmpeg 로 돈다 — 밖으로는 아무것도 나가지 않는다.
 
