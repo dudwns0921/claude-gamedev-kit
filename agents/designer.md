@@ -47,7 +47,7 @@ A cycle document path and one mode.
 ### 필요한 에셋
 | 에셋 | 종류 | 크기 · 길이 | 있는가 | 없으면 |
 |---|---|---|---|---|
-| … | 3D model · sprite · sound effect · looping sound · music · font | longest side (m) for 3D, seconds for sound | `path` or 없음 | what placeholder is used |
+| … | 3D model · sprite · sound effect · looping sound · music · font | longest side (m) for 3D, shown size (px) for a sprite, seconds for sound | `path` or 없음 | what placeholder is used |
 
 ### 사람이 봐야 아는 것
 What to check by playing after implementation. What you could not settle in writing (legibility · intensity of effects · whether sounds overlap).
@@ -65,7 +65,7 @@ Write no files. For what cannot be known from an image alone (motion · sound), 
 - **Do not decide rules · numbers · dimensions.** Walk speed, corridor width, cooldowns, what goes in the HUD belong to the spec.
   If the spec lacks something your work needs (how many seconds does this effect block input · how many meters is this place), do not guess; return it under "Questions for spec".
   Numbers for what is seen, like an effect's duration, are yours to set — if it blocks input or changes a ruling, it belongs to the spec.
-- Do not write a missing asset as if it exists. Write only paths you checked yourself. Missing 3D models and sounds are made by the caller with the asset skill —
+- Do not write a missing asset as if it exists. Write only paths you checked yourself. Missing 3D models, sprites and sounds are made by the caller with the asset skill —
   put the name (lowercase · underscores), the size (duration for sound) and one line on what it is in the table and it carries over as is. For sound, write what is heard:
   what hits what · material · intensity · tail. You do not make images · models · sounds.
 - The art style paragraph (`<!-- asset-style -->`) and the sound style (`<!-- sound-style -->`) in `docs/DESIGN.md` were settled with the user. Do not edit them — if you want a change, put it under "Decisions needed".

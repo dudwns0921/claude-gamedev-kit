@@ -238,7 +238,7 @@ def asset_items(st, where, cycles, tasks):
     sound = lambda p: p if p and p.lower().endswith(SOUND_EXT) else ""
     found = {}
     for name in sorted(os.listdir(gdir)) if os.path.isdir(gdir) else []:
-        for fn, lane in (("asset.json", "아트"), ("sound.json", "사운드")):
+        for fn, lane in (("asset.json", "아트"), ("sprite.json", "아트"), ("sound.json", "사운드")):
             rec = load_json(os.path.join(gdir, name, fn))
             if not isinstance(rec, dict):
                 continue
@@ -246,7 +246,7 @@ def asset_items(st, where, cycles, tasks):
             out = out if out and os.path.exists(out) else files.get(name, "")
             if not out:  # 기록만 있고 게임에 안 들어간 것 (버린 시도) 은 세지 않는다
                 continue
-            front = os.path.join(gdir, name, "front.png")
+            front = os.path.join(gdir, name, "still.png" if fn == "sprite.json" else "front.png")
             found[name] = dict(item("done", name, " · ".join(x for x in (rec.get("kind") or ("모델" if lane == "아트" else ""),
                                                                          rec.get("made") or rec.get("created") or "") if x),
                                     img=front if os.path.exists(front) else picture(out), audio=out if lane == "사운드" else ""), lane=lane)
@@ -598,16 +598,18 @@ def design_block(tag):
 
 
 def sheet_data():
-    """에셋 시트에 놓을 것 — 에셋 기록(asset.json · sound.json)마다 하나. 판은 기록을 읽기만 한다."""
+    """에셋 시트에 놓을 것 — 에셋 기록(asset.json · sprite.json · sound.json)마다 하나. 판은 기록을 읽기만 한다."""
     gdir = os.path.join(ROOT, CFG["gen"])
     style = " ".join(design_block("asset-style").split())
     mark = hashlib.sha1(style.encode()).hexdigest()[:8]
     refs = (load_json(os.path.join(ROOT, CONFIG_NAME)) or {}).get("asset", {}).get("refs", [])  # 화풍 기준 이미지 (asset 스킬의 설정)
     models, sounds = [], []
     for name in sorted(os.listdir(gdir)) if os.path.isdir(gdir) else []:
-        rec = load_json(os.path.join(gdir, name, "asset.json"))
-        if isinstance(rec, dict):
-            views = [os.path.join(gdir, name, f"{v}.png") for v in ("front", "left", "right", "back")]
+        for fn, sides in (("asset.json", ("front", "left", "right", "back")), ("sprite.json", ("still",))):
+            rec = load_json(os.path.join(gdir, name, fn))
+            if not isinstance(rec, dict):
+                continue
+            views = [os.path.join(gdir, name, f"{v}.png") for v in sides]
             front = next((p for p in views if os.path.exists(p)), "")
             placed = bool(rec.get("out")) and os.path.exists(os.path.join(ROOT, rec["out"]))
             drawn = (rec.get("image") or {}).get("style") or ""
@@ -625,9 +627,10 @@ def sheet_data():
             sounds.append(item("done", name, sub, rec.get("subject", ""), audio=os.path.join(ROOT, rec["out"])))
     # 기록 없이 게임에 든 것(손으로 넣은 그림 · 모델 · 소리)도 놓는다 — 시트에 없으면 통일성을 볼 때 빠진다
     adir, loose = os.path.join(ROOT, CFG["assets"]), []
-    known = {os.path.abspath(os.path.join(ROOT, r["out"])) for n in (os.listdir(gdir) if os.path.isdir(gdir) else [])
-             for r in (load_json(os.path.join(gdir, n, "asset.json")), load_json(os.path.join(gdir, n, "sound.json")))
-             if isinstance(r, dict) and r.get("out")}
+    recs = [r for n in (os.listdir(gdir) if os.path.isdir(gdir) else []) for fn in ("asset.json", "sprite.json", "sound.json")
+            for r in [load_json(os.path.join(gdir, n, fn))] if isinstance(r, dict)]
+    known = {os.path.abspath(os.path.join(ROOT, x["out"])) for r in recs  # 스프라이트는 동작마다 시트가 하나 더 있다
+             for x in [r, *(r.get("motions") or {}).values()] if isinstance(x, dict) and x.get("out")}
     names = {m["name"] for m in models}
     for base, _dirs, files in os.walk(adir):
         if os.path.abspath(base).startswith(os.path.abspath(gdir)):

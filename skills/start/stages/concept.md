@@ -9,7 +9,12 @@ Ask these first, one per turn with options and one `권함` (the GDD's loop and 
 
 1. **Screen orientation** — portrait or landscape.
 2. **Viewpoint** — top-down, side, isometric, first-person, behind the character…
-3. **2D or 3D.**
+3. **2D or 3D.** The viewpoint mostly decides it — read the answer to 2 before recommending:
+   - **A camera that never turns** (straight-down, side view, one fixed screen) gets nothing from what 3D buys — any angle from one model — and still pays for meshes, rigs and lighting. 권함: 2D.
+     Seen from straight above, one drawing turned to the heading covers every direction.
+   - **3D earns its cost** when the camera moves or turns; when one thing is seen from many directions (a slanted top-down or isometric view with 8-way movement —
+     in 2D every motion is drawn once per direction); when many characters share motions (a rig is reused, a 2D motion is made per character); when light and shadow must react.
+   - Mixing (3D characters over 2D ground) works but adds the work of joining them — say so when offering it.
 
 These change how everything is built (and what the engine project is set to), and a picture drawn before them answers a question nobody asked.
 

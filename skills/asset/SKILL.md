@@ -2,17 +2,31 @@
 name: asset
 description: >-
   Makes assets. 3D model: description → image (OpenAI) → human approves → mesh (Meshy) → size and origin fixed (Blender) → game folder.
+  2D sprite: description → still picture (Ludo) → human approves → animated sprite sheet (Ludo) → game folder — characters, props, tiles, icons.
   Sound: description → sound effect, looping sound, music (ElevenLabs) → game folder. One art style paragraph and one sound style
   paragraph in docs/DESIGN.md are attached to every asset, and each asset's prompt and result are recorded.
-  Use when the user says "에셋 만들어줘", "모델 뽑아줘", "○○ 3D 로 만들어줘", "효과음 만들어줘", "소리 넣자", or asks for one more
-  like an existing asset, background sound, BGM, or a sound redone; when the cycle's design section "필요한 에셋" lists a 3D model or
-  sound that does not exist; when the user approves an image for meshing or says the size is wrong;
-  when first setting the art style paragraph or the asset API keys.
+  Use when the user says "에셋 만들어줘", "모델 뽑아줘", "○○ 3D 로 만들어줘", "스프라이트 만들어줘", "2D 로 그려줘", "걷는 모션 뽑아줘",
+  "아이콘 그려줘", "Ludo 로 만들어줘", "효과음 만들어줘", "소리 넣자", or asks for one more like an existing asset, background sound, BGM,
+  or a sound redone; when the cycle's design section "필요한 에셋" lists a 3D model, sprite or sound that does not exist; when the user
+  approves an image for meshing or animating, or says the size is wrong; when first setting the art style paragraph or the asset API keys.
 ---
 
 # asset
 
-3D models and sounds take different paths. Models follow the procedure below; sounds follow the "Sound" section at the bottom.
+Three kinds of asset, three paths. Pick by what the game does with the thing, not by what it depicts:
+
+| The game… | Path | Made with |
+|---|---|---|
+| shows it as a mesh — a static prop, a terrain piece | 3D model — the procedure below | OpenAI image → Meshy → Blender |
+| draws it as a flat picture — a character, prop, tile, icon, UI piece — or plays it frame by frame | "2D sprite" section | Ludo |
+| plays it as sound | "Sound" section | ElevenLabs |
+
+Not here: a whole-screen picture for agreeing on the look (→ start skill's concept stage), a filmed-looking shot (→ video skill),
+and anything code draws as well — flat panels, lines, plain shapes, tints. Do not generate those.
+
+**Why Ludo for 2D:** a sprite's frames must be one character, the same size, in the same place in every cell. A general image model asked for a sheet
+draws each cell anew — the figure drifts between frames and the stride comes out wrong. Ludo animates one approved picture, removes the background
+and returns the grid. Ludo also sells sound, 3D and video; the kit uses it for 2D only — one service per kind keeps each kind's style in one place.
 
 ```
 description ─▶ image (one per view) ─▶ [human looks] ─▶ mesh ─▶ finish ─▶ game folder
@@ -112,12 +126,62 @@ When an image they like comes out, put its path in `asset.refs` in `kit.config.j
 - `views` — views to make (`front`, `back`, `left`, `right`, up to four). The first is the reference; the rest are drawn from it.
   More views mean less of the back is invented, but if views disagree the mesh breaks. Start with two.
 - `image`, `meshy` — passed straight to each API. Other values (`texture_resolution` etc.) may be added.
+- `sprite` — `{ "dir": "assets/sprites", "style_ref": "", "view": "", "image": { "image_type": "sprite" }, "animate": { "model": "hydra", "duration": 3 } }`.
+  `style_ref` is one picture whose style every new picture is matched to (set it once the user likes one); `view` is the viewpoint in words.
+  `image` and `animate` are passed straight to Ludo — `art_style` · `perspective` · `aspect_ratio` may be added to `image`, `frames` · `frame_size` · `loop` to `animate`.
+  Per-sprite records are in `assets/_gen/<name>/sprite.json`.
 - `sound` — `{ "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1" }`.
   `format` is ElevenLabs' output_format. If it starts with `pcm_`, like `pcm_44100`, the file is saved as wav (may be blocked depending on the plan).
 - Per-asset values (description, size, triangle count) are in `assets/_gen/<name>/asset.json`. Editing by hand is fine.
 
 Commit `assets/_gen/` to the repository — the record (`asset.json`) and images are what make "one more like this" possible.
 The mesh as received (`raw.glb`) is large, so put it in `.gitignore` (it is only used when running `finish` again).
+
+## 2D sprite
+
+```
+description ─▶ still picture ─▶ [human looks] ─▶ game folder ─▶ animate ─▶ [human watches] ─▶ game folder
+new            image             approve                         animate
+```
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" new <name> [--type <kind>] [--ref <picture> [--as-is]] "<what it is — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" image <name>... [--ref <picture>]
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" approve <name>...
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" reject <name> "<the user's words>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" animate <name> <motion> [--seconds <seconds>] [--frames <count>] "<the motion — in English>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" status
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" credits
+```
+
+The gate is the same as for models: **the still picture is cheap, the animation is not** (an animation costs about as much as twenty stills).
+Only an approved picture is animated. The art style · 세계 · 배운 것 layers are the same ones — `asset.py look` · `asset.py learn`.
+
+1. **Art style and what exists first** — steps 1 and 2 of the model procedure. Also ask whether code can draw it (a flat panel, a bar, a tint): if so it is not an asset.
+2. **`new`.** The description says only what the thing is. `--type` is Ludo's kind of image — `sprite` (default; characters and props), `icon`, `item-icon`,
+   `ui_asset`, `tile`, `texture`, `portrait`, `sprite-vfx` — it changes how the picture is framed and cut out, so set it rather than describing it.
+   A character that already exists as concept art: pass it with `--ref` (redrawn as a sprite in the game's style and view), or `--as-is` to animate that very picture (png).
+3. **`image`**, give the path, the user looks — you do not Read it. Changes: fix `subject` in `sprite.json` and run `image` again; turned down → `reject`, and `asset.py learn` if it holds for every asset.
+4. **`approve`** only what the user said is good. The still lands in the game folder as `<name>.png`.
+5. **`animate`** — say the cost first (below) and run it in the background; it takes minutes, and rerunning the same command resumes the same job.
+   The motion is one phrase for an action the model knows ("walking", "idle breathing", "chopping with a knife") — the character, style and view come from the picture, so do not describe them again.
+   `--seconds` 3 is the default; allow about a second per 16 frames. The sheet lands as `<name>_<motion>.png`; a preview gif stays in the work folder.
+6. **The user watches the gif.** You cannot judge motion. Ask what they see: does the figure stay the same, do the feet alternate, does the loop close.
+   A redo is the same command again (it overwrites the sheet — ask before redoing one they said was good).
+7. **Report the grid**: `status` prints frames · columns × rows · cell size for each sheet. The sheet may hold fewer frames than asked — read the numbers, never assume them.
+   Slicing the sheet and playing it in the engine is development work; give the developer those numbers and the path.
+
+Pitfalls:
+
+- **Say the view in words.** "Top-down" in sprite tools usually means seen from a slant. If the game looks straight down, write it in `sprite.view`
+  ("seen from directly above, the top of the head visible, facing the top of the image") — it is attached to every description.
+  Seen from straight above, one direction is enough: the game turns the picture to the heading. A slanted view needs each motion once per direction.
+- **The still is the first frame.** Draw it in the pose the motion starts from, limbs close to the body, nothing touching the edge — what is cut off in the still is cut off in every frame.
+- **Generated size is not shown size.** Decide how many pixels one metre is (in `docs/DESIGN.md`) and let the engine scale; write generated size → shown size in the "필요한 에셋" table.
+  Collision and layout come from the spec's dimensions — stretch the picture to the box, never the box to the picture.
+- **One character, one still.** Every motion of a character is animated from the same approved still, or the character changes between motions.
+- **Cost.** Stills: 0.5 credit. Animation: by the second — `hydra` 3 credits/s (3 s at least), `forge` · `forge-pixel` 1.5 credits/s (simpler motion, pixel art). `credits` shows what is left. Failed jobs are refunded.
+  Ludo's links expire, so the script downloads at once; what is in the work folder is the only copy.
 
 ## Sound
 
@@ -153,20 +217,21 @@ Pitfalls:
 
 ## First time only (done by the user)
 
-- **Keys**: write the OpenAI and Meshy API keys in a file **outside** the repository (the user, in a terminal):
+- **Keys**: write the API keys (OpenAI and Meshy for models) in a file **outside** the repository (the user, in a terminal):
 
   ```bash
   mkdir -p ~/.config/gamedev-kit && chmod 700 ~/.config/gamedev-kit && ${EDITOR:-nano} ~/.config/gamedev-kit/asset.env
   ```
 
   The file has two lines, `OPENAI_API_KEY=...` and `MESHY_API_KEY=...`. To make sounds, add one more line, `ELEVENLABS_API_KEY=...`
-  (the ElevenLabs key must have Sound Effects and Music permissions enabled). **Keep the user from pasting keys into the conversation, and even if you receive one, do not write it to any file in the repository.**
+  (the ElevenLabs key must have Sound Effects and Music permissions enabled). To make sprites, add `LUDO_API_KEY=...`
+  (ludo.ai → account → API; the API needs a plan that includes it, and sheets from the free plan carry a watermark). **Keep the user from pasting keys into the conversation, and even if you receive one, do not write it to any file in the repository.**
 - **Blender**: `blender` must be on PATH. If not, write the executable path in `asset.blender`.
-- All three services charge by use. Meshy refunds credits for failed jobs. Before running several assets at once, say how many.
+- All of these services charge by use. Meshy refunds credits for failed jobs. Before running several assets at once, say how many.
 
 ## Not covered
 
-- 2D (UI icons, textures) is not available yet. Neither are rigging and animation — only static props and terrain pieces.
+- 3D rigging and animation — models are static props and terrain pieces only. (2D animation is the sprite path.)
   If the game rigged with Meshy separately, know this: in a rigged glb the mesh sits under an `Armature` with scale 0.01 and the skinned mesh follows the bones —
   measure position and size by the bones, not the mesh's transform. Auto weights are bound in the arms-down pose, so arm flesh may follow the thigh bone —
   capture an arm-raising clip up close, and for vertices whose weights you fixed, check that they sum to 1.

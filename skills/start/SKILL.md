@@ -5,7 +5,7 @@ description: >-
   agrees on the look with concept images, proposes the first cycle's goal, and hands over to the cycle skill. Where the game stands is read from its files,
   so any session can pick it up. Use when the user says "새 게임 시작하자", "게임 하나 만들자", "GDD 같이 쓰자", "기획부터 하자", "컨셉 잡자", "컨셉 그림 그려줘",
   "첫 사이클까지 가자", "뭐부터 하지", or "어디까지 했지" · "이어서 하자" before any cycle document exists; right after `/gamedev-kit:init` finishes.
-  Not when a cycle document already exists (→ cycle), and not when `kit.config.json` is missing (→ init). Not for a 3D model or a sound (→ asset).
+  Not when a cycle document already exists (→ cycle), and not when `kit.config.json` is missing (→ init). Not for a 3D model, a sprite or a sound (→ asset).
 ---
 
 # start

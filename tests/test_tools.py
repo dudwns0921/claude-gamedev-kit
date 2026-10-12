@@ -28,6 +28,7 @@ TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
 SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
+SPRITE = os.path.join(KIT, "skills/asset/scripts/sprite.py")
 CLIP = os.path.join(KIT, "skills/video/scripts/clip.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
@@ -791,6 +792,149 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             self.assertAlmostEqual(got, want, places=4, msg="가장 긴 변이 1.5 m, 바닥이 0, 가운데가 원점")
         self.assertNotIn("translation", g["nodes"][0])
         self.assertNotIn("scale", g["nodes"][0])
+
+    def test_sprite(self):
+        """2D: 그림 → 승인 → 움직이는 시트. 가짜 Ludo 서버 — 작업을 걸고, 물어서 받고, 받은 주소에서 파일을 내려받는다."""
+        seen, jobs = [], {}
+        png = lambda w, h: b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", w, h)
+
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def reply(self, body, code=200):
+                self.send_response(code)
+                self.end_headers()
+                self.wfile.write(body if isinstance(body, bytes) else json.dumps(body).encode())
+
+            def read(self):
+                return self.rfile.read(int(self.headers.get("Content-Length") or 0))
+
+            def do_POST(self):
+                body, here = json.loads(self.read()), f"http://127.0.0.1:{self.server.server_port}"
+                seen.append(("POST", self.path, self.headers.get("Authorization"), body))
+                if self.path == "/assets/uploads":
+                    return self.reply({"upload_url": f"{here}/put/{len(seen)}", "file_url": f"{here}/up/{len(seen)}"})
+                if "터진다" in body.get("prompt", ""):
+                    return self.reply({"message": "안 된다"}, 400)
+                jobs[f"job{len(seen)}"] = self.path
+                self.reply({"id": f"job{len(seen)}", "status": "queued"}, 202)
+
+            def do_PUT(self):
+                seen.append(("PUT", self.path, self.headers.get("Authorization"), self.read()))
+                self.reply(b"")
+
+            def do_GET(self):
+                here, path = f"http://127.0.0.1:{self.server.server_port}", self.path.split("?")[0]
+                seen.append(("GET", self.path, self.headers.get("Authorization"), None))
+                if path == "/assets/account":
+                    return self.reply({"credits": {"available": 87.5}})
+                if path.startswith("/file/"):
+                    return self.reply(png(512, 256) if "sheet" in path else png(1024, 1024) + path.encode())
+                job = path.rsplit("/", 1)[1]
+                if sum(1 for m, p, _a, _b in seen if m == "GET" and p == self.path) < 2:  # 첫 물음에는 아직이라고 한다
+                    return self.reply({"id": job, "status": "running", "poll_after_ms": 1})
+                if jobs[job] == "/assets/sprite/animate":
+                    result = {"spritesheet_url": f"{here}/file/sheet-{job}.png", "gif_url": f"{here}/file/{job}.gif",
+                              "num_frames": 14, "num_cols": 4, "num_rows": 4, "duration": 2.8}
+                else:
+                    result = [{"url": f"{here}/file/{job}.png"}]
+                self.reply({"id": job, "status": "succeeded", "credits_charged": 9 if isinstance(result, dict) else 0.5, "result": result})
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        root = tempfile.mkdtemp(prefix="kit-sprite-")
+        self.addCleanup(shutil.rmtree, root, True)
+        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
+        cfg["asset"]["env_file"] = os.path.join(root, "none.env")
+
+        def write(**over):
+            cfg["asset"]["sprite"].update(over)
+            json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+
+        write(view="Seen from directly above")
+        os.makedirs(os.path.join(root, "docs"))
+        env = dict(os.environ, LUDO_API_BASE=f"http://127.0.0.1:{server.server_port}", LUDO_API_KEY="k4", ASSET_POLL_SEC="0")
+
+        def sprite(*args, ok=True, env=env):
+            p = subprocess.run([sys.executable, SPRITE, "--root", root, *args], capture_output=True, text=True, env=env)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        rec = lambda n: json.load(open(os.path.join(root, "assets/_gen", n, "sprite.json"), encoding="utf-8"))
+        posts = lambda path: [b for m, p, _a, b in seen if m == "POST" and p == path]
+
+        sprite("new", "cook", "A cook in an apron")
+        self.assertIn("이미 있다", sprite("new", "cook", "x", ok=False))
+        self.assertIn("asset-style", sprite("image", "cook", ok=False), "화풍이 없으면 그리지 않는다")
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- asset-style -->\nFlat shapes,\nwarm palette.\n<!-- /asset-style -->\n")
+        self.assertIn("LUDO_API_KEY 가 없다", sprite("image", "cook", ok=False, env={k: v for k, v in env.items() if k != "LUDO_API_KEY"}))
+        self.assertEqual(seen, [])
+
+        out = sprite("image", "cook")
+        self.assertIn("assets/_gen/cook/still.png — 1024 × 1024 px · 크레딧 0.5", out)
+        first = posts("/assets/image")[0]
+        self.assertEqual(first["image_type"], "sprite")
+        self.assertTrue(first["prompt"].startswith("A cook in an apron. Seen from directly above. Flat shapes, warm palette. A single subject"), first["prompt"])
+        self.assertEqual({a for m, p, a, _b in seen if not p.startswith("/file/")}, {"ApiKey k4"})
+        self.assertEqual({a for m, p, a, _b in seen if p.startswith("/file/")}, {None}, "받은 주소에는 키를 보내지 않는다")
+        self.assertIn("보고 approve", sprite("status"))
+
+        # 승인한 그림만 움직인다. 승인하면 게임 폴더에 놓인다
+        self.assertIn("승인된 그림이 없다", sprite("animate", "cook", "walk", "walking", ok=False))
+        self.assertIn("승인 — assets/sprites/cook.png", sprite("approve", "cook"))
+        self.assertIn("--frames 는", sprite("animate", "cook", "walk", "--frames", "12", "walking", ok=False))
+        out = sprite("animate", "cook", "walk", "--seconds", "4", "--frames", "16", "walking forward")
+        self.assertIn("assets/sprites/cook_walk.png — 14프레임 · 4열 × 4행 · 한 칸 128 × 64 px · 크레딧 9", out)
+        self.assertIn("assets/_gen/cook/walk.gif", out)
+        ask = posts("/assets/sprite/animate")[0]
+        self.assertEqual((ask["motion_prompt"], ask["duration"], ask["frames"], ask["model"], ask["gif"]), ("walking forward", 4.0, 16, "hydra", True))
+        self.assertTrue(ask["initial_image"].endswith(f"/up/{len(seen) - [s[1] for s in seen[::-1]].index('/assets/uploads')}"), "그림을 올리고 그 주소를 건넨다")
+        put = [s for s in seen if s[0] == "PUT"][0]
+        self.assertEqual((put[2], put[3]), (None, open(os.path.join(root, "assets/_gen/cook/still.png"), "rb").read()))
+        self.assertEqual(rec("cook")["motions"]["walk"]["cell"], [128, 64])
+        self.assertIn("cook_walk.png — 14프레임", sprite("status"))
+        self.assertIn("87.5", sprite("credits"))
+
+        # 끊긴 작업은 같은 명령으로 잇는다 — 새로 사지 않는다
+        r = rec("cook")
+        r["motions"]["walk"]["job"] = {"id": "job-old", "status": "running"}
+        json.dump(r, open(os.path.join(root, "assets/_gen/cook/sprite.json"), "w"))
+        jobs["job-old"] = "/assets/sprite/animate"
+        sprite("animate", "cook", "walk", "walking forward")
+        self.assertEqual(len(posts("/assets/sprite/animate")), 1)
+        self.assertEqual(rec("cook")["motions"]["walk"]["made"], 2)
+
+        # 물리면 승인이 풀린다. 다시 그려도 풀린다
+        self.assertIn("물림을 적었다 (1번째)", sprite("reject", "cook", "앞치마가 너무 커"))
+        self.assertIn("승인된 그림이 없다", sprite("animate", "cook", "idle", "breathing", ok=False))
+
+        # 화풍 기준 그림이 있으면 그 화풍에 맞추고, 레퍼런스가 있으면 그것을 다시 그린다. --as-is 는 그대로 쓴다
+        os.makedirs(os.path.join(root, "ref"))
+        open(os.path.join(root, "ref/hero.png"), "wb").write(png(300, 200))
+        write(style_ref="assets/_gen/cook/still.png")
+        sprite("new", "sink", "--type", "tile", "A steel sink")
+        sprite("image", "sink")
+        styled = posts("/assets/image/style")[0]
+        self.assertEqual(styled["image_type"], "tile")
+        self.assertIn("/up/", styled["style_image"])
+        sprite("new", "hero", "--ref", "ref/hero.png", "A hero")
+        sprite("image", "hero")
+        edit = posts("/assets/image/edit")[0]
+        self.assertTrue(edit["prompt"].startswith("The image shows the subject"))
+        self.assertTrue("/up/" in edit["image"] and "/up/" in edit["reference_image"] and edit["image"] != edit["reference_image"])
+        n = len(seen)
+        sprite("new", "ghost", "--ref", "ref/hero.png", "--as-is", "A ghost")
+        self.assertIn("300 × 200 px", sprite("image", "ghost"))
+        self.assertEqual(len(seen), n, "그대로 쓰면 아무것도 부르지 않는다")
+        sprite("new", "boom", "터진다")
+        self.assertIn("400: 안 된다", sprite("image", "boom", ok=False))
+
+        # 현황판은 스프라이트도 놓는다
+        run(BOARD, root)
+        sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
+        self.assertIn("<span>cook</span>", sheet)
 
     def test_sound(self):
         seen = []

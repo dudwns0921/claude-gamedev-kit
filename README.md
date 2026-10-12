@@ -12,7 +12,7 @@
 | `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 — 를 문서 하나(`docs/cycle/`)로 끌고 간다. `auto` 를 붙이면 묻지 않고 플레이 앞까지 간다 — 결정은 보이스가 대신한다 |
 | `/gamedev-kit:voice` | 사용자의 보이스(결정이 갈릴 때 어느 쪽을 고르는가 — 원칙 · 편향). 게임 밖 비공개 저장소에, 게임이 바뀌어도 이어 쌓인다. 사이클 뒤에서 보이지 않게 돈다: 묻기 전에 답을 예측하고, 답이 오면 채점해 보이스에 보탠다. 새 사이클을 시작할 때와 "보이스 보자" 할 때만 보인다 |
 | `/gamedev-kit:handoff` | 세션을 바꿀 때 하던 일을 짧은 메모(`docs/handoff/`)로 남기고, 새 세션에서 그 메모로 잇는다 |
-| `/gamedev-kit:asset` | 3D 에셋 — 설명(· 레퍼런스 사진) → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더.<br>모든 에셋에 같은 글이 붙는다: 화풍(고정) · 세계 · 배운 것(물리며 사용자가 한 말에서 한 줄씩) |
+| `/gamedev-kit:asset` | 3D 에셋 — 설명(· 레퍼런스 사진) → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>2D 스프라이트 — 설명(· 레퍼런스 그림) → 멈춘 그림([Ludo](https://ludo.ai)) → 사람이 승인 → 움직이는 시트(Ludo) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더.<br>모든 에셋에 같은 글이 붙는다: 화풍(고정) · 세계 · 배운 것(물리며 사용자가 한 말에서 한 줄씩) |
 | `/gamedev-kit:board` | 현황판(항해도) — 플레이 순서의 단계마다 카드 하나: 기능 · 아트 · 사운드 · 검증이 얼마나 됐나 (됨 · 임시 · 안 만듦 · 문제). 카드를 누르면 그 단계의 쪽 — GDD 행 · 에셋 그림(눌러 확대) · 소리(재생) · 플레이테스트 · 못 정한 것 · 건드린 작업. GDD 표 · 에셋 기록 · 사이클 · 플레이테스트 문서에서 스크립트가 읽어 그린다. 에셋 시트 한 쪽은 모든 에셋을 나란히 놓는다 — 옛 화풍으로 그린 것 · 물린 것이 표시된다. 한 번 그리면 문서가 바뀔 때마다 훅이 스스로 다시 그린다 (모델을 쓰지 않는다) |
 | `/gamedev-kit:video` | 영상 — 찍은 듯한 장면: 설명(· 기준 그림) → 사람이 승인 → 생성([Higgsfield](https://docs.higgsfield.ai/docs)) → 사람이 본다 → 놓는다.<br>게임 밖(트레일러 · devlog 클립)은 mp4, 게임 안에서 트는 컷씬은 엔진이 읽는 형식으로. 올리지는 않는다 |
 | `/gamedev-kit:deploy` | 사이클의 단계가 아니다 — 사이클을 몇 번 돈 뒤 내보내고 싶을 때 부른다. 빌드해서 butler 로 itch.io 에 올리고 (check · build · push · status), 그 빌드의 itch.io devlog 초안을 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
@@ -108,12 +108,12 @@ itch.io devlog 는 초안까지만 쓰고, 붙여 넣는 것은 사용자다.
 
 ## 엔진
 
-| 엔진 | gdd-sync | 표 ↔ 코드 | 실행 중에 표 다시 읽기 | itch.io 배포 | 3D 에셋 · 소리 | 영상 |
+| 엔진 | gdd-sync | 표 ↔ 코드 | 실행 중에 표 다시 읽기 | itch.io 배포 | 3D 에셋 · 스프라이트 · 소리 | 영상 |
 |---|---|---|---|---|---|---|
-| Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | ○ `Web` 프리셋을 빌드해 올린다 | ○ glb · mp3 | ○ mp4 · ogv |
-| Unity | ○ | ○ | ✕ 구운 값으로 돈다 | ✕ 대신 Google Play 용 AAB 를 빌드한다 (`build android`) — 올리는 것은 사용자가 Play Console 에서 | ○ fbx · mp3 | ○ mp4 |
+| Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | ○ `Web` 프리셋을 빌드해 올린다 | ○ glb · png · mp3 | ○ mp4 · ogv |
+| Unity | ○ | ○ | ✕ 구운 값으로 돈다 | ✕ 대신 Google Play 용 AAB 를 빌드한다 (`build android`) — 올리는 것은 사용자가 Play Console 에서 | ○ fbx · png · mp3 | ○ mp4 |
 
-테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/ElevenLabs/Higgsfield 서버 · 가짜 ffmpeg · 가짜 에디터로 돈다 — 밖으로는 아무것도 나가지 않는다.
+테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/Ludo/ElevenLabs/Higgsfield 서버 · 가짜 ffmpeg · 가짜 에디터로 돈다 — 밖으로는 아무것도 나가지 않는다.
 
 ## 설치
 

@@ -27,7 +27,8 @@
     "refs": [],
     "image": { "model": "gpt-image-2.5-flare", "size": "1024x1024", "quality": "medium" },
     "meshy": { "ai_model": "latest", "target_polycount": 5000, "topology": "triangle", "enable_pbr": false },
-    "sound": { "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1" }
+    "sound": { "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1" },
+    "sprite": { "dir": "assets/sprites", "style_ref": "", "view": "", "image": { "image_type": "sprite" }, "animate": { "model": "hydra", "duration": 3 } }
   },
   "video": {
     "size": "landscape",

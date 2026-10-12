@@ -86,7 +86,7 @@ Call them one at a time in the order systems designer → designer → developer
 - If the designer or developer returns "Questions for spec", call the systems designer again with them attached, and if the "기획" section changed, call the asker again.
   Do not answer in their place.
 
-If the "디자인" section's "필요한 에셋" lists a 3D model or sound that does not exist, tell the user — whether to make it this cycle (asset skill) or leave the placeholder is asked as a decision.
+If the "디자인" section's "필요한 에셋" lists a 3D model, sprite or sound that does not exist, tell the user — whether to make it this cycle (asset skill) or leave the placeholder is asked as a decision.
 **Either way the build runs on placeholders.** Assets are not made during 구현 — they are made after it, all at once ("Assets" below).
 
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
@@ -117,7 +117,7 @@ The spec's numbers went in as "시작" values — also say which values in the t
 **Assets — after the build, all at once.** Only now, with every wave done and the verification passed, make the assets the user said to make. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
 and the user looks once, not every few tasks.
 
-1. List them from the "필요한 에셋" table — every row still 없음 or 임시 that was decided "make". Say how many and what it will cost (images are cheap, meshes and sounds cost credits).
+1. List them from the "필요한 에셋" table — every row still 없음 or 임시 that was decided "make". Say how many and what it will cost (images are cheap; meshes, sprite animations and sounds cost credits).
 2. Follow the asset skill's procedure for all of them together: every image first, then **show the user all of them in one sitting** — the board's asset sheet (`docs/board/assets.html`)
    has them side by side — and take approvals and redraws together; then meshes and sounds.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.

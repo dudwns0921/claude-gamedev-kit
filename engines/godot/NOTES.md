@@ -18,6 +18,8 @@
 - **Assets (asset skill)**: finished models land in `assets/models/<name>.glb`. Godot reads glb as is — if the editor is open it imports when you return to the window,
   if closed import with `godot --headless --path . --import`. 1 unit is 1 m, so `--size` is the in-game size as is. The origin is the center of the bottom.
   The art style paragraph in `docs/DESIGN.md` and the API key are walked through by the asset skill on first use.
+- **Sprites (asset skill)**: stills land in `assets/sprites/<name>.png`, animated sheets in `assets/sprites/<name>_<motion>.png`. Cut a sheet with the grid `sprite.py status` prints —
+  `Sprite2D` `hframes` · `vframes`, or `SpriteFrames` built from `AtlasTexture` regions for `AnimatedSprite2D`. The last row may be partly empty: play only the frame count given.
 - **Sound (asset skill)**: lands in `assets/sounds/<name>.mp3`. Godot reads mp3 as `AudioStreamMP3`. For looping sounds and music
   turn on **Loop** in the import settings (select the file, Import dock → Loop → Reimport) — even if made with `--loop`, with this setting off it plays only once.
 - **Video (video skill)**: in-game videos land in `assets/video/<name>.ogv`. Godot plays only Ogg Theora built in (`VideoStreamPlayer` + `VideoStreamTheora`),
