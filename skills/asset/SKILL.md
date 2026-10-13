@@ -277,5 +277,6 @@ None of this is needed to bring your own. A script that needs a key that is not 
   If the game rigged with Meshy separately, know this: in a rigged glb the mesh sits under an `Armature` with scale 0.01 and the skinned mesh follows the bones —
   measure position and size by the bones, not the mesh's transform. Auto weights are bound in the arms-down pose, so arm flesh may follow the thigh bone —
   capture an arm-raising clip up close, and for vertices whose weights you fixed, check that they sum to 1.
+  A hand that is always in view (first-person arms) starts from a base model that already has finger bones: an auto-rigged generated body cut down to the arm has no finger bones and the hand shape baked into the mesh — check the rig level at design time.
 - No voice (reading lines). Music is made without lyrics.
 - Work after import into the engine (colliders, material touch-up, placing in scenes) is development work. Write it as a cycle task.
