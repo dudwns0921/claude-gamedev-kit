@@ -9,8 +9,8 @@
     "linux": { "glob": ["~/Unity/Hub/Editor/*/Editor/Unity"], "modules": "Data/PlaybackEngines" },
     "win32": { "glob": ["C:/Program Files/Unity/Hub/Editor/*/Editor/Unity.exe"], "modules": "Data/PlaybackEngines" },
     "missing": [
-      "Unity Hub(https://unity.com/download)를 깔고 로그인해 라이선스를 켠 뒤, Installs → Install Editor 로 에디터를 깐다 — 깔 때 Android Build Support 모듈을 OpenJDK · Android SDK & NDK Tools 와 같이 고른다.",
-      "다른 자리에 깔았으면 실행 파일의 경로를 환경 변수 UNITY 에 넣고 다시 돌린다."
+      "Install Unity Hub (https://unity.com/download), sign in and activate the license, then install the editor with Installs → Install Editor — when installing, pick the Android Build Support module together with OpenJDK · Android SDK & NDK Tools.",
+      "If it is installed somewhere else, put the executable's path in the environment variable UNITY and run this again."
     ]
   },
   "modules": [
@@ -19,9 +19,9 @@
       "dir": "AndroidPlayer",
       "must": ["SDK", "NDK", "OpenJDK"],
       "install": [
-        "에디터를 닫고 Unity Hub → Installs → 그 판({version})의 톱니바퀴 → Add modules → Android Build Support 를 OpenJDK · Android SDK & NDK Tools 와 같이 고른다.",
-        "명령으로: \"/Applications/Unity Hub.app/Contents/MacOS/Unity Hub\" -- --headless install-modules --version {version} -m android android-sdk-ndk-tools android-open-jdk",
-        "몇 GB 를 받는다 — 사용자가 하겠다고 한 뒤에 돌리고, 끝날 때까지 기다린다."
+        "Close the editor, then Unity Hub → Installs → the gear on that version ({version}) → Add modules → pick Android Build Support together with OpenJDK · Android SDK & NDK Tools.",
+        "From a shell: \"/Applications/Unity Hub.app/Contents/MacOS/Unity Hub\" -- --headless install-modules --version {version} -m android android-sdk-ndk-tools android-open-jdk",
+        "It downloads several GB — run it only after the user says to, and wait until it finishes."
       ]
     }
   ],

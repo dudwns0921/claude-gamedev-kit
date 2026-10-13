@@ -6,11 +6,11 @@ There sit VOICE.md (read and edited by people) · log.md (the prediction ledger)
 The game's name is the name of the game folder (change it with "voice": {"name": …} in kit.config.json).
 
   python3 voice.py path                    Path of the voice document. If there is none yet, says so and exits 1
-  python3 voice.py collect                 This game, per cycle: the goal and the answered decisions. Marks whether the answer split from the recommendation, and whether it was changed ([바꿈])
+  python3 voice.py collect                 This game, per cycle: the goal and the answered decisions. Marks whether the answer split from the recommendation, and whether it was changed ([changed])
   python3 voice.py collect new             Only what the voice has not read yet
   python3 voice.py collect done            Record every decision answered so far as read (after writing the voice)
   python3 voice.py predict D2 ② V3,V5      Write a prediction before asking — the pick and the principles behind it. Not allowed on an answered decision
-  python3 voice.py predict D2 -            No principle to go on (모름)
+  python3 voice.py predict D2 -            No principle to go on (unknown)
   python3 voice.py score                   Score the predictions of answered decisions. Where no option can be told from the answer, prints a line for it
   python3 voice.py score 03 D2 hit         Those, by hand (hit · miss)
   python3 voice.py stats                   Hit rate — overall · per game · per asker · per principle
@@ -24,6 +24,8 @@ The voice folder is a clone of a private git repository — no copies are kept. 
   python3 voice.py sync --push             Without the permission — push once, after asking the user
 
 predict looks at the decisions of the newest cycle document (the highest number). For another document, `--doc <path>`.
+
+Everything is written in English. Documents written before that — cycle documents, the ledger — hold Korean words, and both are read (the tables below).
 """
 import datetime
 import json
@@ -38,16 +40,21 @@ HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/game
 VOICE = os.path.join(HOME, "VOICE.md")
 LOG = os.path.join(HOME, "log.md")
 SEEN = os.path.join(HOME, "seen.txt")
-LOG_HEAD = """# 보이스 예측 장부
+LOG_HEAD = """# Voice prediction ledger
 
-결정을 묻기 전에 보이스(VOICE.md)로 적은 예측과 그 채점 (`voice.py predict` · `score`). 손으로 고치지 않는다.
-`[ ]` 채점 전 · `[o]` 맞음 · `[x]` 빗나감 · `[-]` 모름 (근거가 될 원칙이 없어 예측하지 않음)
+The predictions written from the voice (VOICE.md) before a decision is asked, and their scores (`voice.py predict` · `score`). Not edited by hand.
+`[ ]` unscored · `[o]` hit · `[x]` miss · `[-]` unknown (no principle to go on, so no prediction)
 
 """
 ANON_GIT = os.environ.get("VOICE_ANON_GIT", "git")  # the tests change this
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
-PARTS_RE = re.compile(r"^(?P<q>.*?)(?: \((?P<who>기획|디자인|계획)\))?(?: → (?P<a>.*?)(?: \((?P<date>\d{4}-\d\d-\d\d)\))?)?$")
+# Words of the cycle document, as written now and as written before (Korean) — both are read, English is written
+SECTIONS = {"Decisions": "결정", "Goal": "목표"}
+WHO = {"기획": "Spec", "디자인": "Design", "계획": "Plan"}  # who asked: old → now
+REC_RE = re.compile(rf"(?:recommended|권함): *([{CIRCLED}])")
+ACCEPTED = ("accepted proxy (", "를 받아들임")  # the user accepted what auto mode decided
+PARTS_RE = re.compile(r"^(?P<q>.*?)(?: \((?P<who>" + "|".join([*WHO.values(), *WHO]) + r")\))?(?: → (?P<a>.*?)(?: \((?P<date>\d{4}-\d\d-\d\d)\))?)?$")
 LOG_RE = re.compile(r"^- \[(.)\] (\S+) (\d+) (D\d+) \(([^)]*)\) → (\S+)(?: · (V\d+(?:, V\d+)*))?", re.M)
 WORD = {"o": "hit", "x": "miss"}
 
@@ -87,7 +94,7 @@ def number(path):
 
 
 def section(text, title):
-    m = re.search(rf"^## {re.escape(title)}[ \t]*$", text, re.M)
+    m = re.search(rf"^## (?:{re.escape(title)}|{re.escape(SECTIONS[title])})[ \t]*$", text, re.M)
     if not m:
         return ""
     nxt = re.search(r"^## ", text[m.end():], re.M)
@@ -95,8 +102,10 @@ def section(text, title):
 
 
 def choice(text):
-    """The one option picked in the text (①, `2번`). None, or more than one: empty string — what a person says is an answer even without a number."""
+    """The one option picked in the text (①, `2번`, or an answer that is only the number). None, or more than one: empty string — what a person says is an answer even without a number."""
     found = set(re.findall(f"[{CIRCLED}]", text)) | {CIRCLED[int(n) - 1] for n in re.findall(r"(?<!\d)([1-9])번", text)}
+    if re.fullmatch(r"[1-9]", text.strip()):
+        found.add(CIRCLED[int(text.strip()) - 1])
     return found.pop() if len(found) == 1 else ""
 
 
@@ -104,32 +113,32 @@ def decisions(text):
     """Decision number → question · who asked · recommendation · answer · date answered · the option told from the answer · how many times it was answered.
     A changed answer is appended to the earlier one as ` → new answer` — the picked option is told from the last answer."""
     out = {}
-    for mark, num, rest in DECISION_RE.findall(section(text, "결정")):
+    for mark, num, rest in DECISION_RE.findall(section(text, "Decisions")):
         p = PARTS_RE.match(rest.strip()).groupdict()
-        rec = re.search(rf"권함: *([{CIRCLED}])", p["q"])
+        rec = REC_RE.search(p["q"])
         answered = mark == "x" and p["a"] is not None
         chain = p["a"].split(" → ") if answered else []
-        out[num] = {"q": p["q"].strip(), "who": p["who"] or "?", "rec": rec.group(1) if rec else "",
+        out[num] = {"q": p["q"].strip(), "who": WHO.get(p["who"], p["who"]) or "?", "rec": rec.group(1) if rec else "",
                     "answer": p["a"] if answered else None, "date": p["date"] or "",
                     "chose": choice(chain[-1]) if answered else "", "answers": len(chain)}
     return out
 
 
 def split_tag(d):
-    if "를 받아들임" in d["answer"]:  # accepted what auto mode decided in their place — weaker evidence than a pick of their own
-        return "받음"
+    if any(form in d["answer"] for form in ACCEPTED):  # accepted what auto mode decided in their place — weaker evidence than a pick of their own
+        return "accepted"
     if d["answers"] > 1:  # changed the answer — what changed to make them do so is the most useful thing for the voice
-        return "바꿈"
+        return "changed"
     if not d["rec"] or not d["chose"]:
         return "?"
-    return "같음" if d["rec"] == d["chose"] else "갈림"
+    return "same" if d["rec"] == d["chose"] else "differed"
 
 
 def cmd_collect(mode):
     seen = set(read(SEEN).split("\n")) if os.path.exists(SEEN) else set()
     # a decision whose answer changed shows up again even after it was read — the key carries which answer it is
     key = lambda path, num, d: f"{GAME} {number(path)} {num}" + (f" #{d['answers']}" if d["answers"] > 1 else "")
-    count = {"갈림": 0, "같음": 0, "?": 0, "받음": 0, "바꿈": 0}
+    count = {"differed": 0, "same": 0, "?": 0, "accepted": 0, "changed": 0}
     if mode == "done":
         new = [key(p, num, d) for p in docs() for num, d in decisions(read(p)).items() if d["answer"] is not None and key(p, num, d) not in seen]
         if new:
@@ -144,7 +153,7 @@ def cmd_collect(mode):
             continue
         title = re.match(r"# *(.*)", text)
         print(f"\n{title.group(1) if title else os.path.basename(path)}")
-        print("goal: " + " ".join(section(text, "목표").split()))
+        print("goal: " + " ".join(section(text, "Goal").split()))
         for num, d in rows:
             tag = split_tag(d)
             count[tag] += 1
@@ -152,8 +161,8 @@ def cmd_collect(mode):
     total = sum(count.values())
     if not total:
         return print("no answered decisions" + (" (among those not read yet)" if mode == "new" else ""))
-    print(f"\ndecisions {total} · 갈림 {count['갈림']} · 같음 {count['같음']} · to read {count['?']}"
-          + (f" · 받음 {count['받음']}" if count["받음"] else "") + (f" · 바꿈 {count['바꿈']}" if count["바꿈"] else ""))
+    print(f"\ndecisions {total} · differed {count['differed']} · same {count['same']} · to read {count['?']}"
+          + (f" · accepted {count['accepted']}" if count["accepted"] else "") + (f" · changed {count['changed']}" if count["changed"] else ""))
 
 
 def log_text():
@@ -170,7 +179,7 @@ def cmd_predict(path, num, pick, cites):
     if re.search(rf"^- \[.\] {re.escape(GAME)} {number(path)} {num} ", log, re.M):
         sys.exit(f"{num}: prediction already written")
     if pick == "-":
-        line = f"- [-] {GAME} {number(path)} {num} ({ds[num]['who']}) → 모름"
+        line = f"- [-] {GAME} {number(path)} {num} ({ds[num]['who']}) → unknown"
     else:
         pick = CIRCLED[int(pick) - 1] if re.fullmatch(r"[1-9]", pick) else pick
         if pick not in CIRCLED or pick not in ds[num]["q"]:
@@ -326,14 +335,14 @@ def cmd_stats():
     rate = lambda hit, miss: f"{hit}/{hit + miss}" + (f" ({100 * hit // (hit + miss)}%)" if hit + miss else "")
     tally = lambda picked: (sum(1 for r in picked if r[0] == "o"), sum(1 for r in picked if r[0] == "x"))
     marks = [r[0] for r in rows]
-    print(f"hits {rate(*tally(rows))} · 모름 {marks.count('-')} · unscored {marks.count(' ')} · predictions {len(rows)}")
+    print(f"hits {rate(*tally(rows))} · unknown {marks.count('-')} · unscored {marks.count(' ')} · predictions {len(rows)}")
     if len({r[1] for r in rows}) > 1:
         for game in dict.fromkeys(r[1] for r in rows):
             mine = [r for r in rows if r[1] == game]
-            print(f"  {game}: {rate(*tally(mine))} · 모름 {sum(1 for r in mine if r[0] == '-')}")
-    for who in dict.fromkeys(r[4] for r in rows):
-        mine = [r for r in rows if r[4] == who]
-        print(f"  {who}: {rate(*tally(mine))} · 모름 {sum(1 for r in mine if r[0] == '-')}")
+            print(f"  {game}: {rate(*tally(mine))} · unknown {sum(1 for r in mine if r[0] == '-')}")
+    for who in dict.fromkeys(WHO.get(r[4], r[4]) for r in rows):  # rows written before carry the Korean word — counted as one asker
+        mine = [r for r in rows if WHO.get(r[4], r[4]) == who]
+        print(f"  {who}: {rate(*tally(mine))} · unknown {sum(1 for r in mine if r[0] == '-')}")
     for v in sorted({v for r in rows for v in re.findall(r"V\d+", r[6])}, key=lambda v: int(v[1:])):
         print(f"  {v}: {rate(*tally([r for r in rows if v in re.findall(r'V[0-9]+', r[6])]))}")
 

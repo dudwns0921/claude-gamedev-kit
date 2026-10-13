@@ -1,8 +1,8 @@
 __pycache__/
 .DS_Store
 
-# 엑셀이 파일을 열어 둔 동안 만드는 잠금 파일
+# the lock file Excel makes while it has the table open
 ~$*.xlsx
 
-# Claude Code 개인 설정 (머신별)
+# personal Claude Code settings (per machine)
 .claude/settings.local.json

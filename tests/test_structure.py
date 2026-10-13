@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""구조 검사 — CLAUDE.md 의 규칙 가운데 파일만 봐도 알 수 있는 것을 본다. 아무것도 돌리지 않는다.
+"""Structure checks — the rules in CLAUDE.md that can be told from the files alone. Runs nothing.
 
   python3 tests/test_structure.py
 
-스킬 문서와 훅이 가리키는 파일이 있는가, 스크립트에 엔진 이름으로 갈리는 분기가 없는가, 표준 라이브러리만 쓰는가.
+Do the files the skill documents and hooks point to exist, are the scripts free of branches on an engine's name, do they use the standard library only.
 """
 import ast
 import glob
@@ -13,7 +13,7 @@ import sys
 import unittest
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NOT_STDLIB = {"blender_finish.py": {"bpy"}}  # Blender 가 돌리는 스크립트
+NOT_STDLIB = {"blender_finish.py": {"bpy"}}  # the script Blender runs
 
 
 def rel(path):
@@ -41,7 +41,7 @@ def imports(path):
 
 class Structure(unittest.TestCase):
     def test_paths_exist(self):
-        """스킬 문서가 부르는 스크립트 · 문서, 훅이 부르는 스크립트가 있다."""
+        """The scripts · documents the skill documents call, and the scripts the hooks call, exist."""
         seen = 0
         for path in sorted(glob.glob(os.path.join(KIT, "skills", "**", "*.md"), recursive=True)):
             skill = os.path.join(KIT, "skills", rel(path).split(os.sep)[1])
@@ -53,10 +53,10 @@ class Structure(unittest.TestCase):
             seen += 1
             with self.subTest("hooks/hooks.json", target=target):
                 self.assertTrue(os.path.exists(os.path.join(KIT, target)))
-        self.assertTrue(seen, "가리키는 경로를 하나도 찾지 못했다 — 적는 꼴이 바뀌었는가")
+        self.assertTrue(seen, "found no path pointed to at all — has the way they are written changed?")
 
     def test_no_engine_branches(self):
-        """엔진 이름은 engines/ 에만 있다 — 스크립트는 kit.config.json 의 값만 본다."""
+        """Engine names live in engines/ only — scripts look at the values in kit.config.json alone."""
         engines = [os.path.basename(p) for p in glob.glob(os.path.join(KIT, "engines", "*")) if os.path.isdir(p)]
         self.assertTrue(engines)
         for path in scripts():
@@ -66,9 +66,9 @@ class Structure(unittest.TestCase):
                 self.assertEqual(found, [])
 
     def test_stdlib_only(self):
-        """표준 라이브러리와 같은 폴더의 것만 import 한다."""
+        """Imports only the standard library and what is in the same folder."""
         if not hasattr(sys, "stdlib_module_names"):
-            self.skipTest("Python 3.10 부터 볼 수 있다")
+            self.skipTest("can only be checked from Python 3.10 on")
         for path in scripts():
             with self.subTest(rel(path)):
                 here = {os.path.basename(p)[:-3] for p in glob.glob(os.path.join(os.path.dirname(path), "*.py"))}

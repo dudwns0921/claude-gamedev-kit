@@ -10,6 +10,8 @@
   python3 feedback.py --notice             called by the hook at session start: one line if unsent lines have piled up
 
 Numbers count the unsent lines ([ ]) only — sending or skipping shifts them, so `list` again. A sent line becomes [>], a skipped one [-].
+The tail written after a line is English (`issue #12` · `not sent: <reason>`); files from before carry `이슈 #12` · `안 보냄: …`, and their
+leading `(engine · 사이클 3 · date)` reads the same as `(engine · cycle 3 · date)` — only the engine is kept, the rest never goes out.
 Before anything goes out it looks for words that seem to be this game's (the repository folder's name · the GDD's title ·
 feedback.private in kit.config.json · private-words.txt in the voice folder) and for dates, and stops if there are any.
 `--as-is` is added only when the user said to send it as it is.
@@ -36,6 +38,7 @@ OPEN_RE = re.compile(r"^- \[ \] (.*)$")
 META_RE = re.compile(r"^\(([^)]*)\)\s*(.*)$")
 DATE_RE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
 WORD_RE = re.compile(r"[0-9A-Za-z_가-힣]{2,}")
+ISSUE, SKIPPED = "issue #{}", "not sent: {}"  # tails written after a sent · skipped line
 NOTICE = 5  # this many unsent lines and the session start says so
 NEAR = 0.25  # this much word overlap and it is shown as a similar issue — the reader decides whether it is the same
 
@@ -131,7 +134,7 @@ def title(engine, text):
 
 
 def body(engine, text, version):
-    return f"{text}\n\n엔진: {engine} · 키트: {version}"
+    return f"{text}\n\nengine: {engine} · kit: {version}"
 
 
 def open_issues(repo):
@@ -201,7 +204,7 @@ def cmd_send(arg, to, as_is):
     tool, done = gh(), {}
     for n, (i, engine, text) in chosen:
         if to:
-            said = f"여기서도 봤다 (엔진: {engine} · 키트: {version})\n\n{text}"
+            said = f"Seen here too (engine: {engine} · kit: {version})\n\n{text}"
             args, by_hand = ["issue", "comment", to, "--repo", repo, "--body", said], f"comment this on {WEB}/{repo}/issues/{to}:\n{said}"
         else:
             args = ["issue", "create", "--repo", repo, "--title", title(engine, text), "--body", body(engine, text, version)]
@@ -213,7 +216,7 @@ def cmd_send(arg, to, as_is):
             print(f"[{n}] {why} — the user posts it by hand: {by_hand}\n    once posted, record it with `sent <number> <issue number>` (`list` again for the number)")
             continue
         num = to or (re.findall(r"/issues/(\d+)", p.stdout) or ["?"])[-1]
-        done[i] = (">", f"이슈 #{num}")
+        done[i] = (">", ISSUE.format(num))
         print(f"[{n}] " + (f"commented on issue #{num}" if to else f"opened issue #{num}: {WEB}/{repo}/issues/{num}"))
     mark(done)
 
@@ -271,9 +274,9 @@ def main():
     elif cmd == "send":
         cmd_send(rest[0], opts.get("--to", "").lstrip("#"), as_is)
     elif cmd == "sent":
-        cmd_close(rest[0], ">", f"이슈 #{rest[1].lstrip('#')}")
+        cmd_close(rest[0], ">", ISSUE.format(rest[1].lstrip("#")))
     else:
-        cmd_close(rest[0], "-", f"안 보냄: {' '.join(rest[1].split())}")
+        cmd_close(rest[0], "-", SKIPPED.format(" ".join(rest[1].split())))
 
 
 if __name__ == "__main__":

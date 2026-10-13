@@ -4,8 +4,9 @@ description: >-
   Sets a game repo up for gamedev-kit, from an empty folder if need be: asks which engine (Godot · Unity), finds the editor on this machine and the build modules it needs,
   creates the engine project when there is none, then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
   the balance value file, the runtime template that re-reads the table while running, the engine's .gitignore lines. Ends by pointing to `/gamedev-kit:start`.
-  Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game, on "gamedev-kit 깔아줘", "엔진 프로젝트 만들어줘",
-  "키트 규칙 맞춰줘", "init rules", "GDD 동기화 세팅", "밸런스 표 세팅", or when gdd-sync, balance-table or start says it cannot find kit.config.json.
+  Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game, on "gamedev-kit 깔아줘" ("install gamedev-kit"),
+  "엔진 프로젝트 만들어줘" ("create the engine project"), "키트 규칙 맞춰줘" ("align the kit rules"), "init rules", "GDD 동기화 세팅" ("set up GDD sync"),
+  "밸런스 표 세팅" ("set up the balance table"), or when gdd-sync, balance-table or start says it cannot find kit.config.json.
 ---
 
 # init
@@ -64,7 +65,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 
    It exits 1 and prints the lines if the engine reports errors — fix those before going on.
 
-5. **If CLAUDE.md was newly created**, fill in `<게임 이름>` (and the title of `docs/GDD.md`), and under the existing `## This game's rules` heading at its end write the line `--editor` printed
+5. **If CLAUDE.md was newly created**, fill in `<game name>` (and the title of `docs/GDD.md` — a CLAUDE.md or GDD made by an older kit has `<게임 이름>` there), and under the existing `## This game's rules` heading at its end write the line `--editor` printed
    (the editor executable on this machine and the installed modules) — do not add a second heading. If CLAUDE.md already existed, do not touch it —
    if it reports no kit rules block, ask the user whether to do "Aligning the kit rules" below.
 
@@ -72,7 +73,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    `kit.config.json`. Replace the three example value lines in the value file with the game's values.
 
 7. **Create the table and check.** Create `data/balance.xlsx` with the balance-table skill's `export`, and check with the gdd-sync skill that
-   a report comes out. It works if the GDD template's example row (BAL.PLAYER.HP) pairs with the value file's example value and shows as `동기`.
+   a report comes out. It works if the GDD template's example row (BAL.PLAYER.HP) pairs with the value file's example value and shows as `synced`.
 
 8. **Fill in deploy · assets when you use them.** `deploy.itch` in `kit.config.json` (itch.io `user/game`), the asset API key, and
    the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the deploy · asset skills guide how to fill them.
@@ -91,7 +92,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 
 ## Aligning the kit rules (`/gamedev-kit:init rules`)
 
-In the game's CLAUDE.md, the kit's part is the single span between `<!-- gamedev-kit 시작 … -->` and `<!-- gamedev-kit 끝 -->` — it holds the common rules (GDD sync · balance table · cycle …) and
+In the game's CLAUDE.md, the kit's part is the single span between `<!-- gamedev-kit start … -->` and `<!-- gamedev-kit end -->` (a block written by an older kit has `gamedev-kit 시작` / `gamedev-kit 끝` there — it is found the same way, and gets the new markers when it is replaced) — it holds the common rules (GDD sync · balance table · cycle …) and
 that engine's rules (Running · Verification · Pitfalls). When the kit bumps its version, replace only that span wholesale. **Outside the block is the game's and is not touched.**
 At session start a hook looks at the block: **an old version it replaces by itself** (only the block, and only if nobody edited inside it) and says so in one line; a missing or hand-edited block it only reports. So after the kit is updated there is normally nothing to run.
 

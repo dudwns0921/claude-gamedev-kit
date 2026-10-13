@@ -3,8 +3,9 @@ name: playtest
 description: >-
   Playtest → analysis → build flow. The analyst agent (playtest-analyst, Fable) turns the problem list the user wrote after playing
   into a task document in docs/playtest/, and one developer agent (developer, Sonnet) per task handles it.
-  Use when the user lists several problems or to-dos ("플레이해 봤는데", "해 보니까 이게 문제야", "플레이테스트", "이것들 고쳐줘");
-  asks to analyze a problem list or organize feedback; or says "분석 문서대로 구현해줘", "playtest 문서 진행해줘", "T3 부터 해줘".
+  Use when the user lists several problems or to-dos ("플레이해 봤는데", "해 보니까 이게 문제야", "플레이테스트", "이것들 고쳐줘" —
+  "I played it and", "these are the problems I found", "playtest", "fix these"); asks to analyze a problem list or organize feedback; or says
+  "분석 문서대로 구현해줘", "playtest 문서 진행해줘", "T3 부터 해줘" ("build what the analysis document says", "go on with the playtest document", "start from T3").
   Not for a single problem with an obvious cause — just fix that.
 ---
 
@@ -29,7 +30,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<re
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit
 ```
 
-These act on the newest document (for another, `--doc <path>`).
+These act on the newest document (for another, `--doc <path>`). Documents written before the kit wrote English use the Korean words — the script reads both; where this page names a word, the older form is in brackets.
 
 ## 1. Analysis
 
@@ -37,14 +38,14 @@ These act on the newest document (for another, `--doc <path>`).
    Record the current commit with `git rev-parse --short HEAD`, and say so if there are uncommitted changes.
 2. **Call the `gamedev-kit:playtest-analyst` agent.** Pass: the problem list verbatim, the commit hash,
    context the user added (which scene · which device · how many tries). **Do not pass your guesses** — an analyst handed a hypothesis comes back having confirmed it.
-3. When it returns, relay the document path, the task count, and "사용자에게 물을 것". For `plan`, stop here.
+3. When it returns, relay the document path, the task count, and "Questions for the user". For `plan`, stop here.
 
 ## 2. Build
 
 1. See the next wave's tasks with `next` — do not read the document whole (it is tens of thousands of tokens).
 2. **Pick the tasks to do.** Skip the following — and say you are skipping them:
-   - tasks hanging on an unanswered question in "사용자에게 물을 것"
-   - tasks whose 분류 is **설계** with no user decision written in the document
+   - tasks hanging on an unanswered question in "Questions for the user"
+   - tasks whose Kind is **design** (older: 분류 **설계**) with no user decision written in the document
    - tasks that depend on a task blocked or failed in an earlier wave
 3. **Per wave, one `gamedev-kit:developer` agent per task, with `build T<n>` and `model: sonnet`.** Call a wave's tasks all at once (in one message) —
    the analyst grouped them so they touch different files. Pass three lines — `build T<n>`, the document path, the task-extraction command (`python3 <absolute path to this skill's playtest.py> task T<n> --doc <document>`). Do not copy out the task content.
@@ -53,16 +54,16 @@ These act on the newest document (for another, `--doc <path>`).
    - done → `mark T1,T3 done`. If there are "Deviations from the document", `mark T1 done "<what and why>"`.
    - blocked · failed → `mark T2 blocked "<reason>"`. **Do not re-analyze and fix it here yourself.**
 5. **When all waves are done, once:**
-   - if any task's 분류 was 밸런스, `export` with the balance-table skill (so the table does not hold old values)
+   - if any task's Kind was balance (older: 밸런스), `export` with the balance-table skill (so the table does not hold old values)
    - if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`
    - the project's verification (CLAUDE.md "Verification") once in full — conflicts between tasks show up here
 6. **Report:**
 
    ```
-   ## 플레이테스트 — <문서>
-   - 끝낸 것: T3, T1 · 막힌 것: T2 (이유) · 건너뛴 것: T4 (질문 대기)
-   - 답해 주실 것: <문서의 질문>
-   - 직접 해 보고 확인할 것: <작업별로 무엇을 보면 되는지>
+   ## Playtest — <document>
+   - Done: T3, T1 · Blocked: T2 (why) · Skipped: T4 (waiting on a question)
+   - For you to answer: <the document's questions>
+   - To play and check yourself: <what to look at, task by task>
    ```
 
    If any task is blocked, ask whether to re-analyze. Re-analysis means calling the analyst again with that task's "Why blocked" attached.

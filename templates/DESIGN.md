@@ -1,57 +1,57 @@
-# <게임 이름> — 디자인 규칙
+# <game name> — Design rules
 
-플레이어가 보고 듣는 것의 규칙. 톤과 아트 방향의 이유는 [GDD](GDD.md) 에 있고, 여기는 그것을 화면에서 지키는 방법이다.
-디자이너 에이전트가 읽고, 새 규칙이 정해지면 여기에 더한다. 사용자가 고친 줄이 항상 이긴다.
+The rules for what the player sees and hears. The reasons behind the tone and the art direction are in the [GDD](GDD.md); this is how they are kept on screen.
+The designer agent reads it and adds to it when a new rule is settled. A line the user edited always wins.
 
-## 색
-이름 · 값 · 어디에 쓰는가. 뜻이 있는 색(위험 · 회복 · 보상)은 뜻과 같이 적는다.
+## Colors
+Name · value · where it is used. A color that carries a meaning (danger · healing · reward) is written with its meaning.
 
-## 글꼴과 글자 크기
+## Fonts and text sizes
 
-## 화면 구성
-해상도 · 여백 · HUD 의 자리. HUD 에 무엇이 있는지는 GDD 부록 A.5 가 정한다.
+## Screen layout
+Resolution · margins · where the HUD sits. What is on the HUD is set by GDD appendix A.5.
 
-## 조작에 돌아오는 것
-누르면 · 맞으면 · 얻으면 무엇이 얼마 동안 돌아오는가. 길이는 초로 적는다.
+## Feedback to input
+What comes back, and for how long, on a press · a hit · a pickup. Lengths are in seconds.
 
-## 소리
+## Sound
 
-### 결 (생성 프롬프트)
-asset 스킬이 모든 효과음 · 음악의 설명 뒤에 그대로 붙이는 문단. 영어로, 어떤 소리에나 맞는 말만 — 질감(8-bit · 어쿠스틱 · 신스) · 잔향 · 밝기.
-비워 두면 붙지 않는다.
+### Sound style (generation prompt)
+The paragraph the asset skill attaches as is behind the description of every sound effect and piece of music. In English, only words that fit any sound — texture (8-bit · acoustic · synth) · reverb · brightness.
+Left empty, nothing is attached.
 
 <!-- sound-style -->
 <!-- /sound-style -->
 
-## 에셋
-자리(폴더) · 이름 붙이는 법 · 크기 · 형식.
+## Assets
+Where they go (folders) · how they are named · size · format.
 
-### 화풍 (생성 프롬프트)
-asset 스킬이 모든 에셋의 이미지 프롬프트에 그대로 붙이는 문단. 영어로, 어떤 에셋에나 맞는 말만 — 그리는 방식 · 색 · 디테일의 양 · 재질 · 비율.
-바꾸면 이미 만든 에셋과 어긋난다.
+### Art style (generation prompt)
+The paragraph the asset skill attaches as is to the image prompt of every asset. In English, only words that fit any asset — how it is drawn · color · amount of detail · material · proportions.
+Changing it sets new assets against the ones already made.
 
 <!-- asset-style -->
 <!-- /asset-style -->
 
-### 세계 (무엇이 있나)
-이 세계에 있는 것 — 시대와 곳, 물건을 이루는 재질, 되풀이되는 무늬와 형태. 영어로 한 문단. 화풍 뒤에 붙고, 새 에셋의 설명을 쓸 때도 본다. 비워 두어도 된다.
+### World (what exists)
+What exists in this world — era and place, the materials things are made of, patterns and shapes that recur. One paragraph, in English. Attached after the art style, and read when writing a new asset's description. May stay empty.
 
 <!-- asset-world -->
 <!-- /asset-world -->
 
-### 배운 것 (물리며 나온 말)
-에셋을 물리며 사용자가 한 말에서 나온 규칙. 한 줄에 하나, 영어로, 어느 에셋에나 맞는 말만. asset 스킬의 `learn` 이 보탠다 — 열두 줄까지.
+### Learned (said when turning assets down)
+Rules that came from what the user said when turning assets down. One per line, in English, only words that fit any asset. The asset skill's `learn` adds them — up to twelve lines.
 
 <!-- asset-learned -->
 <!-- /asset-learned -->
 
-## 영상
+## Video
 
-### 화면의 결 (모든 영상에 같이)
-video 스킬이 Higgsfield 로 장면을 만들 때마다 설명 뒤에 붙이는 문단. 영어로, 어떤 장면에나 맞는 말만 — 무엇으로 그린 듯한가(그림 · 실사 · 스톱모션 …) ·
-색 · 빛 · 렌즈와 입자 · 카메라가 움직이는 방식. 비워 두어도 돌지만 클립마다 결이 달라진다.
+### Footage style (attached to every clip)
+The paragraph the video skill attaches behind the description every time it makes a shot with Higgsfield. In English, only words that fit any shot — what it looks made with (painted · photoreal · stop-motion …) ·
+color · light · lens and grain · how the camera moves. It runs when left empty, but each clip then comes out with a different look.
 
 <!-- footage-style -->
 <!-- /footage-style -->
 
-## 하지 않는 것
+## What we do not do

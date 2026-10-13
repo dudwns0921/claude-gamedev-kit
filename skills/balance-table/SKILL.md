@@ -3,8 +3,8 @@ name: balance-table
 description: >-
   Edits balance numbers in an Excel table (data/balance.xlsx) and keeps it aligned with the balance value file in code. Code → table (export),
   table → code (bake), are they equal (check), serve the table to a running game (serve). Engine-agnostic
-  (kit.config.json sets the shape of a value line). Use when the user says "밸런스 표", "엑셀",
-  "표 구워줘", "bake", "표랑 코드 맞춰", "값이 게임에 안 먹어"; a value was added to the balance value file or
+  (kit.config.json sets the shape of a value line). Use when the user says "밸런스 표" ("balance table"), "엑셀" ("Excel"),
+  "표 구워줘" ("bake the table"), "bake", "표랑 코드 맞춰" ("align the table and the code"), "값이 게임에 안 먹어" ("the value does not take in the game"); a value was added to the balance value file or
   a number was edited by hand (export); the user says a value was settled in the table (bake → gdd-sync to-gdd);
   before making a deploy build (check); a runtime that cannot read disk needs the table (serve).
 ---
@@ -36,15 +36,16 @@ and if so ask the user whether to bake first.
 
 ## Value file rules
 
-- One value per line, one number. A `GDD: <ID>` marker at the end of the line. The description comment directly above the line becomes the table's 설명 column.
-- Names are uppercase with underscores (`NOISE_RUN_PER_SEC`). They must equal the 이름 in column A of the table.
+- One value per line, one number. A `GDD: <ID>` marker at the end of the line. The description comment directly above the line becomes the table's Note column.
+- Names are uppercase with underscores (`NOISE_RUN_PER_SEC`). They must equal the Name in column A of the table.
 - Write floats with a decimal point (`4.0`). A value written without one is treated as an integer, and bake stops if the table has a decimal for it.
 - Lines not determined by a single number (expressions, arrays, strings) do not go in the table. Compute derived values in code.
 - The `balance-table.line` regex in `kit.config.json` sets what a line looks like.
 
 ## Table rules
 
-- Only column A 이름 and column B 값 are read. The other columns (코드값, 분류, GDD ID, 설명) are for people.
+- Only column A Name and column B Value are read. The other columns (Code value, Group, GDD ID, Note) are for people.
+  Reading goes by column, not by the header text — a table made with the older Korean header row (이름 · 값 · …) works as it is; the next `export` or `bake` rewrites the header in English.
 - Names that exist only in the table are ignored. Non-numeric cells are skipped too.
 - For values used only at start (starting crew count etc.), saving does not change a run in progress — they apply from the next run.
 

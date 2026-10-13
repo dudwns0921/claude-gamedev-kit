@@ -18,7 +18,7 @@ A sheet's grid (columns · rows · frame count · pixels per cell) is written in
 --ref is that sprite's reference picture (path relative to the root) — the picture itself is shown to draw from, not put into words.
 --as-is uses that picture as the still without redrawing (must be png).
 
-Every description is followed by the same text as in asset.py (화풍 · 세계 · 배운 것) — `asset.py look` · `asset.py learn`.
+Every description is followed by the same text as in asset.py (Art style · World · Learned) — `asset.py look` · `asset.py learn`.
 Config is "sprite" inside "asset" in kit.config.json at the project root.
 
 Keys stay outside the repository — environment variable LUDO_API_KEY, or else the line of the same name
@@ -221,7 +221,7 @@ def image(name, ref=None):
     out, credits = still_path(name), None
     os.makedirs(asset.folder(name), exist_ok=True)
     if subject and rec.get("as_is"):
-        prompt = f"(레퍼런스를 그대로 썼다: {rec['ref']})"
+        prompt = f"(reference used as is: {rec['ref']})"
         shutil.copyfile(subject, out)
     else:
         view = CFG["view"].strip().rstrip(".")
@@ -260,7 +260,7 @@ def approve(name):
 
 
 def reject(name, said):
-    """The user turned it down — their words are the material for "배운 것". Lifts the approval."""
+    """The user turned it down — their words are the material for "Learned". Lifts the approval."""
     rec = load(name)
     rec.setdefault("said", []).append({"date": str(datetime.date.today()), "said": " ".join(said.split())})
     rec["approved"] = None
@@ -354,7 +354,7 @@ def main():
             name, subject = rest[0], rest[1].strip().rstrip(".")
             if os.path.exists(os.path.join(asset.folder(name), "sprite.json")):
                 sys.exit(f"{name}: already exists — use another name or edit {rel(asset.folder(name))}/sprite.json")
-            rec = {"name": name, "kind": "스프라이트", "subject": subject, "type": opts.get("--type"), "created": str(datetime.date.today())}
+            rec = {"name": name, "kind": "sprite", "subject": subject, "type": opts.get("--type"), "created": str(datetime.date.today())}
             if ref:
                 rec.update(ref=ref, as_is=as_is)
             save(rec)

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Matches the GDD sync table (GDD 부록 A) against the `GDD: <ID>` markers in code.
+"""Matches the GDD sync table (GDD Appendix A) against the `GDD: <ID>` markers in code.
 
 Usage:
   python3 sync_report.py                 # print the report (markdown)
   python3 sync_report.py --json          # print JSON
-  python3 sync_report.py --write         # update the '코드 위치' and '상태' columns of the GDD table (the 값 column is never touched)
+  python3 sync_report.py --write         # update the 'Code location' and 'State' columns of the GDD table (the Value column is never touched)
   python3 sync_report.py --only BAL.CYCLE.ACTIVE_SEC   # one ID only
 
 Why a script: once there are dozens of items, matching by hand misses some every time. The script finds "what is where";
@@ -12,6 +12,9 @@ Why a script: once there are dozens of items, matching by hand misses some every
 
 What differs per engine (code extensions · folders to skip · the regex that picks a symbol) is in "gdd-sync" in the project root's kit.config.json.
 The marker does not care about the comment sign — `# GDD: X` · `-- GDD: X` · `// GDD: X` are all found as `GDD: X`.
+
+The words are English; a GDD written before that (Korean heading and states) is read the same — see APPENDIX and LEGACY.
+A state cell this script rewrites is written in English.
 """
 import argparse, json, os, re, sys
 
@@ -19,7 +22,7 @@ CONFIG_NAME = "kit.config.json"
 SECTION = "gdd-sync"
 DEFAULTS = {
     "gdd": "docs/GDD.md",
-    "appendix_heading": "## 부록 A",
+    "appendix_heading": "## Appendix A",
     "code_ext": [],
     "skip_dirs": [".git", ".claude", "docs", "build"],
     # The regex that picks the symbol name from before the marker. Group 1 is the name
@@ -31,6 +34,10 @@ DEFAULTS = {
 ROW_RE = re.compile(r"^\|\s*([A-Z]+(?:\.[A-Z0-9_]+)+)\s*\|(.*)$")
 MARK_RE = re.compile(r"GDD:\s*([A-Z]+(?:\.[A-Z0-9_]+)+)")
 NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+# The document's words: written in English, read in both forms.
+APPENDIX = ("## Appendix A", "## 부록 A")   # with the default config both headings are found
+LEGACY = {"동기": "synced", "불일치": "mismatch", "미구현": "missing", "폐기": "retired"}
 
 ROOT = ""
 CFG = dict(DEFAULTS)
@@ -60,11 +67,13 @@ def load_config(root):
 
 
 def parse_table(path):
-    """Each row of 부록 A as a dict. Column order: ID | 값(또는 규칙) | 출처 | 코드 위치 | 상태 | 비고"""
+    """Each row of Appendix A as a dict. Column order: ID | Value (or Rule) | Source | Code location | State | Note.
+    'status' is the state cell in its English form, whichever form the document has."""
     rows, lines = [], open(path, encoding="utf-8").read().split("\n")
     in_appendix = False
+    heads = APPENDIX if CFG["appendix_heading"] in APPENDIX else (CFG["appendix_heading"],)
     for i, line in enumerate(lines):
-        if line.startswith(CFG["appendix_heading"]):
+        if line.startswith(heads):
             in_appendix = True
         if not in_appendix:
             continue
@@ -75,7 +84,7 @@ def parse_table(path):
         if len(cells) < 5:
             continue
         rows.append({"id": m.group(1), "value": cells[0], "source": cells[1], "location": cells[2],
-                     "status": cells[3], "note": cells[4] if len(cells) > 4 else "", "line": i})
+                     "status": LEGACY.get(cells[3], cells[3]), "note": cells[4] if len(cells) > 4 else "", "line": i})
     return rows, lines
 
 
@@ -121,7 +130,7 @@ def extract_value(line):
 
 
 def gdd_numbers(value):
-    """'12' → (12,12); '20~25' → (20,25); '4배' → (4,4); None if there is no number."""
+    """'12' → (12,12); '20~25' → (20,25); '4x' → (4,4); None if there is no number."""
     nums = NUM_RE.findall(value)
     if not nums:
         return None
@@ -132,18 +141,18 @@ def gdd_numbers(value):
 
 def judge(row, hits):
     if not hits:
-        return "미구현", ""
+        return "missing", ""
     rng = gdd_numbers(row["value"]) if row["id"].split(".")[0] in CFG["numeric_prefixes"] else None
     vals = [h["value"] for h in hits if h["value"] is not None]
     if rng and vals:
         lo, hi = rng
         bad = [v for v in vals if not (lo <= v <= hi)]
         if bad:
-            return "불일치", f"GDD={row['value']} code={', '.join(str(int(v) if v.is_integer() else v) for v in bad)}"
-        return "동기", ""
+            return "mismatch", f"GDD={row['value']} code={', '.join(str(int(v) if v.is_integer() else v) for v in bad)}"
+        return "synced", ""
     # For items that cannot be compared as numbers (enums · rules · inputs), a marker only confirms the location.
-    # Whether the content matches is for a person to see — so it is marked '동기?' to ask for a judgment.
-    return "동기?", "marker found, but the value cannot be compared automatically. Read the code and judge"
+    # Whether the content matches is for a person to see — so it is marked 'synced?' to ask for a judgment.
+    return "synced?", "marker found, but the value cannot be compared automatically. Read the code and judge"
 
 
 def location_str(hits):
@@ -184,15 +193,15 @@ def main():
             counts[r["new_status"]] = counts.get(r["new_status"], 0) + 1
         print("# GDD sync report\n")
         print("| State | Count |\n|---|---|")
-        counts["폐기"] = sum(1 for r in report if r["status"] == "폐기")
-        counts["미구현"] = counts.get("미구현", 0) - counts["폐기"]
-        for k in ("동기", "동기?", "불일치", "미구현", "폐기"):
+        counts["retired"] = sum(1 for r in report if r["status"] == "retired")
+        counts["missing"] = counts.get("missing", 0) - counts["retired"]
+        for k in ("synced", "synced?", "mismatch", "missing", "retired"):
             if counts.get(k):
                 print(f"| {k} | {counts[k]} |")
         print()
-        for label, pred in (("## 불일치 — needs a human decision", lambda r: r["new_status"] == "불일치"),
-                            ("## 동기? — read the code and check", lambda r: r["new_status"] == "동기?"),
-                            ("## 동기", lambda r: r["new_status"] == "동기")):
+        for label, pred in (("## mismatch — needs a human decision", lambda r: r["new_status"] == "mismatch"),
+                            ("## synced? — read the code and check", lambda r: r["new_status"] == "synced?"),
+                            ("## synced", lambda r: r["new_status"] == "synced")):
             sel = [r for r in report if pred(r)]
             if not sel:
                 continue
@@ -200,12 +209,12 @@ def main():
             for r in sel:
                 print(f"| {r['id']} | {r['value']} | {location_str(r['hits'])} | {r['detail']} |")
             print()
-        # 폐기 is naturally absent from code — mixed into the 미구현 list it becomes noise to read past every time
-        missing = [r["id"] for r in report if r["new_status"] == "미구현" and r["status"] != "폐기"]
+        # A retired item is naturally absent from code — mixed into the missing list it becomes noise to read past every time
+        missing = [r["id"] for r in report if r["new_status"] == "missing" and r["status"] != "retired"]
         if missing:
-            print(f"## 미구현 ({len(missing)})\n\n" + ", ".join(missing) + "\n")
+            print(f"## missing ({len(missing)})\n\n" + ", ".join(missing) + "\n")
         if orphans:
-            print("## 고아 표식 — IDs in code but not in the table\n")
+            print("## Orphan markers — IDs in code but not in the table\n")
             for k in orphans:
                 print(f"- {k}: " + location_str(found[k]))
             print()
@@ -218,18 +227,19 @@ def main():
     if a.write:
         changed = 0
         for r in report:
-            # 폐기 is a person's note that "this item is gone now". Having no marker in code is natural, so
-            # turning it back to 미구현 automatically would erase the 폐기 mark every time.
-            if r["status"] == "폐기":
+            # 'retired' is a person's note that "this item is gone now". Having no marker in code is natural, so
+            # turning it back to 'missing' automatically would erase the mark every time.
+            if r["status"] == "retired":
                 continue
             loc = location_str(r["hits"]) or "—"
-            st = r["new_status"].replace("동기?", "동기")  # the table keeps only three states
-            if r["new_status"] == "동기?" and r["status"] == "불일치":
-                st = "불일치"  # a 불일치 written by a person is not cleared automatically
+            st = r["new_status"].replace("synced?", "synced")  # the table keeps only three states
+            if r["new_status"] == "synced?" and r["status"] == "mismatch":
+                st = "mismatch"  # a mismatch written by a person is not cleared automatically
             line = lines[r["line"]]
             cells = line.split("|")
-            # cells[0] is an empty string, cells[1]=ID, [2]=값, [3]=출처, [4]=코드 위치, [5]=상태
-            if cells[4].strip() != loc or cells[5].strip() != st:
+            # cells[0] is an empty string, cells[1]=ID, [2]=Value, [3]=Source, [4]=Code location, [5]=State
+            # A row that already says the same thing in the old words is left as it is; a row that changes is written in English
+            if cells[4].strip() != loc or r["status"] != st:
                 cells[4], cells[5] = f" {loc} ", f" {st} "
                 lines[r["line"]] = "|".join(cells)
                 changed += 1

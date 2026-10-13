@@ -6,12 +6,13 @@
   python3 start.py unskip <stage>  undo a skip
 
 How a stage counts as done:
-  gdd      in the GDD (gdd-sync.gdd, default docs/GDD.md), the body sections 개요 · 게임 구조 · 규칙과 시스템 · 제작 범위 have text.
-           톤 · 사운드 · 미정 사항 may stay empty (they are only listed). Lines that came with the template do not count as text.
+  gdd      in the GDD (gdd-sync.gdd, default docs/GDD.md), the body sections Overview · Game structure · Rules and systems · Scope have text.
+           Tone · Sound · Open questions may stay empty (they are only listed). Lines that came with the template do not count as text.
            If such a title is not in the GDD at all (a GDD rewritten away from the template), it is not called empty — only reported.
-  concept  the GDD's 아트 방향 section has text, and docs/concept/ holds at least one picture (a reference the user put in is a picture too).
+  concept  the GDD's Art direction section has text, and docs/concept/ holds at least one picture (a reference the user put in is a picture too).
   goal     once a cycle document (docs/cycle/NN-*.md) exists, the start is over.
 Skipped stages are recorded in docs/start/state.json.
+A GDD written before the titles were English (개요 · 게임 구조 · …) is read the same — see the pairs below.
 """
 import json
 import os
@@ -24,9 +25,13 @@ STAGES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join("docs", "start", "state.json")
 CONCEPT = os.path.join("docs", "concept")
 CYCLE = os.path.join("docs", "cycle")
-MUST = ["개요", "게임 구조", "규칙", "제작 범위"]  # the gdd stage is done when these sections have text
-MAY = ["톤", "사운드"]                             # only listed when empty
-ART = "아트 방향"                                  # belongs to the concept stage
+# A section is found by a word its title contains: (English, the older Korean form). Reports name it as the document has it.
+MUST = [("Overview", "개요"), ("Game structure", "게임 구조"), ("Rules", "규칙"), ("Scope", "제작 범위")]  # the gdd stage is done when these have text
+MAY = [("Tone", "톤"), ("Sound", "사운드")]             # only listed when empty
+ART = ("Art direction", "아트 방향")                   # belongs to the concept stage
+APPENDIX = ("Appendix", "부록")                        # from here on it is tables
+# The one prose line of the Korean template — a section holding only this has nothing written yet
+LEGACY_GIVEN = {"수치를 본문에 적을 때는 부록 A 의 같은 항목과 값이 같아야 한다."}
 SKIPPABLE = {"gdd": "GDD", "concept": "concept"}
 PICTURES = (".png", ".jpg", ".jpeg", ".webp")
 
@@ -56,7 +61,7 @@ def sections(text):
     for line in text.split("\n"):
         if line.startswith("## "):
             title = re.sub(r"^\d+\.\s*", "", line[3:].strip())
-            if title.startswith("부록"):
+            if title.startswith(APPENDIX):
                 break
             out.append((title, []))
         elif out:
@@ -67,15 +72,16 @@ def sections(text):
 def template_lines():
     """Lines that come with the template — a section holding only these has nothing written yet."""
     path = os.path.join(KIT, "templates", "GDD.md")
-    return {line.strip() for line in open(path, encoding="utf-8")} if os.path.exists(path) else set()
+    return LEGACY_GIVEN | ({line.strip() for line in open(path, encoding="utf-8")} if os.path.exists(path) else set())
 
 
-def filled(title_key, parts, given):
-    """Whether the section whose title contains that word has text. None if there is no such title."""
+def filled(forms, parts, given):
+    """(the word as the document has it, whether that section has text). The English word and None if there is no such title."""
     for title, lines in parts:
-        if title_key in title:
-            return any(l and l != "---" and not l.startswith("<!--") and l not in given for l in lines)
-    return None
+        for word in forms:
+            if word in title:
+                return word, any(l and l != "---" and not l.startswith("<!--") and l not in given for l in lines)
+    return forms[0], None
 
 
 def skipped():
@@ -103,20 +109,23 @@ def cmd_status():
     cycle_dir = os.path.join(ROOT, CYCLE)
     cycles = sorted(n for n in os.listdir(cycle_dir) if re.match(r"\d+-.*\.md$", n)) if os.path.isdir(cycle_dir) else []
     parts, given, skip = sections(open(path, encoding="utf-8").read()), template_lines(), skipped()
-    state = {k: filled(k, parts, given) for k in MUST + MAY + [ART]}
+    found = {k: filled(k, parts, given) for k in MUST + MAY + [ART]}
+    state = {k: has for k, (_word, has) in found.items()}
+    name = lambda keys: [found[k][0] for k in keys]
     empty = [k for k in MUST if state[k] is False]
     gone = [k for k in MUST + [ART] if state[k] is None]
     pictures = sorted(os.path.relpath(os.path.join(d, n), ROOT) for d, _s, names in os.walk(os.path.join(ROOT, CONCEPT))
                       for n in names if n.lower().endswith(PICTURES))
-    lack = ([f"the {ART} section of {rel} is empty"] if state[ART] is False else []) + ([] if pictures else [f"no pictures in {CONCEPT}/"])
+    lack = ([f"the {found[ART][0]} section of {rel} is empty"] if state[ART] is False else []) + ([] if pictures else [f"no pictures in {CONCEPT}/"])
     done = {"gdd": not empty or "gdd" in skip, "concept": not lack or "concept" in skip}
     mark = lambda stage: "skipped" if stage in skip else ("done" if done[stage] else "to do")
     plural = lambda n: "" if n == 1 else "s"
 
     if cycles:
         print(f"the start is over — a cycle document exists ({CYCLE}/{cycles[-1]}). Continue with `/gamedev-kit:cycle`")
-    words = [("empty sections", empty), ("sections with text", [k for k in MUST if state[k]]), ("sections that may stay empty", [k for k in MAY if state[k] is False]),
-             ("sections not checked for lack of the template's title", gone)]
+    words = [("empty sections", name(empty)), ("sections with text", name(k for k in MUST if state[k])),
+             ("sections that may stay empty", name(k for k in MAY if state[k] is False)),
+             ("sections not checked for lack of the template's title", name(gone))]
     lines = [f"  [{mark('gdd')}] GDD ({rel}) — " + " · ".join(f"{label}: {' · '.join(names)}" for label, names in words if names),
              f"  [{mark('concept')}] concept — " + (" · ".join(lack) if lack else f"the art direction is written and there are {len(pictures)} picture{plural(len(pictures))}"),
              f"  [{'done' if cycles else 'to do'}] first goal — " + (f"{len(cycles)} cycle document{plural(len(cycles))}" if cycles else "no cycle document yet")]

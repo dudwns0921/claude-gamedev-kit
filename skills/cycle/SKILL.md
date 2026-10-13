@@ -1,11 +1,13 @@
 ---
 name: cycle
 description: >-
-  Drives one game-dev cycle — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 — through a single document (docs/cycle/).
+  Drives one game-dev cycle — Goal → Spec → Design → Plan → Build → Play — through a single document (docs/cycle/).
   Systems designer, designer and developer agents work stage by stage; every decision goes back to the user — or, in auto mode,
   is made by the user's voice up to the point of playing. Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자",
-  "이번엔 ○○ 를 넣자"); says "사이클 이어서", "다음 단계", "어디까지 했지"; answers a decision ("D2 는 ①로"); or wants it run without them
-  ("자동으로 돌려줘", "알아서 만들어 놔", "나 없는 동안 진행해줘", "auto"). Not for one-line fixes.
+  "이번엔 ○○ 를 넣자" — "this cycle", "let's make the next version", "this time let's add ○○"); says "사이클 이어서", "다음 단계", "어디까지 했지"
+  ("continue the cycle", "next stage", "where were we"); answers a decision ("D2 는 ①로", "D2 is ①"); or wants it run without them
+  ("자동으로 돌려줘", "알아서 만들어 놔", "나 없는 동안 진행해줘" — "run it automatically", "build it on your own", "go on while I'm away", "auto").
+  Not for one-line fixes.
 ---
 
 # cycle
@@ -25,7 +27,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" status          # one line per do
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" next            # stage · unanswered decisions · next wave's tasks
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # one task and only the decisions it hangs on
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<reason>" · open
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <기획|디자인|계획> "<question — ① … ② … · 권함: ①>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <Spec|Design|Plan> "<question — ① … ② … · recommended: ①>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # auto mode: decided in the user's place — written [~]
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
@@ -34,7 +36,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"       
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (when it happens)
 ```
 
-These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (플레이) — and even then read only that section's line range, not the whole document.
+These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
 
 **Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
 where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one, recommend in one line:
@@ -44,7 +46,7 @@ Do not chain two or more cycles in one session. If you were also doing work outs
 **Not done in this session**: reading code · reading images · reading logs. Agents do all of it and only summaries come back. When relaying an agent's report to the user, do not expand it at length again.
 
 **The user decides.** No agent decides for them. Agents return "Decisions needed" as options plus one recommendation,
-this skill collects and asks them, and writes the answers in the document's "결정" section in the user's own words (verbatim). Do not do work that hangs on an unanswered decision.
+this skill collects and asks them, and writes the answers in the document's "Decisions" section in the user's own words (verbatim). Do not do work that hangs on an unanswered decision.
 The one exception is **auto mode** (below): the user has asked, for this run, that their voice decide in their place — and even then every such decision is marked and waits for them.
 
 | Call | Meaning |
@@ -58,49 +60,49 @@ The one exception is **auto mode** (below): the user has asked, for this run, th
 
 | | Stage | Who | Document section | Stops at |
 |---|---|---|---|---|
-| 1 | 목표 | user | 목표 | |
-| 2 | 기획 | `gamedev-kit:systems-designer` `spec` | 기획 | |
-| 3 | 디자인 | `gamedev-kit:designer` `design` | 디자인 | |
-| 4 | 계획 | `gamedev-kit:developer` `plan` | 작업 · 순서 | **ask the decisions** |
-| 5 | 구현 | `gamedev-kit:developer` `build T<n>`, one per task | task checkboxes | |
-| 6 | 플레이 | user (problems go to `/gamedev-kit:playtest`) | 플레이 | **stays here** — the next cycle closes it |
+| 1 | Goal | user | Goal | |
+| 2 | Spec | `gamedev-kit:systems-designer` `spec` | Spec | |
+| 3 | Design | `gamedev-kit:designer` `design` | Design | |
+| 4 | Plan | `gamedev-kit:developer` `plan` | Tasks · Order | **ask the decisions** |
+| 5 | Build | `gamedev-kit:developer` `build T<n>`, one per task | task checkboxes | |
+| 6 | Play | user (problems go to `/gamedev-kit:playtest`) | Play | **stays here** — the next cycle closes it |
 
-### 1. 목표
+### 1. Goal
 
-Create the document with `new` — pass the goal in the user's words as-is, unpolished. Even if the goal looks several cycles big, do not shrink it — whether to shrink is asked as an option at the 계획 stage.
+Create the document with `new` — pass the goal in the user's words as-is, unpolished. Even if the goal looks several cycles big, do not shrink it — whether to shrink is asked as an option at the Plan stage.
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
-**`new` also closes the previous cycle** — there is no closing stage. A document that stood at 플레이 becomes `끝`, and the script prints what that cycle left: open and blocked tasks,
-unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before 플레이, say so and go on.
-Then the voice skill's "Review" — the one place the voice is shown unasked: the lines it picked up that the user has not seen, if any. Show them in the same message and go on to 기획 without waiting.
+**`new` also closes the previous cycle** — there is no closing stage. A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
+unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
+Then the voice skill's "Review" — the one place the voice is shown unasked: the lines it picked up that the user has not seen, if any. Show them in the same message and go on to Spec without waiting.
 
-### 2. 기획 · 3. 디자인 · 4. 계획
+### 2. Spec · 3. Design · 4. Plan
 
 Who owns what: the **systems designer** owns how the game works (rules · balance numbers · structure and dimensions of spaces), the **designer** owns how it looks and sounds
 (UI appearance · effects · sound · assets), the **developer** owns how to build it. A later agent does not edit earlier sections; it takes them as given.
 
 Call them one at a time in the order systems designer → designer → developer (`plan`). Call the next only after the previous returns. Pass only the cycle document path and the mode. Do not attach your own thoughts.
 
-- If the systems designer returns "nothing touches the rules", go straight to 디자인.
-- Of the systems designer's "Decisions needed", those that split a rule (is this rule A or B) are **asked first, before going to 디자인** — what the next two write changes wholesale with the answer.
-  Do not ask about "시작" values of numbers. They are tuned in the table after the build.
-- If the designer or developer returns "Questions for spec", call the systems designer again with them attached, and if the "기획" section changed, call the asker again.
+- If the systems designer returns "nothing touches the rules", go straight to Design.
+- Of the systems designer's "Decisions needed", those that split a rule (is this rule A or B) are **asked first, before going to Design** — what the next two write changes wholesale with the answer.
+  Do not ask about "start" values of numbers. They are tuned in the table after the build.
+- If the designer or developer returns "Questions for spec", call the systems designer again with them attached, and if the "Spec" section changed, call the asker again.
   Do not answer in their place.
 
-If the "디자인" section's "필요한 에셋" lists a 3D model, sprite or sound that does not exist, tell the user — whether to make it this cycle (asset skill) or leave the placeholder is asked as a decision.
-**Either way the build runs on placeholders.** Assets are not made during 구현 — they are made after it, all at once ("Assets" below).
+If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that does not exist, tell the user — whether to make it this cycle (asset skill) or leave the placeholder is asked as a decision.
+**Either way the build runs on placeholders.** Assets are not made during Build — they are made after it, all at once ("Assets" below).
 
-Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
+Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "Decisions" with `ask`, and ask the user all at once —
 options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
 **A decision chosen by eye is asked with a picture, one per question.** A screen, a pose, a grip, a colour: text plus a wide comparison image handed over separately cannot be chosen from (least of all on a phone).
-Write the questions to a json file and make the sheets — each comes out as one picture with the numbered question and its options on top and, below, one tightly cropped picture per option, labelled (지금 · the change · a reference):
+Write the questions to a json file and make the sheets — each comes out as one picture with the numbered question and its options on top and, below, one tightly cropped picture per option, labelled (now · the change · a reference):
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/sheet.py" <questions.json> [--name <name>]   # → docs/cycle/sheets/<name>-<n>.png (.html when this machine has no browser)
 ```
 
 The file's shape is in the script's head (`sheet.py` with no arguments). The pictures are the captures the agents already took, and the crop boxes come from the agent that raised the decision —
-ask it for the paths and boxes, **do not Read the captures here**. Use the decision's id (`D3`) as the question's `id`, give the user every sheet at once, and let them answer by number ("D3 은 ⓑ, D4 는 지금").
+ask it for the paths and boxes, **do not Read the captures here**. Use the decision's id (`D3`) as the question's `id`, give the user every sheet at once, and let them answer by number ("D3 은 ⓑ, D4 는 지금" — "D3 is ⓑ, D4 as it is").
 The decision is still written with `ask` and answered with `decide` — the sheet is only how it is shown.
 
 **The voice works behind this, unseen.** If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game),
@@ -113,9 +115,9 @@ call that agent again to fix its section, and realign the sections of the stages
 If an answer puts work off ("○○ first, then △△"), the put-off part is in no task list and `next` will say nothing is left — write it down while recording the answer:
 a task if it belongs to this cycle (call `plan`), `later` if it does not.
 
-### 5. 구현
+### 5. Build
 
-`next` lists the next wave's tasks (pending ones are shown as 대기 — do not run them). Per wave, one developer agent per task. Call the same wave all at once in one message.
+`next` lists the next wave's tasks (pending ones are shown as `waiting on D2` — do not run them). Per wave, one developer agent per task. Call the same wave all at once in one message.
 **Call `build` with `model: sonnet`** — the task says where and how, so the build does not need the model that planned it (`plan` runs on the agent's own model; do not pass one).
 Pass three lines — `build T<n>`, the document path, and the task-extraction command (`python3 <absolute path to this skill's cycle.py> task T<n> --doc <document>`). **Do not copy out the task content.**
 Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
@@ -126,34 +128,34 @@ Before the first wave on a machine that has not run this project (a fresh clone)
 A blocked task or a returned "Deviations from the document" may be something learned — see "What was learned" below.
 
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
-the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "플레이해서 볼 것" and the design's "사람이 봐야 아는 것".
-The spec's numbers went in as "시작" values — also say which values in the table (`data/balance.xlsx`) to try moving.
+the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
+The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving.
 
 **Assets — after the build, all at once.** Only now, with every wave done and the verification passed, make the assets the user said to make. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
 and the user looks once, not every few tasks.
 
-1. List them from the "필요한 에셋" table — every row still 없음 or 임시 that was decided "make". Say how many and what it will cost (images are cheap; meshes, sprite animations and sounds cost credits).
+1. List them from the "Assets needed" table — every row still `none` or `placeholder …` that was decided "make". Say how many and what it will cost (images are cheap; meshes, sprite animations and sounds cost credits).
 2. Follow the asset skill's procedure for all of them together: every image first, then **show the user all of them in one sitting** — the board's asset sheet (`docs/board/assets.html`)
    has them side by side — and take approvals and redraws together; then meshes and sounds.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.
-4. Write each path in the table's "있는가" cell, run the verification again, and only then tell the user what to play.
+4. Write each path in the table's "Have" cell, run the verification again, and only then tell the user what to play.
 
 If the user would rather play on placeholders first and make assets after that round, do it in that order — say the choice in one line when the build ends. In auto mode this step does not run.
 
-### 6. 플레이
+### 6. Play
 
 **The last stage, and it stays open.** The user plays and feeds back, round after round — that is the normal shape, not an overrun. Do not ask whether the cycle is done
 and do not write a wrap-up: the cycle is closed by the next one (`new`).
 
-If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "플레이" section.
+If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section.
 If given screenshots, you may call the designer with `review` (pass `model: opus` — checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
-When the user puts something off ("나중에", "다음에 하자"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
+When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
 **Shipping is not a stage.** A build goes out when the user asks for one (`/gamedev-kit:deploy`), usually after several cycles — do not ask about it or offer it here.
 
 ## What was learned — when it happens
 
-There is no end-of-cycle step to save this for. Look at two moments: when a 구현 wave returns a blocked task or "Deviations from the document", and when a playtest round's build returns
+There is no end-of-cycle step to save this for. Look at two moments: when a Build wave returns a blocked task or "Deviations from the document", and when a playtest round's build returns
 (the playtest skill does this itself for its own tasks — do not repeat it). What counts: what tripped us up · engine settings done by hand · a newly found way to check. **Split each in two:**
 
 - **Specific to this game** (relies on this game's structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
@@ -165,25 +167,27 @@ If the split is hard, ask: "Would you need to know this when making another game
 ## Cycle document
 
 ```markdown
-# 사이클 NN — <short name>
+# Cycle NN — <short name>
 
-시작: <date> · 커밋 <7-char hash> · 단계: 목표
+Started: <date> · Commit <7-char hash> · Stage: Goal
 
-## 목표
+## Goal
 In the user's own words (verbatim).
 
-## 결정
-- [ ] D1. <question> — ① … ② … · 권함: ① (who recommended it: 기획 | 디자인 | 계획)
+## Decisions
+- [ ] D1. <question> — ① … ② … · recommended: ① (who recommended it: Spec | Design | Plan)
 - [x] D2. <question> → <the user's answer verbatim> (<date>)
 
-## 기획
-## 디자인
-## 작업
-## 순서
-## 플레이
+## Spec
+## Design
+## Tasks
+## Order
+## Play
 ```
 
-Update the header's `단계:` with `stage` every time the stage changes. `next` and `status` read that line. Keep the stage name short — circumstances go in that section.
+Update the header's `Stage:` with `stage` every time the stage changes (Goal · Spec · Design · Plan · Build · Play). `next` and `status` read that line. Keep the stage name short — circumstances go in that section.
+
+Documents written before the kit wrote English use the Korean words (`# 사이클`, `단계:`, `## 목표` · `## 결정` · `## 기획` · `## 디자인` · `## 작업` · `## 순서` · `## 플레이`, `· 권함:`, `- 1차:`, `**대기**`). The script reads both, and what it adds to such a document is English — leave the old lines as they are.
 
 ## Auto mode
 
@@ -195,9 +199,9 @@ Without `auto`, do not read it.
 
 Run `cycle.py next` and continue from there — do not read the document. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
 Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`. An overturned decision is an answer that changes the plan: call the agent whose section it touches,
-then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
+then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## Spec` section (made before this stage existed) stands before Design or Plan,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.
-A document standing at 배포 or 회고 (made when those were stages) is in 플레이 — treat it so, and write nothing in those sections.
+A document standing at 배포 or 회고 (shipping and retrospective — made when those were stages) is in Play — treat it so, and write nothing in those sections.
 
 ## status
 

@@ -16,7 +16,8 @@ Files that already exist are not touched — the result is the same however many
 Run again in an already installed project (kit.config.json exists), it skips the engine templates: a project that moved the value file
 or deleted a template on purpose does not get the same file again (Godot will not start with two of the same `class_name`). Instead it reports the config sections the kit has gained since.
 
-In CLAUDE.md, the kit's part is only what lies between `<!-- gamedev-kit 시작 … -->` and `<!-- gamedev-kit 끝 -->` (common rules + engine rules).
+In CLAUDE.md, the kit's part is only what lies between `<!-- gamedev-kit start … -->` and `<!-- gamedev-kit end -->` (common rules + engine rules).
+A block written by an older kit carries the Korean markers (`gamedev-kit 시작` / `gamedev-kit 끝`): it is found too, and is rewritten with the new markers when it is brought up to date.
 When the kit bumps its version, --rules replaces just that span — the game's rules are outside the block and are not touched.
 If the inside of the block was edited by hand, it stops instead of overwriting (move the edits outside, or --force).
 
@@ -40,8 +41,11 @@ import tempfile
 KIT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 ENGINES = os.environ.get("GAMEDEV_KIT_ENGINES") or os.path.join(KIT, "engines")  # the tests change this
 LOCK_LINE = "~$*.xlsx"
-START, END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"
-BLOCK_RE = re.compile(re.escape(START) + r" · ([0-9a-f]+)[^\n]*-->\n(.*?)\n" + re.escape(END), re.S)
+START, END = "<!-- gamedev-kit start", "<!-- gamedev-kit end -->"
+OLD_START, OLD_END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"  # written by older kits — read, never written
+# The fingerprint in the start marker is taken over the text between the marker lines only, so it does not depend on which markers a block carries.
+BLOCK_RE = re.compile("(?P<start>" + re.escape(START) + "|" + re.escape(OLD_START) + r") · ([0-9a-f]+)[^\n]*-->\n(.*?)\n"
+                      "(?P<end>" + re.escape(END) + "|" + re.escape(OLD_END) + ")", re.S)
 OWN = """
 ## This game's rules
 
@@ -176,7 +180,7 @@ def add_ignore(engine, root, done):
     new = [line.strip() for line in open(src, encoding="utf-8") if line.strip() and line.strip() not in have]
     if new:
         with open(path, "a", encoding="utf-8") as f:
-            f.write(("" if not text or text.endswith("\n") else "\n") + f"\n# {engine} 이 만드는 것 · 저장소에 두지 않는 것\n" + "\n".join(new) + "\n")
+            f.write(("" if not text or text.endswith("\n") else "\n") + f"\n# what {engine} generates · what is kept out of the repository\n" + "\n".join(new) + "\n")
     done.append(f"  {'added' if new else 'kept '}    .gitignore ({engine} — "
                 + (f"{len(new)} line{'' if len(new) == 1 else 's'}: {' · '.join(new)}" if new else "every line is already there") + ")")
 
@@ -199,16 +203,18 @@ def block(body):
 
 
 def rules_state(root, engine):
-    """none (no block) · same · stale (the kit bumped its version) · edited (the inside of the block was edited by hand). None if there is no CLAUDE.md."""
+    """none (no block) · same · stale (the kit bumped its version, or the block carries the old markers) · edited (the inside of the block was edited by hand).
+    None if there is no CLAUDE.md."""
     path = os.path.join(root, "CLAUDE.md")
     if not os.path.exists(path):
         return None
     m = BLOCK_RE.search(open(path, encoding="utf-8").read())
     if not m:
         return "none"
-    if digest(m.group(2)) != m.group(1):
+    if digest(m.group(3)) != m.group(2):
         return "edited"
-    return "same" if m.group(1) == digest(rules(engine)[1]) else "stale"
+    current = m.group(2) == digest(rules(engine)[1]) and (m.group("start"), m.group("end")) == (START, END)
+    return "same" if current else "stale"
 
 
 def sync_rules(root, engine, force):
@@ -217,7 +223,7 @@ def sync_rules(root, engine, force):
     state = rules_state(root, engine)
     if state is None:
         open(path, "w", encoding="utf-8").write(head + "\n" + block(body) + OWN)
-        return print("created CLAUDE.md — fill in `<게임 이름>`")
+        return print("created CLAUDE.md — fill in `<game name>`")
     text = open(path, encoding="utf-8").read()
     if state == "same":
         return print("the kit rules in CLAUDE.md match the current version")
@@ -347,7 +353,7 @@ def main():
     if LOCK_LINE not in text:
         with open(ignore, "a", encoding="utf-8") as f:
             f.write(("" if not text or text.endswith("\n") else "\n")
-                    + "\n# 엑셀이 파일을 열어 둔 동안 만드는 잠금 파일\n" + LOCK_LINE + "\n")
+                    + "\n# the lock file Excel makes while it has the table open\n" + LOCK_LINE + "\n")
         done.append("  added    .gitignore (Excel lock file)")
     add_ignore(engine, root, done)
 

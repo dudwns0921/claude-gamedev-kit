@@ -5,9 +5,11 @@ description: >-
   2D sprite: description → still picture (Ludo) → human approves → animated sprite sheet (Ludo) → game folder — characters, props, tiles, icons.
   Sound: description → sound effect, looping sound, music (ElevenLabs) → game folder. One art style paragraph and one sound style
   paragraph in docs/DESIGN.md are attached to every asset, and each asset's prompt and result are recorded.
-  Use when the user says "에셋 만들어줘", "모델 뽑아줘", "○○ 3D 로 만들어줘", "스프라이트 만들어줘", "2D 로 그려줘", "걷는 모션 뽑아줘",
-  "아이콘 그려줘", "Ludo 로 만들어줘", "효과음 만들어줘", "소리 넣자", or asks for one more like an existing asset, background sound, BGM,
-  or a sound redone; when the cycle's design section "필요한 에셋" lists a 3D model, sprite or sound that does not exist; when the user
+  Use when the user says "에셋 만들어줘" (make an asset), "모델 뽑아줘" (make a model), "○○ 3D 로 만들어줘" (make ○○ in 3D),
+  "스프라이트 만들어줘" (make a sprite), "2D 로 그려줘" (draw it in 2D), "걷는 모션 뽑아줘" (make a walk animation),
+  "아이콘 그려줘" (draw an icon), "Ludo 로 만들어줘" (make it with Ludo), "효과음 만들어줘" (make a sound effect), "소리 넣자" (let's add sound),
+  or asks for one more like an existing asset, background sound, BGM,
+  or a sound redone; when the cycle's design section "Assets needed" lists a 3D model, sprite or sound that does not exist; when the user
   approves an image for meshing or animating, or says the size is wrong; when first setting the art style paragraph or the asset API keys.
 ---
 
@@ -73,7 +75,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
    resumes waiting on the same job (it does not buy a new one). Once the mesh arrives it continues through finishing.
 7. **Report the result.** File path, triangle count, size, credits spent. Opening it in the engine is the user's job.
    If only the size is wrong, `finish <name> --size <meters>` — do not call Meshy again.
-8. During a cycle, write the path in the "있는가" cell of the design section's "필요한 에셋" table.
+8. During a cycle, write the path in the "Have" cell of the design section's "Assets needed" table (older cycle documents name them "있는가" and "필요한 에셋").
 
 ## What is attached to every asset
 
@@ -81,17 +83,17 @@ Three layers in `docs/DESIGN.md`, joined in this order behind every description 
 
 | Layer | Between | What it is | Changes |
 |---|---|---|---|
-| **화풍** — how it is drawn | `<!-- asset-style -->` | rendering, palette, amount of detail, material feel, proportions | fixed. Changing it sets new assets against old ones |
-| **세계** — what exists | `<!-- asset-world -->` | era and place, the materials things are made of, motifs and shapes that recur | grows slowly, with the user |
-| **배운 것** — what turning assets down taught | `<!-- asset-learned -->` | one line per rule, from the user's own words | one line at a time, by `learn` |
+| **Art style** — how it is drawn | `<!-- asset-style -->` | rendering, palette, amount of detail, material feel, proportions | fixed. Changing it sets new assets against old ones |
+| **World** — what exists | `<!-- asset-world -->` | era and place, the materials things are made of, motifs and shapes that recur | grows slowly, with the user |
+| **Learned** — what turning assets down taught | `<!-- asset-learned -->` | one line per rule, from the user's own words | one line at a time, by `learn` |
 
-- **세계** is optional. Write it with the user from the GDD's setting when the second or third asset shows the need — it is also what you read before writing a new asset's description.
-- **배운 것 comes only from what the user said**, never from what you see in images they approved — your reading of their taste is not their taste. One line, in English, true of every asset
-  ("Metal is matte, never glossy"). Show the line when you add it. The script stops at twelve lines: merge lines that overlap, or — with the user — move a rule that always holds up into 화풍.
-- The three do not contradict: if a learned line fights the 화풍 paragraph, the paragraph is what needs the user's decision, not a thirteenth line.
+- **World** is optional. Write it with the user from the GDD's setting when the second or third asset shows the need — it is also what you read before writing a new asset's description.
+- **Learned comes only from what the user said**, never from what you see in images they approved — your reading of their taste is not their taste. One line, in English, true of every asset
+  ("Metal is matte, never glossy"). Show the line when you add it. The script stops at twelve lines: merge lines that overlap, or — with the user — move a rule that always holds up into Art style.
+- The three do not contradict: if a learned line fights the Art style paragraph, the paragraph is what needs the user's decision, not a thirteenth line.
 
 **Seeing them together.** Consistency shows only side by side. The board's asset sheet (`docs/board/assets.html`, drawn by the board skill's script, no model) lays every asset out in one grid
-under these three layers, and marks the ones drawn under an older 화풍 paragraph, the ones turned down and why, and the style references. After making a batch, give the user that page rather than a list of paths.
+under these three layers, and marks the ones drawn under an older Art style paragraph, the ones turned down and why, and the style references. After making a batch, give the user that page rather than a list of paths.
 What they point at there is `reject` · `learn` material.
 
 ## Art style
@@ -157,7 +159,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" credits
 ```
 
 The gate is the same as for models: **the still picture is cheap, the animation is not** (an animation costs about as much as twenty stills).
-Only an approved picture is animated. The art style · 세계 · 배운 것 layers are the same ones — `asset.py look` · `asset.py learn`.
+Only an approved picture is animated. The Art style · World · Learned layers are the same ones — `asset.py look` · `asset.py learn`.
 
 1. **Art style and what exists first** — steps 1 and 2 of the model procedure. Also ask whether code can draw it (a flat panel, a bar, a tint): if so it is not an asset.
 2. **`new`.** The description says only what the thing is. `--type` is Ludo's kind of image — `sprite` (default; characters and props), `icon`, `item-icon`,
@@ -179,7 +181,7 @@ Pitfalls:
   ("seen from directly above, the top of the head visible, facing the top of the image") — it is attached to every description.
   Seen from straight above, one direction is enough: the game turns the picture to the heading. A slanted view needs each motion once per direction.
 - **The still is the first frame.** Draw it in the pose the motion starts from, limbs close to the body, nothing touching the edge — what is cut off in the still is cut off in every frame.
-- **Generated size is not shown size.** Decide how many pixels one metre is (in `docs/DESIGN.md`) and let the engine scale; write generated size → shown size in the "필요한 에셋" table.
+- **Generated size is not shown size.** Decide how many pixels one metre is (in `docs/DESIGN.md`) and let the engine scale; write generated size → shown size in the "Assets needed" table.
   Collision and layout come from the spec's dimensions — stretch the picture to the box, never the box to the picture.
 - **One character, one still.** Every motion of a character is animated from the same approved still, or the character changes between motions.
 - **Cost.** Stills: 0.5 credit. Animation: by the second — `hydra` 3 credits/s (3 s at least), `forge` · `forge-pixel` 1.5 credits/s (simpler motion, pixel art). `credits` shows what is left. Failed jobs are refunded.
@@ -202,13 +204,13 @@ A sound comes out in one step — there is no intermediate gate like the image. 
    if the `<!-- sound-style -->` … `<!-- /sound-style -->` paragraph in `docs/DESIGN.md` exists, the script attaches it.
    Music does not get that paragraph (words for effects, like "no music" or "short tail", wreck a music description) — it gets `<!-- music-style -->` … `<!-- /music-style -->` if that exists.
    If that paragraph is empty, decide it with the user while making the first few sounds and write it down. Same as the art style paragraph: changing it clashes with sounds already made.
-3. **Length.** If the design section "연출과 소리" gives seconds, pass them with `--seconds`. Sound effects are 0.5–30 s (omit to let it decide), music 3–600 s.
+3. **Length.** If the design section "Effects and sound" (older documents: "연출과 소리") gives seconds, pass them with `--seconds`. Sound effects are 0.5–30 s (omit to let it decide), music 3–600 s.
    Use `--loop` for sounds that run endlessly, like wind, engines and ambience. Keep sounds that answer an input short — long ones overlap.
 4. **Make it, give the path, tell the user to listen.** For several, say how many first. Do not say "it came out well" without hearing it.
 5. **Revise.** If they only want a different result, `again <name>` (same description, different sound). If the sound is wrong, fix the description and run `sfx` again under the same name.
    To follow the description more literally use about `--influence 0.6`; for more freedom, `0.1`. The same name overwrites the file —
    the user may prefer the earlier one, so ask before remaking a sound they said was good.
-6. During a cycle, write the path in the "있는가" cell of the design section's "필요한 에셋" table. The code that plays the sound in the game is development work.
+6. During a cycle, write the path in the "Have" cell of the design section's "Assets needed" table. The code that plays the sound in the game is development work.
 
 Pitfalls:
 

@@ -1,11 +1,12 @@
 extends RefCounted
-## 밸런스 표(xlsx)를 읽는다. xlsx 는 XML 을 담은 zip 이라 ZIPReader · XMLParser 로 충분하다.
+## Reads the balance table (xlsx). An xlsx is a zip of XML, so ZIPReader · XMLParser are enough.
 ##
-## 표의 A 열은 이름(Balance 의 변수 이름), B 열은 값이다. 나머지 열은 사람이 읽는 것이라 보지 않는다.
-## 엑셀은 글자를 sharedStrings.xml 에 모아 두고 칸에는 번호만 적는다 — 이름을 찾으려면 그것부터 읽는다.
+## Column A is the name (a variable of Balance), column B the value. The other columns are for people and are not read.
+## The header row is skipped by its shape (not an upper-case name with a number), whatever language it is in.
+## Excel collects text in sharedStrings.xml and writes only an index in the cell — to find a name, that is read first.
 
 
-## {이름: float}. 파일이 없거나 저장 도중이라 못 읽으면 빈 값.
+## {name: float}. Empty if the file is missing or cannot be read because a save is in progress.
 static func read(path: String) -> Dictionary:
 	var out := {}
 	var file := ProjectSettings.globalize_path(path)
@@ -35,7 +36,7 @@ static func _shared_strings(bytes: PackedByteArray) -> Array[String]:
 		return out
 	var text := ""
 	var in_t := false
-	var phonetic := 0  # <rPh> 는 발음 표기 — 글자가 아니다
+	var phonetic := 0  # <rPh> is a phonetic run — not text
 	while xml.read() == OK:
 		match xml.get_node_type():
 			XMLParser.NODE_ELEMENT:
@@ -67,8 +68,8 @@ static func _rows(bytes: PackedByteArray, shared: Array[String]) -> Dictionary:
 	var xml := XMLParser.new()
 	if bytes.is_empty() or xml.open_buffer(bytes) != OK:
 		return out
-	var name := ""      # 이 줄의 A 열
-	var value := ""     # 이 줄의 B 열
+	var name := ""      # column A of this row
+	var value := ""     # column B of this row
 	var column := ""
 	var kind := ""
 	var reading := false

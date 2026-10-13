@@ -5,7 +5,8 @@ description: >-
   one card each, with how complete it is across function · art · sound · verification (done · placeholder · not made · problem). A card opens that stage's page: GDD rows,
   art, sounds, checks, open questions, the cycle tasks that touched it. Everything is read from the GDD table, asset records, cycle and playtest
   documents. Once drawn, it redraws itself as the documents change — a hook runs the script, no model involved.
-  Use when the user says "현황판", "보드 보여줘", "지금 어디까지 됐어", "진행 상황 한눈에", "얼마나 만들었어", asks to see progress or the decisions so far
+  Use when the user says "현황판" (status board), "보드 보여줘" (show me the board), "지금 어디까지 됐어" (how far along are we),
+  "진행 상황 한눈에" (progress at a glance), "얼마나 만들었어" (how much is made), asks to see progress or the decisions so far
   as a page, or says the board looks stale or wrong.
 ---
 
@@ -37,12 +38,14 @@ Every state is read, never judged:
 
 | Meter | Done / Placeholder / Not made / Problem come from | Kept right by |
 |---|---|---|
-| Function | `docs/GDD.md` appendix A — 동기 / — / 미구현 / 불일치 | `/gamedev-kit:gdd-sync` |
-| Art · Sound | asset records in `assets/_gen` (a record whose file is in the game = done) and the `### 필요한 에셋` table of each cycle document (있는가: `없음` = not made, `임시 …` = placeholder) | `/gamedev-kit:asset`, the designer agent |
-| Verified | each cycle that touched the stage (끝 — closed by the next cycle — = done, 플레이 = placeholder "your turn to play", earlier = not made); playtest tasks (`[ ]` = problem); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
-| Undecided | unstruck bullets of the GDD section whose heading contains `미정`, and unanswered cycle decisions | the GDD, `cycle.py` |
+| Function | `docs/GDD.md` appendix A — synced / — / missing / mismatch | `/gamedev-kit:gdd-sync` |
+| Art · Sound | asset records in `assets/_gen` (a record whose file is in the game = done) and the `### Assets needed` table of each cycle document (Have: `none` = not made, `placeholder …` = placeholder) | `/gamedev-kit:asset`, the designer agent |
+| Verified | each cycle that touched the stage (Closed — closed by the next cycle — = done, Play = placeholder "your turn to play", earlier = not made); playtest tasks (`[ ]` = problem); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
+| Undecided | unstruck bullets of the GDD section whose heading contains `Open questions`, and unanswered cycle decisions | the GDD, `cycle.py` |
 
-**If the user says something on the board is wrong after playing** ("엔딩 소리가 이상해", "이건 아직 임시야"), do not edit the HTML. If it is a list of
+Documents written before the kit moved to English hold the Korean words (동기 · 미구현 · 불일치, `### 필요한 에셋` with `없음` · `임시`, 끝 · 플레이, `미정`) — the script reads both.
+
+**If the user says something on the board is wrong after playing** ("엔딩 소리가 이상해" — "the ending sound is off", "이건 아직 임시야" — "this is still a placeholder"), do not edit the HTML. If it is a list of
 problems, that is `/gamedev-kit:playtest`. If it is one remark, append one line to `docs/board-notes.md` and rerun the script:
 
 ```

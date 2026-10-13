@@ -5,7 +5,9 @@
   python3 tools/kit_feedback.py done <game repo> <number,number> <version>   mark reflected lines [x] (records which version they went into)
 
 A person and Claude do the reflecting — read the line and move it to the right place among engines/<engine>/CLAUDE.md (what becomes the game's rules) · NOTES.md (what to do after installing) · the skill documents · the scripts.
-A line that fits that game only is not moved; mark it done saying so (in the version slot, "안 올림: <reason>").
+A line that fits that game only is not moved; mark it done saying so (in the version slot, "not raised: <reason>").
+
+The tail written is `kit <version>` or `not raised: <reason>`. Files from before carry `키트 <version>` · `키트 안 올림: …` — the mark is what is read, so they list the same.
 """
 import os
 import re
@@ -13,6 +15,7 @@ import sys
 
 FILE = os.path.join("docs", "kit-feedback.md")
 LINE = re.compile(r"^- \[ \] (.*)$")
+NOT_RAISED = re.compile(r"^(?:not raised|안 올림):\s*")  # the reason given in the version slot, in either form
 
 
 def path(repo):
@@ -33,13 +36,15 @@ def main():
     elif len(args) == 4 and args[0] == "done":
         p = path(args[1]) or sys.exit(f"{args[1]}: {FILE} not found")
         want = {int(n) for n in args[2].split(",")}
+        why = NOT_RAISED.match(args[3])
+        tail = f"not raised: {args[3][why.end():]}" if why else f"kit {args[3]}"
         out, n = [], 0
         for line in open(p, encoding="utf-8").read().split("\n"):
             m = LINE.match(line)
             if m:
                 n += 1
                 if n in want:
-                    line = f"- [x] {m.group(1)} — 키트 {args[3]}"
+                    line = f"- [x] {m.group(1)} — {tail}"
             out.append(line)
         if not want <= set(range(1, n + 1)):
             sys.exit(f"no such number — {n} lines remain")

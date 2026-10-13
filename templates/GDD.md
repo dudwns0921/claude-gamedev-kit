@@ -1,62 +1,62 @@
-# <게임 이름> — 게임 디자인 문서
+# <game name> — Game design document
 
-## 1. 개요
+## 1. Overview
 
-## 2. 게임 구조
+## 2. Game structure
 
-## 3. 톤
+## 3. Tone
 
-## 4. 규칙과 시스템
+## 4. Rules and systems
 
-수치를 본문에 적을 때는 부록 A 의 같은 항목과 값이 같아야 한다.
+A number written in the body must have the same value as the same item in Appendix A.
 
-## 5. 아트 방향
+## 5. Art direction
 
-## 6. 사운드
+## 6. Sound
 
-## 7. 제작 범위
+## 7. Scope
 
-## 8. 미정 사항
+## 8. Open questions
 
 ---
 
-## 부록 A. 동기화 표
+## Appendix A. Sync table
 
-이 표는 GDD와 코드가 **같은 값을 가져야 하는 항목**만 모은 것이다. 톤, 대사, 아트 방향처럼 코드에 대응물이 없는 내용은 여기 없다.
-`gdd-sync` 스킬은 이 표만 본다. 본문의 수치를 바꾸면 이 표도, 이 표를 바꾸면 본문도 함께 고친다.
+This table holds only the items where **the GDD and the code must have the same value**. What has no counterpart in code — tone, dialogue, art direction — is not here.
+The `gdd-sync` skill looks at this table only. Change a number in the body and this table changes with it; change this table and the body changes with it.
 
-**규칙**
+**Rules**
 
-- ID는 `분류.대상.속성` 형식이고 한 번 붙이면 바꾸지 않는다. 항목이 없어지면 행을 지우지 말고 상태에 `폐기`라고 적는다.
-- 코드 위치는 `파일:심볼` 형식이다. 아직 구현이 없으면 `—`로 둔다. 스킬이 채운다.
-- 코드 쪽에는 값을 정의하는 줄에 `GDD: <ID>` 주석을 남긴다. 스킬은 이 주석으로 대응을 찾는다.
-- 상태: `동기` (양쪽 같음) · `미구현` (코드 없음) · `불일치` (다름, 사람 판단 필요) · `폐기`.
-- 값에 범위를 적을 수 있다 (`20~25`). 코드 값이 안에 들면 동기다.
+- An ID has the form `category.target.attribute` and never changes once given. When an item goes away, do not delete the row — write `retired` as its state.
+- A code location has the form `file:symbol`. Leave it as `—` while there is no implementation. The skill fills it in.
+- In code, the line that defines the value carries a `GDD: <ID>` comment. The skill finds the counterpart by this comment.
+- State: `synced` (both sides equal) · `missing` (no code) · `mismatch` (they differ, a person decides) · `retired`.
+- A value may be a range (`20~25`). A code value inside it is synced.
 
-### A.1 밸런스 수치
+### A.1 Balance numbers
 
-| ID | 값 | 출처 | 코드 위치 | 상태 | 비고 |
+| ID | Value | Source | Code location | State | Note |
 |---|---|---|---|---|---|
-| BAL.PLAYER.HP | 100 | 4 | — | 미구현 | 예시 — 시작 체력 |
-| BAL.PLAYER.WALK_SPEED | 4~16 | 4 | — | 미구현 | 예시 — 걷는 속도. 범위로 적으면 안에 드는 값은 동기 |
-| BAL.COIN.VALUE | 5 | 4 | — | 미구현 | 예시 — 동전 하나의 값 |
+| BAL.PLAYER.HP | 100 | 4 | — | missing | example — starting health |
+| BAL.PLAYER.WALK_SPEED | 4~16 | 4 | — | missing | example — walking speed. Written as a range, any value inside it is synced |
+| BAL.COIN.VALUE | 5 | 4 | — | missing | example — the value of one coin |
 
-### A.2 열거 (목록의 구성과 순서)
+### A.2 Enums (what a list holds, and in what order)
 
-| ID | 값 | 출처 | 코드 위치 | 상태 | 비고 |
-|---|---|---|---|---|---|
-
-### A.3 규칙 (조건 → 결과)
-
-| ID | 규칙 | 출처 | 코드 위치 | 상태 | 비고 |
+| ID | Value | Source | Code location | State | Note |
 |---|---|---|---|---|---|
 
-### A.4 입력
+### A.3 Rules (condition → result)
 
-| ID | 값 | 출처 | 코드 위치 | 상태 | 비고 |
+| ID | Rule | Source | Code location | State | Note |
 |---|---|---|---|---|---|
 
-### A.5 HUD 구성
+### A.4 Input
 
-| ID | 값 | 출처 | 코드 위치 | 상태 | 비고 |
+| ID | Value | Source | Code location | State | Note |
+|---|---|---|---|---|---|
+
+### A.5 HUD layout
+
+| ID | Value | Source | Code location | State | Note |
 |---|---|---|---|---|---|

@@ -5,8 +5,9 @@ description: >-
   human watches → placed where it is used. Two uses: `page` — outside the game (trailer, itch.io page, devlog clip) as mp4;
   `game` — a cutscene the game plays as a video file (intro, ending), converted to the format the engine reads. One footage style
   paragraph in docs/DESIGN.md is attached to every description, and each clip's description and result are recorded.
-  Use when the user says "영상 만들어줘", "트레일러 만들자", "컷씬 만들어줘", "인트로 영상", "엔딩 영상", "devlog 에 넣을 영상",
-  "힉스필드로 만들어줘", "이 그림을 움직이게", "한 번 더 뽑아줘"; approves a shot description or says a clip is good; when the cycle's
+  Use when the user says "영상 만들어줘" (make a video), "트레일러 만들자" (let's make a trailer), "컷씬 만들어줘" (make a cutscene),
+  "인트로 영상" (intro video), "엔딩 영상" (ending video), "devlog 에 넣을 영상" (a clip for the devlog),
+  "힉스필드로 만들어줘" (make it with Higgsfield), "이 그림을 움직이게" (make this picture move), "한 번 더 뽑아줘" (one more take); approves a shot description or says a clip is good; when the cycle's
   design section lists a cutscene or trailer that does not exist; when first setting the footage style, the Higgsfield keys or the model.
 ---
 

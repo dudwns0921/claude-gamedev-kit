@@ -1,6 +1,6 @@
 {
   "name": "claude-gamedev-kit",
-  "description": "게임 개발용 Claude Code 플러그인 (Godot · Unity)",
+  "description": "A Claude Code plugin for making games (Godot · Unity)",
   "owner": { "name": "dudwns0921" },
   "plugins": [
     {

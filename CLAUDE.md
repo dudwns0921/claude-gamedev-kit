@@ -11,7 +11,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
   `tests/test_structure.py` blocks an engine's name appearing as a string in a script.
 - **A skill is complete within its own folder.** Do not import another skill's scripts. Settings go in `kit.config.json` under a section named after the skill.
 - **Scripts use only the standard library** (Python 3.9 — a package missing on the installing side breaks only there. `tests/test_structure.py` blocks it). Only the script Blender runs (`blender_finish.py`) uses `bpy`. The game root is found by walking up from the current folder — never from the script's location.
-- **Do not overwrite files in the game repository.** init creates only files that do not exist. There is one exception — the `<!-- gamedev-kit 시작 -->` block inside the game's CLAUDE.md belongs to the kit,
+- **Do not overwrite files in the game repository.** init creates only files that do not exist. There is one exception — the `<!-- gamedev-kit start -->` block (`<!-- gamedev-kit 시작 -->` in a game set up by an older kit) inside the game's CLAUDE.md belongs to the kit,
   so `init --rules` replaces it whole (it does not touch anything outside the block, and stops if the inside was edited by hand). A change to the rules installed into games goes out through this block.
 - **Files that skill documents and hooks point to must exist.** When moving or renaming a script, also fix the documents that call it (`${CLAUDE_SKILL_DIR}/…`) and
   `hooks/hooks.json` (`${CLAUDE_PLUGIN_ROOT}/…`) — hooks fail silently. `tests/test_structure.py` blocks it.

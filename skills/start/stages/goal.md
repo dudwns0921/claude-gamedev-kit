@@ -1,6 +1,6 @@
-# 첫 목표 단계 — the first cycle's goal
+# First goal stage — the first cycle's goal
 
-Read the GDD's `게임 구조` and `제작 범위` (not the whole document). If `status` listed skipped stages, mention them once here — a cycle can start without them, but its designer will have less to go on.
+Read the GDD's `Game structure` and `Scope` (`게임 구조` and `제작 범위` in a GDD made before the titles were English) — not the whole document. If `status` listed skipped stages, mention them once here — a cycle can start without them, but its designer will have less to go on.
 
 ## Propose the smallest thing that can be played
 
@@ -13,12 +13,12 @@ Placeholder shapes are fine — the look was agreed in the concept stage and com
 Offer it as:
 
 ```
-첫 사이클의 목표 (권함): <one sentence — what the player can do from start to end of one loop>
-들어가는 것: <the two or three things that sentence needs>
-들어가지 않는 것: <named, one by one — each with "다음 사이클 이후">
+Goal of the first cycle (recommended): <one sentence — what the player can do from start to end of one loop>
+In: <the two or three things that sentence needs>
+Out: <named, one by one — each with "after the next cycle">
 ```
 
-**List what is excluded explicitly.** An exclusion not written down comes back mid-cycle as "이것도 같이".
+**List what is excluded explicitly.** An exclusion not written down comes back mid-cycle as "이것도 같이" ("this one too").
 If the user wants more in, do not argue — say what it adds to the first playable (how many more tasks before they can play) and let them choose. The goal is theirs.
 
 ## Hand over

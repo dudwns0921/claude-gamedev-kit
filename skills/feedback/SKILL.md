@@ -4,7 +4,8 @@ description: >-
   Sends what this game learned that other games would also hit (the lines in docs/kit-feedback.md) to the kit's repository as GitHub issues,
   so the kit grows from every game that uses it — list, preview, send, skip. A script strips dates and cycle numbers, stops on anything that
   looks like the game's name, and finds similar open issues; nothing goes out until the user has seen the exact text and said yes.
-  Use when the user says "피드백 보내줘", "키트에 올려줘", "배운 거 올리자", "kit-feedback 보내", "이슈로 올려줘", "쌓인 피드백 보자";
+  Use when the user says "피드백 보내줘" ("send the feedback"), "키트에 올려줘" ("send it up to the kit"), "배운 거 올리자" ("let's send what we learned"),
+  "kit-feedback 보내" ("send kit-feedback"), "이슈로 올려줘" ("open it as an issue"), "쌓인 피드백 보자" ("show the piled-up feedback");
   when the session-start notice says lessons have piled up and the user wants to deal with them. Not for writing a lesson down
   (→ `lesson` of the cycle or playtest skill), and not for a problem in the game itself.
 ---
@@ -33,12 +34,16 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" skip 4 "<why>"
 
 Numbers count unsent lines only, so they shift after every `send` · `sent` · `skip` — run `list` again before using a number.
 
+The file is `# For the kit`, one line per lesson: `- [ ] (<engine> · cycle 3 · <date>) <what tripped us → how to avoid it>`. A sent line becomes
+`[>] … — issue #12`, a skipped one `[-] … — not sent: <why>`. Older files use the Korean words (`# 키트로 올릴 것` · `사이클 3` · `이슈 #12` · `안 보냄: …`) —
+the script reads both, and what goes out to an issue is the same either way.
+
 ## Procedure
 
 1. **`list`.** If there is nothing unsent, say so and stop.
 2. **Sort the lines before previewing.** Read each one as a stranger on another game would:
    - Relies on this game's structure · rules · names → it should not have been written here. Ask whether to `skip` it (and whether it belongs in the project's CLAUDE.md "Pitfalls").
-   - Two lines say the same thing → send one, `skip` the other with "같은 것: <the other line>".
+   - Two lines say the same thing → send one, `skip` the other with "same as: <the other line>".
    - Makes sense without this game → a candidate.
 3. **`preview` the candidates.** The output is what goes out: title, body, the engine and the kit version. Two marks need a decision:
    - `!` — a word that looks like this game's name, or a date. Rewrite that line in `docs/kit-feedback.md` so it stands without it, then preview again.

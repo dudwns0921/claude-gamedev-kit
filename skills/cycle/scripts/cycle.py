@@ -1,21 +1,22 @@
 #!/usr/bin/env python3
 """Ledger for the cycle document (docs/cycle/NN-name.md) — pulls out and changes only the lines needed, without reading the whole document or editing it by hand.
 
-  python3 cycle.py new <short-name> "<goal — in the user's own words>"   New document. Numbered after the last one. A previous cycle standing at 플레이 becomes `끝`, and what is left · deferred there is reported
+  python3 cycle.py new <short-name> "<goal — in the user's own words>"   New document. Numbered after the last one. A previous cycle standing at Play becomes `Closed`, and what is left · deferred there is reported
   python3 cycle.py status                       Per document: stage · task counts · open decisions
   python3 cycle.py next                         Current stage, open decisions, the tasks of the next wave to run
   python3 cycle.py task T3                      One task and only the decisions it depends on (what the developer agent reads)
   python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
-  python3 cycle.py mark T2 blocked "<reason>"   One `- **막힘**:` line under the task. Text after done goes in `- **한 것**:`
-  python3 cycle.py ask <기획|디자인|계획> "<question — ① … ② … · 권함: ①>"   Adds a decision and prints its number (D4)
+  python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
+  python3 cycle.py ask <Spec|Design|Plan> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4)
   python3 cycle.py decide D2 "<the user's answer, as said>"
-  python3 cycle.py decide D2 "②" --proxy V3     Auto mode — decided in the user's place. Written as [~] (basis: the voice's principle number, or `권함` if none)
+  python3 cycle.py decide D2 "②" --proxy V3     Auto mode — decided in the user's place. Written as [~] (basis: the voice's principle number, or `recommended` if none)
   python3 cycle.py confirm D2,D5                The user accepted the proxy decisions — they become [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
-  python3 cycle.py stage <stage>                Changes `단계:` in the head
-  python3 cycle.py later "<in the user's own words>"   One `- 다음에:` line in the "플레이" section for something deferred. `new` shows it when the next cycle is made
+  python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
+  python3 cycle.py later "<in the user's own words>"   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made
   python3 cycle.py lesson "<what tripped us → how to avoid it>"   One line in docs/kit-feedback.md for a lesson that is not this game's alone (to send up to the kit)
 
 The document is the newest one (highest number). For another, `--doc <path>`.
+Documents are written in English. Ones written before that use Korean words — both are read, and a stage or section given in Korean is taken too.
 """
 import datetime
 import json
@@ -27,33 +28,44 @@ import sys
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
 FEEDBACK = os.path.join("docs", "kit-feedback.md")
-FEEDBACK_HEAD = """# 키트로 올릴 것
+FEEDBACK_HEAD = """# For the kit
 
-이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것** — 같은 엔진의 다음 게임도 걸려 넘어질 함정, 쓸 만한 확인 방법, 키트 도구의 모자란 점.
-걸려 넘어진 그 자리에서 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`). `/gamedev-kit:feedback` 이 키트 저장소의 이슈로 보낸다 — 보낸 줄은 `[>]`, 보내지 않기로 한 줄은 `[-]` 가 된다.
+What making this game taught that is **not this game's alone** — a trap the next game on the same engine would also fall into, a way of checking that works, something the kit's tools lack.
+One line is added at the spot where we tripped (`cycle.py lesson` · `playtest.py lesson`). `/gamedev-kit:feedback` sends them to the kit repository as issues — a line that was sent becomes `[>]`, one we chose not to send becomes `[-]`.
 
 """
-TEMPLATE = """# 사이클 {num} — {name}
+TEMPLATE = """# Cycle {num} — {name}
 
-시작: {date} · 커밋 {commit} · 단계: 목표
+Started: {date} · Commit {commit} · Stage: Goal
 
-## 목표
+## Goal
 {goal}
 
-## 결정
+## Decisions
 
-## 기획
+## Spec
 
-## 디자인
+## Design
 
-## 작업
+## Tasks
 
-## 순서
+## Order
 
-## 플레이
+## Play
 """
 BOX = {"done": "x", "blocked": "!", "open": " "}
-NOTE = {"done": "한 것", "blocked": "막힘"}
+NOTE = {"done": "Done", "blocked": "Blocked"}
+# The words of the document: written in English, read in English and in the Korean of older documents.
+KO = {"Goal": "목표", "Decisions": "결정", "Spec": "기획", "Design": "디자인", "Plan": "계획", "Build": "구현", "Tasks": "작업",
+      "Order": "순서", "Play": "플레이", "Closed": "끝"}
+EN = {ko: en for en, ko in KO.items()}  # a stage or section given in Korean on the command line is written in English
+STAGE_RE = re.compile(r"((?:Stage|단계): *)(.+)")
+OPEN_STAGE = re.compile(r"Play|플레이|배포|회고")  # 배포 · 회고 are from documents written when those were stages
+CLOSED = ("Closed", "끝")
+WAITING_RE = re.compile(r"\*\*(?:Waiting|대기)\*\*:(.*)")
+WAVE_RE = re.compile(r"- *(?:Wave *(\d+)|(\d+) *차):(.*)")
+LATER_RE = re.compile(r"^- (?:Next|다음에): *(.+)$", re.M)
+PROXY_RE = re.compile(r"^(.*) → (.*?) · (?:proxy|대리) (.*?) \(\d{4}-\d\d-\d\d\)$")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
 
@@ -98,8 +110,8 @@ def write(path, text):
 
 
 def section(text, title):
-    """(start, end) of the `## <title>` section. None if absent."""
-    m = re.search(rf"^## {re.escape(title)}[ \t]*$", text, re.M)
+    """(start, end) of the `## <title>` section, under its English or its older Korean name. None if absent."""
+    m = re.search(rf"^## (?:{re.escape(title)}|{re.escape(KO.get(title, title))})[ \t]*$", text, re.M)
     if not m:
         return None
     nxt = re.search(r"^## ", text[m.end():], re.M)
@@ -107,8 +119,8 @@ def section(text, title):
 
 
 def stage_of(text):
-    m = re.search(r"단계: *(.+)", text)
-    return m.group(1).strip() if m else "?"
+    m = STAGE_RE.search(text)
+    return m.group(2).strip() if m else "?"
 
 
 def tasks(text):
@@ -125,18 +137,18 @@ def decisions(text):
 
 
 def waiting(block, ds):
-    """The decisions in a task block's `대기: D2` that have no answer yet."""
-    line = re.search(r"\*\*대기\*\*:(.*)", block)
+    """The decisions in a task block's `Waiting: D2` that have no answer yet."""
+    line = WAITING_RE.search(block)
     return [d for d in re.findall(r"D\d+", line.group(1)) if ds.get(d, (" ",))[0] not in "x~"] if line else []
 
 
 def waves(text):
-    span = section(text, "순서")
+    span = section(text, "Order")
     out = []
     for line in (text[span[0]:span[1]].split("\n") if span else []):
-        m = re.match(r"- *(\d+) *차:(.*)", line.strip())
+        m = WAVE_RE.match(line.strip())
         if m:
-            out.append((int(m.group(1)), re.findall(r"T\d+", m.group(2).split("—")[0])))
+            out.append((int(m.group(1) or m.group(2)), re.findall(r"T\d+", m.group(3).split("—")[0])))
     return out
 
 
@@ -206,14 +218,11 @@ def cmd_mark(path, names, state, note):
 
 def cmd_ask(path, who, question):
     text = read(path)
-    span = section(text, "결정") or sys.exit("the document has no `## 결정` section")
+    span = section(text, "Decisions") or sys.exit("the document has no `## Decisions` section")
     num = "D%d" % (max([int(d[1:]) for d in decisions(text)] or [0]) + 1)
     body = text[span[0]:span[1]].rstrip("\n")
-    write(path, text[:span[0]] + body + f"\n- [ ] {num}. {question.strip()} ({who})\n\n" + text[span[1]:])
+    write(path, text[:span[0]] + body + f"\n- [ ] {num}. {question.strip()} ({EN.get(who, who)})\n\n" + text[span[1]:])
     print(num)
-
-
-PROXY_RE = re.compile(r"^(.*) → (.*?) · 대리 (.*?) \(\d{4}-\d\d-\d\d\)$")
 
 
 def cmd_decide(path, num, answer, proxy):
@@ -226,7 +235,7 @@ def cmd_decide(path, num, answer, proxy):
     if proxy and mark == "x":
         sys.exit(f"{num}: the user already answered — not decided in their place")
     ask = PROXY_RE.match(old).group(1) if mark == "~" else old
-    tail = f" · 대리 {proxy}" if proxy else ""
+    tail = f" · proxy {proxy}" if proxy else ""
     write(path, text.replace(old, f"- [{'~' if proxy else 'x'}]{ask[5:]} → {answer.strip()}{tail} ({datetime.date.today()})", 1))
     print(f"{num}: " + ("decided in the user's place (unconfirmed)" if proxy else "answer recorded"))
 
@@ -239,7 +248,7 @@ def cmd_confirm(path, names):
         if num not in ds or ds[num][0] != "~":
             sys.exit(f"{num}: not a proxy decision awaiting confirmation")
         ask, pick, basis = PROXY_RE.match(ds[num][1]).groups()
-        text = text.replace(ds[num][1], f"- [x]{ask[5:]} → {pick} — 대리({basis})를 받아들임 ({datetime.date.today()})", 1)
+        text = text.replace(ds[num][1], f"- [x]{ask[5:]} → {pick} — accepted proxy ({basis}) ({datetime.date.today()})", 1)
     write(path, text)
     print(f"accepted: {' · '.join(picked)}" if picked else "no proxy decisions awaiting confirmation")
 
@@ -250,30 +259,26 @@ def cmd_lesson(path, text):
     out = os.path.join(ROOT, FEEDBACK)
     old = read(out) if os.path.exists(out) else FEEDBACK_HEAD
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    write(out, old.rstrip("\n") + f"\n- [ ] ({engine} · 사이클 {num.group(0) if num else '?'} · {datetime.date.today()}) {' '.join(text.split())}\n")
+    write(out, old.rstrip("\n") + f"\n- [ ] ({engine} · cycle {num.group(0) if num else '?'} · {datetime.date.today()}) {' '.join(text.split())}\n")
     print(f"added to {FEEDBACK}")
-
-
-LATER_RE = re.compile(r"^- 다음에: *(.+)$", re.M)
-OPEN_STAGE = re.compile(r"플레이|배포|회고")  # 배포 · 회고 are from documents written when those were stages
 
 
 def cmd_later(path, said):
     text = read(path)
-    span = section(text, "플레이") or sys.exit("the document has no `## 플레이` section")
+    span = section(text, "Play") or sys.exit("the document has no `## Play` section")
     body = text[span[0]:span[1]].rstrip("\n")
-    write(path, text[:span[0]] + body + f"\n- 다음에: {' '.join(said.split())}\n\n" + text[span[1]:])
+    write(path, text[:span[0]] + body + f"\n- Next: {' '.join(said.split())}\n\n" + text[span[1]:])
     print("deferred")
 
 
 def close(path):
-    """Closes the previous cycle — there is no closing stage. A document standing at 플레이 becomes `끝` when the next cycle is made."""
+    """Closes the previous cycle — there is no closing stage. A document standing at Play becomes `Closed` when the next cycle is made."""
     text = read(path)
     rel, stage = os.path.relpath(path, ROOT), stage_of(text)
     if OPEN_STAGE.match(stage):
-        write(path, re.sub(r"(단계: *).+", lambda m: m.group(1) + "끝", text, count=1))
+        write(path, STAGE_RE.sub(lambda m: m.group(1) + "Closed", text, count=1))
         print(f"closed: {rel}")
-    elif stage != "끝":
+    elif stage not in CLOSED:
         print(f"the previous cycle is still at stage {stage}: {rel}")
     marks, ds = [t[0] for t in tasks(text).values()], [d[0] for d in decisions(text).values()]
     left = [f"{label} {n}" for label, n in (("[ ]", marks.count(" ")), ("[!]", marks.count("!")),
@@ -293,7 +298,7 @@ def cmd_new(name, goal):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     write(path, TEMPLATE.format(num=f"{num:02d}", name=name, date=datetime.date.today(),
-                                commit=git("rev-parse", "--short", "HEAD") or "없음", goal=goal.strip()))
+                                commit=git("rev-parse", "--short", "HEAD") or "none", goal=goal.strip()))
     print(os.path.relpath(path, ROOT))
     if before:
         close(before[-1])
@@ -340,10 +345,11 @@ def main():
         cmd_lesson(path, rest[0])
     else:
         text = read(path)
-        if not re.search(r"단계: *.+", text):
-            sys.exit("the document head has no `단계:`")
-        write(path, re.sub(r"(단계: *).+", lambda m: m.group(1) + rest[0], text, count=1))
-        print(f"stage: {rest[0]}")
+        if not STAGE_RE.search(text):
+            sys.exit("the document head has no `Stage:`")
+        stage = EN.get(rest[0], rest[0])
+        write(path, STAGE_RE.sub(lambda m: m.group(1) + stage, text, count=1))
+        print(f"stage: {stage}")
 
 
 if __name__ == "__main__":

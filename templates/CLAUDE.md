@@ -1,4 +1,4 @@
-# CLAUDE.md — <게임 이름>
+# CLAUDE.md — <game name>
 
 Design document: [docs/GDD.md](docs/GDD.md)
 
@@ -28,7 +28,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 | When | Goes to |
 |---|---|
 | A new game with no cycle yet — the GDD, the look, the first goal | `/gamedev-kit:start` — it reads where the game stands from the files |
-| A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from 목표 to 플레이 |
+| A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from Goal to Play |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
 | A 3D model, a 2D sprite or a sound | `/gamedev-kit:asset` — the style is the one paragraph in [docs/DESIGN.md](docs/DESIGN.md); do not write a style per asset |
 | A trailer shot or a cutscene clip | `/gamedev-kit:video` |
@@ -38,7 +38,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 
 ## The user decides
 
-Claude does not decide scope · taste · numbers · whether to ship. Offer options with one recommendation, ask, and write the answer in the cycle document's "결정" in the user's own words.
+Claude does not decide scope · taste · numbers · whether to ship. Offer options with one recommendation, ask, and write the answer in the cycle document's "Decisions" in the user's own words.
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
 The one exception is auto mode, and only when the user asks for it (`/gamedev-kit:cycle auto …`): the user's voice decides in their place up to the point of playing, every such decision is marked `[~]` and waits for them, and it never ships, spends money or starts a second cycle.

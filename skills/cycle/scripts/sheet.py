@@ -109,7 +109,7 @@ def page(n, q):
         sys.exit(f"{where}: question and images are required")
     options = "".join(
         f"<li class=\"{'pick' if o.get('recommend') else ''}\"><b>{html.escape(str(o.get('mark', '')))}</b>{html.escape(str(o.get('text', '')))}"
-        + ("<small>← 권함</small>" if o.get("recommend") else "") + "</li>" for o in q.get("options", []))
+        + ("<small>← recommended</small>" if o.get("recommend") else "") + "</li>" for o in q.get("options", []))
     images = q["images"]
     return PAGE.format(title=html.escape(f"{q.get('id', n)}. {q['question']}"), options=options, inner=WIDTH - 56,
                        cell=(WIDTH - 56 - 14 * (min(len(images), 3) - 1)) // min(len(images), 3) - 1,

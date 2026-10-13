@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""도구 검사 — engines/ 의 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync 와 balance-table 을 끝까지 돌린다.
-init 의 엔진 프로젝트 만들기는 가짜 에디터로, deploy 는 가짜 butler 로, asset 과 start 의 컨셉 그림은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 돌린다 — 밖으로는 아무것도 나가지 않는다.
+"""Tool checks — for every engine config in engines/, makes a temporary project and runs gdd-sync and balance-table end to end.
+init's engine-project creation runs against a fake editor, deploy against a fake butler, asset and start's concept images against a fake API server,
+video against a fake Higgsfield server · a fake ffmpeg — nothing goes outside.
 
   python3 tests/test_tools.py
 
-엔진은 필요 없다. 엔진 문법(GDScript)으로 적힌 값 파일을 도구가 읽고 고치는지만 본다.
+No engine is needed. It only checks that the tools read and edit a value file written in the engine's syntax.
+The documents the tools write are English; fixtures in Korean are documents from before that change, which must keep working.
 """
 import base64
 import http.server
@@ -46,7 +48,7 @@ PRIVATE = os.path.join(KIT, "tools/private_check.py")
 
 
 def raw_glb():
-    """Meshy 가 줄 법한 메쉬: 삼각형 둘, 높이 4, 원점도 크기도 어긋나 있다 (x 0~2 · y 1~5 · z 0~1, 노드에 이동과 배율)."""
+    """A mesh such as Meshy would give: two triangles, height 4, origin and size both off (x 0~2 · y 1~5 · z 0~1, a translation and a scale on the node)."""
     b = b"".join(struct.pack("<3f", *p) for p in [(0, 1, 0), (2, 1, 0), (0, 5, 1), (2, 5, 1)]) + struct.pack("<6H", 0, 1, 2, 1, 3, 2)
     g = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}],
          "nodes": [{"mesh": 0, "translation": [10, 0, 0], "scale": [3, 3, 3]}],
@@ -61,7 +63,7 @@ def raw_glb():
     return (struct.pack("<4sII", b"glTF", 2, 28 + len(j) + len(b)) + struct.pack("<I4s", len(j), b"JSON") + j
             + struct.pack("<I4s", len(b), b"BIN\0") + b)
 
-# 엔진이 버전을 적어 두는 파일의 한 줄 (deploy.version 이 이것을 집어야 한다)
+# one line of the file where the engine keeps the version (deploy.version must pick this up)
 VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3"}
 
 GDD = """# 게임
@@ -89,7 +91,33 @@ GDD = """# 게임
 | RULE.COIN.PICKUP | 닿으면 줍는다 | 4 | — | 미구현 | |
 """
 
-# 엔진별 값 파일. HP 100 · WALK_SPEED 4.0 · COIN_VALUE 5 (GDD 는 7 — 불일치) · 표에 없는 ID 하나(고아)
+# The same document in the words the kit writes now. GDD above is the legacy case — it proves a document made before still reads.
+GDD_EN = """# Game
+
+## 4. Rules
+
+Health is 100 and walking speed is 4.
+
+## Appendix A. Sync table
+
+### A.1 Balance numbers
+
+| ID | Value | Source | Code location | State | Note |
+|---|---|---|---|---|---|
+| BAL.PLAYER.HP | 100 | 4 | — | missing | starting health |
+| BAL.PLAYER.WALK_SPEED | 3~5 | 4 | — | missing | walking speed |
+| BAL.COIN.VALUE | 7 | 4 | — | missing | coin value |
+| BAL.OLD.THING | — | 4 | — | retired | retired |
+| BAL.NOT.YET | 3 | 4 | — | missing | |
+
+### A.3 Rules
+
+| ID | Rule | Source | Code location | State | Note |
+|---|---|---|---|---|---|
+| RULE.COIN.PICKUP | picked up on touch | 4 | — | missing | |
+"""
+
+# The value file per engine. HP 100 · WALK_SPEED 4.0 · COIN_VALUE 5 (the GDD says 7 — a mismatch) · one ID that is not in the table (an orphan)
 CODE = {
     "godot": ("""class_name Balance
 ## 시작 체력
@@ -129,9 +157,10 @@ def run(script, root, *args, ok=True):
     return p
 
 
-def excel_save(path, values):
-    """엑셀이 저장하는 모양으로 쓴다: 글자는 sharedStrings 에 모으고(발음 표기 <rPh> 포함) 칸에는 번호만."""
-    shared, rows = ["이름", "값"], ['<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>']
+def excel_save(path, values, header=("이름", "값")):
+    """Writes the shape Excel saves: text gathered in sharedStrings (with the phonetic run <rPh>), only its number in the cell.
+    The default header row is the one tables had before it was English — such a table must still read."""
+    shared, rows = list(header), ['<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>']
     for r, (name, value) in enumerate(values.items(), 2):
         shared.append(name)
         rows.append(f'<row r="{r}"><c r="A{r}" t="s"><v>{len(shared) - 1}</v></c><c r="B{r}"><v>{value}</v></c></row>')
@@ -144,7 +173,7 @@ def excel_save(path, values):
 
 
 class Tools(unittest.TestCase):
-    def project(self, engine):
+    def project(self, engine, gdd=GDD):
         root = tempfile.mkdtemp(prefix=f"kit-{engine}-")
         self.addCleanup(shutil.rmtree, root, True)
         shutil.copy(os.path.join(KIT, "engines", engine, "kit.config.json"), os.path.join(root, "kit.config.json"))
@@ -153,33 +182,44 @@ class Tools(unittest.TestCase):
         os.makedirs(os.path.dirname(code))
         open(code, "w", encoding="utf-8").write(CODE[engine][0])
         os.makedirs(os.path.join(root, "docs"))
-        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD)
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(gdd)
         return root, code, os.path.join(root, cfg["table"]), cfg["code"]
 
-    def each(self):
+    def each(self, gdd=GDD):
         for engine in CODE:
-            with self.subTest(engine=engine):
-                yield (engine,) + self.project(engine)
+            with self.subTest(engine=engine, legacy=gdd is GDD):
+                yield (engine,) + self.project(engine, gdd)
 
     def test_gdd_sync(self):
-        for engine, root, _code, _table, rel in self.each():
-            data = json.loads(run(REPORT, root, "--json").stdout)
-            got = {i["id"]: i for i in data["items"]}
-            self.assertEqual(got["BAL.PLAYER.HP"]["new_status"], "동기")
-            self.assertEqual(got["BAL.PLAYER.HP"]["hits"][0]["symbol"], "PLAYER_HP")
-            self.assertEqual(got["BAL.PLAYER.WALK_SPEED"]["new_status"], "동기", "4.0 inside the range 3~5")
-            self.assertEqual(got["BAL.COIN.VALUE"]["new_status"], "불일치")
-            self.assertEqual(got["BAL.NOT.YET"]["new_status"], "미구현")
-            self.assertEqual(got["RULE.COIN.PICKUP"]["new_status"], "동기?")
-            self.assertEqual(got["RULE.COIN.PICKUP"]["hits"][0]["symbol"], CODE[engine][1])
-            self.assertEqual(list(data["orphans"]), ["BAL.STRAY.ONE"])
+        # the same checks over a GDD in today's words and one in the older Korean words: (document, missing, retired, the rule's text)
+        for doc, missing, retired, rule in ((GDD_EN, "missing", "retired", "picked up on touch"), (GDD, "미구현", "폐기", "닿으면 줍는다")):
+            for engine, root, _code, _table, rel in self.each(doc):
+                data = json.loads(run(REPORT, root, "--json").stdout)
+                got = {i["id"]: i for i in data["items"]}
+                self.assertEqual(len(got), 6, "the appendix is found under either heading")
+                self.assertEqual(got["BAL.PLAYER.HP"]["new_status"], "synced")
+                self.assertEqual(got["BAL.PLAYER.HP"]["hits"][0]["symbol"], "PLAYER_HP")
+                self.assertEqual(got["BAL.PLAYER.WALK_SPEED"]["new_status"], "synced", "4.0 inside the range 3~5")
+                self.assertEqual(got["BAL.COIN.VALUE"]["new_status"], "mismatch")
+                self.assertEqual(got["BAL.NOT.YET"]["new_status"], "missing")
+                self.assertEqual(got["RULE.COIN.PICKUP"]["new_status"], "synced?")
+                self.assertEqual(got["RULE.COIN.PICKUP"]["hits"][0]["symbol"], CODE[engine][1])
+                self.assertEqual(got["BAL.OLD.THING"]["status"], "retired", "a state cell is read in either form")
+                self.assertEqual(list(data["orphans"]), ["BAL.STRAY.ONE"])
 
-            run(REPORT, root, "--write")
-            gdd = open(os.path.join(root, "docs/GDD.md"), encoding="utf-8").read()
-            self.assertIn(f"| BAL.PLAYER.HP | 100 | 4 | {rel}:PLAYER_HP | 동기 |", gdd)
-            self.assertIn(f"| BAL.COIN.VALUE | 7 | 4 | {rel}:COIN_VALUE | 불일치 |", gdd, "the 값 column stays as it is")
-            self.assertIn("| BAL.OLD.THING | — | 4 | — | 폐기 |", gdd)
-            self.assertIn(f"| RULE.COIN.PICKUP | 닿으면 줍는다 | 4 | {rel}:{CODE[engine][1]} | 동기 |", gdd)
+                run(REPORT, root, "--write")
+                gdd = open(os.path.join(root, "docs/GDD.md"), encoding="utf-8").read()
+                self.assertIn(f"| BAL.PLAYER.HP | 100 | 4 | {rel}:PLAYER_HP | synced |", gdd, "a state the script writes is English")
+                self.assertIn(f"| BAL.COIN.VALUE | 7 | 4 | {rel}:COIN_VALUE | mismatch |", gdd, "the value column stays as it is")
+                self.assertIn(f"| BAL.OLD.THING | — | 4 | — | {retired} |", gdd, "a retired row is not touched")
+                self.assertIn(f"| BAL.NOT.YET | 3 | 4 | — | {missing} |", gdd, "a row that already says the same thing keeps its own words")
+                self.assertIn(f"| RULE.COIN.PICKUP | {rule} | 4 | {rel}:{CODE[engine][1]} | synced |", gdd)
+
+                # the table now mixes both forms (in the legacy case) — it reads the same, and the report is in English
+                out = run(REPORT, root).stdout
+                for line in ("| synced | 2 |", "| synced? | 1 |", "| mismatch | 1 |", "| missing | 1 |", "| retired | 1 |", "## mismatch — ", "## missing (1)\n\nBAL.NOT.YET\n",
+                             "## Orphan markers — "):
+                    self.assertIn(line, out)
 
     def test_balance_table(self):
         for _engine, root, code, table, _rel in self.each():
@@ -189,6 +229,9 @@ class Tools(unittest.TestCase):
             first = open(table, "rb").read()
             run(TABLE, root, "export")
             self.assertEqual(first, open(table, "rb").read(), "same values, same file")
+            sheet = zipfile.ZipFile(table).read("xl/worksheets/sheet1.xml").decode()
+            for i, word in enumerate(("Name", "Value", "Code value", "Group", "GDD ID", "Note")):
+                self.assertIn(f'<c r="{"ABCDEF"[i]}1" s="1" t="inlineStr"><is><t xml:space="preserve">{word}</t>', sheet, "the header row is written in English")
 
             excel_save(table, {"PLAYER_HP": "120", "PLAYER_WALK_SPEED": "4.25", "COIN_VALUE": "5",
                                "UNMARKED": "3", "NO_SUCH_NAME": "1"})
@@ -197,7 +240,8 @@ class Tools(unittest.TestCase):
             self.assertIn("PLAYER_HP: code 100 · table 120", p.stdout)
             self.assertIn("only in the table (ignored): NO_SUCH_NAME", p.stdout)
             self.assertRegex(p.stdout, r"only in the code \(not in the table\): [A-Z_]+\n", "a value new in the code and missing from the table is reported")
-            excel_save(table, {"PLAYER_HP": "100"})
+            # the same with the English header row — the header is not what is read
+            excel_save(table, {"PLAYER_HP": "100"}, header=("Name", "Value"))
             self.assertRegex(run(TABLE, root, "check").stdout, r"The table and the code match — but \d value\(s\) are only in the code")
             excel_save(table, {"PLAYER_HP": "120", "PLAYER_WALK_SPEED": "4.25", "COIN_VALUE": "5", "UNMARKED": "3", "NO_SUCH_NAME": "1"})
 
@@ -260,10 +304,13 @@ class Tools(unittest.TestCase):
                 if os.path.exists(extra):
                     self.assertIn(open(extra, encoding="utf-8").read().strip(), claude)
                 self.rules_block(init, root, engine, claude)
-                open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8").write("내 규칙")
+                open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8").write("my rules")
                 again = run(init, root, engine).stdout
                 self.assertNotIn("  new      ", again, "the second run creates nothing")
-                self.assertEqual(open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read(), "내 규칙")
+                self.assertEqual(open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read(), "my rules")
+                ignore = open(os.path.join(root, ".gitignore"), encoding="utf-8").read()
+                self.assertIn("# the lock file Excel makes while it has the table open\n~$*.xlsx\n", ignore)
+                self.assertNotRegex(ignore, "[가-힣]", "what init writes into .gitignore is English")
                 self.assertIn("no block — `--rules`", again)
                 self.assertNotIn("sections missing", again, "a config installed just now lacks no section")
                 engine_files = os.path.join(KIT, "engines", engine, "files")
@@ -284,7 +331,7 @@ class Tools(unittest.TestCase):
                     open(os.path.join(root, "kit.config.json"), "w", encoding="utf-8").write(whole)
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("The table and the code match", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
-                    self.assertIn("| 동기 | 3 |", run(REPORT, root).stdout, "the template's three example rows pair with the value file")
+                    self.assertIn("| synced | 3 |", run(REPORT, root).stdout, "the template's three example rows pair with the value file")
 
     def test_init_project(self):
         """Recognises an engine project · finds the editor and modules · creates one. The editor is fake — what differs per engine comes only from engines/<engine>/project.json."""
@@ -319,7 +366,7 @@ exit 0
         out = init("--detect")
         self.assertIn("not an engine project — engines to choose from: godot · unity", out)
         self.assertIn("the kit is not installed yet", out)
-        self.assertIn("points to does not exist", init("unity", "--editor", ok=False, UNITY=os.path.join(top, "없다")))
+        self.assertIn("points to does not exist", init("unity", "--editor", ok=False, UNITY=os.path.join(top, "missing")))
         if "modules" in spec["editor"].get(sys.platform, {}):
             out = init("unity", "--editor", ok=False, UNITY=unity)
             self.assertIn(f"Unity 6000.1.2f1 — {unity}", out)
@@ -340,6 +387,7 @@ exit 0
         self.assertIn("already a unity project — not creating a godot project on top of it", init("godot", "--create", ok=False))
         out = init("unity")
         self.assertIn("added    .gitignore (unity — 10 lines: Temp/", out, "the two lines already there are not written again")
+        self.assertIn("\n# what unity generates · what is kept out of the repository\nTemp/\n", open(os.path.join(root, ".gitignore"), encoding="utf-8").read())
         self.assertNotIn("not a unity project yet", out)
         self.assertIn("the kit is already installed as unity", init("--detect"))
         self.assertIn("every line is already there", init("unity", "--gitignore"))
@@ -363,18 +411,18 @@ exit 0
         engines = os.path.join(top, "engines")
         os.makedirs(os.path.join(engines, "toy"))
         json.dump({"engine": "toy"}, open(os.path.join(engines, "toy", "kit.config.json"), "w"))
-        toy = {"marker": "toy.project", "create": {"files": {"toy.project": ""}}, "modules": [{"name": "모듈", "dir": "m"}],
-               "editor": {"name": "Toy", "env": "TOY", "version": "/ed/([^/]+)/", "missing": ["Toy 를 깐다"],
+        toy = {"marker": "toy.project", "create": {"files": {"toy.project": ""}}, "modules": [{"name": "Module", "dir": "m"}],
+               "editor": {"name": "Toy", "env": "TOY", "version": "/ed/([^/]+)/", "missing": ["Install Toy"],
                           sys.platform: {"glob": [os.path.join(top, "ed", "*", "toy")], "modules": "mods"}}}
         json.dump(toy, open(os.path.join(engines, "toy", "project.json"), "w"))
-        self.assertIn("Toy editor not found — the user installs it:\n  Toy 를 깐다", init("toy", "--editor", ok=False, GAMEDEV_KIT_ENGINES=engines))
+        self.assertIn("Toy editor not found — the user installs it:\n  Install Toy", init("toy", "--editor", ok=False, GAMEDEV_KIT_ENGINES=engines))
         for version in ("9.2", "10.1"):
             os.makedirs(os.path.join(top, "ed", version, "mods", "m"))
             open(os.path.join(top, "ed", version, "toy"), "w").close()
         out = init("toy", "--editor", GAMEDEV_KIT_ENGINES=engines)
         self.assertIn(f"Toy 10.1 — {os.path.join(top, 'ed', '10.1', 'toy')}", out)
         self.assertIn("installed versions 9.2 · 10.1 — picked the newest", out)
-        self.assertIn("found    모듈", out)
+        self.assertIn("found    Module", out)
 
     def rules_block(self, init, root, engine, fresh):
         """In CLAUDE.md the kit's part is one block — when the version goes up only that span changes and the outside stays."""
@@ -382,40 +430,64 @@ exit 0
         text = lambda: open(path, encoding="utf-8").read()
         put = lambda s: open(path, "w", encoding="utf-8").write(s)
         check = lambda: subprocess.run([sys.executable, init, "--rules-check"], cwd=root, capture_output=True, text=True).stdout
-        self.assertRegex(fresh, r"<!-- gamedev-kit 시작 · [0-9a-f]{8} ")
-        self.assertIn("<!-- gamedev-kit 끝 -->\n\n## This game's rules", fresh)
+        new_pair, old_pair = ("<!-- gamedev-kit start", "<!-- gamedev-kit end -->"), ("<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->")
+        self.assertRegex(fresh, r"<!-- gamedev-kit start · [0-9a-f]{8} ", "a new game gets the new markers")
+        self.assertIn("<!-- gamedev-kit end -->\n\n## This game's rules", fresh)
+        self.assertNotIn("시작", fresh)
+        self.assertNotIn("<게임 이름>", fresh)
+        self.assertIn("# CLAUDE.md — <game name>", fresh)
         self.assertIn("match the current version", run(init, root, engine, "--rules").stdout)
         self.assertEqual(check(), "", "silent when they match")
 
+        # A block from an older version — under the new markers, and under the Korean markers older kits wrote (a legacy game: its text stays Korean).
         old = "## 옛 규칙\n옛 말"
         mark = __import__("hashlib").sha1(old.encode()).hexdigest()[:8]
-        put(f"# 내 게임\n\n<!-- gamedev-kit 시작 · {mark} — 옛 판 -->\n{old}\n<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n")
-        self.assertIn("an older version — `--rules`", run(init, root, engine).stdout)
-        self.assertIn("replaced the kit rules block in CLAUDE.md with the current version", run(init, root, engine, "--rules").stdout)
-        stale = text()
-        put(f"# 내 게임\n\n<!-- gamedev-kit 시작 · {mark} — 옛 판 -->\n{old}\n<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n")
-        self.assertIn("replaced with the current version (outside the block is untouched)", check(), "the hook aligns it by itself when a session starts")
-        self.assertEqual(text(), stale)
-        self.assertTrue(text().startswith("# 내 게임\n\n<!-- gamedev-kit 시작 · "))
-        self.assertTrue(text().endswith("<!-- gamedev-kit 끝 -->\n\n## 이 게임의 규칙\n내가 쓴 함정\n"), "outside the block is untouched")
-        self.assertNotIn("옛 말", text())
-        self.assertIn("/gamedev-kit:gdd-sync", text())
-        self.assertEqual(check(), "")
+        mine = "\n\n## 이 게임의 규칙\n내가 쓴 함정\n"
+        for start, end in (new_pair, old_pair):
+            was = f"# 내 게임\n\n{start} · {mark} — 옛 판 -->\n{old}\n{end}{mine}"
+            put(was)
+            self.assertIn("an older version — `--rules`", run(init, root, engine).stdout)
+            self.assertIn("replaced the kit rules block in CLAUDE.md with the current version", run(init, root, engine, "--rules").stdout)
+            stale = text()
+            put(was)
+            self.assertIn("replaced with the current version (outside the block is untouched)", check(), "the hook aligns it by itself when a session starts")
+            self.assertEqual(text(), stale)
+            self.assertTrue(text().startswith("# 내 게임\n\n<!-- gamedev-kit start · "), "the block comes out under the new markers, in place")
+            self.assertTrue(text().endswith("<!-- gamedev-kit end -->" + mine), "outside the block is untouched")
+            self.assertNotIn("옛 말", text())
+            self.assertNotIn(old_pair[0], text())
+            self.assertNotIn(old_pair[1], text())
+            self.assertIn("/gamedev-kit:gdd-sync", text())
+            self.assertEqual(check(), "")
 
-        put(text().replace("## The GDD and the code must always agree", "## 가끔 같아도 된다"))
+            # the same block edited by hand is not overwritten — neither by the hook nor by --rules
+            edited = was.replace("옛 말", "손으로 고친 말")
+            put(edited)
+            self.assertIn("edited by hand", check())
+            self.assertIn("the block was edited by hand", run(init, root, engine).stdout)
+            self.assertIn("not overwriting", run(init, root, engine, "--rules", ok=False).stderr)
+            self.assertEqual(text(), edited)
+
+        # an untouched old-marker block whose rules are already the current ones changes only its markers
+        put(fresh.replace(new_pair[0], old_pair[0]).replace(new_pair[1], old_pair[1]))
+        self.assertIn(old_pair[0], text())
+        self.assertIn("replaced with the current version", check())
+        self.assertEqual(text(), fresh)
+
+        put(text().replace("## The GDD and the code must always agree", "## They may agree now and then"))
         self.assertIn("edited by hand", check())
         self.assertIn("not overwriting", run(init, root, engine, "--rules", ok=False).stderr)
-        self.assertIn("가끔 같아도 된다", text())
+        self.assertIn("They may agree now and then", text())
         run(init, root, engine, "--rules", "--force")
-        self.assertNotIn("가끔 같아도 된다", text())
+        self.assertNotIn("They may agree now and then", text())
 
-        put("# 옛 게임\n\n## Balance values are edited in the table\n이 게임에서 고쳐 쓴 말\n")
+        put("# Old game\n\n## Balance values are edited in the table\nwords this game rewrote\n")
         self.assertIn("has no kit rules block", check())
         out = run(init, root, engine, "--rules").stdout
         self.assertIn("appended the kit rules block at the end of CLAUDE.md", out)
         self.assertIn("sections with the same titles remain outside the block (copied from an older version): Balance values are edited in the table", out)
-        self.assertTrue(text().startswith("# 옛 게임\n\n## Balance values are edited in the table\n이 게임에서 고쳐 쓴 말\n\n<!-- gamedev-kit 시작"))
-        put("# 옛 게임\n")
+        self.assertTrue(text().startswith("# Old game\n\n## Balance values are edited in the table\nwords this game rewrote\n\n<!-- gamedev-kit start"))
+        put("# Old game\n")
         cfg_path = os.path.join(root, "kit.config.json")
         whole = open(cfg_path, encoding="utf-8").read()
         json.dump(dict(json.loads(whole), init={"rules": False}), open(cfg_path, "w"))
@@ -479,7 +551,7 @@ exit 0
                 if engine in VERSION_LINE:
                     path = os.path.join(root, cfg["deploy"]["version"]["file"])
                     os.makedirs(os.path.dirname(path), exist_ok=True)
-                    open(path, "w").write("앞줄\n" + VERSION_LINE[engine] + "\n")
+                    open(path, "w").write("first line\n" + VERSION_LINE[engine] + "\n")
                     self.assertEqual(run(DEPLOY, root, "version").stdout.strip(), "1.2.3")
                 if not cfg["deploy"]["channels"]:
                     self.assertIn("channels in kit.config.json is empty", run(DEPLOY, root, "build", ok=False).stderr)
@@ -551,7 +623,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("already exists", asset("new", "crate", "--size", "1", "x", ok=False))
         self.assertIn("lowercase", asset("new", "Big-Crate", "--size", "1", "x", ok=False))
         self.assertIn("asset-style", asset("image", "crate", ok=False), "no art style, no drawing")
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("# 규칙\n<!-- asset-style -->\nChunky low-poly,\nmuted palette.\n<!-- /asset-style -->\n")
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("# Rules\n<!-- asset-style -->\nChunky low-poly,\nmuted palette.\n<!-- /asset-style -->\n")
         self.assertIn("OPENAI_API_KEY is missing", asset("image", "crate", ok=False, env={k: v for k, v in env.items() if k != "OPENAI_API_KEY"}))
         self.assertEqual(seen, [])
 
@@ -610,19 +682,19 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(len(posts("/multi-image-to-3d")), 1)
         self.assertIn(("GET", "/multi-image-to-3d/old-task", None), seen)
 
-        # What is attached to every asset has three layers — 화풍 (fixed) · 세계 · 배운 것. Words of a rejection go in the record, words that hold for all in 배운 것
+        # What is attached to every asset has three layers — Art style (fixed) · World · Learned. Words of a rejection go in the record, words that hold for all in Learned
         design = os.path.join(root, "docs/DESIGN.md")
         self.assertIn("asset-learned", asset("learn", "Metal is matte", ok=False), "with no place for it, it says to add one")
         open(design, "a").write("<!-- asset-world -->\nBronze age,\nweathered wood.\n<!-- /asset-world -->\n<!-- asset-learned -->\n<!-- /asset-learned -->\n")
         self.assertIn("rejection recorded (#1)", asset("reject", "barrel", "쇠가 너무 번쩍여. 다시"))
         self.assertEqual(rec("barrel")["said"][0]["said"], "쇠가 너무 번쩍여. 다시")
         self.assertIsNone(rec("barrel")["approved"], "a rejection lifts the approval")
-        self.assertIn("배운 것 1 line(s)", asset("learn", "Metal is matte, never glossy."))
+        self.assertIn("Learned 1 line(s)", asset("learn", "Metal is matte, never glossy."))
         asset("learn", "Faces are simple")
         self.assertIn("<!-- asset-learned -->\n- Metal is matte, never glossy\n- Faces are simple\n<!-- /asset-learned -->", open(design).read())
         out = asset("look")
-        self.assertIn("세계: Bronze age, weathered wood.", out)
-        self.assertIn("배운 것: Metal is matte, never glossy / Faces are simple", out)
+        self.assertIn("World: Bronze age, weathered wood.", out)
+        self.assertIn("Learned: Metal is matte, never glossy / Faces are simple", out)
         asset("new", "urn", "--size", "0.5", "A clay urn")
         asset("image", "urn")
         self.assertIn("A clay urn. Front view, straight on, camera at the object's mid height. Chunky low-poly, muted palette. "
@@ -714,16 +786,16 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
         def fill(title):
             text = open(gdd, encoding="utf-8").read()
-            open(gdd, "w", encoding="utf-8").write(text.replace(f"{title}\n", f"{title}\n\n정한 것\n", 1))
+            open(gdd, "w", encoding="utf-8").write(text.replace(f"{title}\n", f"{title}\n\ndecided\n", 1))
 
         out = run(START, root, "status").stdout
-        self.assertIn("[to do] GDD (docs/GDD.md) — empty sections: 개요 · 게임 구조 · 규칙 · 제작 범위 · sections that may stay empty: 톤 · 사운드", out, "lines that came with the template are not text")
+        self.assertIn("[to do] GDD (docs/GDD.md) — empty sections: Overview · Game structure · Rules · Scope · sections that may stay empty: Tone · Sound", out, "lines that came with the template are not text")
         self.assertIn("next: GDD stage", out)
         self.assertTrue(os.path.exists(out.strip().split(": ")[-1]), out)
         self.assertTrue(out.strip().endswith(os.path.join("stages", "gdd.md")))
-        for title in ("## 1. 개요", "## 2. 게임 구조", "## 4. 규칙과 시스템"):
+        for title in ("## 1. Overview", "## 2. Game structure", "## 4. Rules and systems"):
             fill(title)
-        self.assertIn("empty sections: 제작 범위", run(START, root, "status").stdout)
+        self.assertIn("empty sections: Scope", run(START, root, "status").stdout)
         self.assertIn("GDD stage: skipped —", run(START, root, "skip", "gdd").stdout)
         self.assertIn("gdd · concept", run(START, root, "skip", "goal", ok=False).stderr)
         out = run(START, root, "status").stdout
@@ -732,11 +804,11 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("next: concept stage", out)
         self.assertEqual(json.load(open(os.path.join(root, "docs/start/state.json"), encoding="utf-8")), {"skip": ["gdd"]})
         run(START, root, "unskip", "gdd")
-        fill("## 7. 제작 범위")
+        fill("## 7. Scope")
         out = run(START, root, "status").stdout
-        self.assertIn("[done] GDD (docs/GDD.md) — sections with text: 개요 · 게임 구조 · 규칙 · 제작 범위 · sections that may stay empty: 톤 · 사운드\n", out)
+        self.assertIn("[done] GDD (docs/GDD.md) — sections with text: Overview · Game structure · Rules · Scope · sections that may stay empty: Tone · Sound\n", out)
         self.assertNotIn("skipped stages", out)
-        self.assertIn("the 아트 방향 section of docs/GDD.md is empty · no pictures in docs/concept/", out)
+        self.assertIn("the Art direction section of docs/GDD.md is empty · no pictures in docs/concept/", out)
         self.assertTrue(out.strip().endswith(os.path.join("stages", "concept.md")))
 
         def concept(*args, ok=True, env=env):
@@ -771,9 +843,9 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("docs/concept/photo.jpg — a picture the user put in", out)
 
         out = run(START, root, "status").stdout
-        self.assertIn("[to do] concept — the 아트 방향 section of docs/GDD.md is empty", out)
+        self.assertIn("[to do] concept — the Art direction section of docs/GDD.md is empty", out)
         self.assertNotIn("no pictures", out)
-        fill("## 5. 아트 방향")
+        fill("## 5. Art direction")
         out = run(START, root, "status").stdout
         self.assertIn("[done] concept — the art direction is written and there are 3 pictures", out)
         self.assertIn("next: first goal stage", out)
@@ -788,9 +860,33 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.addCleanup(shutil.rmtree, other, True)
         json.dump({"gdd-sync": {"gdd": "design/GDD.md"}}, open(os.path.join(other, "kit.config.json"), "w"))
         os.makedirs(os.path.join(other, "design"))
-        open(os.path.join(other, "design/GDD.md"), "w", encoding="utf-8").write("# 게임\n\n## 개요\n글\n\n## 규칙\n\n## 부록 A\n")
+        open(os.path.join(other, "design/GDD.md"), "w", encoding="utf-8").write("# Game\n\n## Overview\ntext\n\n## Rules\n\n## Appendix A\n\n## Scope\ntext\n")
         out = run(START, other, "status").stdout
-        self.assertIn("[to do] GDD (design/GDD.md) — empty sections: 규칙 · sections with text: 개요 · sections not checked for lack of the template's title: 게임 구조 · 제작 범위 · 아트 방향", out)
+        self.assertIn("[to do] GDD (design/GDD.md) — empty sections: Rules · sections with text: Overview · sections not checked for lack of the template's title: Game structure · Scope · Art direction", out,
+                      "from the appendix on it is not looked at")
+
+        # legacy: a GDD made from the template before its titles were English reads the same, and is named in its own words
+        old = tempfile.mkdtemp(prefix="kit-start-old-")
+        self.addCleanup(shutil.rmtree, old, True)
+        open(os.path.join(old, "kit.config.json"), "w").write("{}")
+        os.makedirs(os.path.join(old, "docs"))
+        gdd = os.path.join(old, "docs/GDD.md")
+        open(gdd, "w", encoding="utf-8").write(
+            "# <게임 이름> — 게임 디자인 문서\n\n## 1. 개요\n\n## 2. 게임 구조\n\n## 3. 톤\n\n## 4. 규칙과 시스템\n\n"
+            "수치를 본문에 적을 때는 부록 A 의 같은 항목과 값이 같아야 한다.\n\n## 5. 아트 방향\n\n## 6. 사운드\n\n## 7. 제작 범위\n\n## 8. 미정 사항\n\n---\n\n"
+            "## 부록 A. 동기화 표\n\n이 표는 본문이 아니다.\n")
+        out = run(START, old, "status").stdout
+        self.assertIn("[to do] GDD (docs/GDD.md) — empty sections: 개요 · 게임 구조 · 규칙 · 제작 범위 · sections that may stay empty: 톤 · 사운드\n", out,
+                      "the old template's own line is not text, and the old appendix heading ends the body")
+        self.assertIn("the 아트 방향 section of docs/GDD.md is empty", out)
+        for title in ("## 1. 개요", "## 2. 게임 구조", "## 4. 규칙과 시스템", "## 7. 제작 범위", "## 5. 아트 방향"):
+            fill(title)
+        out = run(START, old, "status").stdout
+        self.assertIn("[done] GDD (docs/GDD.md) — sections with text: 개요 · 게임 구조 · 규칙 · 제작 범위 · sections that may stay empty: 톤 · 사운드\n", out)
+        self.assertIn("[to do] concept — no pictures in docs/concept/", out)
+        # a document written in both forms: the first matching title is the one read
+        open(os.path.join(other, "design/GDD.md"), "w", encoding="utf-8").write("# 게임\n\n## 개요\n글\n\n## Rules\n\n## 부록 A\n")
+        self.assertIn("empty sections: Rules · sections with text: 개요 · sections not checked", run(START, other, "status").stdout)
 
     def test_asset_blender(self):
         root, asset, seen, _env = self.asset_project("blender")
@@ -827,8 +923,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
                 seen.append(("POST", self.path, self.headers.get("Authorization"), body))
                 if self.path == "/assets/uploads":
                     return self.reply({"upload_url": f"{here}/put/{len(seen)}", "file_url": f"{here}/up/{len(seen)}"})
-                if "터진다" in body.get("prompt", ""):
-                    return self.reply({"message": "안 된다"}, 400)
+                if "it blows up" in body.get("prompt", ""):
+                    return self.reply({"message": "not allowed"}, 400)
                 jobs[f"job{len(seen)}"] = self.path
                 self.reply({"id": f"job{len(seen)}", "status": "queued"}, 202)
 
@@ -945,8 +1041,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         sprite("new", "ghost", "--ref", "ref/hero.png", "--as-is", "A ghost")
         self.assertIn("300 × 200 px", sprite("image", "ghost"))
         self.assertEqual(len(seen), n, "used as is, nothing is called")
-        sprite("new", "boom", "터진다")
-        self.assertIn("400: 안 된다", sprite("image", "boom", ok=False))
+        sprite("new", "boom", "it blows up")
+        self.assertIn("400: not allowed", sprite("image", "boom", ok=False))
 
         # A WebP that is .png in name only is converted to PNG with a tool on this machine. With no tool, it keeps what came and stops
         webp.append(1)
@@ -975,10 +1071,10 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 seen.append((self.path, self.headers["xi-api-key"], body))
-                bad = "터진다" in body.get("text", "")
+                bad = "it blows up" in body.get("text", "")
                 self.send_response(422 if bad else 200)
                 self.end_headers()
-                self.wfile.write(json.dumps({"detail": {"message": "안 된다"}}).encode() if bad else f"소리{len(seen)}".encode() * 4)
+                self.wfile.write(json.dumps({"detail": {"message": "not allowed"}}).encode() if bad else f"sound{len(seen)}".encode() * 4)
 
             def log_message(self, *a):
                 pass
@@ -1024,7 +1120,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual((seen[2][2]["loop"], seen[2][2]["prompt_influence"]), (True, 0.6))
         self.assertNotIn("duration_seconds", seen[2][2], "with no length given, it is left to decide")
 
-        self.assertIn("must fit in 450", sound("sfx", "long", "가" * 445, ok=False), "measured after the sound style paragraph is attached")
+        self.assertIn("must fit in 450", sound("sfx", "long", "a" * 445, ok=False), "measured after the sound style paragraph is attached")
         self.assertEqual(len(seen), 3)
         self.assertIn("3~600 s", sound("music", "theme", "--seconds", "1", "x", ok=False))
         sound("music", "theme", "--seconds", "45", "Calm exploration theme")
@@ -1032,7 +1128,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(seen[3][2], {"prompt": "Calm exploration theme. Chiptune, slow.", "music_length_ms": 45000,  # the sound effect style is not attached to music
                                       "model_id": "music_v1", "force_instrumental": True})
 
-        self.assertIn("422: 안 된다", sound("sfx", "boom", "터진다", ok=False))
+        self.assertIn("422: not allowed", sound("sfx", "boom", "it blows up", ok=False))
         self.assertFalse(os.path.exists(os.path.join(root, "assets/sounds/boom.mp3")))
         out = sound("status")
         self.assertEqual([line.split()[0] for line in out.strip().split("\n")], ["coin", "theme", "wind"])
@@ -1064,9 +1160,9 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
                 if self.path == "/files/generate-upload-url":
                     return self.reply(200, {"public_url": f"{here}/cdn/in.png", "upload_url": f"{here}/store/in.png",
                                             "upload_headers": {"Content-Type": body["content_type"], "x-amz-tagging": "retention=temporary"}})
-                if "터진다" in body.get("prompt", ""):
-                    return self.reply(422, {"detail": "안 된다"})
-                rid = "bad" if "야한" in body.get("prompt", "") else f"r{len(seen)}"
+                if "it blows up" in body.get("prompt", ""):
+                    return self.reply(422, {"detail": "not allowed"})
+                rid = "bad" if "lewd" in body.get("prompt", "") else f"r{len(seen)}"
                 self.reply(200, {"status": "queued", "request_id": rid, "status_url": f"{here}/requests/{rid}/status"})
 
             def do_PUT(self):
@@ -1076,7 +1172,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             def do_GET(self):
                 if self.path.startswith("/cdn/"):
                     seen.append(("GET", self.path, self.headers.get("Authorization"), None, None))
-                    return self.reply(200, f"영상 {self.path}".encode() * 9, "video/mp4")
+                    return self.reply(200, f"video {self.path}".encode() * 9, "video/mp4")
                 rid = self.path.split("/")[2]
                 polls.append(rid)
                 if rid == "bad":
@@ -1183,60 +1279,90 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(seen[-2][4], {"cfg_scale": 0.5, "prompt": "She walks. Hand-painted, muted.", "duration": 5,
                                        "image_url": f"http://127.0.0.1:{server.server_port}/cdn/in.png"})
 
-        clip("new", "bad", "--for", "page", "야한 것")
+        clip("new", "bad", "--for", "page", "something lewd")
         clip("approve", "bad")
         self.assertIn("blocked by the content check", clip("make", "bad", ok=False))
-        clip("new", "boom", "--for", "page", "터진다")
+        clip("new", "boom", "--for", "page", "it blows up")
         clip("approve", "boom")
-        self.assertIn("422: 안 된다", clip("make", "boom", ok=False))
+        self.assertIn("422: not allowed", clip("make", "boom", ok=False))
         self.assertFalse(os.path.exists(os.path.join(root, "video/boom/clip.mp4")))
 
     def test_board(self):
-        """GDD 표와 사이클 문서가 판 한 장이 된다. 훅은 판이 있고 원천이 더 새로울 때만 다시 그린다."""
-        root = tempfile.mkdtemp(prefix="kit-board-")
-        self.addCleanup(shutil.rmtree, root, True)
-        open(os.path.join(root, "kit.config.json"), "w").write("{}")
-        os.makedirs(os.path.join(root, "docs/cycle"))
-        gdd = os.path.join(root, "docs/GDD.md")
-        open(gdd, "w", encoding="utf-8").write(GDD.replace("# 게임", "# 게임 — 기획서").replace("## 4. 규칙", "## 4. 규칙 <b>")
-                                               .replace("| BAL.PLAYER.HP | 100 | 4 | — | 미구현 |", "| BAL.PLAYER.HP | 100 | 4 | a.gd:HP | 동기 |"))
+        """The GDD table and the cycle documents become one board — from the words the kit writes now and from the Korean ones
+        older documents hold. The hook redraws only when the board exists and a source is newer."""
+        import re
+
+        def project(gdd_text):
+            root = tempfile.mkdtemp(prefix="kit-board-")
+            self.addCleanup(shutil.rmtree, root, True)
+            open(os.path.join(root, "kit.config.json"), "w").write("{}")
+            os.makedirs(os.path.join(root, "docs/cycle"))
+            os.makedirs(os.path.join(root, "docs/playtest"))
+            open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(gdd_text)
+            return root
+
+        def page(root, name):
+            return open(os.path.join(root, "docs/board", name), encoding="utf-8").read()
+
+        def shape(root):
+            """What the board came to, without the words of the documents: the summary line, and each page's states and counts."""
+            marks = r'class="((?:it|thumb|task|chip|tile|ask)[^"]*)"|<(?:small|em)>(\d+/\d+|none|\d+)</(?:small|em)>|<b>(T\d+|\d+%?)</b>|(your turn to play|Playtest  · open)'
+            return run(BOARD, root).stdout, [re.findall(marks, page(root, n).split("</style>")[1]) for n in ("index.html", "stage-1.html", "stage-2.html")]
+
+        root = project(GDD_EN.replace("# Game", "# Game — design", 1).replace("## 4. Rules", "## 4. Rules <b>")
+                       .replace("| BAL.PLAYER.HP | 100 | 4 | — | missing |", "| BAL.PLAYER.HP | 100 | 4 | a.gd:HP | synced |")
+                       + "\n## 8. Open questions\n\n- **Boss**: is there one\n- ~~settled~~\n")
         out = os.path.join(root, "docs/board/index.html")
         self.assertEqual(run(BOARD, root, "--if-stale").stdout, "")
-        self.assertFalse(os.path.exists(out), "한 번도 그리지 않은 판은 훅이 만들지 않는다")
+        self.assertFalse(os.path.exists(out), "the hook does not make a board that was never drawn")
         self.assertIn("docs/board/index.html — GDD synced 1/5 · mismatched 0 · cycles 0", run(BOARD, root).stdout)
 
-        run(CYCLE, root, "new", "coins", "동전을 <줍게> 하자")
+        run(CYCLE, root, "new", "coins", "Let the player <pick up> coins")
         doc = os.path.join(root, "docs/cycle/01-coins.md")
-        run(CYCLE, root, "ask", "기획", "동전의 값 (지금 — 5) — ① 5 ② 7 · 권함: ②")
-        run(CYCLE, root, "ask", "디자인", "소리 — ① 있음 ② 없음 · 권함: ①")
-        run(CYCLE, root, "decide", "D1", "7 로 가자 → 아니 5")
+        run(CYCLE, root, "ask", "Spec", "Coin value (now — 5) — ① 5 ② 7 · recommended: ②")
+        run(CYCLE, root, "ask", "Design", "Sound — ① yes ② no · recommended: ①")
+        run(CYCLE, root, "decide", "D1", "no, 5")
         text = open(doc, encoding="utf-8").read()
-        text = text.replace("## 작업\n", "## 작업\n\n### [x] T1. 동전을 줍는다\n- **GDD**: BAL.COIN.VALUE · RULE.COIN.PICKUP(새)\n\n"
-                            "### [!] T2. 소리를 낸다\n- **막힘**: 소리가 없다\n").replace("## 순서\n", "## 순서\n- 1차 (끝): T1\n- 2차: T2 — T1 뒤\n")
+        for head in ("Stage: Goal", "## Design\n", "## Tasks\n", "## Order\n"):
+            self.assertIn(head, text, "the cycle document is written in the English words")
+        text = (text.replace("Stage: Goal", "Stage: Play")
+                .replace("## Design\n", "## Design\n\n### Assets needed\n\n| Name | Kind | Used in | Have |\n|---|---|---|---|\n"
+                         "| coin_ping — the pickup sound | sound effect | pickup | none |\n| coin — a coin | sprite | pickup | placeholder square |\n")
+                .replace("## Tasks\n", "## Tasks\n\n### [x] T1. Pick up a coin\n- **GDD**: BAL.COIN.VALUE · RULE.COIN.PICKUP(new)\n- **Done**: the coin is picked up\n\n"
+                         "### [!] T2. Play a sound\n- **GDD**: BAL.COIN.VALUE\n- **Blocked**: there is no coin_ping\n")
+                .replace("## Order\n", "## Order\n- Wave 1 (done): T1\n- Wave 2: T2 — after T1\n"))
         open(doc, "w", encoding="utf-8").write(text)
+        open(os.path.join(root, "docs/playtest/first.md"), "w", encoding="utf-8").write(
+            "# Playtest — first\n\n## Summary\n\n## Tasks\n\n### [ ] T1. The coin sticks\n- **Kind**: bug\n- **GDD**: RULE.COIN.PICKUP\n\n## Order\n- Wave 1: T1\n")
         before = os.path.getmtime(out)
         os.utime(out, (before - 10, before - 10))
         self.assertEqual(run(BOARD, root, "--if-stale").stdout, "")
         chart = open(out, encoding="utf-8").read()
-        self.assertGreater(os.path.getmtime(out), before - 10, "원천이 더 새로우면 다시 그린다")
-        self.assertIn("<title>게임 — chart</title>", chart)
-        self.assertIn('href="stage-1.html"', chart, "첫 화면의 카드는 단계의 쪽으로 간다")
-        self.assertIn('href="assets.html">Asset sheet →</a>', open(os.path.join(root, "docs/board/stage-1.html"), encoding="utf-8").read(), "단계의 쪽에서 에셋 시트로 간다")
-        self.assertIn("<h2>규칙 &lt;b&gt;</h2>", chart, "flow 가 없으면 GDD 절마다 단계 하나")
-        self.assertIn("<em>1/5</em>", chart, "기능 칸은 GDD 표의 상태를 센다")
-        stage = open(os.path.join(root, "docs/board/stage-1.html"), encoding="utf-8").read()
+        self.assertGreater(os.path.getmtime(out), before - 10, "a newer source redraws it")
+        self.assertIn("<title>Game — chart</title>", chart)
+        self.assertIn('href="stage-1.html"', chart, "a card on the first screen goes to the stage's page")
+        stage = page(root, "stage-1.html")
+        self.assertIn('href="assets.html">Asset sheet →</a>', stage, "the stage's page links to the asset sheet")
+        self.assertIn("<h2>Rules &lt;b&gt;</h2>", chart, "without flow, one stage per GDD section")
+        self.assertIn("<em>1/5</em>", chart, "the Function lane counts the states of the GDD table")
         self.assertIn("<code>BAL.PLAYER.HP</code>", stage)
-        self.assertIn("Cycle 01 — coins", stage, "그 단계를 건드린 사이클이 검증 칸에 선다")
-        self.assertIn("<b>T1</b> 동전을 줍는다", stage, "그 단계를 건드린 작업")
-        self.assertIn("D2 소리", chart, "답 없는 결정은 못 정한 것으로 선다")
-        self.assertIn("동전을 줍는다", stage)
+        self.assertIn("<b>Cycle 01 — coins</b><small>your turn to play</small>", stage, "a cycle that touched the stage stands in the Verified lane, by its stage")
+        self.assertIn('<span class="task" title="the coin is picked up"><b>T1</b> Pick up a coin</span>', stage, "a task that touched the stage, with what was done")
+        self.assertIn('<span class="task blocked" title=""><b>T2</b> Play a sound</span>', stage)
+        self.assertIn("<b>D2 Sound</b>", chart, "an unanswered decision stands as undecided")
+        self.assertNotIn("D1 Coin value", chart, "an answered one does not")
+        self.assertIn("<b>Boss</b><span>is there one</span>", chart, "the unstruck bullets of the GDD's open-questions section too")
+        self.assertNotIn("settled", chart)
+        self.assertIn('<li class="it st-none"><i class="s-none" title="Not made"></i><div class="t"><b>coin_ping</b>', stage, "`none` in the Have cell = not made, a sound by its kind")
+        self.assertIn('<div class="thumb st-temp" title="a coin — placeholder square">', stage, "`placeholder …` in the Have cell = placeholder")
+        self.assertIn("<b>The coin sticks</b><small>Playtest  · open</small>", stage, "an open playtest task is a problem")
         self.assertNotIn("log.html", chart + stage)
         self.assertIn("unanswered decisions 1", run(BOARD, root).stdout)
-        self.assertNotIn("Unsorted", run(BOARD, root).stdout, "어느 단계에도 안 든 것이 없으면 말하지 않는다")
+        self.assertNotIn("Unsorted", run(BOARD, root).stdout, "with nothing outside the stages, it is not mentioned")
         self.assertIn("<b>0</b>", chart)
         os.makedirs(os.path.join(root, "assets/sounds"))
         open(os.path.join(root, "assets/sounds/zzz_orphan.mp3"), "w").write("x")
-        self.assertIn("Unsorted 1 (assets 1 — outside the %)", run(BOARD, root).stdout, "완성 % 에 안 드는 것은 그 수가 같이 보인다")
+        self.assertIn("Unsorted 1 (assets 1 — outside the %)", run(BOARD, root).stdout, "what is outside the completion % is shown with its count")
         chart = open(out, encoding="utf-8").read()
         self.assertIn('<div class="tile warn"><span class="lab">Unsorted · outside %</span><b>1</b></div>', chart)
         self.assertIn("of these, Unsorted 1 (assets 1) is outside the %", chart)
@@ -1245,12 +1371,42 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         run(BOARD, root)
         stamp = os.path.getmtime(out)
         run(BOARD, root, "--if-stale")
-        self.assertEqual(os.path.getmtime(out), stamp, "바뀐 것이 없으면 다시 그리지 않는다")
+        self.assertEqual(os.path.getmtime(out), stamp, "with nothing changed, it is not redrawn")
+
+        # The legacy case: the same game in the Korean words the kit wrote before — hand-written, as such documents sit in older games. It draws the same board.
+        old = project(GDD.replace("# 게임", "# 게임 — 기획서").replace("## 4. 규칙", "## 4. 규칙 <b>")
+                      .replace("| BAL.PLAYER.HP | 100 | 4 | — | 미구현 |", "| BAL.PLAYER.HP | 100 | 4 | a.gd:HP | 동기 |")
+                      + "\n## 8. 미정 사항\n\n- **보스**: 있나\n- ~~끝난 것~~\n")
+        open(os.path.join(old, "docs/cycle/01-coins.md"), "w", encoding="utf-8").write(
+            "# 사이클 01 — coins\n\n시작: 어느 날 · 커밋 없음 · 단계: 플레이\n\n## 목표\n동전을 <줍게> 하자\n\n## 결정\n"
+            "- [x] D1. 동전의 값 (지금 — 5) — ① 5 ② 7 · 권함: ② (기획) → 아니 5\n- [ ] D2. 소리 — ① 있음 ② 없음 · 권함: ① (디자인)\n\n"
+            "## 기획\n\n## 디자인\n\n### 필요한 에셋\n\n| 이름 | 종류 | 쓰는 곳 | 있는가 |\n|---|---|---|---|\n"
+            "| coin_ping — 줍는 소리 | 효과음 | 줍기 | 없음 |\n| coin — 동전 | 스프라이트 | 줍기 | 임시 네모 |\n\n"
+            "## 작업\n\n### [x] T1. 동전을 줍는다\n- **GDD**: BAL.COIN.VALUE · RULE.COIN.PICKUP(새)\n- **한 것**: coin 을 주웠다\n\n"
+            "### [!] T2. 소리를 낸다\n- **GDD**: BAL.COIN.VALUE\n- **막힘**: coin_ping 이 없다\n\n## 순서\n- 1차 (끝): T1\n- 2차: T2 — T1 뒤\n\n## 플레이\n")
+        open(os.path.join(old, "docs/playtest/first.md"), "w", encoding="utf-8").write(
+            "# 플레이테스트 — first\n\n## 요약\n\n## 작업\n\n### [ ] T1. 동전이 붙는다\n- **분류**: 버그\n- **GDD**: RULE.COIN.PICKUP\n\n## 순서\n- 1차: T1\n")
+        self.assertEqual(shape(old), shape(root), "a document in the old words draws the same board as one in the new")
+        chart, stage = page(old, "index.html"), page(old, "stage-1.html")
+        self.assertIn("<title>게임 — chart</title>", chart)
+        self.assertIn("<h2>규칙 &lt;b&gt;</h2>", chart)
+        self.assertIn("<b>D2 소리</b>", chart)
+        self.assertIn("<b>보스</b><span>있나</span>", chart)
+        self.assertIn('<span class="task" title="coin 을 주웠다"><b>T1</b> 동전을 줍는다</span>', stage)
+        self.assertIn("· Play</h4>", stage, "the stage name of an old document is shown in English")
+        for stage_name, said in (("끝", "played"), ("회고", "played"), ("배포", "played"), ("구현", "at Build"), ("Closed", "played"), ("Build", "at Build")):
+            doc = os.path.join(old, "docs/cycle/01-coins.md")
+            text = open(doc, encoding="utf-8").read()
+            open(doc, "w", encoding="utf-8").write(re.sub(r"단계: \S+", f"단계: {stage_name}", text))
+            run(BOARD, old)
+            self.assertIn(f"<b>Cycle 01 — coins</b><small>{said}</small>", page(old, "stage-1.html"), stage_name)
 
         empty = tempfile.mkdtemp(prefix="kit-none-")
         self.addCleanup(shutil.rmtree, empty, True)
         p = subprocess.run([sys.executable, BOARD, "--if-stale"], cwd=empty, capture_output=True, text=True)
-        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""), "게임 저장소 밖에서는 아무 일도 없다")
+        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""), "outside a game repository, nothing happens")
+        p = subprocess.run([sys.executable, BOARD], cwd=empty, capture_output=True, text=True)
+        self.assertIn("kit.config.json not found — run this inside a game repository, after /gamedev-kit:init", p.stderr)
 
     def test_cycle(self):
         root = tempfile.mkdtemp(prefix="kit-cycle-")
@@ -1258,115 +1414,190 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         open(os.path.join(root, "kit.config.json"), "w").write("{}")
         self.assertIn("no cycle document in docs/cycle/", run(CYCLE, root, "next", ok=False).stderr)
         self.assertIn("docs/cycle/01-dash.md", run(CYCLE, root, "new", "dash", "대시를 넣자").stdout)
-        out = run(CYCLE, root, "new", "shop", "상점").stdout
+        out = run(CYCLE, root, "new", "shop", "a shop").stdout
         self.assertIn("docs/cycle/02-shop.md", out)
-        self.assertIn("the previous cycle is still at stage 목표: docs/cycle/01-dash.md", out, "a cycle that never reached 플레이 is not closed")
+        self.assertIn("the previous cycle is still at stage Goal: docs/cycle/01-dash.md", out, "a cycle that never reached Play is not closed")
         doc = os.path.join(root, "docs/cycle/02-shop.md")
         text = lambda: open(doc, encoding="utf-8").read()
-        self.assertIn("## 목표\n상점\n", text())
+        self.assertRegex(text(), r"^# Cycle 02 — shop\n\nStarted: \d{4}-\d\d-\d\d · Commit \S+ · Stage: Goal\n\n## Goal\na shop\n\n## Decisions\n")
+        self.assertTrue(text().endswith("## Spec\n\n## Design\n\n## Tasks\n\n## Order\n\n## Play\n"))
 
-        self.assertEqual(run(CYCLE, root, "ask", "기획", "값을 어떻게 — ① 고정 ② 변동 · 권함: ①").stdout.strip(), "D1")
-        self.assertEqual(run(CYCLE, root, "ask", "디자인", "간판 색 — ① 빨강 ② 파랑").stdout.strip(), "D2")
-        self.assertIn("- [ ] D2. 간판 색 — ① 빨강 ② 파랑 (디자인)\n\n## 기획", text())
-        filled = text().replace("## 작업\n", """## 작업
+        self.assertEqual(run(CYCLE, root, "ask", "Spec", "How the price moves — ① fixed ② floating · recommended: ①").stdout.strip(), "D1")
+        self.assertEqual(run(CYCLE, root, "ask", "디자인", "Sign colour — ① red ② blue").stdout.strip(), "D2")
+        self.assertIn("- [ ] D2. Sign colour — ① red ② blue (Design)\n\n## Spec", text(), "a section named in Korean on the command line is written in English")
+        filled = text().replace("## Tasks\n", """## Tasks
 
-### [ ] T1. 상점 화면을 만든다
-- **고칠 곳**: shop.gd
+### [ ] T1. Build the shop screen
+- **Where**: shop.gd
 
-### [ ] T2. 값을 붙인다
-- **고칠 곳**: balance.gd — D1 의 답대로
-- **대기**: D1
+### [ ] T2. Attach the prices
+- **Where**: balance.gd — as D1 was answered
+- **Waiting**: D1
 
-### [ ] T3. 간판을 단다
-- **고칠 곳**: sign.gd
-""").replace("## 순서\n", "## 순서\n- 1차: T1, T2 — 서로 다른 파일\n- 2차: T3 — T1 이 만든 화면에 단다\n")
+### [ ] T3. Hang the sign
+- **Where**: sign.gd
+""").replace("## Order\n", "## Order\n- Wave 1: T1, T2 — different files\n- Wave 2: T3 — hangs on the screen T1 builds\n")
         open(doc, "w", encoding="utf-8").write(filled)
 
         out = run(CYCLE, root, "next").stdout
         self.assertIn("open decisions 2", out)
         self.assertIn("next wave: 1\n", out)
-        self.assertIn("T2. 값을 붙인다 — waiting on D1", out)
+        self.assertIn("T2. Attach the prices — waiting on D1", out)
         self.assertNotIn("T3", out)
         run(CYCLE, root, "decide", "D1", "고정으로 가자")
-        self.assertRegex(text(), r"- \[x\] D1\. 값을 어떻게 — ① 고정 ② 변동 · 권함: ① \(기획\) → 고정으로 가자 \(\d{4}-\d\d-\d\d\)")
+        self.assertRegex(text(), r"- \[x\] D1\. How the price moves — ① fixed ② floating · recommended: ① \(Spec\) → 고정으로 가자 \(\d{4}-\d\d-\d\d\)")
         self.assertNotIn("waiting on D1", run(CYCLE, root, "next").stdout)
 
         out = run(CYCLE, root, "task", "T2").stdout
-        self.assertIn("### [ ] T2. 값을 붙인다", out)
+        self.assertIn("### [ ] T2. Attach the prices", out)
         self.assertIn("decisions it depends on:\n- [x] D1.", out)
         self.assertNotIn("T1", out, "other tasks are not pulled out")
         self.assertNotIn("D2", out, "decisions it does not depend on are not pulled out")
 
         run(CYCLE, root, "mark", "T1,T2", "done")
-        run(CYCLE, root, "mark", "T3", "blocked", "sign.gd 가 없다")
-        self.assertIn("### [x] T2. 값을 붙인다", text())
-        self.assertIn("### [!] T3. 간판을 단다\n- **고칠 곳**: sign.gd\n- **막힘**: sign.gd 가 없다\n\n## 순서", text())
+        run(CYCLE, root, "mark", "T3", "blocked", "sign.gd is missing")
+        self.assertIn("### [x] T2. Attach the prices", text())
+        self.assertIn("### [!] T3. Hang the sign\n- **Where**: sign.gd\n- **Blocked**: sign.gd is missing\n\n## Order", text())
         self.assertIn("blocked task: T3", run(CYCLE, root, "next").stdout)
-        run(CYCLE, root, "mark", "T3", "done", "sign.tscn 에 달았다")
+        run(CYCLE, root, "mark", "T3", "done", "hung on sign.tscn")
+        self.assertIn("- **Blocked**: sign.gd is missing\n- **Done**: hung on sign.tscn\n\n## Order", text())
         self.assertIn("no tasks left", run(CYCLE, root, "next").stdout)
-        run(CYCLE, root, "stage", "플레이")
+        self.assertEqual(run(CYCLE, root, "stage", "플레이").stdout.strip(), "stage: Play", "a stage named in Korean is written in English")
         out = run(CYCLE, root, "status").stdout.strip().split("\n")
         self.assertEqual(len(out), 2)
-        self.assertIn("02-shop.md — stage: 플레이 · tasks [x] 3 · [ ] 0 · [!] 0 · open decisions 1", out[1])
-        self.assertIn("stage: 목표", run(CYCLE, root, "next", "--doc", "docs/cycle/01-dash.md").stdout)
+        self.assertIn("02-shop.md — stage: Play · tasks [x] 3 · [ ] 0 · [!] 0 · open decisions 1", out[1])
+        self.assertIn("stage: Goal", run(CYCLE, root, "next", "--doc", "docs/cycle/01-dash.md").stdout)
         self.assertIn("T9: no such task", run(CYCLE, root, "task", "T9", ok=False).stderr)
 
         # the way a lesson goes back to the kit
         open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
-        run(CYCLE, root, "lesson", "헤드리스는 셰이더를  컴파일하지 않는다 → 창으로 한 번 돌린다")
-        run(CYCLE, root, "lesson", "둘째 줄")
+        run(CYCLE, root, "lesson", "headless does not  compile shaders → run it once in a window")
+        run(CYCLE, root, "lesson", "the second line")
         fb = lambda *a, ok=True: subprocess.run([sys.executable, FEEDBACK, *a], capture_output=True, text=True)
-        out = fb("list", root, os.path.join(root, "없는곳")).stdout
-        self.assertRegex(out, r"1\. \(godot · 사이클 02 · \d{4}-\d\d-\d\d\) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n  2\. ")
+        out = fb("list", root, os.path.join(root, "nowhere")).stdout
+        self.assertRegex(out, r"1\. \(godot · cycle 02 · \d{4}-\d\d-\d\d\) headless does not compile shaders → run it once in a window\n  2\. ")
         self.assertIn("kit-feedback.md not found", out)
         self.assertIn("1 lines: [x]", fb("done", root, "1", "0.7.2").stdout)
         out = fb("list", root).stdout
         self.assertIn("1 lines", out)
-        self.assertIn("1. (godot · 사이클 02", out)
-        self.assertIn("둘째 줄", out)
-        self.assertIn("창으로 한 번 돌린다 — 키트 0.7.2", open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read())
+        self.assertIn("1. (godot · cycle 02", out)
+        self.assertIn("the second line", out)
+        lessons = open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read()
+        self.assertTrue(lessons.startswith("# For the kit\n\n"), "a new lessons file gets the English head")
+        self.assertIn("run it once in a window — kit 0.7.2", lessons)
         self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
 
-        # there is no closing stage — a cycle standing at 플레이 becomes 끝 when the next cycle is made, and what is left · deferred is reported
+        # there is no closing stage — a cycle standing at Play becomes Closed when the next cycle is made, and what is left · deferred is reported
         run(CYCLE, root, "later", "간판에  불을 켜는 건 다음에")
-        self.assertIn("## 플레이\n- 다음에: 간판에 불을 켜는 건 다음에\n", text())
-        self.assertNotIn("## 회고", text())
+        self.assertIn("## Play\n- Next: 간판에 불을 켜는 건 다음에\n", text())
         out = run(CYCLE, root, "new", "auto", "알아서").stdout
         self.assertIn("closed: docs/cycle/02-shop.md", out)
         self.assertIn("left in the previous cycle: open decisions 1", out)
         self.assertIn("deferred: 간판에 불을 켜는 건 다음에", out)
-        self.assertIn("단계: 끝", text())
+        self.assertIn("Stage: Closed", text())
 
         # auto mode — what was decided in the user's place is [~]. Tasks depending on it run, and it stays unconfirmed until the user accepts or overturns it
         auto = os.path.join(root, "docs/cycle/03-auto.md")
         atext = lambda: open(auto, encoding="utf-8").read()
-        for q in ("문 — ① 연다 ② 닫는다 · 권함: ①", "색 — ① 빨강 ② 파랑 · 권함: ①", "값 — ① 싸게 ② 비싸게", "길 — ① 짧게 ② 길게 · 권함: ②"):
-            run(CYCLE, root, "ask", "기획", q)
-        planned = atext().replace("## 작업\n", "## 작업\n\n### [ ] T1. 문\n- **대기**: D1\n\n### [ ] T2. 값\n- **대기**: D3\n")
-        open(auto, "w", encoding="utf-8").write(planned.replace("## 순서\n", "## 순서\n- 1차: T1, T2\n"))
+        for q in ("Door — ① open ② shut · recommended: ①", "Colour — ① red ② blue · recommended: ①", "Price — ① cheap ② dear", "Road — ① short ② long · recommended: ②"):
+            run(CYCLE, root, "ask", "Spec", q)
+        planned = atext().replace("## Tasks\n", "## Tasks\n\n### [ ] T1. Door\n- **Waiting**: D1\n\n### [ ] T2. Price\n- **Waiting**: D3\n")
+        open(auto, "w", encoding="utf-8").write(planned.replace("## Order\n", "## Order\n- Wave 1: T1, T2\n"))
         self.assertIn("D1: decided in the user's place (unconfirmed)", run(CYCLE, root, "decide", "D1", "②", "--proxy", "V3, V5").stdout)
-        run(CYCLE, root, "decide", "D2", "①", "--proxy", "권함")
+        run(CYCLE, root, "decide", "D2", "①", "--proxy", "recommended")
         run(CYCLE, root, "decide", "D4", "②", "--proxy", "V7")
-        self.assertRegex(atext(), r"- \[~\] D1\. 문 — ① 연다 ② 닫는다 · 권함: ① \(기획\) → ② · 대리 V3, V5 \(\d{4}-\d\d-\d\d\)")
+        self.assertRegex(atext(), r"- \[~\] D1\. Door — ① open ② shut · recommended: ① \(Spec\) → ② · proxy V3, V5 \(\d{4}-\d\d-\d\d\)")
         out = run(CYCLE, root, "next").stdout
         self.assertIn("open decisions 1 · proxy decisions 3 (unconfirmed)", out)
         self.assertIn("proxy decision (unconfirmed): D1.", out)
         self.assertIn("open decision: D3.", out)
-        self.assertIn("  T1. 문\n", out, "a task depending on a proxy decision runs")
-        self.assertIn("T2. 값 — waiting on D3", out, "a task depending on a decision nobody made stands still")
+        self.assertIn("  T1. Door\n", out, "a task depending on a proxy decision runs")
+        self.assertIn("T2. Price — waiting on D3", out, "a task depending on a decision nobody made stands still")
         self.assertIn("D3: not a proxy decision awaiting confirmation", run(CYCLE, root, "confirm", "D3", ok=False).stderr)
         self.assertIn("accepted: D1", run(CYCLE, root, "confirm", "D1").stdout)
-        self.assertRegex(atext(), r"- \[x\] D1\. 문 — ① 연다 ② 닫는다 · 권함: ① \(기획\) → ② — 대리\(V3, V5\)를 받아들임 \(\d{4}")
+        self.assertRegex(atext(), r"- \[x\] D1\. Door — ① open ② shut · recommended: ① \(Spec\) → ② — accepted proxy \(V3, V5\) \(\d{4}")
         run(CYCLE, root, "decide", "D2", "파랑으로 하자")
-        self.assertRegex(atext(), r"- \[x\] D2\. 색 — ① 빨강 ② 파랑 · 권함: ① \(기획\) → 파랑으로 하자 \(\d{4}")
+        self.assertRegex(atext(), r"- \[x\] D2\. Colour — ① red ② blue · recommended: ① \(Spec\) → 파랑으로 하자 \(\d{4}")
         self.assertIn("D2: the user already answered", run(CYCLE, root, "decide", "D2", "①", "--proxy", "V1", ok=False).stderr)
         self.assertIn("accepted: D4", run(CYCLE, root, "confirm", "all").stdout)
         self.assertIn("open decisions 1\n", run(CYCLE, root, "status").stdout.split("03-auto")[1] + "\n")
         out = subprocess.run([sys.executable, VOICE, "--root", root, "collect"], capture_output=True, text=True,
                              env=dict(os.environ, GAMEDEV_KIT_VOICE=os.path.join(root, "voice-home"))).stdout
-        self.assertIn("03 D1 [받음]", out, "an accepted proxy decision is counted apart from one the user picked")
-        self.assertIn("받음 2", out)
+        self.assertIn("03 D1 [accepted]", out, "an accepted proxy decision is counted apart from one the user picked")
+        self.assertIn("accepted 2", out)
         run(CYCLE, root, "decide", "D3", "①")
+
+        # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English
+        old = tempfile.mkdtemp(prefix="kit-cycle-old-")
+        self.addCleanup(shutil.rmtree, old, True)
+        open(os.path.join(old, "kit.config.json"), "w").write('{"engine": "godot"}')
+        os.makedirs(os.path.join(old, "docs/cycle"))
+        odoc = os.path.join(old, "docs/cycle/01-shop.md")
+        otext = lambda: open(odoc, encoding="utf-8").read()
+        open(odoc, "w", encoding="utf-8").write("""# 사이클 01 — shop
+
+시작: 2000-01-01 · 커밋 없음 · 단계: 구현
+
+## 목표
+상점
+
+## 결정
+- [ ] D1. 값을 어떻게 — ① 고정 ② 변동 · 권함: ① (기획)
+- [~] D2. 간판 색 — ① 빨강 ② 파랑 · 권함: ① (디자인) → ② · 대리 V3 (2000-01-01)
+
+## 기획
+
+## 디자인
+
+## 작업
+
+### [x] T1. 상점 화면을 만든다
+- **고칠 곳**: shop.gd
+
+### [ ] T2. 값을 붙인다
+- **대기**: D1
+
+### [ ] T3. 간판을 단다
+- **대기**: D2
+
+## 순서
+- 1차 (끝): T1
+- 2차: T2, T3 — 서로 다른 파일
+
+## 플레이
+- 다음에: 간판에 불을 켠다
+""")
+        out = run(CYCLE, old, "next").stdout
+        self.assertIn("01-shop.md — stage: 구현 · tasks [x] 1 · [ ] 2 · [!] 0 · open decisions 1 · proxy decisions 1 (unconfirmed)", out)
+        self.assertIn("next wave: 2\n  T2. 값을 붙인다 — waiting on D1 (not run for now)\n  T3. 간판을 단다\n", out)
+        self.assertIn("decisions it depends on:\n- [ ] D1.", run(CYCLE, old, "task", "T2").stdout)
+        self.assertEqual(run(CYCLE, old, "ask", "계획", "범위 — ① 전부 ② 절반").stdout.strip(), "D3")
+        self.assertIn("- [ ] D3. 범위 — ① 전부 ② 절반 (Plan)\n\n## 기획", otext())
+        run(CYCLE, old, "confirm", "D2")
+        self.assertRegex(otext(), r"- \[x\] D2\. 간판 색 — ① 빨강 ② 파랑 · 권함: ① \(디자인\) → ② — accepted proxy \(V3\) \(\d{4}")
+        run(CYCLE, old, "mark", "T3", "blocked", "sign.gd 가 없다")
+        self.assertIn("- **대기**: D2\n- **Blocked**: sign.gd 가 없다\n\n## 순서", otext())
+        run(CYCLE, old, "later", "문도 단다")
+        self.assertIn("- 다음에: 간판에 불을 켠다\n- Next: 문도 단다\n", otext())
+        self.assertEqual(run(CYCLE, old, "stage", "Play").stdout.strip(), "stage: Play")
+        self.assertIn("단계: Play\n", otext(), "the head keeps its own label; the stage written is English")
+        run(CYCLE, old, "lesson", "둘째 게임에서도 본 것")
+        self.assertRegex(open(os.path.join(old, "docs/kit-feedback.md"), encoding="utf-8").read(), r"- \[ \] \(godot · cycle 01 · \d{4}-\d\d-\d\d\) 둘째 게임에서도 본 것\n")
+        at = "Play"
+        for stage in ("플레이", "배포", "회고", "끝"):  # 배포 · 회고 are from documents written when those were stages
+            moved = otext().replace("단계: " + at, "단계: " + stage)
+            open(odoc, "w", encoding="utf-8").write(moved)
+            out = run(CYCLE, old, "new", "next", "다음").stdout
+            os.remove(os.path.join(old, "docs/cycle/02-next.md"))
+            self.assertIn("left in the previous cycle: [ ] 1 · [!] 1 · open decisions 2", out)
+            self.assertIn("deferred: 간판에 불을 켠다\ndeferred: 문도 단다\n", out)
+            if stage == "끝":
+                self.assertNotIn("01-shop.md", out.split("\n", 1)[1], "a cycle already at 끝 is neither closed again nor reported as still open")
+                self.assertIn("단계: 끝\n", otext())
+            else:
+                self.assertIn("closed: docs/cycle/01-shop.md", out, stage)
+                self.assertIn("단계: Closed\n", otext())
+            at = "Closed"
 
     def test_voice(self):
         top = tempfile.mkdtemp(prefix="kit-voice-")
@@ -1380,23 +1611,24 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("no voice yet", run(VOICE, root, "path", ok=False).stderr)
         self.assertIn("no answered decisions", run(VOICE, root, "collect").stdout)
         run(CYCLE, root, "new", "dash", "대시를\n넣자")
-        run(CYCLE, root, "ask", "기획", "대시 뒤 — ① 무적 ② 그대로 · 권함: ①")
-        run(CYCLE, root, "ask", "디자인", "잔상 — ① 있다 ② 없다 · 권함: ①")
-        run(CYCLE, root, "ask", "계획", "범위 — ① 전부 ② 반만 · 권함: ②")
-        run(CYCLE, root, "ask", "계획", "순서 — ① 화면 먼저 ② 값 먼저")
+        run(CYCLE, root, "ask", "Spec", "대시 뒤 — ① 무적 ② 그대로 · recommended: ①")
+        run(CYCLE, root, "ask", "Design", "잔상 — ① 있다 ② 없다 · recommended: ①")
+        run(CYCLE, root, "ask", "Plan", "범위 — ① 전부 ② 반만 · recommended: ②")
+        run(CYCLE, root, "ask", "Plan", "순서 — ① 화면 먼저 ② 값 먼저")
         log = lambda: open(os.path.join(home, "log.md"), encoding="utf-8").read()
 
         # a prediction needs its principle to be in the voice
         self.assertIn("principle not in", run(VOICE, root, "predict", "D1", "②", "V1", ok=False).stderr)
         os.makedirs(home)
         open(os.path.join(home, "VOICE.md"), "w", encoding="utf-8").write(
-            "# 보이스\n\n갱신: 2000-01-01 · 결정 2개 · 게임 1개에서\n\n## 원칙\n- V1. 봐주는 규칙은 넣지 않는다\n- V2. 작게 자른다\n")
+            "# Voice\n\nUpdated: 1999-01-01 · 2 decisions · from 1 games\n\n## Principles\n- V1. 봐주는 규칙은 넣지 않는다\n- V2. 작게 자른다\n")
         self.assertEqual(run(VOICE, root, "path").stdout.strip(), os.path.join(home, "VOICE.md"))
-        self.assertIn("first-game 01 D1 (기획) → ② · V1", run(VOICE, root, "predict", "D1", "2", "V1").stdout)
+        self.assertIn("first-game 01 D1 (Spec) → ② · V1", run(VOICE, root, "predict", "D1", "2", "V1").stdout)
+        self.assertTrue(log().startswith("# Voice prediction ledger\n"), "a new ledger is headed in English")
         run(VOICE, root, "predict", "D2", "②", "V1,V2")
         run(VOICE, root, "predict", "D3", "②", "V2")
         self.assertIn("not an option in the question", run(VOICE, root, "predict", "D4", "③", "V1", ok=False).stderr)
-        self.assertIn("→ 모름", run(VOICE, root, "predict", "D4", "-").stdout)
+        self.assertIn("→ unknown", run(VOICE, root, "predict", "D4", "-").stdout)
         self.assertIn("prediction already written", run(VOICE, root, "predict", "D1", "①", "V1", ok=False).stderr)
         self.assertIn("no prediction to score", run(VOICE, root, "score").stdout)
 
@@ -1411,30 +1643,30 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("cannot tell: 01 D3 predicted ② · answer: 일단 반만 하자", out)
         self.assertIn("no prediction to score", run(VOICE, root, "score", "01", "D1", "hit", ok=False).stderr)
         self.assertIn("01 D3: hit", run(VOICE, root, "score", "01", "D3", "hit").stdout)
-        self.assertRegex(log(), r"- \[o\] first-game 01 D1 \(기획\) → ② · V1 \(\d{4}-\d\d-\d\d\)\n- \[x\] first-game 01 D2 .*\n"
-                                r"- \[o\] first-game 01 D3 .*\n- \[-\] first-game 01 D4 \(계획\) → 모름")
+        self.assertRegex(log(), r"- \[o\] first-game 01 D1 \(Spec\) → ② · V1 \(\d{4}-\d\d-\d\d\)\n- \[x\] first-game 01 D2 .*\n"
+                                r"- \[o\] first-game 01 D3 .*\n- \[-\] first-game 01 D4 \(Plan\) → unknown")
         out = run(VOICE, root, "stats").stdout
-        self.assertIn("hits 2/3 (66%) · 모름 1 · unscored 0 · predictions 4", out)
-        self.assertIn("계획: 1/1 (100%) · 모름 1", out)
+        self.assertIn("hits 2/3 (66%) · unknown 1 · unscored 0 · predictions 4", out)
+        self.assertIn("Plan: 1/1 (100%) · unknown 1", out)
         self.assertIn("V1: 1/2 (50%)", out)
         self.assertIn("V2: 1/2 (50%)", out)
         self.assertNotIn("first-game:", out, "with one game there are no per-game lines")
 
         out = run(VOICE, root, "collect").stdout
-        self.assertIn("game: first-game\n\n사이클 01 — dash\ngoal: 대시를 넣자\n", out)
-        self.assertIn("first-game 01 D1 [갈림] (기획) 대시 뒤 — ① 무적 ② 그대로 · 권함: ① → ②. 봐주지 말자 (", out)
-        self.assertIn("01 D2 [같음]", out)
+        self.assertIn("game: first-game\n\nCycle 01 — dash\ngoal: 대시를 넣자\n", out)
+        self.assertIn("first-game 01 D1 [differed] (Spec) 대시 뒤 — ① 무적 ② 그대로 · recommended: ① → ②. 봐주지 말자 (", out)
+        self.assertIn("01 D2 [same]", out)
         self.assertIn("01 D3 [?]", out)
-        self.assertIn("decisions 4 · 갈림 1 · 같음 1 · to read 2", out)
+        self.assertIn("decisions 4 · differed 1 · same 1 · to read 2", out)
 
         # a decision the voice has read does not come up again at the next update
         self.assertIn("decisions 4", run(VOICE, root, "collect", "new").stdout)
         self.assertIn("recorded 4 as read", run(VOICE, root, "collect", "done").stdout)
         self.assertIn("no answered decisions (among those not read yet)", run(VOICE, root, "collect", "new").stdout)
-        run(CYCLE, root, "ask", "기획", "문 — ① 연다 ② 닫는다 · 권함: ①")
-        run(CYCLE, root, "decide", "D5", "①")
+        run(CYCLE, root, "ask", "Spec", "문 — ① 연다 ② 닫는다 · recommended: ①")
+        run(CYCLE, root, "decide", "D5", "1")  # an answer that is only the number names that option
         out = run(VOICE, root, "collect", "new").stdout
-        self.assertIn("01 D5 [같음]", out)
+        self.assertIn("01 D5 [same]", out)
         self.assertIn("decisions 1 ·", out)
         self.assertIn("decisions 5 ·", run(VOICE, root, "collect").stdout)
 
@@ -1443,12 +1675,12 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("no answered decisions", run(VOICE, root, "collect", "new").stdout)
         run(CYCLE, root, "decide", "D5", "해 보니 좁다. ② 로 바꾸자")
         out = run(VOICE, root, "collect", "new").stdout
-        self.assertRegex(out, r"01 D5 \[바꿈\] \(기획\) 문 — ① 연다 ② 닫는다 · 권함: ① → ① \(\d{4}-\d\d-\d\d\) → 해 보니 좁다. ② 로 바꾸자 \(")
-        self.assertIn("decisions 1 · 갈림 0 · 같음 0 · to read 0 · 바꿈 1", out)
+        self.assertRegex(out, r"01 D5 \[changed\] \(Spec\) 문 — ① 연다 ② 닫는다 · recommended: ① → 1 \(\d{4}-\d\d-\d\d\) → 해 보니 좁다. ② 로 바꾸자 \(")
+        self.assertIn("decisions 1 · differed 0 · same 0 · to read 0 · changed 1", out)
         run(VOICE, root, "collect", "done")
         self.assertIn("first-game 01 D5 #2\n", open(os.path.join(home, "seen.txt"), encoding="utf-8").read())
         self.assertIn("no answered decisions", run(VOICE, root, "collect", "new").stdout)
-        run(CYCLE, root, "ask", "기획", "창 — ① 연다 ② 닫는다 · 권함: ①")
+        run(CYCLE, root, "ask", "Spec", "창 — ① 연다 ② 닫는다 · recommended: ①")
         run(VOICE, root, "predict", "D6", "②", "V1")
         run(CYCLE, root, "decide", "D6", "①")
         run(CYCLE, root, "decide", "D6", "아니 ②")
@@ -1456,18 +1688,68 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
         # another game's decisions pile up in the same voice — every line says which game it is from
         run(CYCLE, other, "new", "shop", "상점")
-        run(CYCLE, other, "ask", "계획", "범위 — ① 전부 ② 반만 · 권함: ①")
-        self.assertIn("둘째 01 D1 (계획) → ② · V2", run(VOICE, other, "predict", "D1", "②", "V2").stdout)
+        run(CYCLE, other, "ask", "Plan", "범위 — ① 전부 ② 반만 · recommended: ①")
+        self.assertIn("둘째 01 D1 (Plan) → ② · V2", run(VOICE, other, "predict", "D1", "②", "V2").stdout)
         run(CYCLE, other, "decide", "D1", "②")
         self.assertIn("no prediction to score", run(VOICE, root, "score").stdout, "another game's predictions are not scored")
         self.assertIn("01 D1: hit", run(VOICE, other, "score").stdout)
-        self.assertIn("decisions 1 · 갈림 1", run(VOICE, other, "collect", "new").stdout)
+        self.assertIn("decisions 1 · differed 1", run(VOICE, other, "collect", "new").stdout)
         out = run(VOICE, other, "stats").stdout
-        self.assertIn("hits 4/5 (80%) · 모름 1 · unscored 0 · predictions 6", out)
-        self.assertIn("first-game: 3/4 (75%) · 모름 1", out)
-        self.assertIn("둘째: 1/1 (100%) · 모름 0", out)
+        self.assertIn("hits 4/5 (80%) · unknown 1 · unscored 0 · predictions 6", out)
+        self.assertIn("first-game: 3/4 (75%) · unknown 1", out)
+        self.assertIn("둘째: 1/1 (100%) · unknown 0", out)
         self.assertIn("V2: 2/3 (66%)", out)
         self.assertFalse(os.path.exists(os.path.join(root, "docs/VOICE.md")), "the voice is not kept in the game repository")
+
+        # a proxy decision the user accepted is tagged apart — it is weaker evidence than a pick of their own
+        run(CYCLE, other, "ask", "Spec", "값 — ① 싸게 ② 비싸게 · recommended: ①")
+        run(CYCLE, other, "decide", "D2", "①", "--proxy", "V1")
+        self.assertIn("decisions 1 ·", run(VOICE, other, "collect").stdout, "an unconfirmed proxy decision is not an answer")
+        run(CYCLE, other, "confirm", "D2")
+        out = run(VOICE, other, "collect").stdout
+        self.assertIn("01 D2 [accepted] (Spec)", out)
+        self.assertIn("decisions 2 · differed 1 · same 0 · to read 0 · accepted 1", out)
+
+        # documents written before the words became English — a Korean voice, ledger and cycle document work as they are
+        old, old_home = os.path.join(top, "old"), os.path.join(top, "old-home")
+        os.makedirs(os.path.join(old, "docs", "cycle"))
+        os.makedirs(old_home)
+        os.environ["GAMEDEV_KIT_VOICE"] = old_home
+        put = lambda path, text: open(path, "w", encoding="utf-8").write(text)
+        put(os.path.join(old, "kit.config.json"), "{}")
+        put(os.path.join(old, "docs", "cycle", "01-shop.md"),
+            "# 사이클 01 — shop\n\n시작: 1999-01-01\n단계: 기획\n\n## 목표\n상점을\n넣자\n\n## 결정\n"
+            "- [x] D1. 값 — ① 싸게 ② 비싸게 · 권함: ① (기획) → 2번으로 (1999-01-02)\n"
+            "- [x] D2. 줄 — ① 한 줄 ② 두 줄 · 권함: ① (디자인) → ① — 대리(V1)를 받아들임 (1999-01-03)\n"
+            "- [~] D3. 색 — ① 밝게 ② 어둡게 · 권함: ① (디자인) → ① · 대리 V1 (1999-01-03)\n"
+            "- [ ] D4. 범위 — ① 전부 ② 반만 · 권함: ② (계획)\n"
+            "- [ ] D5. 순서 — ① 화면 먼저 ② 값 먼저 (계획)\n\n## 기획\n")
+        put(os.path.join(old_home, "VOICE.md"),
+            "# 보이스\n\n갱신: 1999-01-01 · 결정 2개 · 게임 1개에서\n\n## 원칙\n- V1. 봐주는 규칙은 넣지 않는다 — 근거: old 00 D1 · 한 게임\n- V2. 작게 자른다\n\n## 모르는 것\n")
+        put(os.path.join(old_home, "log.md"),
+            "# 보이스 예측 장부\n\n`[ ]` 채점 전 · `[o]` 맞음 · `[x]` 빗나감 · `[-]` 모름\n\n"
+            "- [x] old 00 D9 (계획) → ① · V2 (1999-01-01)\n"
+            "- [ ] old 01 D1 (기획) → ② · V1 (1999-01-02)\n"
+            "- [-] old 01 D2 (디자인) → 모름 (1999-01-02)\n")
+        out = run(VOICE, old, "collect").stdout
+        self.assertIn("game: old\n\n사이클 01 — shop\ngoal: 상점을 넣자\n", out)
+        self.assertIn("old 01 D1 [differed] (Spec) 값 — ① 싸게 ② 비싸게 · 권함: ① → 2번으로 (1999-01-02)", out)
+        self.assertIn("old 01 D2 [accepted] (Design)", out)
+        self.assertIn("decisions 2 · differed 1 · same 0 · to read 0 · accepted 1", out)
+        self.assertIn("01 D1: hit — predicted ② (V1) · answer: 2번으로", run(VOICE, old, "score").stdout)
+        self.assertIn("old 01 D4 (Plan) → ② · V2", run(VOICE, old, "predict", "D4", "2", "V2").stdout)
+        self.assertIn("→ unknown", run(VOICE, old, "predict", "D5", "-").stdout)
+        text = open(os.path.join(old_home, "log.md"), encoding="utf-8").read()
+        self.assertTrue(text.startswith("# 보이스 예측 장부\n"), "an existing ledger keeps its head")
+        self.assertRegex(text, r"- \[-\] old 01 D2 \(디자인\) → 모름 \(1999-01-02\)\n- \[ \] old 01 D4 \(Plan\) → ② · V2 \(.*\)\n- \[-\] old 01 D5 \(Plan\) → unknown")
+        out = run(VOICE, old, "stats").stdout  # rows in the old words and the new ones are counted together
+        self.assertIn("hits 1/2 (50%) · unknown 2 · unscored 1 · predictions 5", out)
+        self.assertIn("  Plan: 0/1 (0%) · unknown 1", out)
+        self.assertIn("  Spec: 1/1 (100%) · unknown 0", out)
+        self.assertIn("  Design: 0/0 · unknown 1", out)
+        self.assertNotIn("계획:", out)
+        self.assertIn("V1: 1/1 (100%)", out)
+        self.assertIn("V2: 0/1 (0%)", out)
 
     def test_voice_sync(self):
         """The voice folder is a clone of a private repository — two machines line up through the same repository. Only the git that reads without a login is fake."""
@@ -1495,7 +1777,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
         # a machine that already has a voice — that folder becomes the repository
         os.makedirs(a)
-        put(a, "# 보이스\n- V1. 하나\n")
+        put(a, "# Voice\n- V1. 하나\n")
         self.assertIn("made the existing voice a repository", voice(a, "setup", remote))
         out = voice(a, "sync", "voice: 첫 판")
         self.assertIn("committed", out)
@@ -1510,24 +1792,24 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertFalse(os.path.exists(b))
         self.assertIn("— cloned", voice(b, "setup", remote))
         self.assertIn("V1. 하나", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
-        open(os.path.join(b, "log.md"), "w", encoding="utf-8").write("- [o] 둘째 01 D1 (계획) → ② · V1\n")
+        open(os.path.join(b, "log.md"), "w", encoding="utf-8").write("- [o] 둘째 01 D1 (Plan) → ② · V1\n")
         self.assertIn("unpushed commits 1", voice(b, "sync"))
         self.assertIn("pushed — commits 1", voice(b, "sync", "--push"))
-        put(a, "# 보이스\n- V1. 하나\n- V2. 둘\n")
+        put(a, "# Voice\n- V1. 하나\n- V2. 둘\n")
         out = voice(a, "sync")
         self.assertIn("pulled — commits 1", out)
         self.assertIn("pushed — commits 1", out)
         self.assertTrue(os.path.exists(os.path.join(a, "log.md")))
 
         # two machines edited the same line differently — stop and hand it to a person. This machine's copy is untouched
-        put(b, "# 보이스\n- V1. 다르게\n")
+        put(b, "# Voice\n- V1. 다르게\n")
         self.assertIn("merge by hand", voice(b, "sync", ok=False))
         self.assertIn("V1. 다르게", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
 
         # a voice both in the repository and on this machine — it does not choose
         c = os.path.join(top, "c")
         os.makedirs(c)
-        put(c, "# 보이스\n")
+        put(c, "# Voice\n")
         self.assertIn("the user decides which one to keep", voice(c, "setup", remote, ok=False))
         self.assertFalse(os.path.exists(os.path.join(c, ".git")))
 
@@ -1559,16 +1841,16 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(p.returncode, 0, p.stderr)
         home = tempfile.mkdtemp(prefix="kit-private-")
         self.addCleanup(shutil.rmtree, home, True)
-        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# 게임의 이름\nHiggsfield\n")
+        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# names of games\nHiggsfield\n")
         p = check(GAMEDEV_KIT_VOICE=home)
         self.assertEqual(p.returncode, 1)
         self.assertIn("README.md:", p.stderr)
         msg = os.path.join(home, "msg")
-        open(msg, "w", encoding="utf-8").write("0.1.0 — 고쳤다\n# 2026-01-01 은 git 이 붙인 주석이다\n")
+        open(msg, "w", encoding="utf-8").write("0.1.0 — fixed\n# 2026-01-01 is a comment git added\n")
         self.assertEqual(check("--message", msg, GAMEDEV_KIT_VOICE=home).returncode, 0)
-        open(msg, "w", encoding="utf-8").write("0.1.0 — higgsfield 에서 배운 것\n")
+        open(msg, "w", encoding="utf-8").write("0.1.0 — learned from higgsfield\n")
         self.assertIn("commit message:1: blocked word", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
-        open(msg, "w", encoding="utf-8").write("0.1.0 — 2026-01-01 에 잰 것\n")
+        open(msg, "w", encoding="utf-8").write("0.1.0 — measured on 2026-01-01\n")
         self.assertIn("commit message:1: date", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
 
     def test_feedback(self):
@@ -1614,7 +1896,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         run(PLAYTEST, root, "lesson", "웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다")
         fb = os.path.join(root, "docs/kit-feedback.md")
         open(fb, "a", encoding="utf-8").write("- [ ] 손으로 적은 줄\n")
-        self.assertIn("`/gamedev-kit:feedback` 이 키트 저장소의 이슈로 보낸다", open(fb, encoding="utf-8").read())
+        self.assertTrue(open(fb, encoding="utf-8").read().startswith("# For the kit\n"))
 
         out = send("list")
         self.assertIn("— 4 unsent lines", out)
@@ -1623,7 +1905,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("! words that seem to be this game's: ‘달의 게임’", out)
         out = send("preview", "all")
         self.assertIn("Goes to: https://github.com/me/kit/issues\n", out)
-        self.assertRegex(out, r"\[1\] feedback\(godot\): 헤드리스는 셰이더를 컴파일하지 않는다\n.*→ 창으로 한 번 돌린다\n\n엔진: godot · 키트: \d+\.\d+\.\d+\n~ similar issue #7")
+        self.assertRegex(out, r"\[1\] feedback\(godot\): 헤드리스는 셰이더를 컴파일하지 않는다\n.*→ 창으로 한 번 돌린다\n\nengine: godot · kit: \d+\.\d+\.\d+\n~ similar issue #7")
         self.assertNotIn("#8", out, "another engine's issue does not count as similar")
         self.assertNotIn("#9", out)
         self.assertFalse(os.path.exists(log), "a preview sends nothing")
@@ -1634,11 +1916,11 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("commented on issue #7", send("send", "1", "--to", "#7"))
         self.assertEqual(open(log).read().split("\n")[:2], ["issue create --repo me/kit --title", "issue comment 7 --repo me/kit"])
         text = open(fb, encoding="utf-8").read()
-        self.assertRegex(text, r"- \[>\] \(godot · 플레이테스트 · [\d-]+\) 헤드리스는 .* — 이슈 #7\n")
-        self.assertRegex(text, r"- \[>\] \(godot · 플레이테스트 · [\d-]+\) 웹 내보내기는 .* — 이슈 #12\n")
+        self.assertRegex(text, r"- \[>\] \(godot · playtest · [\d-]+\) 헤드리스는 .* — issue #7\n")
+        self.assertRegex(text, r"- \[>\] \(godot · playtest · [\d-]+\) 웹 내보내기는 .* — issue #12\n")
         self.assertIn("--to takes one line only", send("send", "all", "--to", "7", ok=False))
-        send("skip", "1", "이 게임만의  것")
-        self.assertIn("씬을 다시 연다 — 안 보냄: 이 게임만의 것\n", open(fb, encoding="utf-8").read())
+        send("skip", "1", "this game's  only")
+        self.assertIn("씬을 다시 연다 — not sent: this game's only\n", open(fb, encoding="utf-8").read())
         self.assertIn("no such number — there are 1 unsent lines", send("send", "2", ok=False))
 
         # without gh it gives a pre-filled address, and the number is recorded after the user posts it
@@ -1647,19 +1929,51 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("gh not found — the user posts it by hand: https://github.com/me/kit/issues/new?title=feedback%28godot%29%3A%20", out)
         self.assertIn("- [ ] 손으로 적은 줄", open(fb, encoding="utf-8").read())
         send("sent", "1", "#15")
-        self.assertIn("- [>] 손으로 적은 줄 — 이슈 #15", open(fb, encoding="utf-8").read())
+        self.assertIn("- [>] 손으로 적은 줄 — issue #15", open(fb, encoding="utf-8").read())
         self.assertIn("— 0 unsent lines", send("list"))
-        self.assertIn("— 0 lines", subprocess.run([sys.executable, FEEDBACK, "list", root], capture_output=True, text=True).stdout,
-                      "sent lines drop out of the kit-side list too")
+        kit = lambda *a: subprocess.run([sys.executable, FEEDBACK, *a], capture_output=True, text=True).stdout
+        self.assertIn("— 0 lines", kit("list", root), "sent lines drop out of the kit-side list too")
+
+        # a file from before the words became English: Korean head and tails. It lists, sends and is marked the same — new tails are English
+        legacy = ("# 키트로 올릴 것\n\n이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것**.\n\n"
+                  "- [>] (godot · 사이클 1 · 2026-01-02) 보낸 줄 — 이슈 #3\n"
+                  "- [-] (godot · 플레이테스트 · 2026-01-02) 안 보낸 줄 — 안 보냄: 이 게임만의 것\n"
+                  "- [x] (godot · 사이클 1 · 2026-01-02) 반영한 줄 — 키트 0.7.2\n"
+                  "- [ ] (godot · 사이클 2 · 2026-01-03) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n"
+                  "- [ ] (godot · 플레이테스트 · 2026-01-03) 웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다\n"
+                  "- [ ] (godot · 사이클 2 · 2026-01-04) 이 게임만의 줄\n"
+                  "- [ ] (godot · 사이클 3 · 2026-01-04) 옛 꼴로 닫을 줄\n")
+        open(fb, "w", encoding="utf-8").write(legacy)
+        write()
+        os.remove(log)
+        out = send("list")
+        self.assertIn("— 4 unsent lines", out)
+        self.assertIn("  1. (godot) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n", out, "the Korean cycle number and the date do not go out either")
+        self.assertNotIn("!", out)
+        self.assertRegex(send("preview", "1"), r"→ 창으로 한 번 돌린다\n\nengine: godot · kit: \d+\.\d+\.\d+\n~ similar issue #7")
+        self.assertIn("opened issue #12", send("send", "2"))
+        self.assertIn("commented on issue #7", send("send", "1", "--to", "7"))
+        self.assertEqual(kit("list", root).split("\n")[:3],
+                         [f"{root} — 2 lines", "  1. (godot · 사이클 2 · 2026-01-04) 이 게임만의 줄", "  2. (godot · 사이클 3 · 2026-01-04) 옛 꼴로 닫을 줄"])
+        self.assertIn("1 lines: [x]", kit("done", root, "1", "0.9.1"))
+        self.assertIn("1 lines: [x]", kit("done", root, "1", "안 올림: 이 게임만의 것"))
+        text = open(fb, encoding="utf-8").read()
+        self.assertTrue(text.startswith(legacy.split("- [ ]")[0]), "the head and the lines closed before are left as they were")
+        self.assertIn("- [>] (godot · 사이클 2 · 2026-01-03) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다 — issue #7\n", text)
+        self.assertIn("- [>] (godot · 플레이테스트 · 2026-01-03) 웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다 — issue #12\n", text)
+        self.assertIn("- [x] (godot · 사이클 2 · 2026-01-04) 이 게임만의 줄 — kit 0.9.1\n", text)
+        self.assertIn("- [x] (godot · 사이클 3 · 2026-01-04) 옛 꼴로 닫을 줄 — not raised: 이 게임만의 것\n", text)
+        self.assertIn("— 0 unsent lines", send("list"))
+        open(fb, "w", encoding="utf-8").write(legacy.split("- [ ]")[0])
 
         # at session start: one line only when lines have piled up, no looking outside, and always exit 0
         self.assertEqual(send("--notice", cwd=root), "")
-        open(fb, "a", encoding="utf-8").write("".join(f"- [ ] 줄 {n}\n" for n in range(5)))
+        open(fb, "a", encoding="utf-8").write("".join(f"- [ ] line {n}\n" for n in range(5)))
         os.makedirs(os.path.join(root, "game"))
         self.assertIn("5 lessons for the kit have piled up", send("--notice", cwd=os.path.join(root, "game")))
         write(notice=False)
         self.assertEqual(send("--notice", cwd=root), "")
-        open(os.path.join(root, "kit.config.json"), "w").write("{깨진")
+        open(os.path.join(root, "kit.config.json"), "w").write("{broken")
         self.assertEqual(send("--notice", cwd=root), "")
         self.assertEqual(send("--notice", cwd=home), "")
 
@@ -1676,9 +1990,9 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         for n in ("now", "b"):
             open(os.path.join(root, "shots", f"{n}.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 400, 300))
         open(os.path.join(root, "shots/photo.jpg"), "wb").write(b"\xff\xd8jpg")
-        asked = [{"id": "D3", "question": "손의 자리 <어디>", "options": [{"mark": "ⓐ", "text": "지금 그대로"}, {"mark": "ⓑ", "text": "세운다", "recommend": True}],
-                  "images": [{"label": "지금", "path": "shots/now.png", "crop": [100, 80, 200, 100]}, {"label": "ⓑ", "path": "shots/b.png"}]},
-                 {"question": "둘째", "images": [{"path": "shots/photo.jpg"}]}]
+        asked = [{"id": "D3", "question": "Where the hand sits <where>", "options": [{"mark": "ⓐ", "text": "As it is"}, {"mark": "ⓑ", "text": "Raise it", "recommend": True}],
+                  "images": [{"label": "Now", "path": "shots/now.png", "crop": [100, 80, 200, 100]}, {"label": "ⓑ", "path": "shots/b.png"}]},
+                 {"question": "둘째", "images": [{"path": "shots/photo.jpg"}]}]  # questions come in the user's language — the page carries any text
         spec = os.path.join(root, "q.json")
 
         def sheet(*args, ok=True):
@@ -1687,8 +2001,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
         self.assertEqual(sheet().stdout.split(), ["docs/cycle/sheets/sheet-1.png", "docs/cycle/sheets/sheet-2.png"])
         first = open(os.path.join(root, "docs/cycle/sheets/sheet-1.html"), encoding="utf-8").read()
-        self.assertIn("<h1>D3. 손의 자리 &lt;어디&gt;</h1>", first)
-        self.assertIn('<li class="pick"><b>ⓑ</b>세운다<small>← 권함</small></li>', first)
+        self.assertIn("<h1>D3. Where the hand sits &lt;where&gt;</h1>", first)
+        self.assertIn('<li class="pick"><b>ⓑ</b>Raise it<small>← recommended</small></li>', first)
         self.assertIn('style="aspect-ratio: 200 / 100"><img src="data:image/png;base64,', first)
         self.assertIn('style="width: 200.0000%; left: -50.0000%; top: -80.0000%"', first, "the cropped spot fills the frame")
         self.assertIn("<h1>2. 둘째</h1>", open(os.path.join(root, "docs/cycle/sheets/sheet-2.html"), encoding="utf-8").read())
@@ -1713,43 +2027,84 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         open(os.path.join(root, "kit.config.json"), "w").write("{}")
         os.makedirs(os.path.join(root, "docs/playtest"))
         doc = os.path.join(root, "docs/playtest/2026-10-08-a.md")
-        open(doc, "w", encoding="utf-8").write("""# 분석
+        open(doc, "w", encoding="utf-8").write("""# Playtest — walking and the door
+
+## Summary
+Walking speed matters most.
+
+## Questions for the user
+none
+
+## Tasks
+
+### [ ] T1. Lower the walking speed
+- **Kind**: balance
+
+### [ ] T2. Fix the door
+- **Kind**: bug
+
+## Order
+- Wave 1: T1, T2 — different files
+
+## Not this time
+""")
+        out = run(PLAYTEST, root, "next").stdout
+        self.assertIn("T1. Lower the walking speed (balance)", out)
+        self.assertIn("next wave: 1\n", out)
+        self.assertNotIn("for the user", out)
+        out = run(PLAYTEST, root, "task", "T2").stdout
+        self.assertIn("\n\n## Summary\nWalking speed matters most.\n\n### [ ] T2. Fix the door", out)
+        self.assertNotIn("T1", out)
+        run(PLAYTEST, root, "mark", "T1", "done", "set to 4.5")
+        run(PLAYTEST, root, "mark", "T2", "blocked", "there is no door")
+        text = open(doc, encoding="utf-8").read()
+        self.assertIn("### [x] T1. Lower the walking speed\n- **Kind**: balance\n- **Done**: set to 4.5\n\n### [!] T2.", text)
+        self.assertIn("### [!] T2. Fix the door\n- **Kind**: bug\n- **Blocked**: there is no door\n\n## Order", text)
+        self.assertIn("tasks [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
+        open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
+        run(PLAYTEST, root, "lesson", "a door shows only after the scene  is reopened → reopen the scene")
+        self.assertRegex(open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read(),
+                         r"^# For the kit\n\n(.+\n)+- \[ \] \(godot · playtest · \d{4}-\d\d-\d\d\) a door shows only after the scene is reopened → reopen the scene\n$")
+
+        # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English
+        old = os.path.join(root, "docs/playtest/2026-10-09-b.md")
+        open(old, "w", encoding="utf-8").write("""# 플레이테스트 분석 — 걷기와 문
 
 ## 요약
 걷는 속도가 가장 크다.
 
 ## 사용자에게 물을 것
-없음
+- 문은 안으로 열리나 밖으로 열리나 (T2)
 
 ## 작업
 
-### [ ] T1. 걷는 속도를 낮춘다
+### [x] T1. 걷는 속도를 낮춘다
 - **분류**: 밸런스
 
 ### [ ] T2. 문을 고친다
 - **분류**: 버그
 
+### [ ] T3. 간판을 단다
+- **분류**: 표현
+
 ## 순서
-- 1차: T1, T2 — 서로 다른 파일
+- 1차 (끝): T1
+- 2차: T2, T3 — 서로 다른 파일
 
 ## 이번에 하지 않는 것
 """)
         out = run(PLAYTEST, root, "next").stdout
-        self.assertIn("T1. 걷는 속도를 낮춘다 (밸런스)", out)
-        self.assertIn("next wave: 1\n", out)
-        self.assertNotIn("for the user", out)
-        out = run(PLAYTEST, root, "task", "T2").stdout
-        self.assertIn("걷는 속도가 가장 크다", out)
-        self.assertIn("### [ ] T2. 문을 고친다", out)
-        self.assertNotIn("T1", out)
-        run(PLAYTEST, root, "mark", "T1", "done")
+        self.assertIn("2026-10-09-b.md — tasks [x] 1 · [ ] 2 · [!] 0 · has questions for the user\n", out)
+        self.assertIn("questions for the user:\n- 문은 안으로 열리나 밖으로 열리나 (T2)\n", out)
+        self.assertIn("next wave: 2\n  T2. 문을 고친다 (버그)\n  T3. 간판을 단다 (표현)\n", out)
+        self.assertIn("\n\n## Summary\n걷는 속도가 가장 크다.\n\n### [ ] T3. 간판을 단다", run(PLAYTEST, root, "task", "T3").stdout)
         run(PLAYTEST, root, "mark", "T2", "blocked", "문이 없다")
-        self.assertIn("### [!] T2. 문을 고친다\n- **분류**: 버그\n- **막힘**: 문이 없다\n\n## 순서", open(doc, encoding="utf-8").read())
-        self.assertIn("tasks [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
-        open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
-        run(PLAYTEST, root, "lesson", "문은 씬을 다시 열어야 보인다 → 씬을 다시 연다")
-        self.assertRegex(open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read(),
-                         r"- \[ \] \(godot · 플레이테스트 · \d{4}-\d\d-\d\d\) 문은 씬을 다시 열어야 보인다 → 씬을 다시 연다\n")
+        self.assertIn("### [!] T2. 문을 고친다\n- **분류**: 버그\n- **Blocked**: 문이 없다\n\n### [ ] T3.", open(old, encoding="utf-8").read())
+        answered = open(old, encoding="utf-8").read().replace("- 문은 안으로 열리나 밖으로 열리나 (T2)", "없음")
+        open(old, "w", encoding="utf-8").write(answered)
+        self.assertNotIn("for the user", run(PLAYTEST, root, "status").stdout, "`없음` is read as no questions")
+        run(PLAYTEST, root, "lesson", "둘째 줄")
+        self.assertRegex(open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read(), r"reopen the scene\n- \[ \] \(godot · playtest · \d{4}-\d\d-\d\d\) 둘째 줄\n$")
 
     def test_session_tools(self):
         root = tempfile.mkdtemp(prefix="kit-session-")
@@ -1785,7 +2140,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(watch(root), "", "silent when it shrinks")
         open(log, "a").write(turn(5, 210_000) + "\n")
         self.assertIn("about 211k tokens", watch(root), "shrinking and then passing the line again makes it speak again")
-        self.assertEqual(subprocess.run([sys.executable, WATCH], input="깨진 입력", capture_output=True, text=True).returncode, 0)
+        self.assertEqual(subprocess.run([sys.executable, WATCH], input="broken input", capture_output=True, text=True).returncode, 0)
 
     def test_asset_no_config(self):
         root = tempfile.mkdtemp(prefix="kit-none-")

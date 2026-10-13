@@ -5,8 +5,8 @@
   python3 asset.py image <name>... [--view back [--note "<text for that view only — in English>"]] [--ref <photo>]   make the images. With --view, redo only that view
   python3 asset.py approve <name>...               after a human has looked at the images. Only approved images become meshes
   python3 asset.py reject <name> "<the user's words>"   turn it down — records why and lifts the approval
-  python3 asset.py learn "<one line — in English>"  add what turning assets down taught as one line of "배운 것". Attached to every asset from then on
-  python3 asset.py look                            what is attached to every asset — 화풍 · 세계 · 배운 것
+  python3 asset.py learn "<one line — in English>"  add what turning assets down taught as one line of "Learned". Attached to every asset from then on
+  python3 asset.py look                            what is attached to every asset — Art style · World · Learned
   python3 asset.py mesh <name>...                  make the mesh with Meshy, download it and finish it. Costs credits
   python3 asset.py finish <name>... [--size <meters>]  finish a downloaded mesh again (size · origin · export)
   python3 asset.py status                          how far each asset has come
@@ -15,9 +15,9 @@ One asset is one folder: <work>/<name>/ holds the record (asset.json) · an imag
 The finished model goes to <dir>/<name>.<format>. Size is the length of the longest side (meters); the origin is the center of the base.
 
 What is attached to every prompt sits in asset.style_file (default docs/DESIGN.md), in three layers:
-  `<!-- asset-style -->`    화풍 — how it is drawn. Fixed (changing it sets new assets against the ones already made)
-  `<!-- asset-world -->`    세계 — what exists in this world (era · materials · motifs that recur). Optional
-  `<!-- asset-learned -->`  배운 것 — lines from what the user said when turning assets down. `learn` adds them. Optional
+  `<!-- asset-style -->`    Art style — how it is drawn. Fixed (changing it sets new assets against the ones already made)
+  `<!-- asset-world -->`    World — what exists in this world (era · materials · motifs that recur). Optional
+  `<!-- asset-learned -->`  Learned — lines from what the user said when turning assets down. `learn` adds them. Optional
 Config is "asset" in kit.config.json at the project root.
 
 --ref is that asset's reference photo (path relative to the root) — the photo itself is shown to draw from, not put into words.
@@ -227,7 +227,7 @@ def learned():
 
 
 def look():
-    """What is attached to every asset: 화풍 (fixed) + 세계 + 배운 것."""
+    """What is attached to every asset: Art style (fixed) + World + Learned."""
     world = " ".join((between(WORLD) or "").split())
     rules = " ".join(line.rstrip(".") + "." for line in learned())
     return " ".join(x for x in (style(), world, rules) if x)
@@ -278,7 +278,7 @@ def image(name, only, ref=None, note=None):
         said = rec.get("notes", {}).get(view)
         mine = f"{said.rstrip('.')}. " if said else ""  # text for this view only (which side is nearer the viewer, and the like)
         if view == first and subject and rec.get("as_is"):
-            prompt, data = f"(레퍼런스를 그대로 썼다: {rec['ref']})", open(subject, "rb").read()
+            prompt, data = f"(reference used as is: {rec['ref']})", open(subject, "rb").read()
         elif view == first:
             lead = f"{SUBJECT_REF} " + (f"{STYLE_REST} " if refs else "") if subject else (f"{STYLE_ONLY} " if refs else "")
             prompt = f"{lead}{rec['subject']}. {VIEWS[view].capitalize()}. {mine}{words} {FOR_3D}"
@@ -296,7 +296,7 @@ def image(name, only, ref=None, note=None):
 
 
 def reject(name, said):
-    """The user turned it down — their words are the material for "배운 것". Lifts the approval."""
+    """The user turned it down — their words are the material for "Learned". Lifts the approval."""
     rec = load(name)
     rec.setdefault("said", []).append({"date": str(datetime.date.today()), "said": " ".join(said.split())})
     rec["approved"] = None
@@ -310,13 +310,13 @@ def learn(line):
         sys.exit(f"{CFG['style_file']} has no `{LEARNED[0]}` … `{LEARNED[1]}` — put those two lines below the art style paragraph")
     have = learned()
     if len(have) >= LEARN_MAX:
-        sys.exit(f"배운 것 has {len(have)} lines — no more are added. Merge lines that overlap, or move a rule that always holds up into the art style paragraph (with the user)")
+        sys.exit(f"Learned has {len(have)} lines — no more are added. Merge lines that overlap, or move a rule that always holds up into the art style paragraph (with the user)")
     text = open(path, encoding="utf-8").read()
     head, tail = text.split(LEARNED[0], 1)[0], text.split(LEARNED[1], 1)[1]
     lines = have + [" ".join(line.split()).rstrip(".")]
     with open(path, "w", encoding="utf-8") as f:
         f.write(head + LEARNED[0] + "\n" + "\n".join(f"- {x}" for x in lines) + "\n" + LEARNED[1] + tail)
-    print(f"배운 것 {len(lines)} line(s) — attached to assets drawn from now on:\n" + "\n".join(f"- {x}" for x in lines))
+    print(f"Learned {len(lines)} line(s) — attached to assets drawn from now on:\n" + "\n".join(f"- {x}" for x in lines))
 
 
 def approve(name):
@@ -470,7 +470,7 @@ def main():
         elif cmd == "learn":
             learn(" ".join(rest))
         elif cmd == "look":
-            print(f"화풍: {style()}\n세계: {' '.join((between(WORLD) or '').split()) or '(none)'}\n배운 것: " + (" / ".join(learned()) or "(none)")
+            print(f"Art style: {style()}\nWorld: {' '.join((between(WORLD) or '').split()) or '(none)'}\nLearned: " + (" / ".join(learned()) or "(none)")
                   + f"\n— {len(look())} characters are attached to every asset")
         elif cmd == "approve":
             for name in rest:

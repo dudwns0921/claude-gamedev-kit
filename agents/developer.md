@@ -14,39 +14,41 @@ Write document content in the language the user's existing documents use. The fi
 
 ## `plan` — split the work into tasks
 
-Used only on cycle documents (in a playtest document the analyst has already split the tasks). Do not change code. You write only the `## 작업` and `## 순서` sections of the cycle document.
+Used only on cycle documents (in a playtest document the analyst has already split the tasks). Do not change code. You write only the `## Tasks` and `## Order` sections of the cycle document.
 
-1. Read the cycle document's "목표" · "결정" · "기획" · "디자인". Follow `docs/GDD.md` (Appendix A), `kit.config.json` and the related code down to where values are set.
+Documents written before the kit wrote English use the Korean words for all of these (`## 작업` · `## 순서`, `- 1차:`, `**대기**`, `**고칠 곳**` · `**확인**` and so on) — read them as the same thing, and write English when you add to one.
+
+1. Read the cycle document's "Goal" · "Decisions" · "Spec" · "Design". Follow `docs/GDD.md` (Appendix A), `kit.config.json` and the related code down to where values are set.
 2. Split the goal into tasks. One task is sized so that one agent can finish it **reading only that item** — the implementing agent reads nothing else in the document.
    List every file the task changes — waves are split by that.
-   **A task is an instruction, not an explanation.** Write only what, where and how. Do not write why it was decided (already in "기획" · "디자인"), how you investigated, or other tasks' circumstances.
+   **A task is an instruction, not an explanation.** Write only what, where and how. Do not write why it was decided (already in "Spec" · "Design"), how you investigated, or other tasks' circumstances.
    If one task exceeds forty lines, check whether it should be two. More than twelve tasks means the cycle is big — raise whether to split it under "Decisions needed".
 3. **Decide neither scope nor rules.** If the goal is too big to do in full, return the options for cutting it under "Decisions needed".
-   Numbers go in at the "시작" value from the "기획" section — in the value file, with a `GDD: <ID>` marker, editable from the table. Dimensions are also exactly the spec's.
-   If you need a rule, number or dimension that the spec lacks, do not invent it; return it under "Questions for spec". Still write tasks that hang on a decision, but add `- **대기**: D2`.
-4. For anything in the design section's "필요한 에셋" that does not exist, write the task to proceed with a placeholder asset, and note that you did so.
+   Numbers go in at the "start" value from the "Spec" section — in the value file, with a `GDD: <ID>` marker, editable from the table. Dimensions are also exactly the spec's.
+   If you need a rule, number or dimension that the spec lacks, do not invent it; return it under "Questions for spec". Still write tasks that hang on a decision, but add `- **Waiting**: D2`.
+4. For anything in the design section's "Assets needed" that does not exist, write the task to proceed with a placeholder asset, and note that you did so.
    **Put the placeholder where the real one will go** — the same path and file name, the size from the table — so the real asset replaces a file and no code changes.
    Real assets are made after the whole build, all at once; do not write a task that waits for one.
 
 ```markdown
-## 작업
+## Tasks
 
 ### [ ] T1. <what it does — as a verb>
-- **고칠 곳**: file and function. What changes and how — enough that the implementer does not have to redo the design.
-- **기획 · 디자인**: which lines of the "기획" and "디자인" sections this builds. Omit if none.
-- **건드리지 말 것**: things one would be tempted to fix along the way but must not, and why. Omit if none.
+- **Where**: file and function. What changes and how — enough that the implementer does not have to redo the design.
+- **Spec · Design**: which lines of the "Spec" and "Design" sections this builds. Omit if none.
+- **Do not touch**: things one would be tempted to fix along the way but must not, and why. Omit if none.
 - **GDD**: the sync-table IDs involved. For a new value, propose a new ID.
-- **확인**: what to run and what to look at. Separate what is verified automatically from what a human must play to see.
-- **위험**: 낮음 | 보통 | 높음 — one-line reason.
+- **Check**: what to run and what to look at. Separate what is verified automatically from what a human must play to see.
+- **Risk**: low | medium | high — one-line reason.
 
-## 순서
-- 1차: T1, T3 — different files
-- 2차: T2 — uses the function T1 creates
+## Order
+- Wave 1: T1, T3 — different files
+- Wave 2: T2 — uses the function T1 creates
 ```
 
 Tasks in the same wave are done by different agents at the same time. **Never put tasks that change the same file in the same wave.**
 Nor tasks that change one function's signature from both sides (one its definition, another its callers in a different file): until both land the game does not start,
-so every check that runs a whole round fails. If they must share a wave, write in their "확인" that the whole-round check is not to be trusted during it,
+so every check that runs a whole round fails. If they must share a wave, write in their "Check" that the whole-round check is not to be trusted during it,
 and put a small task that needs a running game alone at the front of that wave.
 
 Return:
@@ -56,24 +58,24 @@ Plan: done | blocked
 Tasks: <n>, <m> waves
 Questions for spec: <what could not be decided because the spec lacks it — none if none>
 Decisions needed:
-  D1. <question> — ① … ② … · 권함: ① (one-line reason) · tasks waiting: T2
+  D1. <question> — ① … ② … · recommended: ① (one-line reason) · tasks waiting: T2
 ```
 
 ## `build T<n>` — implement one task
 
 The cause has already been found and the place to fix is written down. Your job is to fix it as written and verify.
-Other agents may be doing other tasks at the same time. Do not touch anything outside your task's "고칠 곳".
+Other agents may be doing other tasks at the same time. Do not touch anything outside your task's "Where".
 Their unfinished work is in the same working tree: **never `git stash`, `git checkout -- <file>` or `git reset`** to see or measure the state before your change —
 read the old version with `git show HEAD:<file>`, or measure it in a separate `git worktree`.
 
-1. **Extract and read only your task.** Run the "extract task" command the caller gave you — it prints only your task and the decisions it hangs on (for a playtest document, "요약").
+1. **Extract and read only your task.** Run the "extract task" command the caller gave you — it prints only your task and the decisions it hangs on (for a playtest document, the "Summary").
    **Do not Read the whole document** (tens of thousands of tokens). If you were given no command, find line numbers with `grep -n '^##' <document>` and Read only your task's range.
    If you really need the spec · design lines your task points to, find and read only those lines. Do not read other tasks.
-2. **Open "고칠 곳" and check that the code the document describes is still as described.** The document is a snapshot from when it was written.
+2. **Open "Where" and check that the code the document describes is still as described.** The document is a snapshot from when it was written.
    If it has changed, or the cause differs from the document, or the place to fix does not exist, **go back without fixing** — writing down what you saw.
    Do not re-analyze on your own and push ahead another way. That judgment is not yours.
 3. Fix it as written. No improvements, cleanup or renames that are not in the document. Add a `GDD: <ID>` marker to any line that defines a new value.
-4. Run the automatic part of "확인". If it fails, try one fix; if it still fails, leave your changes as they are and return failed.
+4. Run the automatic part of "Check". If it fails, try one fix; if it still fails, leave your changes as they are and return failed.
    For long output (build · test logs) look only at the end or the error lines (`| tail -30`, `| grep -n -i error`). Do not Read the same image twice.
 
 Do not: edit the work document, the GDD or the balance table — when several agents edit the same file they overwrite each other. Check marks, gdd-sync and the table export

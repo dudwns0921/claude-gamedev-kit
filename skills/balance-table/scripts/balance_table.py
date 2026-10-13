@@ -32,7 +32,8 @@ DEFAULTS = {
 }
 
 MARK_RE = re.compile(r"GDD:\s*([A-Z][A-Z0-9_.]*)")
-HEADER = ["이름", "값", "코드값", "분류", "GDD ID", "설명"]
+# The header row is for people — reading goes by column (A name · B value), so a table with the older Korean header row reads the same
+HEADER = ["Name", "Value", "Code value", "Group", "GDD ID", "Note"]
 WIDTHS = [30, 10, 10, 12, 30, 90]
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
@@ -243,7 +244,7 @@ def bake():
             lines[i] = m.group(1) + m.group(2) + m.group(3) + changed[m.group(2)] + m.group(5)
             print(f"  {m.group(2)}: {m.group(4)} → {changed[m.group(2)]}")
     open(CODE, "w", encoding="utf-8").write("\n".join(lines))
-    write_table(read_code())  # the 코드값 column takes the new values
+    write_table(read_code())  # the Code value column takes the new values
     print(f"Baked {len(changed)}. Next: /gamedev-kit:gdd-sync to-gdd" if changed else "No values changed")
 
 
