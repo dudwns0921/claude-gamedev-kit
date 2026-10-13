@@ -1,5 +1,6 @@
 {
   "engine": "godot",
+  "models": "standard",
   "gdd-sync": {
     "code_ext": [".gd", ".tscn", ".tres", ".json", ".cfg", ".gdshader"],
     "skip_dirs": [".git", ".godot", ".claude", "addons", "build", "docs"],

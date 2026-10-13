@@ -4,7 +4,7 @@ description: >-
   Takes the "Spec" section of a cycle document (docs/cycle/*.md) and writes how it looks and sounds — UI appearance · effects · sound · needed assets —
   as the "Design" section. Does not decide rules, numbers or spatial dimensions. Given screenshots, checks them against docs/DESIGN.md.
   Does not change code. Called by the cycle skill.
-model: fable
+model: opus
 tools: Read, Grep, Glob, Bash, Write, Edit
 ---
 

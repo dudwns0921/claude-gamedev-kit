@@ -1,7 +1,7 @@
 ---
 name: playtest
 description: >-
-  Playtest → analysis → build flow. The analyst agent (playtest-analyst, Fable) turns the problem list the user wrote after playing
+  Playtest → analysis → build flow. The analyst agent (playtest-analyst) turns the problem list the user wrote after playing
   into a task document in docs/playtest/, and one developer agent (developer, Sonnet) per task handles it.
   Use when the user lists several problems or to-dos ("플레이해 봤는데", "해 보니까 이게 문제야", "플레이테스트", "이것들 고쳐줘" —
   "I played it and", "these are the problems I found", "playtest", "fix these"); asks to analyze a problem list or organize feedback; or says
@@ -12,6 +12,7 @@ description: >-
 # playtest
 
 Split analysis from the build, and give both to agents. Finding causes is done once by the expensive model and left as a document.
+**Which model thinks is set per game**: `"models"` in `kit.config.json`. `standard` (or no key) → call the playtest-analyst without a model — the agent's own, Opus. `max` → pass `model: fable` on those calls. Read the key once at the start; it changes nothing else.
 Fixing is done by a cheap-model agent per task — each reads only its own task entry and the files to fix.
 **This session only directs.** Reading code and analyzing here, or fixing directly, defeats the split.
 

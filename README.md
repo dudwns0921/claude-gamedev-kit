@@ -45,7 +45,7 @@ Then, inside Claude Code:
 /gamedev-kit:cycle     build that goal — and every goal after it
 ```
 
-You need Claude Code, Python 3.9 or later, and the engine's editor. Everything else is optional and listed under [Optional services](#optional-services).
+You need Claude Code, Python 3.9 or later, and the engine's editor. Assets and their services are optional — see [Assets](#assets).
 
 ## Why use it
 
@@ -119,7 +119,7 @@ An analyst agent reads the code and the GDD, finds the causes and writes a task 
 /gamedev-kit:deploy
 ```
 
-Shipping is not a stage of the cycle. Call it after as many cycles as you like. The kit builds, shows you the target, version and size, and uploads only when you approve.
+Shipping is not a stage of the cycle. Call it after as many cycles as you like. The kit builds, shows you the target, version and size, and uploads only when you approve. Uploading to itch.io uses [butler](https://itch.io/docs/butler/), which you log in to once.
 
 ## Commands
 
@@ -171,14 +171,14 @@ The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent p
 
 **No agent decides for you.** Agents return "things to decide" as options with one recommendation, and your answer goes into the cycle document verbatim. Work that hangs on an unanswered decision is not done.
 
-**The model is fixed per agent**, so analysis and design run on the strongest model and writing code to a finished plan runs on a cheaper one, whatever model your session uses. The session only conducts.
+**The model is fixed per agent**, whatever model your session uses: thinking — the spec, the design, finding causes — runs on Opus, and writing code to a finished plan runs on Sonnet. The session only conducts. To put the thinking on Fable instead, set `"models": "max"` in the game's `kit.config.json`.
 
 | Agent | Model | What it does |
 |---|---|---|
-| `systems-designer` | Fable | Turns a goal into rules, balance numbers and the dimensions of spaces. Offers ranges with the calculation attached; does not fix values |
-| `designer` | Fable (Opus for screenshot checks) | Writes how the spec looks and sounds: UI, effects, sound, the asset list. Checks screenshots against `docs/DESIGN.md` |
+| `systems-designer` | Opus | Turns a goal into rules, balance numbers and the dimensions of spaces. Offers ranges with the calculation attached; does not fix values |
+| `designer` | Opus | Writes how the spec looks and sounds: UI, effects, sound, the asset list. Checks screenshots against `docs/DESIGN.md` |
 | `developer` | Opus to plan, Sonnet to build | Splits a cycle into tasks, then implements one task exactly as written. Does not re-analyse |
-| `playtest-analyst` | Fable | Finds the causes behind a problem list and writes them as a task document. Does not change code |
+| `playtest-analyst` | Opus | Finds the causes behind a problem list and writes them as a task document. Does not change code |
 | `deployer` | Sonnet | Check, build, butler push. On a broken build, finds the first error and returns it |
 | `devlog-writer` | Sonnet | Drafts the itch.io devlog for a deployed build from what was actually made. Does not post it |
 
@@ -243,23 +243,22 @@ On another machine, run step 2 again with the same address; it clones what is th
 
 ## Engines
 
-Pick the engine in `/gamedev-kit:init`. The kit finds the editor, creates the project and from then on drives the editor from the command line to import, check for script errors and build.
+Godot 4 and Unity. `/gamedev-kit:init` finds the editor on your machine and tells you what is missing.
 
 | | Godot 4 | Unity |
 |---|---|---|
-| What `deploy` builds | A Web export, uploaded to itch.io | An Android App Bundle for Google Play. You upload it in the Play Console |
-| What `init` looks for | The `godot` executable (or `GODOT`) | An editor installed through Unity Hub (or `UNITY`) with Android Build Support, the Android SDK and NDK, and OpenJDK |
-| Balance table while the game runs | The game reads the table file directly, so an edit shows up without a restart | The game runs on baked values; bake, then run again |
-| Asset formats | glb · png · mp3 | fbx · png · mp3 |
-| Cutscene formats | mp4 · ogv | mp4 |
+| `deploy` builds | a Web export, uploaded to itch.io | an Android App Bundle — you upload it in the Play Console |
+| Editing the balance table while the game runs | shows up without a restart | bake, then run again |
 
-Everything else works the same on both. Each engine also brings its own rules into your game's `CLAUDE.md` — how to verify without opening the editor, and the traps found while making games with it.
+Each engine also brings its own rules into your game's `CLAUDE.md`: how to verify without opening the editor, and the traps found while making games with it.
 
-Everything engine-specific lives in one folder, `engines/<engine>/`; the skills and scripts read only values from `kit.config.json`, so supporting another engine means adding a folder.
+## Assets
 
-## Optional services
+Assets are not needed for a cycle. A cycle lists what it needs — what, where it goes, what size — and runs on placeholders. A file you put in that place counts, whoever made it, and there are three ways to make one:
 
-Nothing here is needed for the cycle itself. A cycle lists the assets it needs — what, where it goes, what size — and runs on placeholders; a file you put in that place counts, whoever made it. There are three ways to make those files: bring one you made, use a generation tool you have connected to Claude Code over MCP, or use the kit's own scripts with the keys below. Keys stay outside the repository, in `~/.config/gamedev-kit/asset.env`; the skill walks you through it the first time.
+1. **Bring your own.** `/gamedev-kit:asset` tells you the path, the format and the size.
+2. **A tool you connected to Claude Code over MCP.** The asset skill uses it and keeps its own steps: the art style is attached, you approve the picture before the costly step, the file lands in its place.
+3. **The kit's own scripts**, with keys you keep outside the repository in `~/.config/gamedev-kit/asset.env`:
 
 | For | You need |
 |---|---|
@@ -267,9 +266,8 @@ Nothing here is needed for the cycle itself. A cycle lists the assets it needs �
 | 2D sprites | `LUDO_API_KEY` ([Ludo](https://ludo.ai)) |
 | Sound and music | `ELEVENLABS_API_KEY` |
 | Footage | `HF_API_KEY_ID` and `HF_API_KEY_SECRET` ([Higgsfield](https://docs.higgsfield.ai/docs)), and ffmpeg |
-| itch.io | [butler](https://itch.io/docs/butler/), logged in once by you |
 
-**Over MCP instead.** Several of these services publish their own MCP server — [Meshy](https://github.com/meshy-dev/meshy-mcp-server), [Ludo](https://github.com/Ludo-AI/ludo-mcp) and [Higgsfield](https://higgsfield.ai/mcp) do. Connect one to Claude Code and the asset skill uses it in place of the kit's script: the steps stay the same — the art style is attached, you approve the picture before the costly step, the file lands in its place — and keeping up with the service's API is no longer the kit's job. What each server covers and what it charges for is the service's to say.
+Several of these services publish their own MCP server — [Meshy](https://github.com/meshy-dev/meshy-mcp-server), [Ludo](https://github.com/Ludo-AI/ludo-mcp) and [Higgsfield](https://higgsfield.ai/mcp) do. With one connected, keeping up with that service's API is no longer the kit's job. What each server covers and what it charges for is the service's to say.
 
 ## Updating
 

@@ -81,6 +81,8 @@ Then the voice skill's "Review" — the one place the voice is shown unasked: th
 Who owns what: the **systems designer** owns how the game works (rules · balance numbers · structure and dimensions of spaces), the **designer** owns how it looks and sounds
 (UI appearance · effects · sound · assets), the **developer** owns how to build it. A later agent does not edit earlier sections; it takes them as given.
 
+**Which model thinks is set per game**: `"models"` in `kit.config.json`. `standard` (or no key) → call the systems designer and the designer without a model — the agent's own, Opus. `max` → pass `model: fable` on those calls. Read the key once at the start; it changes nothing else.
+
 Call them one at a time in the order systems designer → designer → developer (`plan`). Call the next only after the previous returns. Pass only the cycle document path and the mode. Do not attach your own thoughts.
 
 - If the systems designer returns "nothing touches the rules", go straight to Design.
@@ -150,7 +152,7 @@ If the user would rather play on placeholders first and make assets after that r
 and do not write a wrap-up: the cycle is closed by the next one (`new`).
 
 If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section.
-If given screenshots, you may call the designer with `review` (pass `model: opus` — checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
+If given screenshots, you may call the designer with `review` (without a model — Opus — in either mode; checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
 When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
 **Shipping is not a stage.** A build goes out when the user asks for one (`/gamedev-kit:deploy`), usually after several cycles — do not ask about it or offer it here.

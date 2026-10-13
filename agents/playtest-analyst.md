@@ -4,7 +4,7 @@ description: >-
   Takes the list of problems from a playtest, reads the code and the GDD to find the causes, and organizes them into a work document
   (docs/playtest/*.md) that another (cheaper) model can implement as written without re-analyzing. Does not change code. Called by the playtest skill —
   used when the user asks for analysis of a list of problems written down while playing.
-model: fable
+model: opus
 tools: Read, Grep, Glob, Bash, Write
 ---
 

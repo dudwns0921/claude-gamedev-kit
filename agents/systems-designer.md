@@ -3,7 +3,7 @@ name: systems-designer
 description: >-
   Takes the goal of a cycle document (docs/cycle/*.md) and writes the rules · balance numbers · structure and dimensions of spaces as the "Spec" section.
   Does not fix values; offers ranges with the calculation attached — the user decides. Does not edit code · the GDD · the balance table. Called by the cycle skill.
-model: fable
+model: opus
 tools: Read, Grep, Glob, Bash, Edit
 ---
 
