@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Every game leaves the next one better off — voice and lessons carry over from game to game</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07110e"/><stop offset="0.55" stop-color="#0b2a22"/><stop offset="1" stop-color="#1a1033"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3dffb0"/><stop offset="0.45" stop-color="#d8ff5a"/><stop offset="0.8" stop-color="#ffd24a"/><stop offset="1" stop-color="#ff8ad1"/>
+    </linearGradient>
+    <linearGradient id="you" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5dffc0"/><stop offset="1" stop-color="#16b877"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3dffb0" stop-opacity="0.3"/><stop offset="1" stop-color="#3dffb0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spot2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#b06cff" stop-opacity="0.34"/><stop offset="1" stop-color="#b06cff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#3dffb0" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-120%" width="200%" height="340%"><feGaussianBlur stdDeviation="7"/></filter>
+    <clipPath id="card"><rect x="6" y="6" width="1188" height="488" rx="28"/></clipPath>
+    <path id="star" d="M0,-10 L2.4,-2.4 L10,0 L2.4,2.4 L0,10 L-2.4,2.4 L-10,0 L-2.4,-2.4 Z"/>
+  </defs>
+  <style>
+    .tw { animation: tw 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    @keyframes tw { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+    .new { animation: pop 2.4s ease-in-out infinite; }
+    @keyframes pop { 0%,100% { opacity: .35; } 50% { opacity: .95; } }
+  </style>
+
+  <g clip-path="url(#card)">
+    <rect x="6" y="6" width="1188" height="488" fill="url(#bg)"/>
+    <rect x="6" y="6" width="1188" height="488" fill="url(#grid)"/>
+    <ellipse cx="220" cy="110" rx="420" ry="230" fill="url(#spot)"/>
+    <ellipse cx="1010" cy="330" rx="400" ry="260" fill="url(#spot2)"/>
+
+    <g transform="translate(956,484) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-0.49s" fill="#8ad8ff"/></g>
+    <g transform="translate(1004,40) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.79s" fill="#3dffb0"/></g>
+    <g transform="translate(1133,122) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-1.92s" fill="#ffd24a"/></g>
+    <g transform="translate(60,36) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-2.29s" fill="#8ad8ff"/></g>
+    <g transform="translate(91,484) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.35s" fill="#ff8ad1"/></g>
+    <g transform="translate(1053,484) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-1.06s" fill="#8ad8ff"/></g>
+    <g transform="translate(200,477) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.08s" fill="#8ad8ff"/></g>
+    <g transform="translate(64,20) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.98s" fill="#ffffff"/></g>
+    <g transform="translate(889,476) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.88s" fill="#ff8ad1"/></g>
+    <g transform="translate(711,20) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.84s" fill="#3dffb0"/></g>
+    <g transform="translate(152,475) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-0.49s" fill="#8ad8ff"/></g>
+    <g transform="translate(420,24) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-1.09s" fill="#ffd24a"/></g>
+    <g transform="translate(30,28) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-0.49s" fill="#8ad8ff"/></g>
+    <g transform="translate(703,29) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-0.54s" fill="#ffd24a"/></g>
+
+    <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">Every game leaves the next one better off</text>
+    <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="url(#title)">Every game leaves the next one better off</text>
+    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">What you decide and what you trip over carry into every game after it</text>
+
+    <path d="M95,376 H365" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
+    <rect class="new" style="animation-delay:-0.0s" x="106" y="352" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
+    <rect x="106" y="352" width="118" height="20" rx="6" fill="#ff8ad1"/>
+    <rect x="116" y="360" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.0s" x="236" y="352" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="236" y="352" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="246" y="360" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.3s" x="236" y="325" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="236" y="325" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="246" y="333" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="155" y="390" width="150" height="50" rx="25" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="230" y="423" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">Game 1</text>
+    <path d="M465,376 H735" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
+    <rect x="476" y="352" width="118" height="20" rx="6" fill="#ff8ad1" opacity="0.38"/>
+    <rect class="new" style="animation-delay:-0.3s" x="476" y="325" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
+    <rect x="476" y="325" width="118" height="20" rx="6" fill="#ff8ad1"/>
+    <rect x="486" y="333" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="606" y="352" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="606" y="325" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect class="new" style="animation-delay:-0.6s" x="606" y="298" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="606" y="298" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="616" y="306" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.9s" x="606" y="271" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="606" y="271" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="616" y="279" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="525" y="390" width="150" height="50" rx="25" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="600" y="423" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">Game 2</text>
+    <path d="M835,376 H1105" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
+    <rect x="846" y="352" width="118" height="20" rx="6" fill="#ff8ad1" opacity="0.38"/>
+    <rect x="846" y="325" width="118" height="20" rx="6" fill="#ff8ad1" opacity="0.38"/>
+    <rect class="new" style="animation-delay:-0.6s" x="846" y="298" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
+    <rect x="846" y="298" width="118" height="20" rx="6" fill="#ff8ad1"/>
+    <rect x="856" y="306" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.9s" x="846" y="271" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
+    <rect x="846" y="271" width="118" height="20" rx="6" fill="#ff8ad1"/>
+    <rect x="856" y="279" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="976" y="352" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="976" y="325" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="976" y="298" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="976" y="271" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect class="new" style="animation-delay:-1.2s" x="976" y="244" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="976" y="244" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="986" y="252" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-1.5s" x="976" y="217" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="976" y="217" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="986" y="225" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-1.8s" x="976" y="190" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="976" y="190" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="986" y="198" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="895" y="390" width="150" height="50" rx="25" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="970" y="423" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">Game 3</text>
+    <path d="M325,415 H505 M495,407 L506,415 L495,423" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="415" y="405" font-size="16" font-weight="700" text-anchor="middle" fill="#5dffc0">carried over</text>
+    <path d="M695,415 H875 M865,407 L876,415 L865,423" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="785" y="405" font-size="16" font-weight="700" text-anchor="middle" fill="#5dffc0">carried over</text>
+
+    <rect x="80" y="454" width="22" height="16" rx="5" fill="#ff8ad1"/>
+    <text x="112" y="468" font-size="18" font-weight="700" fill="#ffc4e8">voice <tspan fill="#e6f3f8" font-weight="500">— how you decide, learned from your answers</tspan></text>
+    <rect x="600" y="454" width="22" height="16" rx="5" fill="#ffd24a"/>
+    <text x="632" y="468" font-size="18" font-weight="700" fill="#ffe08a">lessons <tspan fill="#e6f3f8" font-weight="500">— engine traps and ways to verify, kept as rules</tspan></text>
+  </g>
+  <rect x="6" y="6" width="1188" height="488" rx="28" fill="none" stroke="url(#title)" stroke-width="3"/>
+</svg>

@@ -2,9 +2,31 @@
   <img src="assets/banner.svg" alt="claude-gamedev-kit — goal, spec, design, plan, build, play" width="860">
 </p>
 
-A [Claude Code](https://code.claude.com) plugin for making a game from an empty folder to a build you can ship. You say what the next version should do; agents write the spec, the design and the code; you play it and say what is wrong. Every decision comes back to you.
+**A repeatable way to make a game with [Claude Code](https://code.claude.com) — one that gets better with every game you make.**
 
-Works with **Godot** and **Unity** (Android).
+You say what the next version should do. Agents write the spec, the design and the code, and stop to ask you whatever is yours to decide. You play it and say what is wrong. Then again. Works with **Godot** and **Unity** (Android).
+
+One cycle, roughly:
+
+```
+you   /gamedev-kit:cycle add a shop between runs where the player spends coins
+
+kit   Spec, design and plan are written. Three things are yours to decide:
+        D1  Do unspent coins carry over to the next run?    ① yes   ② no    recommended: ②
+        D2  Is the shop a separate screen or an overlay?    ① screen   ② overlay    recommended: ①
+        D3  Make the shopkeeper sprite now, or use a placeholder?
+      7 tasks in 3 waves, once you answer.
+
+you   D1 ②. D2 overlay — I want to see the run behind it. D3 placeholder.
+
+kit   Built. Your turn to play.
+
+you   /gamedev-kit:playtest
+      - prices are unreadable on a small screen
+      - I can buy with zero coins
+
+kit   Two causes found, two tasks written, both fixed. Play again.
+```
 
 ## Quick start
 
@@ -27,12 +49,17 @@ You need Claude Code, Python 3.9 or later, and the engine's editor. Everything e
 
 ## Why use it
 
-If you want a small game out of one prompt in a few minutes, a prompt-to-game platform or an agent built into the editor will get you there faster. This kit is not that. It is for a game you make over weeks, in your own repository, on your own engine.
+- **One workflow, every time.** The same stages, the same documents and the same answer to "who decides this" — in every cycle and every game. Sessions end and models change; the workflow stays, so the tenth cycle runs like the first and you always know where the game stands.
+- **It gets better at your games.** Two things pile up as you work. Your **voice**: how you decide when a choice could go either way. And **lessons**: the engine traps you hit and the ways you found to verify things, sent back to the kit and returned as rules. The next game starts with all of it.
 
-- **One workflow, every time.** The same stages, the same documents and the same answer to "who decides this" — in every cycle and every game. Sessions end and models change; the workflow is what stays, so the tenth cycle runs like the first and you always know where the game stands.
-- **It gets better at your games.** Two things accumulate as you work. Your **voice**: how you decide when a choice could go either way. And **lessons**: the engine traps you hit and the ways you found to verify things, sent back to the kit as issues and returned as rules. The next game starts with all of it.
+<p align="center">
+  <img src="assets/compounds.svg" alt="Three games in a row; the stacks of voice and lessons under each one grow, with what came before carried over" width="860">
+</p>
+
 - **You stay the designer.** Rules, numbers and looks are asked, not assumed. What the agents write is a proposal until you answer.
-- **Nothing is locked in.** The GDD, the cycle documents and the code are plain files in your repo. You ship where you choose.
+- **Nothing is locked in.** The GDD, the cycle documents and the code are plain files in your repository. You ship where you choose.
+
+It is built for a game you make over weeks. If you want a small game out of one prompt in a few minutes, a prompt-to-game platform will get you there faster.
 
 ## How you use it
 
@@ -107,7 +134,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:asset` | **3D model**: description → image → you approve → mesh → size and origin fixed → game folder. **2D sprite**: description → still picture → you approve → animated sprite sheet → game folder. **Sound**: description → effect, loop or music → game folder. One art style paragraph is attached to every asset, and what you say when rejecting one is kept as a lesson for the next |
+| `/gamedev-kit:asset` | Makes 3D models, 2D sprites and sounds from a description. You approve the picture before it becomes a mesh or an animated sheet. One art style paragraph is attached to every asset, and what you say when rejecting one is kept for the next |
 | `/gamedev-kit:video` | Footage that looks filmed: description → you approve → generated → you watch → placed. Trailers and devlog clips as mp4, in-game cutscenes in the format the engine reads |
 
 **Ship and give back**
@@ -169,7 +196,20 @@ The voice belongs to you, not to a game. It lives outside the game repos in `~/.
 
 ## It compounds
 
-The kit does not teach how to implement — Claude Code already does that. What it holds is what a model has no way of knowing: the traps of a given engine, how to verify without a screen, the order of work and who decides what. That grows with every game.
+The kit does not teach how to implement — Claude Code already does that. What it holds is what a model has no way of knowing: the traps of a given engine, how to verify without a screen, the order of work and who decides what. That grows with every game, along two paths: your [voice](#voice), and lessons.
+
+A lesson is one line that would have saved an afternoon. These are in the Godot rules today, each put there by a game that hit it:
+
+> **Run every headless test under a time limit.** A script with a parse error does not fail the run — it hangs. When a run hangs, look for a parse error first.
+
+> **Do not write comments in `project.godot`.** When the editor or an import rewrites the file, a `#` line becomes a broken key and the setting line right below it disappears.
+
+> **Web builds render at 1x.** Rendering at 2x pixels on a Retina screen gives 4–5 fps.
+
+A line in your voice is the same kind of thing about you rather than the engine — for example, *"when a number can be tuned in the table later, don't hold the build for it"* — and it stands only once two of your decisions back it.
+
+<details>
+<summary>How a lesson travels from one game to all of them</summary>
 
 ```
 you trip in a game ─▶ the lesson is sorted on the spot
@@ -185,6 +225,8 @@ you trip in a game ─▶ the lesson is sorted on the spot
                                                           ▼
                     the kit's rule block in every game's CLAUDE.md — a new game starts with it
 ```
+
+</details>
 
 - **Anyone using the kit can send lessons.** When unsent lines pile up, a hook says so at session start. Nothing goes out by itself: issues are public, so you see the text first.
 - **One test sorts them**: would you need to know this when making a different game? Only what still makes sense without the game's name, files and numbers is sent.
@@ -222,10 +264,6 @@ Nothing here is needed for the cycle itself. Keys stay outside the repository, i
 | Sound and music | `ELEVENLABS_API_KEY` |
 | Footage | `HF_API_KEY_ID` and `HF_API_KEY_SECRET` ([Higgsfield](https://docs.higgsfield.ai/docs)), and ffmpeg |
 | itch.io | [butler](https://itch.io/docs/butler/), logged in once by you |
-
-## Language
-
-Slash commands work in any language. The documents the kit writes into your game — the GDD, cycle and playtest documents — use Korean section headings, and the skills also trigger on Korean phrases.
 
 ## Updating
 
