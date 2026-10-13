@@ -1,12 +1,11 @@
 {
   "name": "claude-gamedev-kit",
-  "description": "게임 개발용 Claude Code 플러그인 — GDD ↔ 코드 동기화, 엑셀 밸런스 표",
+  "description": "게임 개발용 Claude Code 플러그인 (Godot · Unity)",
   "owner": { "name": "dudwns0921" },
   "plugins": [
     {
       "name": "gamedev-kit",
-      "source": "./",
-      "description": "게임 개발 워크플로 — 한 사이클(기획 · 디자인 · 구현 · 플레이), itch.io 배포, GDD ↔ 코드 동기화, 엑셀 밸런스 표 (Godot · Unity)"
+      "source": "./"
     }
   ]
 }

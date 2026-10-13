@@ -1,7 +1,7 @@
 {
   "name": "gamedev-kit",
   "description": "게임 개발 워크플로 — 엔진 프로젝트 만들기 · 첫 사이클까지의 시작(GDD · 컨셉 · 첫 목표), 한 사이클(기획 · 디자인 · 구현 · 플레이), itch.io 배포, 3D 에셋 · 2D 스프라이트 · 소리 생성, 트레일러 · 컷씬 영상, GDD ↔ 코드 동기화 · 현황판, 엑셀 밸런스 표, 배운 것을 키트의 이슈로 보내기 (Godot · Unity).",
-  "version": "0.28.0",
+  "version": "0.28.1",
   "author": { "name": "dudwns0921" },
   "repository": "https://github.com/dudwns0921/claude-gamedev-kit",
   "license": "MIT"

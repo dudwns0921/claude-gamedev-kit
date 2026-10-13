@@ -155,7 +155,7 @@ engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일
 templates/          GDD.md · DESIGN.md · CLAUDE.md — 게임 저장소에 깔리는 틀
 hooks/              훅 둘 — 세션의 컨텍스트가 커지면 새 세션을 권하게 하고, 게임의 CLAUDE.md 에 든 키트 규칙이 옛 판이면 알린다
 tools/              session_usage.py — 게임 저장소의 세션 기록에서 토큰이 어디로 갔는지 센다 · kit_feedback.py — 이 기기의 게임 폴더들에 쌓인 "키트로 올릴 것" 을 이슈를 거치지 않고 바로 모은다
-tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사
+tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사 · python3 tests/test_structure.py — 파일만 보고 구조 규칙을 검사
 ```
 
 도구는 플러그인 안에 있고 게임은 밖에 있다. 스크립트는 지금 폴더에서 위로 올라가며 `kit.config.json` 을 찾아 그곳을 게임 루트로 본다.

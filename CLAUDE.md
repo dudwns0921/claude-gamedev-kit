@@ -8,10 +8,14 @@ Claude Code 플러그인 저장소다. 게임 코드는 여기 없다 — 게임
   스크립트는 `kit.config.json` 의 값(확장자 · 정규식 · 경로)만 본다. 새 엔진은 폴더 하나를 더하는 일이어야 한다.
   지금 든 엔진은 Godot 과 Unity(Android) 다 — **게임 하나를 끝까지 만들며 확인한 엔진만 넣는다** (Roblox 설정은 0.9.0 에서 뺐다. git 기록에 있다).
   Unity 는 게임을 만들며 채워 가는 중이다 — 어디까지 돌려 봤는지는 `records.md` 에 적는다.
+  스크립트에 엔진 이름이 문자열로 들어가면 `tests/test_structure.py` 가 막는다.
 - **스킬은 자기 폴더로 완결된다.** 다른 스킬의 스크립트를 import 하지 않는다. 설정은 `kit.config.json` 에 스킬 이름으로 된 절을 쓴다.
-- **스크립트는 표준 라이브러리만 쓴다** (Python 3.9). Blender 가 돌리는 스크립트(`blender_finish.py`)만 `bpy` 를 쓴다. 게임 루트는 지금 폴더에서 위로 올라가며 찾는다 — 스크립트 위치로 찾지 않는다.
+- **스크립트는 표준 라이브러리만 쓴다** (Python 3.9 — 깐 쪽에 없는 패키지를 쓰면 거기서만 죽는다. `tests/test_structure.py` 가 막는다). Blender 가 돌리는 스크립트(`blender_finish.py`)만 `bpy` 를 쓴다. 게임 루트는 지금 폴더에서 위로 올라가며 찾는다 — 스크립트 위치로 찾지 않는다.
 - **게임 저장소의 파일을 덮어쓰지 않는다.** init 은 없는 파일만 만든다. 하나만 예외다 — 게임의 CLAUDE.md 안 `<!-- gamedev-kit 시작 -->` 블록은 키트의 것이라
   `init --rules` 가 통째로 바꾼다 (블록 밖은 건드리지 않고, 블록 안을 손으로 고쳤으면 멈춘다). 게임에 깔리는 규칙을 고치면 이 블록으로 나간다.
+- **스킬 문서와 훅이 가리키는 파일은 있어야 한다.** 스크립트를 옮기거나 이름을 바꾸면 그것을 부르는 문서(`${CLAUDE_SKILL_DIR}/…`)와
+  `hooks/hooks.json`(`${CLAUDE_PLUGIN_ROOT}/…`)도 같이 고친다 — 훅은 조용히 실패한다. `tests/test_structure.py` 가 막는다.
+- **플러그인의 설명은 `plugin.json` 한 곳에만 적는다.** `marketplace.json` 의 플러그인 항목에 또 적으면 한쪽만 낡는다.
 - 스킬 이름은 게임의 CLAUDE.md 와 GDD 에 박힌다 (`/gamedev-kit:gdd-sync`). 바꾸지 않는다.
 - **밖으로 나가는 일(배포 · 게시)은 스크립트가 검사하고, 묻는 일은 스킬이 한다.** 에이전트는 승낙을 받지도 건너뛰지도 않는다.
   로그인과 토큰은 사용자가 하고 저장소 밖에 둔다.
@@ -24,6 +28,7 @@ Claude Code 플러그인 저장소다. 게임 코드는 여기 없다 — 게임
 
 ```bash
 python3 tests/test_tools.py        # 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync · balance-table 을 끝까지 돌린다. init 의 엔진 프로젝트 만들기는 가짜 에디터, deploy 는 가짜 butler, feedback 은 가짜 gh · 가짜 GitHub 서버, asset 과 start 의 컨셉 그림은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 (asset 의 다듬기는 Blender 가 있으면 진짜로)
+python3 tests/test_structure.py    # 아무것도 돌리지 않고 파일만 본다 — 스킬 문서와 훅이 가리키는 파일이 있는가, 스크립트에 엔진 이름으로 갈리는 분기가 없는가, 표준 라이브러리만 쓰는가
 claude plugin validate .           # 매니페스트
 ```
 
