@@ -138,7 +138,7 @@ The board, drawn by a script from the game's documents: one card per stage of pl
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:asset` | Makes 3D models, 2D sprites and sounds from a description. You approve the picture before it becomes a mesh or an animated sheet. One art style paragraph is attached to every asset, and what you say when rejecting one is kept for the next |
+| `/gamedev-kit:asset` | Optional. Makes 3D models, 2D sprites and sounds from a description, or tells you where to put a file you made yourself. You approve the picture before it becomes a mesh or an animated sheet. One art style paragraph is attached to every asset, and what you say when rejecting one is kept for the next |
 | `/gamedev-kit:video` | Footage that looks filmed: description → you approve → generated → you watch → placed. Trailers and devlog clips as mp4, in-game cutscenes in the format the engine reads |
 
 **Ship and give back**
@@ -259,7 +259,7 @@ Everything engine-specific lives in one folder, `engines/<engine>/`. The skills 
 
 ## Optional services
 
-Nothing here is needed for the cycle itself. Keys stay outside the repository, in `~/.config/gamedev-kit/asset.env`; the skill walks you through it the first time.
+Nothing here is needed for the cycle itself. A cycle lists the assets it needs — what, where it goes, what size — and runs on placeholders; a file you put in that place counts, whoever made it. The services below are one way to make those files. Keys stay outside the repository, in `~/.config/gamedev-kit/asset.env`; the skill walks you through it the first time.
 
 | For | You need |
 |---|---|

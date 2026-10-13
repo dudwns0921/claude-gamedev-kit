@@ -123,7 +123,7 @@ def key(name):
             k, _, v = line.strip().partition("=")
             if k == name and v:
                 return v.strip("\"'")
-    sys.exit(f"{name} is missing — add a `{name}=...` line to {path} (the asset skill's 'First time only')")
+    sys.exit(f"{name} is missing — add a `{name}=...` line to {path} (the asset skill's 'First time only'), or put your own file in the asset's slot ('Bring your own')")
 
 
 def http(url, token=None, body=None, content_type="application/json"):

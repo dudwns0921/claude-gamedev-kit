@@ -22,6 +22,9 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 - **Do not write instructions that make something read a cycle or playtest document whole.** The lines needed are pulled out by that skill's script (`cycle.py` · `playtest.py`).
 - **Do not write a game's name.** This repository is installed into any game. When bringing over something learned in a game, drop that game's name · files · numbers and
   keep only the rule and its reason ("where it was learned" stays in that game's `docs/kit-feedback.md` — do not write a game's name in commit messages either). Use `<game>` in examples.
+- **The cycle owns an asset's slot, not how it is made.** Name, path and size belong to the workflow; a file in the slot counts whoever made it.
+  The asset and video skills are optional ways to fill slots — nothing in the cycle, the board or the other skills may require their services.
+- **Commit messages are written in English**, as `<version> — <summary>`.
 - After a change, bump `version` in `.claude-plugin/plugin.json` — without it the installed side does not receive the new version.
 
 ## Verification

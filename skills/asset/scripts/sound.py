@@ -80,7 +80,7 @@ def key():
             k, _, v = line.strip().partition("=")
             if k == KEY and v:
                 return v.strip("\"'")
-    sys.exit(f"{KEY} is missing — add a `{KEY}=...` line to {path} (the asset skill's 'First time only')")
+    sys.exit(f"{KEY} is missing — add a `{KEY}=...` line to {path} (the asset skill's 'First time only'), or put your own file in the asset's slot ('Bring your own')")
 
 
 def post(path, body):

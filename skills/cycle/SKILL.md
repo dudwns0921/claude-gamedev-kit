@@ -88,7 +88,7 @@ Call them one at a time in the order systems designer → designer → developer
 - If the designer or developer returns "Questions for spec", call the systems designer again with them attached, and if the "Spec" section changed, call the asker again.
   Do not answer in their place.
 
-If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that does not exist, tell the user — whether to make it this cycle (asset skill) or leave the placeholder is asked as a decision.
+If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that does not exist, tell the user — what to do about it is asked as a decision: make it with the asset skill (needs its services set up), bring their own file, or leave the placeholder.
 **Either way the build runs on placeholders.** Assets are not made during Build — they are made after it, all at once ("Assets" below).
 
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "Decisions" with `ask`, and ask the user all at once —
@@ -131,10 +131,11 @@ When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-syn
 the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
 The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving.
 
-**Assets — after the build, all at once.** Only now, with every wave done and the verification passed, make the assets the user said to make. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
+**Assets — after the build, all at once.** The cycle owns each asset's slot — name, path, size — not how it gets made. Only now, with every wave done and the verification passed, fill the slots the user said to fill. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
 and the user looks once, not every few tasks.
 
-1. List them from the "Assets needed" table — every row still `none` or `placeholder …` that was decided "make". Say how many and what it will cost (images are cheap; meshes, sprite animations and sounds cost credits).
+1. List them from the "Assets needed" table — every row still `none` or `placeholder …` that was decided "make" or "bring my own". For the ones the user brings, follow the asset skill's "Bring your own" and skip to step 3.
+   For the ones to make: Say how many and what it will cost (images are cheap; meshes, sprite animations and sounds cost credits).
 2. Follow the asset skill's procedure for all of them together: every image first, then **show the user all of them in one sitting** — the board's asset sheet (`docs/board/assets.html`)
    has them side by side — and take approvals and redraws together; then meshes and sounds.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.

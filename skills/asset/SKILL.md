@@ -15,6 +15,26 @@ description: >-
 
 # asset
 
+**Making assets here is optional.** The cycle owns the asset's *slot* — its name, the path it sits at, its size or length — and a file in that slot
+counts whoever made it. This skill is one way to fill slots, with services the user has to set up. The other way needs nothing:
+
+## Bring your own — no service needed
+
+Use this when the user made the asset themselves or elsewhere, or when a key is missing and they would rather not set the service up.
+Do not push the services: say both ways once and take the one they pick.
+
+1. Read the row in the cycle document's "Assets needed" table: the kind, the size or length, and the path the placeholder holds (the "Have" cell, `placeholder <path>`).
+   No path yet → ask the developer agent's task or the code where the placeholder is loaded from; do not invent one.
+2. Tell the user exactly what to deliver: the path, the format the game already uses (the `asset` section of `kit.config.json`: `format` for models, `sound.format` for sounds; png for sprites) and the folder (`asset.dir`, `asset.sound.dir`, `asset.sprite.dir`),
+   and the size — longest side in metres for a model, shown pixels for a sprite, seconds for a sound. One line per asset.
+3. When the file is there, write the path in the "Have" cell (`` `path` ``, without `placeholder`), run the engine's import and the project's verification,
+   and say what to look at. A file that does not drop in as it is (a different size, a pivot, a rig) is a build task — write it into the cycle document.
+
+An asset brought this way has no record, so the board's asset sheet marks it "no record" and no art style paragraph was attached to it —
+when it sits beside generated ones, tell the user to compare them on the asset sheet.
+
+## Make it with the services
+
 Three kinds of asset, three paths. Pick by what the game does with the thing, not by what it depicts:
 
 | The game… | Path | Made with |
@@ -221,6 +241,8 @@ Pitfalls:
 - **Two sounds that must stay in time must be made exactly the same length.** If generating them whole and matching is hard, generate pieces (one drum hit, one shout) separately and sequence them.
 
 ## First time only (done by the user)
+
+None of this is needed to bring your own. A script that needs a key that is not there stops and says so — offer "Bring your own" beside setting the key up.
 
 - **Keys**: write the API keys (OpenAI and Meshy for models) in a file **outside** the repository (the user, in a terminal):
 
