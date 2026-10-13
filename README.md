@@ -150,7 +150,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:asset` | Optional. Makes 3D models, 2D sprites and sounds from a description, or tells you where to put a file you made yourself. You approve the picture before it becomes a mesh or an animated sheet. One art style paragraph is attached to every asset, and what you say when rejecting one is kept for the next |
+| `/gamedev-kit:asset` | Optional. Makes 3D models, 2D sprites and sounds from a description — with a tool you connected over MCP or the kit's own scripts — or tells you where to put a file you made yourself. You approve the picture before it becomes a mesh or an animated sheet. One art style paragraph is attached to every asset, and what you say when rejecting one is kept for the next |
 | `/gamedev-kit:video` | Footage that looks filmed: description → you approve → generated → you watch → placed. Trailers and devlog clips as mp4, in-game cutscenes in the format the engine reads |
 
 **Ship and give back**
@@ -259,7 +259,7 @@ Everything engine-specific lives in one folder, `engines/<engine>/`; the skills 
 
 ## Optional services
 
-Nothing here is needed for the cycle itself. A cycle lists the assets it needs — what, where it goes, what size — and runs on placeholders; a file you put in that place counts, whoever made it. The services below are one way to make those files. Keys stay outside the repository, in `~/.config/gamedev-kit/asset.env`; the skill walks you through it the first time.
+Nothing here is needed for the cycle itself. A cycle lists the assets it needs — what, where it goes, what size — and runs on placeholders; a file you put in that place counts, whoever made it. There are three ways to make those files: bring one you made, use a generation tool you have connected to Claude Code over MCP, or use the kit's own scripts with the keys below. Keys stay outside the repository, in `~/.config/gamedev-kit/asset.env`; the skill walks you through it the first time.
 
 | For | You need |
 |---|---|
@@ -268,6 +268,8 @@ Nothing here is needed for the cycle itself. A cycle lists the assets it needs �
 | Sound and music | `ELEVENLABS_API_KEY` |
 | Footage | `HF_API_KEY_ID` and `HF_API_KEY_SECRET` ([Higgsfield](https://docs.higgsfield.ai/docs)), and ffmpeg |
 | itch.io | [butler](https://itch.io/docs/butler/), logged in once by you |
+
+**Over MCP instead.** Several of these services publish their own MCP server — [Meshy](https://github.com/meshy-dev/meshy-mcp-server), [Ludo](https://github.com/Ludo-AI/ludo-mcp) and [Higgsfield](https://higgsfield.ai/mcp) do. Connect one to Claude Code and the asset skill uses it in place of the kit's script: the steps stay the same — the art style is attached, you approve the picture before the costly step, the file lands in its place — and keeping up with the service's API is no longer the kit's job. What each server covers and what it charges for is the service's to say.
 
 ## Updating
 

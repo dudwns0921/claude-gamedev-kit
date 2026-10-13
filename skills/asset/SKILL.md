@@ -33,7 +33,19 @@ Do not push the services: say both ways once and take the one they pick.
 An asset brought this way has no record, so the board's asset sheet marks it "no record" and no art style paragraph was attached to it —
 when it sits beside generated ones, tell the user to compare them on the asset sheet.
 
-## Make it with the services
+## With a tool that is already connected (MCP)
+
+If this session has a generation tool connected — a service's own MCP server, a Blender connection — it can fill a slot, and keeping up with that service is then
+the tool's maker's job, not the kit's. Prefer it over the scripts below when it covers what the asset needs. The workflow does not change:
+
+1. Take the three paragraphs from `asset.py look` (art style · world · learned) and put them in the tool's prompt, as the scripts would have.
+2. **The human still looks at the picture first.** Make the cheap thing (an image), show it, and only run the expensive step (a mesh, an animation) on what was approved.
+3. Get the result as a file in the slot. A tool that returns a link or leaves the file elsewhere → download or move it to the slot's path, in the game's format and size.
+4. Then as in "Bring your own" step 3: write the path in the "Have" cell, import, verify.
+
+An asset made this way has no record either — the asset sheet shows it as "no record". Do not connect, install or log in to a tool for the user; if none is connected, say which ways are open.
+
+## Make it with the kit's scripts
 
 Three kinds of asset, three paths. Pick by what the game does with the thing, not by what it depicts:
 
