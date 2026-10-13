@@ -1,7 +1,7 @@
 {
   "name": "gamedev-kit",
   "description": "Game development workflow — creating the engine project · the start up to the first cycle (GDD · concept · first goal), one cycle (spec · design · build · play), deploying (itch.io · Google Play), generating 3D assets · 2D sprites · sound, trailer · cutscene footage, GDD ↔ code sync · status board, an Excel balance table, sending what was learned to the kit as issues (Godot · Unity).",
-  "version": "0.39.0",
+  "version": "0.39.1",
   "author": { "name": "dudwns0921" },
   "repository": "https://github.com/dudwns0921/claude-gamedev-kit",
   "license": "MIT"

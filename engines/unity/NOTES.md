@@ -15,6 +15,8 @@ Whatever turns out different, write it in `docs/kit-feedback.md`.
 - `.gitignore`: init appends the lines in `engines/unity/gitignore` (`Library/`, `Temp/`, `Logs/`, `obj/`, `UserSettings/`, `build/`, `*.csproj`, `*.sln`, `*.slnx`, `*.keystore`, `*.jks`, `assets/_gen/*/raw.glb`).
 - Write the Unity executable path of this machine and the installed modules in the game's CLAUDE.md **under the existing `## This game's rules` heading** (`--editor` prints the line; do not add a second heading),
   and export the path as `UNITY` for the build command.
+- **Unity's own plugin for Claude Code, if used**: install it for this project, not for the user (`claude plugin install unity@claude-plugins-official --scope project`, run in the game root) —
+  it is then written in `.claude/settings.json`, which is committed, so every machine that builds this game has the skills the plan names on a task's "Skills" line.
 - **What the user does once (Claude cannot):** install Unity Hub and the editor, and sign in to activate the license; set the package name (Player Settings → Android → Identification, `com.<name>.<game>`) — it cannot change after the first upload;
   create the upload keystore (Player Settings → Publishing Settings → Keystore Manager) and **keep it and its passwords outside the repo, with a backup**.
 - **Build (Android App Bundle)**: `deploy.py build android` runs `Assets/Editor/KitBuild.cs` in batch mode and leaves `build/android/game.aab` (IL2CPP · ARM64 · app bundle).
