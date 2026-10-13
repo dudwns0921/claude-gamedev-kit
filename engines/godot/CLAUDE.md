@@ -63,11 +63,5 @@ Everything that can be verified without a screen becomes a headless test. Run th
 14. **A skinned mesh in the Compatibility renderer (web too) gets the same tangent at every vertex, so a normal map breaks** (bright triangular patches).
     Compute the normal-map frame in the shader from screen derivatives, and keep a capture scene that shoots the skinned mesh beside the same mesh with its bones removed — the difference is the check.
 15. **Soften the edge of a thresholded noise with `fwidth`, not a fixed-width `smoothstep`** — a fixed width smears where the noise is gentle.
-16. **An additive fire or light card over an already bright background clips to one flat colour at any intensity.** Before retuning the fire's colour, read the pixel values of that spot shot without it — if the background is bright, the background is the knob.
-17. **Before redoing a stage (binding · weights) for a visible flaw, find which stage it comes from.** Give the capture scene an argument that loads the model file directly, without import, and shoot the imported one,
-    the directly loaded one and a copy with only the material line changed (three windows) — import, material and mesh separate at once.
-18. **`cast_motion` misses a small ball grazing a wide thin box, and once it misses it never sees a body the shape leaves while overlapping** (projectiles pass through floors and walls).
+16. **`cast_motion` misses a small ball grazing a wide thin box, and once it misses it never sees a body the shape leaves while overlapping** (projectiles pass through floors and walls).
     Split the step into pieces shorter than the thinnest collider, check the overlap at each piece's end with `get_rest_info`, and narrow down the first overlapping position. Keep a test that fires hundreds of shots into the real room and counts the ones that get through.
-19. **A held item's pose is set from the aim line, and its grip is measured per clip.** For a first-person weapon, place the line to the aim point first and count the hand and weapon positions back from it — starting at the hand misaligns the sights.
-    A grip fitted in the rest pose is wrong in most clips (the wrist turns differently in each): measure it at the clip's event frames, keep one grip per state and blend between them over seconds.
-    A sagging long item (a bow) and its arrow are not fixed to the hand — re-aim them every tick.
