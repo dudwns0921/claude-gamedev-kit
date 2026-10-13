@@ -40,6 +40,7 @@ CONCEPT = os.path.join(KIT, "skills/start/scripts/concept.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
 FEEDBACK = os.path.join(KIT, "tools/kit_feedback.py")
+SEND = os.path.join(KIT, "skills/feedback/scripts/feedback.py")
 PRIVATE = os.path.join(KIT, "tools/private_check.py")
 
 
@@ -1538,6 +1539,98 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("커밋 메시지:1: 막을 낱말", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
         open(msg, "w", encoding="utf-8").write("0.1.0 — 2026-01-01 에 잰 것\n")
         self.assertIn("날짜가 있다", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
+
+    def test_feedback(self):
+        """쌓인 줄이 키트의 이슈로 나간다 — 가짜 gh 와 가짜 GitHub 서버로. 이름이 섞인 줄은 나가지 않는다."""
+        class Fake(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(json.dumps([
+                    {"number": 7, "title": "feedback(godot): 헤드리스는 셰이더를 컴파일하지 않는다", "body": "창으로 한 번 돌린다"},
+                    {"number": 8, "title": "feedback(unity): 헤드리스는 셰이더를 컴파일하지 않는다", "body": ""},
+                    {"number": 9, "title": "다른 이슈", "body": "헤드리스는 셰이더를 컴파일하지 않는다"}]).encode())
+
+            def log_message(self, *a):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        home = tempfile.mkdtemp(prefix="kit-send-")
+        self.addCleanup(shutil.rmtree, home, True)
+        root = os.path.join(home, "moongame")
+        os.makedirs(os.path.join(root, "docs"))
+        gh, log = os.path.join(home, "gh"), os.path.join(home, "gh.log")
+        open(gh, "w").write(f"#!/bin/sh\necho \"$1 $2 $3 $4 $5\" >> '{log}'\n[ \"$2\" = create ] && echo https://github.com/me/kit/issues/12\nexit 0\n")
+        os.chmod(gh, 0o755)
+
+        def write(**over):
+            json.dump({"engine": "godot", "feedback": dict({"repo": "me/kit", "gh": gh}, **over)}, open(os.path.join(root, "kit.config.json"), "w"))
+
+        env = dict(os.environ, GAMEDEV_KIT_GITHUB_API=f"http://127.0.0.1:{server.server_port}", GAMEDEV_KIT_VOICE=os.path.join(home, "voice"))
+
+        def send(*args, ok=True, cwd=None):
+            p = subprocess.run([sys.executable, SEND] + ([] if cwd else ["--root", root]) + list(args), capture_output=True, text=True, env=env, cwd=cwd)
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        write()
+        self.assertIn("kit-feedback.md 가 없다", send("list"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write("# 달의 게임 — 게임 디자인 문서\n")
+        run(PLAYTEST, root, "lesson", "헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다")
+        run(PLAYTEST, root, "lesson", "달의 게임의 문은 씬을 다시 열어야 보인다 → 씬을 다시 연다")
+        run(PLAYTEST, root, "lesson", "웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다")
+        fb = os.path.join(root, "docs/kit-feedback.md")
+        open(fb, "a", encoding="utf-8").write("- [ ] 손으로 적은 줄\n")
+        self.assertIn("`/gamedev-kit:feedback` 이 키트 저장소의 이슈로 보낸다", open(fb, encoding="utf-8").read())
+
+        out = send("list")
+        self.assertIn("안 보낸 줄 4개", out)
+        self.assertIn("  1. (godot) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n", out, "날짜와 사이클 번호는 나가지 않는다")
+        self.assertIn("  4. (godot) 손으로 적은 줄", out)
+        self.assertIn("! 이 게임의 것으로 보이는 낱말: ‘달의 게임’", out)
+        out = send("preview", "all")
+        self.assertIn("보낼 곳: https://github.com/me/kit/issues\n", out)
+        self.assertRegex(out, r"\[1\] feedback\(godot\): 헤드리스는 셰이더를 컴파일하지 않는다\n.*→ 창으로 한 번 돌린다\n\n엔진: godot · 키트: \d+\.\d+\.\d+\n~ 비슷한 이슈 #7")
+        self.assertNotIn("#8", out, "다른 엔진의 이슈는 비슷한 것으로 치지 않는다")
+        self.assertNotIn("#9", out)
+        self.assertFalse(os.path.exists(log), "미리 보기는 아무것도 보내지 않는다")
+
+        self.assertIn("2번 줄에 이 게임의 것으로 보이는 낱말이 있다", send("send", "1,2", ok=False))
+        self.assertFalse(os.path.exists(log), "하나라도 걸리면 아무것도 보내지 않는다")
+        self.assertIn("이슈 #12 을 열었다: https://github.com/me/kit/issues/12", send("send", "3"))
+        self.assertIn("이슈 #7 에 달았다", send("send", "1", "--to", "#7"))
+        self.assertEqual(open(log).read().split("\n")[:2], ["issue create --repo me/kit --title", "issue comment 7 --repo me/kit"])
+        text = open(fb, encoding="utf-8").read()
+        self.assertRegex(text, r"- \[>\] \(godot · 플레이테스트 · [\d-]+\) 헤드리스는 .* — 이슈 #7\n")
+        self.assertRegex(text, r"- \[>\] \(godot · 플레이테스트 · [\d-]+\) 웹 내보내기는 .* — 이슈 #12\n")
+        self.assertIn("--to 는 줄 하나에만", send("send", "all", "--to", "7", ok=False))
+        send("skip", "1", "이 게임만의  것")
+        self.assertIn("씬을 다시 연다 — 안 보냄: 이 게임만의 것\n", open(fb, encoding="utf-8").read())
+        self.assertIn("번호가 없다 — 안 보낸 줄은 1개다", send("send", "2", ok=False))
+
+        # gh 를 못 쓰면 내용이 채워진 주소를 주고, 사용자가 올린 뒤 번호를 적는다
+        write(gh=os.path.join(home, "no-gh"))
+        out = send("send", "1")
+        self.assertIn("gh 가 없다 — 사용자가 손수 올린다: https://github.com/me/kit/issues/new?title=feedback%28godot%29%3A%20", out)
+        self.assertIn("- [ ] 손으로 적은 줄", open(fb, encoding="utf-8").read())
+        send("sent", "1", "#15")
+        self.assertIn("- [>] 손으로 적은 줄 — 이슈 #15", open(fb, encoding="utf-8").read())
+        self.assertIn("안 보낸 줄 0개", send("list"))
+        self.assertIn("— 0줄", subprocess.run([sys.executable, FEEDBACK, "list", root], capture_output=True, text=True).stdout,
+                      "보낸 줄은 키트 쪽 목록에서도 빠진다")
+
+        # 세션이 시작될 때: 쌓였을 때만 한 줄, 밖을 보지 않고, 무슨 일이 있어도 0 으로 끝난다
+        self.assertEqual(send("--notice", cwd=root), "")
+        open(fb, "a", encoding="utf-8").write("".join(f"- [ ] 줄 {n}\n" for n in range(5)))
+        os.makedirs(os.path.join(root, "game"))
+        self.assertIn("키트로 올릴 배움이 5줄 쌓여 있다", send("--notice", cwd=os.path.join(root, "game")))
+        write(notice=False)
+        self.assertEqual(send("--notice", cwd=root), "")
+        open(os.path.join(root, "kit.config.json"), "w").write("{깨진")
+        self.assertEqual(send("--notice", cwd=root), "")
+        self.assertEqual(send("--notice", cwd=home), "")
 
     def test_playtest_ledger(self):
         root = tempfile.mkdtemp(prefix="kit-playtest-")

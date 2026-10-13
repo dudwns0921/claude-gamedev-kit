@@ -23,7 +23,7 @@ Claude Code 플러그인 저장소다. 게임 코드는 여기 없다 — 게임
 ## 검증
 
 ```bash
-python3 tests/test_tools.py        # 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync · balance-table 을 끝까지 돌린다. init 의 엔진 프로젝트 만들기는 가짜 에디터, deploy 는 가짜 butler, asset 과 start 의 컨셉 그림은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 (asset 의 다듬기는 Blender 가 있으면 진짜로)
+python3 tests/test_tools.py        # 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync · balance-table 을 끝까지 돌린다. init 의 엔진 프로젝트 만들기는 가짜 에디터, deploy 는 가짜 butler, feedback 은 가짜 gh · 가짜 GitHub 서버, asset 과 start 의 컨셉 그림은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 (asset 의 다듬기는 Blender 가 있으면 진짜로)
 claude plugin validate .           # 매니페스트
 ```
 
@@ -62,7 +62,11 @@ python3 tools/session_usage.py <게임 저장소>    # 메인 세션의 평균 �
 게임 저장소에서 엔진 설정을 손으로 한 것, 걸려 넘어진 함정, 확인하는 방법은 `engines/<엔진>/NOTES.md`(깐 뒤 할 일)와
 `engines/<엔진>/CLAUDE.md`(게임의 규칙이 될 것)에 옮겨 적는다. 다음 게임이 같은 일을 다시 겪지 않게.
 
-길은 이렇다: 게임에서 걸려 넘어진 그 자리에서(작업이 막혔을 때 · 플레이테스트를 고친 뒤) 이 게임만의 것이 아닌 배움이 `docs/kit-feedback.md` 에 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`). 여기서 모아 반영한다:
+길은 이렇다: 게임에서 걸려 넘어진 그 자리에서(작업이 막혔을 때 · 플레이테스트를 고친 뒤) 이 게임만의 것이 아닌 배움이 `docs/kit-feedback.md` 에 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`).
+쌓인 줄은 `/gamedev-kit:feedback` 이 이 저장소의 이슈로 보낸다 (제목이 `feedback(<엔진>):` 으로 시작한다) — 쓰는 사람 누구의 게임에서든 같은 길이다. 스크립트가 날짜 · 사이클 번호를 떼고 게임의 이름을 막고, 스킬이 나갈 글을 보여 주고 묻는다.
+같은 것을 또 본 게임은 새로 열지 않고 그 이슈에 단다 — 댓글이 붙은 이슈가 두 번 본 것이다.
+
+이 기기에 있는 게임 폴더는 이슈를 거치지 않고 바로 읽을 수도 있다:
 
 ```bash
 python3 tools/kit_feedback.py list <게임 저장소> …       # 아직 반영하지 않은 줄

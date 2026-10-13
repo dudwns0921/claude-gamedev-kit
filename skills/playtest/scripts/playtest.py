@@ -22,7 +22,7 @@ FEEDBACK = os.path.join("docs", "kit-feedback.md")
 FEEDBACK_HEAD = """# 키트로 올릴 것
 
 이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것** — 같은 엔진의 다음 게임도 걸려 넘어질 함정, 쓸 만한 확인 방법, 키트 도구의 모자란 점.
-걸려 넘어진 그 자리에서 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`). 키트 저장소에서 `python3 tools/kit_feedback.py list <이 저장소>` 로 모아 반영하고, 반영한 줄은 `[x]` 가 된다.
+걸려 넘어진 그 자리에서 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`). `/gamedev-kit:feedback` 이 키트 저장소의 이슈로 보낸다 — 보낸 줄은 `[>]`, 보내지 않기로 한 줄은 `[-]` 가 된다.
 
 """
 BOX = {"done": "x", "blocked": "!", "open": " "}
