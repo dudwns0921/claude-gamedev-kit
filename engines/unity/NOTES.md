@@ -1,13 +1,11 @@
 # Unity
 
-Not yet checked in a real game with this kit — the build script and the asset · video settings below follow Unity's documentation.
 Whatever turns out different, write it in `docs/kit-feedback.md`.
 
 - Value file: `Assets/Scripts/Config/Balance.cs` (`public static float NAME = 4.0f; // GDD: <ID>`). Write floats with a decimal point and `f`.
   There is no runtime template that re-reads the table while running — after `bake`, Unity recompiles and the game runs on the baked values.
 - **Editor and modules (`init.py unity --editor`)**: macOS — the editor is `/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity` (the newest version is picked when several are installed;
   `UNITY` overrides). The Android module is there when `/Applications/Unity/Hub/Editor/<version>/PlaybackEngines/AndroidPlayer` exists and holds `SDK`, `NDK` and `OpenJDK`.
-  The Windows and Linux paths in `project.json` follow Unity's documented install layout and were not run.
 - **Adding the Android module**: close the editor, then Unity Hub → Installs → the gear on that version → Add modules → **Android Build Support with OpenJDK and Android SDK & NDK Tools**. From a shell:
   `"/Applications/Unity Hub.app/Contents/MacOS/Unity Hub" -- --headless install-modules --version <version> -m android android-sdk-ndk-tools android-open-jdk`.
   It downloads several GB — the user decides when; do not run it unasked.

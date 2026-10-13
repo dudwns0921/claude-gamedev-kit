@@ -4,7 +4,6 @@
   if it was found only as an app, put it on PATH under that name or write the path in the game's CLAUDE.md under the existing `## This game's rules` heading. Godot has no build modules to check here (export templates are below, under Deploy).
 - **Creating the project (`init.py godot --create`)**: Godot has no create command — a folder with a `project.godot` is a project, so init writes a minimal one (`config_version=5`, an empty `config/name`, `config/version="0.1.0"`).
   Set the name in Project Settings (or in the file) and open the project once in the editor so it fills in the rest (`config/features`, the renderer, an icon). `init.py godot --import` runs `godot --headless --path <game root> --import`.
-  This follows Godot's documented behaviour and was only tried in an empty folder (macOS) — **creating a project through init has not been run for a real game.**
 - `.gitignore`: init appends the lines in `engines/godot/gitignore` (`.godot/`, `/android/`, `build/`, `assets/_gen/*/raw.glb`).
 - Value file: `game/config/balance.gd` (`class_name Balance`, `static var NAME := value  # GDD: <ID>`).
 - Register `game/debug/balance_watch.gd` as the autoload `BalanceWatch`. In release builds it removes itself.
