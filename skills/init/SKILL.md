@@ -3,7 +3,7 @@ name: init
 description: >-
   Sets a game repo up for gamedev-kit, from an empty folder if need be: asks which engine (Godot · Unity), finds the editor on this machine and the build modules it needs,
   creates the engine project when there is none, then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
-  the balance value file, the runtime template that re-reads the table while running, the engine's .gitignore lines. Ends by pointing to `/gamedev-kit:start`.
+  the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by pointing to `/gamedev-kit:start`.
   Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game, on "gamedev-kit 깔아줘" ("install gamedev-kit"),
   "엔진 프로젝트 만들어줘" ("create the engine project"), "키트 규칙 맞춰줘" ("align the kit rules"), "init rules", "GDD 동기화 세팅" ("set up GDD sync"),
   "밸런스 표 세팅" ("set up the balance table"), or when gdd-sync, balance-table or start says it cannot find kit.config.json.
@@ -14,7 +14,7 @@ description: >-
 Run at the game repo root. Existing files are not touched, so re-running is safe.
 
 **Re-running in an already-installed project** overwrites nothing and does three things: creates document templates the kit has gained since (e.g. `docs/DESIGN.md`) if missing,
-reports config sections missing from `kit.config.json` (copying them in is your job — it does not edit the file), and skips the engine template files (value file · runtime).
+reports config sections missing from `kit.config.json` (copying them in is your job — it does not edit the file), and skips the engine template files (the value file and what else the engine brings).
 Why it skips the engine template files: in a project that moved the value file or deliberately deleted a template, creating the same file again makes a duplicate. To really reinstall, `--files`.
 It does not touch CLAUDE.md, and if the kit rules are an old version it says so — aligning them is "Aligning the kit rules" below.
 
@@ -54,8 +54,8 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine>
    ```
 
-   Installed: `kit.config.json` · `docs/GDD.md` · `docs/DESIGN.md` · `CLAUDE.md` · the engine's value file and runtime template · `.gitignore` lines (the Excel lock file and what the engine generates — lines already present are not repeated; `--gitignore` adds only those).
-   At the end it prints what to finish by hand on that engine (autoload registration, export presets, etc.) — **go on and do those.**
+   Installed: `kit.config.json` · `docs/GDD.md` · `docs/DESIGN.md` · `CLAUDE.md` · the engine's template files (the value file and what else the engine brings) · `.gitignore` lines (the Excel lock file and what the engine generates — lines already present are not repeated; `--gitignore` adds only those).
+   At the end it prints what to finish by hand on that engine (project settings, export presets, etc.) — **go on and do those.**
 
    Then let the engine read what was installed once — it compiles and imports, and the files the engine creates beside them (`.meta`, import caches) appear:
 
@@ -75,7 +75,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 7. **Create the table and check.** Create `data/balance.xlsx` with the balance-table skill's `export`, and check with the gdd-sync skill that
    a report comes out. It works if the GDD template's example row (BAL.PLAYER.HP) pairs with the value file's example value and shows as `synced`.
 
-8. **Fill in deploy · assets when you use them.** `deploy.itch` in `kit.config.json` (itch.io `user/game`), the asset API key, and
+8. **Fill in deploy · assets when you use them.** `deploy.target` in `kit.config.json` (the game on the platform in `deploy.platform`), the asset API key, and
    the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the deploy · asset skills guide how to fill them.
 
 9. **Go on to the voice — do not wait to be asked.** The voice (how this user decides — it grows across every game) lives outside the game, in a private repository of the user's.

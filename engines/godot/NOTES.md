@@ -6,11 +6,12 @@
   Set the name in Project Settings (or in the file) and open the project once in the editor so it fills in the rest (`config/features`, the renderer, an icon). `init.py godot --import` runs `godot --headless --path <game root> --import`.
 - `.gitignore`: init appends the lines in `engines/godot/gitignore` (`.godot/`, `/android/`, `build/`, `assets/_gen/*/raw.glb`).
 - Value file: `game/config/balance.gd` (`class_name Balance`, `static var NAME := value  # GDD: <ID>`).
-- Register `game/debug/balance_watch.gd` as the autoload `BalanceWatch`. In release builds it removes itself.
 - A new `class_name` is visible only after the editor scans it — if the editor is closed, run `godot --headless --path . --import` once.
-- Add `data/*` to the export preset's `exclude_filter`. So the table does not go into release builds.
-- If you move the value file, change both `balance-table.code` in `kit.config.json` and the `res://` path inside balance.gd.
-- **Deploy (itch.io)**: write `user/game` in `deploy.itch` in `kit.config.json`. In the editor's Project → Export create a preset named **`Web`**
+- If you move the value file, change `balance-table.code` in `kit.config.json`.
+- **A game installed by an older kit** has code that reads the balance table while the game runs. The kit no longer installs it. To remove it: delete
+  `game/config/balance_table.gd` and `game/debug/balance_watch.gd`, remove the `BalanceWatch` line under `[autoload]` in `project.godot`, and in `game/config/balance.gd` delete
+  the `Table` and `TABLE_PATH` constants, `_static_init()` and `reload_table()` — the value lines stay as they are. Nothing breaks if it is left in.
+- **Deploy**: the Web build goes to the platform in `deploy.platform` in `kit.config.json`; write the game there in `deploy.target` (`deploy.py notes` says what it looks like and what the user does once). In the editor's Project → Export create a preset named **`Web`**
   and download the export templates (once, by the user in the editor). If you name the preset differently, change `deploy.channels.html5.build`.
   The version is read from `config/version` in `project.godot` — set it in Project Settings → Application → Config → Version.
   The export does not create its target folder — the build command makes it first (`mkdir -p build/web && …`).

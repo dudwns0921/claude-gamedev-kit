@@ -4,7 +4,7 @@
 
 **A repeatable way to make a game with [Claude Code](https://code.claude.com) — one that gets better with every game you make.**
 
-You say what the next version should do. Agents write the spec, the design and the code, and stop to ask you whatever is yours to decide. You play it and say what is wrong. Then again. Works with **Godot** and **Unity** (Android).
+You say what the next version should do. Agents write the spec, the design and the code, and stop to ask you whatever is yours to decide. You play it and say what is wrong. Then again. Works with **Godot**, **Unity** (Android) and plain **web** games.
 
 One cycle, roughly:
 
@@ -45,7 +45,7 @@ Then, inside Claude Code:
 /gamedev-kit:cycle     build that goal — and every goal after it
 ```
 
-You need Claude Code, Python 3.9 or later, and the engine's editor. Assets and their services are optional — see [Assets](#assets).
+You need Claude Code and Python 3.9 or later — and, for Godot or Unity, that engine's editor. Assets and their services are optional — see [Assets](#assets).
 
 ## Why use it
 
@@ -57,7 +57,7 @@ Claude Code can already write the game. What goes wrong over weeks is everything
   <img src="assets/sync.svg" alt="A GDD sync table beside code: one row synced, one mismatched — the GDD says 8 and the code says 10 — and one with no marker in code yet" width="860">
 </p>
 
-Every number and rule in the GDD has an ID, and the code that implements it carries a `GDD: <ID>` marker. `/gamedev-kit:gdd-sync` compares the two and reports what is synced, what disagrees and what is not built — then aligns whichever side you name. Balance numbers go one step further: edit them in an Excel table, and `/gamedev-kit:balance-table` bakes them into code.
+Every number and rule in the GDD has an ID, and the code that implements it carries a `GDD: <ID>` marker. `/gamedev-kit:gdd-sync` compares the two and reports what is synced, what disagrees and what is not built — then aligns whichever side you name. Balance numbers go one step further: `/gamedev-kit:balance-table` keeps them on one Excel sheet that follows the code, and a number you change there is baked back into the code.
 
 ### 2. You always see where the game stands
 
@@ -119,7 +119,7 @@ An analyst agent reads the code and the GDD, finds the causes and writes a task 
 /gamedev-kit:deploy
 ```
 
-Shipping is not a stage of the cycle. Call it after as many cycles as you like. The kit builds, shows you the target, version and size, and uploads only when you approve. Uploading to itch.io uses [butler](https://itch.io/docs/butler/), which you log in to once.
+Shipping is not a stage of the cycle. Call it after as many cycles as you like. The kit builds, shows you the platform, target, version and size, and uploads only when you approve. Where the build goes is a setting: itch.io is uploaded with [butler](https://itch.io/docs/butler/), which you log in to once; for Google Play the kit builds and tells you which file to upload in the Play Console.
 
 ## Commands
 
@@ -143,7 +143,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 | Command | What it does |
 |---|---|
 | `/gamedev-kit:gdd-sync` | Compares the GDD's sync table with `GDD: <ID>` markers in code. Reports by default; `to-code` or `to-gdd` aligns one side to the other |
-| `/gamedev-kit:balance-table` | Edit balance numbers in an Excel table and keep it aligned with the value file in code (export · bake · check · serve) |
+| `/gamedev-kit:balance-table` | Keeps the game's balance numbers on one Excel sheet that follows the value file in code and opens from the status board (export · bake · check) |
 | `/gamedev-kit:board` | Draws the status board as HTML pages and keeps it current |
 
 **Assets and footage**
@@ -151,13 +151,13 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 | Command | What it does |
 |---|---|
 | `/gamedev-kit:asset` | Optional. Makes 3D models, 2D sprites and sounds from a description — with a tool you connected over MCP or the kit's own scripts — or tells you where to put a file you made yourself. You approve the picture before it becomes a mesh or an animated sheet. One art style paragraph is attached to every asset, and what you say when rejecting one is kept for the next |
-| `/gamedev-kit:video` | Footage that looks filmed: description → you approve → generated → you watch → placed. Trailers and devlog clips as mp4, in-game cutscenes in the format the engine reads |
+| `/gamedev-kit:video` | Footage that looks filmed: description → you approve → generated → you watch → placed. Trailers and clips for the game's page as mp4, in-game cutscenes in the format the engine reads |
 
 **Ship and give back**
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:deploy` | Build and upload to itch.io with butler (`prepare` · `push` · `status`), then draft the itch.io devlog for that build (`devlog`). You paste the devlog yourself |
+| `/gamedev-kit:deploy` | Check, build, show what goes where, and upload on your approval (`prepare` · `push` · `status`). The platform — itch.io or Google Play — is a setting in `kit.config.json` |
 | `/gamedev-kit:feedback` | Sends the lessons that hold for anyone's game to this repository as issues — only the lines you approve |
 | `/gamedev-kit:voice` | Shows your voice and your rules, and lets you correct them — see [Your voice and your rules](#your-voice-and-your-rules) |
 
@@ -179,8 +179,7 @@ The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent p
 | `designer` | Opus | Writes how the spec looks and sounds: UI, effects, sound, the asset list. Checks screenshots against `docs/DESIGN.md` |
 | `developer` | Opus to plan, Sonnet to build | Splits a cycle into tasks, then implements one task exactly as written. Does not re-analyse |
 | `playtest-analyst` | Opus | Finds the causes behind a problem list and writes them as a task document. Does not change code |
-| `deployer` | Sonnet | Check, build, butler push. On a broken build, finds the first error and returns it |
-| `devlog-writer` | Sonnet | Drafts the itch.io devlog for a deployed build from what was actually made. Does not post it |
+| `deployer` | Sonnet | Check, build, upload to the configured platform. On a broken build, finds the first error and returns it |
 
 **Sessions stay short.** Most tokens go to what the main session re-reads every turn, so the ledgers of cycle and playtest documents are kept by scripts, a hook suggests a new session once context passes 200k tokens, and the cycle document or a `/gamedev-kit:handoff` note carries the work across.
 
@@ -243,12 +242,8 @@ On another machine, run step 2 again with the same address; it clones what is th
 
 ## Engines
 
-Godot 4 and Unity. `/gamedev-kit:init` finds the editor on your machine and tells you what is missing.
-
-| | Godot 4 | Unity |
-|---|---|---|
-| `deploy` builds | a Web export, uploaded to itch.io | an Android App Bundle — you upload it in the Play Console |
-| Editing the balance table while the game runs | shows up without a restart | bake, then run again |
+Godot 4, Unity, and the web — plain HTML and JavaScript, with no editor at all. `/gamedev-kit:init` finds the editor on your machine, where there is one, and tells you what is missing.
+Each engine's build is for a platform, set in `kit.config.json`: with Godot and the web, `deploy` makes a web build and uploads it to itch.io; with Unity it builds an Android App Bundle and tells you to upload it in the Play Console.
 
 Each engine also brings its own rules into your game's `CLAUDE.md`: how to verify without opening the editor, and the traps found while making games with it.
 
@@ -276,6 +271,8 @@ claude plugin marketplace update claude-gamedev-kit
 claude plugin update gamedev-kit@claude-gamedev-kit
 ```
 
+Run both, in that order, in the game's folder: the first fetches the list of versions, and the plugin is installed per project, so each game is updated on its own. `claude plugin list` shows the version a folder is using.
+
 ## Repository layout
 
 ```
@@ -286,9 +283,11 @@ agents/<name>.md    agents — only work that needs a fixed model is an agent
 engines/<engine>/   kit.config.json (engine settings) · NOTES.md (what to do after installing) · CLAUDE.md (engine rules:
                     how to verify, and traps) · files/ (templates copied into the game) · project.json (how to recognise
                     the project, find the editor and create one) · gitignore (lines added to the game's .gitignore)
+platforms/<name>/   platform.json (the upload tool, how to tell it is logged in, the upload command or what to tell you
+                    when there is none, the form of a target) · NOTES.md (what you do once: log in, create the page)
 templates/          GDD.md · DESIGN.md · CLAUDE.md — templates installed into the game repo
 hooks/              suggest a new session when context grows · keep the kit's rule block current ·
-                    say when unsent lessons pile up · redraw the board when documents change
+                    say when unsent lessons pile up · keep the balance table and the board current as documents change
 tools/              session_usage.py — where tokens went, from a game repo's session logs ·
                     kit_feedback.py — collect lessons from game folders on this machine ·
                     harvest.py — which issues a harvest reads, and the check on what it changed

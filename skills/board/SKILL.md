@@ -89,6 +89,11 @@ under the three layers attached to every asset (art style · world · learned, r
 and marks: **old style** (drawn under an art style paragraph that has since changed), **rejected** (turned down — hover for what the user said), sample (a style reference), reference (made from a photo).
 It is for the user's eye — do not read the page or the images to judge consistency yourself unless asked.
 
+**The balance table**: when the game has one (`balance-table.table` in `kit.config.json`, by default `data/balance.xlsx`), the first screen has a "Balance table →" tile that opens the file.
+When the table carries the value file's time (`balance-table.code`) the tile says **in step with the value file**; otherwise it says only "the game's numbers" —
+file times cannot tell an edit in the spreadsheet from a table that was never stamped (written by an older kit, or freshly cloned). Whether the two differ is the balance-table skill's `check`.
+The hook brings the table up to the value file before it redraws the board.
+
 Add `docs/board/` to `.gitignore` — the pages are redrawn from the documents and carry a timestamp, so committing them only makes noise.
 
 ## Not covered

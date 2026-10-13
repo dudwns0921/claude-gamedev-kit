@@ -3,7 +3,7 @@
 Whatever turns out different, write it in `docs/kit-feedback.md`.
 
 - Value file: `Assets/Scripts/Config/Balance.cs` (`public static float NAME = 4.0f; // GDD: <ID>`). Write floats with a decimal point and `f`.
-  There is no runtime template that re-reads the table while running — after `bake`, Unity recompiles and the game runs on the baked values.
+  The game runs on this file — after `bake`, Unity recompiles and the game runs on the new values.
 - **Editor and modules (`init.py unity --editor`)**: macOS — the editor is `/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity` (the newest version is picked when several are installed;
   `UNITY` overrides). The Android module is there when `/Applications/Unity/Hub/Editor/<version>/PlaybackEngines/AndroidPlayer` exists and holds `SDK`, `NDK` and `OpenJDK`.
 - **Adding the Android module**: close the editor, then Unity Hub → Installs → the gear on that version → Add modules → **Android Build Support with OpenJDK and Android SDK & NDK Tools**. From a shell:
@@ -17,14 +17,13 @@ Whatever turns out different, write it in `docs/kit-feedback.md`.
   and export the path as `UNITY` for the build command.
 - **What the user does once (Claude cannot):** install Unity Hub and the editor, and sign in to activate the license; set the package name (Player Settings → Android → Identification, `com.<name>.<game>`) — it cannot change after the first upload;
   create the upload keystore (Player Settings → Publishing Settings → Keystore Manager) and **keep it and its passwords outside the repo, with a backup**.
-- **Build (Google Play)**: `deploy.py build android` runs `Assets/Editor/KitBuild.cs` in batch mode and leaves `build/android/game.aab` (IL2CPP · ARM64 · app bundle).
+- **Build (Android App Bundle)**: `deploy.py build android` runs `Assets/Editor/KitBuild.cs` in batch mode and leaves `build/android/game.aab` (IL2CPP · ARM64 · app bundle).
   Close the editor first — batch mode cannot open a project the editor has open. Signing comes from the environment:
   `KIT_KEYSTORE` (path) · `KIT_KEYSTORE_PASS` · `KIT_KEY_ALIAS` · `KIT_KEY_PASS`, and `KIT_VERSION_CODE` (an integer that must grow with every upload).
   Without `KIT_KEYSTORE` the bundle is debug-signed and Play rejects it. The build writes its settings into `ProjectSettings/ProjectSettings.asset` — look at `git diff` afterwards.
   The version is read from `bundleVersion` in that file (Player Settings → Version).
-- **Upload (Google Play)**: this kit has no upload path for Play — `deploy.py push` is itch.io only, so `deploy.itch` stays empty. The user uploads
-  `build/android/game.aab` in Play Console (the first upload of an app must be done there by hand in any case).
-  To also put a build on itch.io, fill `deploy.itch` and add a channel whose `dir` holds an `.apk`.
+- **Upload**: the bundle goes to the platform in `deploy.platform` in `kit.config.json`; write the package name set above in `deploy.target`.
+  `deploy.py notes` says what the user does once there, and `deploy.py push` says which file the user uploads and where.
 - **Assets (asset skill)**: finished models land in `Assets/Models/<name>.fbx` — Unity does not read glb without an extra package. 1 unit is 1 m.
   Check the first model's scale and rotation in a scene (FBX from Blender often arrives rotated or scaled by 100). (`art/_gen/*/raw.glb` is in the `.gitignore` lines init appends.)
   The asset skill's work folder is `art/_gen/` here, not `assets/_gen/` — on a disk that ignores case (macOS · Windows) `assets/` is `Assets/`, and Unity would import the source pictures and gifs.

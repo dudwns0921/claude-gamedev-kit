@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tool checks — for every engine config in engines/, makes a temporary project and runs gdd-sync and balance-table end to end.
-init's engine-project creation runs against a fake editor, deploy against a fake butler, asset and start's concept images against a fake API server,
+init's engine-project creation runs against a fake editor, deploy against a fake butler (named by the environment, as the platform file says), asset and start's concept images against a fake API server,
 video against a fake Higgsfield server · a fake ffmpeg — nothing goes outside.
 
   python3 tests/test_tools.py
@@ -14,15 +14,12 @@ import json
 import os
 import re
 import shutil
-import socket
 import struct
 import subprocess
 import sys
 import tempfile
 import threading
-import time
 import unittest
-import urllib.request
 import zipfile
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -66,7 +63,7 @@ def raw_glb():
             + struct.pack("<I4s", len(b), b"BIN\0") + b)
 
 # one line of the file where the engine keeps the version (deploy.version must pick this up)
-VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3"}
+VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3", "web": 'export const VERSION = "1.2.3";'}
 
 GDD = """# 게임
 
@@ -149,6 +146,18 @@ static var STRAY := 1  # GDD: BAL.STRAY.ONE
     public static int STRAY = 1; // GDD: BAL.STRAY.ONE
 }
 """, "CanPickup"),
+    "web": ("""/// 시작 체력
+export const PLAYER_HP = 100; // GDD: BAL.PLAYER.HP
+export const PLAYER_WALK_SPEED = 4.0; // GDD: BAL.PLAYER.WALK_SPEED
+export const COIN_VALUE = 5; // GDD: BAL.COIN.VALUE
+export const UNMARKED = 2.5; // 표식 없는 값
+
+export function canPickup() { // GDD: RULE.COIN.PICKUP
+  return true;
+}
+
+export const STRAY = 1; // GDD: BAL.STRAY.ONE
+""", "canPickup"),
 }
 
 
@@ -259,38 +268,41 @@ class Tools(unittest.TestCase):
             excel_save(table, {"PLAYER_HP": "120.5"})
             self.assertIn("for an integer value", run(TABLE, root, "check", ok=False).stderr)
 
-    def test_serve(self):
-        root, _code, table, _rel = self.project("godot")
-        run(TABLE, root, "export")
-        p = subprocess.Popen([sys.executable, TABLE, "--root", root, "serve", "0"], stdout=subprocess.PIPE, text=True)
-        self.addCleanup(p.kill)
-        url = p.stdout.readline().split(" ")[0]
+            # the hook: the table follows the value file — and a table saved in the spreadsheet since is left alone
+            def stale():
+                p = run(TABLE, root, "export", "--if-stale")
+                self.assertEqual((p.stdout, p.stderr), ("", ""), "the hook's run says nothing")
+                return open(table, "rb").read()
 
-        def get():
-            return json.load(urllib.request.urlopen(url, timeout=5))
+            edited = open(table, "rb").read()
+            self.assertGreater(os.stat(table).st_mtime_ns, os.stat(code).st_mtime_ns)
+            self.assertEqual(stale(), edited, "a table newer than the value file may hold what the user has not baked — left alone")
+            run(TABLE, root, "export")
+            self.assertEqual(os.stat(table).st_mtime_ns, os.stat(code).st_mtime_ns, "a table written from the value file carries its time")
+            current = open(table, "rb").read()
+            self.assertEqual(stale(), current, "in step — not rewritten")
+            open(code, "w", encoding="utf-8").write(after.replace("120", "90"))
+            later = os.stat(table).st_mtime_ns + 5 * 10 ** 9
+            os.utime(code, ns=(later, later))
+            self.assertNotEqual(stale(), current, "the value file is newer — the table is rewritten")
+            self.assertEqual(os.stat(table).st_mtime_ns, os.stat(code).st_mtime_ns)
+            self.assertIn("code match", run(TABLE, root, "check").stdout)
+            os.remove(table)
+            run(TABLE, root, "export", "--if-stale")
+            self.assertFalse(os.path.exists(table), "the hook does not make a table that was never made")
+            run(TABLE, root, "bake", ok=False)  # no table to bake
+            run(TABLE, root, "export")
+            excel_save(table, {"PLAYER_HP": "70"})
+            run(TABLE, root, "bake")
+            self.assertEqual(os.stat(table).st_mtime_ns, os.stat(code).st_mtime_ns, "after a bake the two are in step")
 
-        one = get()
-        self.assertEqual(one["values"], {"PLAYER_HP": 100.0, "PLAYER_WALK_SPEED": 4.0, "COIN_VALUE": 5.0,
-                                         "UNMARKED": 2.5, "STRAY": 1.0})
-        time.sleep(0.05)
-        excel_save(table, {"PLAYER_HP": "80", "COIN_VALUE": "많이"})
-        two = get()
-        self.assertNotEqual(one["stamp"], two["stamp"], "saving changes the stamp")
-        self.assertEqual(two["values"], {"PLAYER_HP": 80.0}, "cells that are not numbers are skipped")
-
-        # some clients put the whole address on the request line
-        host, port = url.split("/")[2].split(":")
-        with socket.create_connection((host, int(port)), timeout=5) as sock:
-            sock.sendall(f"GET {url}?x=1 HTTP/1.0\r\n\r\n".encode())
-            self.assertIn(b"200 OK", sock.makefile("rb").readline())
-        with self.assertRaises(urllib.error.HTTPError) as e:
-            urllib.request.urlopen(url + "x", timeout=5)
-        self.assertEqual(e.exception.code, 404)
-
-        open(table, "wb").write(b"PK\x03\x04 broken")
-        with self.assertRaises(urllib.error.HTTPError) as e:
-            get()
-        self.assertEqual(e.exception.code, 503, "a half-read file")
+        empty = tempfile.mkdtemp(prefix="kit-none-")
+        self.addCleanup(shutil.rmtree, empty, True)
+        p = subprocess.run([sys.executable, TABLE, "export", "--if-stale"], cwd=empty, capture_output=True, text=True)
+        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""), "outside a game repository, nothing happens")
+        open(os.path.join(empty, "kit.config.json"), "w").write("{}")  # a game with no balance-table section
+        p = subprocess.run([sys.executable, TABLE, "export", "--if-stale"], cwd=empty, capture_output=True, text=True)
+        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""))
 
     def test_init(self):
         init = os.path.join(KIT, "skills/init/scripts/init.py")
@@ -522,12 +534,12 @@ exit 0
         run(init, root, engine, "--rules", "--force")
         self.assertNotIn("They may agree now and then", text())
 
-        put("# Old game\n\n## Balance values are edited in the table\nwords this game rewrote\n")
+        put("# Old game\n\n## The balance table shows the game's numbers\nwords this game rewrote\n")
         self.assertIn("has no kit rules block", check())
         out = run(init, root, engine, "--rules").stdout
         self.assertIn("appended the kit rules block at the end of CLAUDE.md", out)
-        self.assertIn("sections with the same titles remain outside the block (copied from an older version): Balance values are edited in the table", out)
-        self.assertTrue(text().startswith("# Old game\n\n## Balance values are edited in the table\nwords this game rewrote\n\n<!-- gamedev-kit start"))
+        self.assertIn("sections with the same titles remain outside the block (copied from an older version): The balance table shows the game's numbers", out)
+        self.assertTrue(text().startswith("# Old game\n\n## The balance table shows the game's numbers\nwords this game rewrote\n\n<!-- gamedev-kit start"))
         put("# Old game\n")
         cfg_path = os.path.join(root, "kit.config.json")
         whole = open(cfg_path, encoding="utf-8").read()
@@ -552,35 +564,114 @@ exit 0
         butler, log = os.path.join(root, "butler"), os.path.join(root, "butler.log")
         open(butler, "w").write(f"#!/bin/sh\necho \"$@\" >> '{log}'\n")
         os.chmod(butler, 0o755)
-        cfg = {"itch": "me/game", "butler": butler, "version": {"file": "VERSION", "regex": "v=(\\S+)"},
+        cfg = {"platform": "itch", "target": "me/game", "version": {"file": "VERSION", "regex": "v=(\\S+)"},
                "pre": ["true"], "channels": {"html5": {"build": "mkdir -p out && echo hi > out/index.html",
                                                         "dir": "out", "must": "index.html"}}}
+        home = os.path.join(root, "home")  # no login of this machine is seen
+        os.makedirs(home)
 
-        def write(**over):
-            json.dump({"deploy": dict(cfg, **over)}, open(os.path.join(root, "kit.config.json"), "w"))
+        def write(*drop, **over):
+            json.dump({"deploy": {k: v for k, v in dict(cfg, **over).items() if k not in drop}}, open(os.path.join(root, "kit.config.json"), "w"))
 
+        def deploy(*args, ok=True, **env):
+            env = dict({"HOME": home, "BUTLER": butler, "BUTLER_API_KEY": "key"}, **env)
+            p = subprocess.run([sys.executable, DEPLOY, "--root", root, *args], capture_output=True, text=True,
+                               env={k: v for k, v in dict(os.environ, **env).items() if v})
+            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
+            return p.stdout + p.stderr
+
+        def calls():
+            return open(log).read().strip().split("\n") if os.path.exists(log) else []
+
+        # the upload command, the tool and the login are read from platforms/itch/platform.json
         write()
         open(os.path.join(root, "VERSION"), "w").write("v=0.3.0\n")
-        self.assertIn("me/game · version 0.3.0", run(DEPLOY, root, "check").stdout)
-        self.assertIn("no build in", run(DEPLOY, root, "push", "--dry-run", ok=False).stderr)
-        self.assertIn("1 file(s)", run(DEPLOY, root, "build").stdout)
-        self.assertIn("not uploaded", run(DEPLOY, root, "push", "html5", "--dry-run").stdout)
-        run(DEPLOY, root, "push")
+        self.assertIn("OK to upload — itch.io · me/game · version 0.3.0 · channels html5\n", deploy("check"))
+        self.assertIn("no build in", deploy("push", "--dry-run", ok=False))
+        self.assertIn("1 file(s)", deploy("build"))
+        self.assertIn("→ itch.io me/game:html5 · version 0.3.0 · not uploaded", deploy("push", "html5", "--dry-run"))
+        pushed = deploy("push")
+        self.assertIn("out (1 file(s) · 0.0 MB) → itch.io me/game:html5 · version 0.3.0\n", pushed)
+        self.assertIn("https://me.itch.io/game", pushed, "what to look at once it is up")
         out = os.path.join(os.path.realpath(root), "out")
-        self.assertEqual(open(log).read().replace(os.path.join(root, "out"), out).split("\n")[:2],
+        self.assertEqual([line.replace(os.path.join(root, "out"), out) for line in calls()],
                          [f"push {out} me/game:html5 --userversion 0.3.0 --dry-run",
                           f"push {out} me/game:html5 --userversion 0.3.0"])
-        self.assertIn("unknown channel", run(DEPLOY, root, "build", "win", ok=False).stderr)
+        self.assertIn("unknown channel", deploy("build", "win", ok=False))
+        deploy("status")
+        self.assertEqual(calls()[-1], "status me/game")
+        self.assertIn("itch.io — target `user/game` · uploaded by this script\n\n# itch.io", deploy("notes"))
 
+        # nothing is uploaded when a check fails — and a failure on the platform's side comes with the platform's notes
         write(pre=["false"])
-        self.assertIn("pre-check failed", run(DEPLOY, root, "push", ok=False).stderr)
-        self.assertEqual(len(open(log).read().strip().split("\n")), 2, "butler is not called when a check fails")
-        write(itch="game")
-        self.assertIn("user/game", run(DEPLOY, root, "check", ok=False).stderr)
-        write(butler=os.path.join(root, "no-butler"))
-        self.assertIn("butler not found", run(DEPLOY, root, "check", ok=False).stderr)
+        failed = deploy("push", ok=False)
+        self.assertIn("pre-check failed", failed)
+        self.assertNotIn("what the user does once", failed, "a failure on the game's side does not bring the platform's notes")
+        write(target="game")
+        self.assertIn("deploy.target is not in the form `user/game`: 'game'", deploy("check", ok=False))
+        write(target="")
+        empty = deploy("push", ok=False)
+        self.assertIn("deploy.target is empty — the user creates the game's page on itch.io first", empty)
+        self.assertIn("itch.io — what the user does once:\n# itch.io", empty)
+        write()
+        self.assertIn("butler not found — the user installs it", deploy("check", ok=False, BUTLER=os.path.join(root, "no-butler")))
+        self.assertIn("butler is not logged in — the user runs `butler login`", deploy("push", ok=False, BUTLER_API_KEY=""))
+        os.makedirs(os.path.join(home, ".config/itch"))
+        open(os.path.join(home, ".config/itch/butler_creds"), "w").write("x")
+        self.assertIn("OK to upload", deploy("check", BUTLER_API_KEY=""), "a login butler saved counts as well as the key")
+        self.assertEqual(len(calls()), 3, "the tool is not called when a check fails")
+
+        # a config from before platforms — the target under the platform's own key, no `platform` — is read as that platform
+        write("platform", "target", itch="old/game")
+        self.assertIn("OK to upload — itch.io · old/game · version 0.3.0", deploy("check"))
+        deploy("push")
+        self.assertEqual(calls()[-1].replace(os.path.join(root, "out"), out), f"push {out} old/game:html5 --userversion 0.3.0")
+        write("platform", "target", itch="")
+        self.assertIn("deploy.target is empty", deploy("check", ok=False), "an old config that never named its target")
+
+        # no platform named, or one that is no folder of platforms/ — refused, with the ones there are. Building does not need one
+        write("platform", "target")
+        self.assertIn("deploy.platform in kit.config.json is empty — where the build goes: google-play · itch", deploy("check", ok=False))
+        self.assertIn("1 file(s)", deploy("build"))
+        write(platform="nowhere")
+        for cmd in ("check", "push", "status", "notes"):
+            self.assertIn("unknown platform nowhere — google-play · itch", deploy(cmd, ok=False))
+
+        # a platform with no upload command: checked and built the same way, then the user is told what to upload where
+        write(platform="google-play", target="com.me.game", channels={"android": {"build": "mkdir -p apk && echo hi > apk/game.aab", "dir": "apk", "must": "game.aab"}})
+        self.assertIn("OK to upload — Google Play · com.me.game · version 0.3.0 · channels android · uploaded by the user", deploy("check", BUTLER=""))
+        deploy("build")
+        before = len(calls())
+        for args in (("push", "--dry-run"), ("push",)):
+            said = deploy(*args)
+            self.assertIn("android: apk (1 file(s) · 0.0 MB) → Google Play com.me.game · version 0.3.0 · not uploaded\n", said)
+            self.assertIn("The user uploads apk/game.aab in Play Console", said)
+            self.assertIn("the app com.me.game", said)
+        self.assertIn("Google Play has no status command", deploy("status"))
+        self.assertEqual(len(calls()), before, "no tool is called")
+        write(platform="google-play", target="game")
+        self.assertIn("deploy.target is not in the form `com.name.game`", deploy("push", ok=False))
+        write(platform="google-play", target="")
+        self.assertIn("deploy.target is empty — the target is the app's package name", deploy("check", ok=False))
+
+        # the script knows no platform's name: one folder is one platform
+        platforms = os.path.join(root, "platforms")
+        os.makedirs(os.path.join(platforms, "toy"))
+        json.dump({"label": "Toy Store", "legacy_key": "toybox", "tool": {"name": "toyup", "env": "TOYUP", "missing": "install toyup"},
+                   "where": "{target}/{channel}", "upload": ["{tool}", "send", "{file}", "to", "{target}", "{channel}", "{version}"]},
+                  open(os.path.join(platforms, "toy", "platform.json"), "w"))
+        write("platform", "target", toybox="shelf")
+        self.assertIn("toyup not found — install toyup", deploy("check", ok=False, GAMEDEV_KIT_PLATFORMS=platforms))
+        said = deploy("push", "--dry-run", GAMEDEV_KIT_PLATFORMS=platforms, TOYUP=butler)
+        self.assertIn("→ Toy Store shelf/html5 · version 0.3.0 · not uploaded", said)
+        before = len(calls())
+        deploy("push", GAMEDEV_KIT_PLATFORMS=platforms, TOYUP=butler)
+        self.assertEqual([line.replace(os.path.join(root, "out"), out) for line in calls()[before:]], [f"send {out}/index.html to shelf html5 0.3.0"],
+                         "with no preview arguments --dry-run runs nothing; the upload is the platform's command")
+        self.assertIn("Toy Store has no status command", deploy("status", GAMEDEV_KIT_PLATFORMS=platforms))
 
     def test_deploy_engine_config(self):
+        platforms = sorted(os.listdir(os.path.join(KIT, "platforms")))
         for engine in CODE:
             with self.subTest(engine=engine):
                 root = tempfile.mkdtemp(prefix=f"kit-deploy-{engine}-")
@@ -588,7 +679,8 @@ exit 0
                 shutil.copy(os.path.join(KIT, "engines", engine, "kit.config.json"), os.path.join(root, "kit.config.json"))
                 cfg = json.load(open(os.path.join(root, "kit.config.json"), encoding="utf-8"))
                 self.assertNotIn("promo", cfg)
-                self.assertIn("deploy.itch", run(DEPLOY, root, "check", "--dirty", ok=False).stderr, "right after install the target is empty")
+                self.assertIn(cfg["deploy"]["platform"], platforms, "the engine's build names the platform it is for")
+                self.assertIn("deploy.target is empty", run(DEPLOY, root, "check", "--dirty", ok=False).stderr, "right after install the target is empty")
                 if engine in VERSION_LINE:
                     path = os.path.join(root, cfg["deploy"]["version"]["file"])
                     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -775,6 +867,13 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         index = open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read()
         self.assertIn('<a class="tile go" href="assets.html"><span class="lab">models · images 5 · sounds 0</span><b>Asset sheet →</b></a>', index)
         self.assertLess(index.index('href="assets.html"'), index.index('class="flow"'), "the way to the sheet sits above the stage cards, always in view")
+        os.makedirs(os.path.join(root, "data"), exist_ok=True)  # a game with a balance table: its tile stands next to the sheet's
+        open(os.path.join(root, "data/balance.xlsx"), "w").write("x")
+        run(BOARD, root)
+        self.assertIn('<b>Asset sheet →</b></a><a class="tile go" href="../../data/balance.xlsx"><span class="lab">',
+                      open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read())
+        os.remove(os.path.join(root, "data/balance.xlsx"))
+        run(BOARD, root)
         self.assertIn("Chunky low-poly, muted palette.", sheet)
         self.assertIn("Bronze age, weathered wood.", sheet)
         self.assertIn("Faces are simple", sheet)
@@ -1368,7 +1467,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             self.assertIn(head, text, "the cycle document is written in the English words")
         text = (text.replace("Stage: Goal", "Stage: Play")
                 .replace("## Design\n", "## Design\n\n### Assets needed\n\n| Name | Kind | Used in | Have |\n|---|---|---|---|\n"
-                         "| coin_ping — the pickup sound | sound effect | pickup | none |\n| coin — a coin | sprite | pickup | placeholder square |\n")
+                         "| coin_ping — the pickup sound | sound effect | pickup | none |\n| coin — a coin | sprite | pickup | placeholder square |\n"
+                         "| none — all rectangles | — | — | — |\n| none |  | — | — |\n")
                 .replace("## Tasks\n", "## Tasks\n\n### [x] T1. Pick up a coin\n- **GDD**: BAL.COIN.VALUE · RULE.COIN.PICKUP(new)\n- **Done**: the coin is picked up\n\n"
                          "### [!] T2. Play a sound\n- **GDD**: BAL.COIN.VALUE\n- **Blocked**: there is no coin_ping\n")
                 .replace("## Order\n", "## Order\n- Wave 1 (done): T1\n- Wave 2: T2 — after T1\n"))
@@ -1400,6 +1500,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertNotIn("log.html", chart + stage)
         self.assertIn("unanswered decisions 1", run(BOARD, root).stdout)
         self.assertNotIn("Unsorted", run(BOARD, root).stdout, "with nothing outside the stages, it is not mentioned")
+        self.assertNotIn("<b>none</b>", chart + stage, "a row with no Kind says nothing is needed — it is not an asset")
         self.assertIn("<b>0</b>", chart)
         os.makedirs(os.path.join(root, "assets/sounds"))
         open(os.path.join(root, "assets/sounds/zzz_orphan.mp3"), "w").write("x")
@@ -1413,6 +1514,27 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         stamp = os.path.getmtime(out)
         run(BOARD, root, "--if-stale")
         self.assertEqual(os.path.getmtime(out), stamp, "with nothing changed, it is not redrawn")
+
+        # The balance table: a tile opens the file and says, from the two files' times, where it stands with the value file
+        self.assertNotIn("Balance table", chart, "no table, no tile")
+        json.dump({"balance-table": {"code": "game/balance.txt", "table": "data/numbers.xlsx"}}, open(os.path.join(root, "kit.config.json"), "w"))
+        value_file, sheet_file = os.path.join(root, "game/balance.txt"), os.path.join(root, "data/numbers.xlsx")
+        for path in (value_file, sheet_file):
+            os.makedirs(os.path.dirname(path))
+            open(path, "w").write("x")
+        now = os.stat(out).st_mtime_ns + 5 * 10 ** 9
+        os.utime(value_file, ns=(now, now))
+        # Only equal times say something sure. A newer or older table may never have been stamped (an older kit, a fresh clone) — the tile claims nothing then
+        for at, said in ((now, "in step with the value file"), (now + 10 ** 9, "the game's numbers"), (now - 10 ** 9, "the game's numbers")):
+            os.utime(sheet_file, ns=(at, at))
+            os.utime(out, ns=(now - 10 ** 9, now - 10 ** 9))
+            run(BOARD, root, "--if-stale")
+            self.assertIn(f'<a class="tile go" href="../../data/numbers.xlsx"><span class="lab">{said}</span><b>Balance table →</b></a>', page(root, "index.html"))
+        os.remove(sheet_file)
+        run(BOARD, root)
+        self.assertNotIn("Balance table", page(root, "index.html"))
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        run(BOARD, root)
 
         # The legacy case: the same game in the Korean words the kit wrote before — hand-written, as such documents sit in older games. It draws the same board.
         old = project(GDD.replace("# 게임", "# 게임 — 기획서").replace("## 4. 규칙", "## 4. 규칙 <b>")

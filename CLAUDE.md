@@ -6,9 +6,13 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 
 - **Whatever differs per engine lives only in `engines/<engine>/`.** Do not put branches on an engine's name into skills or scripts.
   Scripts read only values from `kit.config.json` (extensions · regexes · paths). Adding an engine must be a matter of adding one folder.
-  The engines included now are Godot and Unity (Android) — **only an engine verified by making a whole game with it goes in** (the Roblox settings were removed in 0.9.0; they are in the git history).
-  Unity is being filled in while a game is made with it — how far it has been run is recorded in `records.md`.
+  The engines included now are Godot, Unity (Android) and web (plain HTML and JavaScript — no editor) — **only an engine verified by making a whole game with it goes in** (the Roblox settings were removed in 0.9.0; they are in the git history).
+  Unity and web are being filled in while games are made with them — how far it has been run is recorded in `records.md`.
   `tests/test_structure.py` blocks an engine's name appearing as a string in a script.
+- **Whatever differs per upload platform lives only in `platforms/<platform>/`.** The tool an upload needs, how to tell it is logged in, the upload command
+  (or that there is none and the user uploads by hand), the form of a target are data in `platform.json`; what the user does once is in its `NOTES.md`.
+  The deploy script branches only on what that file says, and the deploy skill and agent name no platform. Adding a platform must be a matter of adding one folder.
+  Which platform an engine's build is for is in that engine's `kit.config.json` (`deploy.platform`). `tests/test_structure.py` blocks a platform folder's name appearing as a string in a script.
 - **A skill is complete within its own folder.** Do not import another skill's scripts. Settings go in `kit.config.json` under a section named after the skill.
 - **Scripts use only the standard library** (Python 3.9 — a package missing on the installing side breaks only there. `tests/test_structure.py` blocks it). Only the script Blender runs (`blender_finish.py`) uses `bpy`. The game root is found by walking up from the current folder — never from the script's location.
 - **Do not overwrite files in the game repository.** init creates only files that do not exist. There is one exception — the `<!-- gamedev-kit start -->` block (`<!-- gamedev-kit 시작 -->` in a game set up by an older kit) inside the game's CLAUDE.md belongs to the kit,
@@ -30,12 +34,12 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 ## Verification
 
 ```bash
-python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init's engine project creation runs against a fake editor, deploy against a fake butler, feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
-python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's name in scripts, is only the standard library used
+python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init's engine project creation runs against a fake editor, deploy against a fake upload tool (the platform files are read as they are), feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
+python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's or a platform's name in scripts, is only the standard library used
 claude plugin validate .           # manifest
 ```
 
-These tests do not cover the Godot runtime templates. If you change them, run them in that engine yourself — what was run and what was not is recorded in `records.md` (see "Where records go" below).
+These tests do not run the files an engine folder installs into a game (`engines/<engine>/files/`). If you change them, run them in that engine yourself — what was run and what was not is recorded in `records.md` (see "Where records go" below).
 
 Tokens and time are measured from the game repository's session logs — compare before and after a change:
 

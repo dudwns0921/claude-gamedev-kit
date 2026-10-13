@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Balance table — ties the Excel table (xlsx) to the balance value file in code.
 
-  python3 balance_table.py export          (re)make the table from the values in code
-  python3 balance_table.py bake            write the table's values into the code
-  python3 balance_table.py check           if the two differ, print the differing lines and exit 1
-  python3 balance_table.py serve [port]    serve the table as JSON (for engines that cannot read disk, default 8765)
+  python3 balance_table.py export             (re)make the table from the values in code
+  python3 balance_table.py export --if-stale  the same, only when the table exists and the value file is newer. Prints nothing and always exits 0 (the hook calls it)
+  python3 balance_table.py bake               write the table's values into the code
+  python3 balance_table.py check              if the two differ, print the differing lines and exit 1
 
-The table is where balancing happens. Once a value is settled, bake it into the code — a deploy build does not read the table, only the baked values.
-After baking, /gamedev-kit:gdd-sync to-gdd.
+The game runs on the value file. The table is a sheet where its numbers are seen at a glance, kept in step with it; a number changed
+in the table reaches the game when it is baked into the code. After baking, /gamedev-kit:gdd-sync to-gdd.
+
+A table this script writes carries the value file's modification time. So file times alone tell the three cases apart: the same time — in step;
+the table newer — edited in the spreadsheet and not baked yet (--if-stale leaves it alone); the value file newer — the table is behind (--if-stale rewrites it).
 
 Which file is the value file and what one line looks like is in "balance-table" in the project root's kit.config.json.
 Runs with no external packages. An xlsx is a zip of XML, so the standard library reads and writes it.
@@ -167,6 +170,8 @@ def write_table(rows):
             info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))  # same values, same file — git stays quiet
             info.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(info, text)
+    at = os.stat(CODE)
+    os.utime(TABLE, ns=(at.st_atime_ns, at.st_mtime_ns))  # the value file's time: a later save in the spreadsheet is what makes the table newer
 
 
 # ── Read ─────────────────────────────────────────────────────────────────────
@@ -248,52 +253,14 @@ def bake():
     print(f"Baked {len(changed)}. Next: /gamedev-kit:gdd-sync to-gdd" if changed else "No values changed")
 
 
-# ── Serve ───────────────────────────────────────────────────────────────────
-
-def snapshot():
-    """{"stamp": when the table was saved, "values": {name: number}}. None if it cannot be read because Excel is mid-save."""
+def export_if_stale(root):
+    """For the hook: bring the table up to the value file, and never get in the way. Outside a game, with no table, or with a table
+    saved after the value file (edited in the spreadsheet, not baked yet) it does nothing."""
     try:
-        stamp = str(os.stat(TABLE).st_mtime_ns)
-        table = read_table()
-    except (OSError, zipfile.BadZipFile, ET.ParseError, KeyError, IndexError):
-        return None
-    values = {}
-    for name, text in table.items():
-        try:
-            values[name] = float(text)
-        except ValueError:
-            pass  # cells that are not numbers are skipped
-    return {"stamp": stamp, "values": values}
-
-
-def serve(port):
-    """Serve the table so a running game can fetch it. Open only on this machine (127.0.0.1)."""
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    from urllib.parse import urlparse
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            # some clients put the whole address on the request line (GET http://127.0.0.1:8765/balance)
-            if urlparse(self.path).path.rstrip("/") != "/balance":
-                snap, status = {"error": "only /balance exists"}, 404
-            else:
-                snap = snapshot()
-                snap, status = (snap, 200) if snap else ({"error": "could not read the table"}, 503)
-            body = json.dumps(snap).encode("utf-8")
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *_args):
-            pass  # logging a request every 0.5 s would flood the terminal
-
-    server = HTTPServer(("127.0.0.1", port), Handler)
-    print(f"http://127.0.0.1:{server.server_address[1]}/balance — {os.path.relpath(TABLE, ROOT)} (Ctrl+C to stop)", flush=True)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
+        setup(root)
+        if os.path.exists(TABLE) and os.stat(CODE).st_mtime_ns > os.stat(TABLE).st_mtime_ns:
+            write_table(read_code())
+    except (Exception, SystemExit):
         pass
 
 
@@ -305,8 +272,10 @@ def main():
         root = args[i + 1]
         del args[i:i + 2]
     cmd = args[0] if args else ""
-    if cmd not in ("export", "bake", "check", "serve"):
+    if cmd not in ("export", "bake", "check"):
         sys.exit(__doc__)
+    if args == ["export", "--if-stale"]:
+        return export_if_stale(root)
     setup(root)
     if cmd == "export":
         rows = read_code()
@@ -314,7 +283,7 @@ def main():
         print(f"{os.path.relpath(TABLE, ROOT)} — {len(rows)} lines")
     elif cmd == "bake":
         bake()
-    elif cmd == "check":
+    else:
         changed, missing = diff()
         for name, old, new in changed:
             print(f"  {name}: code {old} · table {new}")
@@ -323,8 +292,6 @@ def main():
         if changed:
             sys.exit("The table and the code differ — balance_table.py bake")
         print("The table and the code match" + (f" — but {len(missing)} value(s) are only in the code: balance_table.py export puts them in the table" if missing else ""))
-    else:
-        serve(int(args[1]) if len(args) > 1 else 8765)
 
 
 if __name__ == "__main__":

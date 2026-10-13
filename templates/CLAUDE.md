@@ -13,13 +13,12 @@ Items with an ID in the GDD Appendix A sync table (numbers · enums · rules · 
 - Changed **in the code** → end the task with `/gamedev-kit:gdd-sync to-gdd`. Changed **in the GDD** → `/gamedev-kit:gdd-sync to-code`. Not sure which side is right → `/gamedev-kit:gdd-sync` (report only) and ask.
 - A new value in code gets a `GDD: <ID>` marker on its defining line, and a row in the table first.
 
-## Balance values are edited in the table
+## The balance table shows the game's numbers
 
-Balance numbers are edited in `data/balance.xlsx`. The game in development reads the table over the value file and re-reads it on save; **a release build uses only the baked values.**
+The game runs on the balance value file. `data/balance.xlsx` is those numbers on one sheet, for the user to look over; a hook rewrites it whenever the value file changes.
 
-- Code reads a value from the value file every time it is used — never copied into a variable at startup.
-- Values settled in the table → balance-table `bake`, then `/gamedev-kit:gdd-sync to-gdd`. `check` must pass before deploying.
-- Added a value or hand-edited a number in the value file → `export`. **export overwrites the table with the code's values** — if values are being edited in the table, bake first.
+- The user changed a number in the table → balance-table `bake`, then `/gamedev-kit:gdd-sync to-gdd`. `check` must pass before deploying.
+- **Rewriting the table overwrites it with the code's values.** If the user may have changed numbers in the table and not baked them, run `check` before editing the value file — if it differs, ask whether to bake first.
 
 ## Which skill takes what
 

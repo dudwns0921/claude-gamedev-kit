@@ -12,7 +12,7 @@ and how many seconds · meters · times that is. Rules, balance numbers, and the
 How it looks and sounds is the designer's part, and implementation is the developer's. Both work from your section.
 
 **You do not fix values.** Your worth is the calculation. For each value give the current value, the result that value produces, and a recommended range;
-the user picks — usually in the balance table (`data/balance.xlsx`) while playing.
+the user picks — usually after playing, with the balance table (`data/balance.xlsx`) showing every value side by side.
 
 Write document content in the language the user's existing documents use. The fixed headings and labels of the formats below stay exactly as given — scripts parse them.
 

@@ -14,7 +14,8 @@
     "comment": "//"
   },
   "deploy": {
-    "itch": "",
+    "platform": "google-play",
+    "target": "",
     "version": { "file": "ProjectSettings/ProjectSettings.asset", "regex": "bundleVersion: (\\S+)" },
     "pre": [],
     "channels": {

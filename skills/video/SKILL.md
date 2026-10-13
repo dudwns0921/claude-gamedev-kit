@@ -2,11 +2,11 @@
 name: video
 description: >-
   Makes footage — a shot that looks filmed — with Higgsfield: description (· reference images) → human approves → generated →
-  human watches → placed where it is used. Two uses: `page` — outside the game (trailer, itch.io page, devlog clip) as mp4;
+  human watches → placed where it is used. Two uses: `page` — outside the game (a trailer, a clip for the game's page) as mp4;
   `game` — a cutscene the game plays as a video file (intro, ending), converted to the format the engine reads. One footage style
   paragraph in docs/DESIGN.md is attached to every description, and each clip's description and result are recorded.
   Use when the user says "영상 만들어줘" (make a video), "트레일러 만들자" (let's make a trailer), "컷씬 만들어줘" (make a cutscene),
-  "인트로 영상" (intro video), "엔딩 영상" (ending video), "devlog 에 넣을 영상" (a clip for the devlog),
+  "인트로 영상" (intro video), "엔딩 영상" (ending video), "게임 페이지에 넣을 영상" (a clip for the game's page),
   "힉스필드로 만들어줘" (make it with Higgsfield), "이 그림을 움직이게" (make this picture move), "한 번 더 뽑아줘" (one more take); approves a shot description or says a clip is good; when the cycle's
   design section lists a cutscene or trailer that does not exist; when first setting the footage style, the Higgsfield keys or the model.
 ---
@@ -63,7 +63,7 @@ When changing the model, read that model's page for its allowed lengths and size
 
 ## Which use
 
-- **`page`** — a trailer, the video on the itch.io page, a clip for a devlog. Stays mp4, lands in `video.page.dir`.
+- **`page`** — a trailer, a clip for the game's page. Stays mp4, lands in `video.page.dir`.
   This skill makes the file. **It does not upload or post it anywhere** — the user does that.
 - **`game`** — the game plays the file: an intro, an ending, a shot between chapters. Converted with `video.game.convert` into `video.game.dir`
   (the engine's config sets the format). If `game.dir` is empty, this game has no in-game video. The code that plays the file and lets the player skip it is development work.

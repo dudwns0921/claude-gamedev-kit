@@ -5,10 +5,10 @@
   python3 init.py --detect     which engine's project this folder already is (or the engines to choose from)
   python3 init.py <engine> --editor     the editor executable on this machine and the modules a build needs — if missing, says what to install and exits 1
   python3 init.py <engine> --create     create the engine project in this folder if there is none (.git · docs/ may already be there)
-  python3 init.py <engine>       install the config · GDD template · runtime template. Also adds the engine's .gitignore lines
+  python3 init.py <engine>       install the config · GDD template · engine templates. Also adds the engine's .gitignore lines
   python3 init.py <engine> --import     have the engine read the installed files once (compile · import). Exits 1 if there are error lines
   python3 init.py <engine> --gitignore  add only the engine's .gitignore lines (lines already there are not written again)
-  python3 init.py <engine> --files   in an already installed project, also reinstall the engine templates (value file · runtime) that are missing
+  python3 init.py <engine> --files   in an already installed project, also reinstall the engine templates (the value file and what else the engine brings) that are missing
   python3 init.py <engine> --rules   bring the kit rules block in CLAUDE.md to the current version (appended at the end if absent). Nothing outside the block is touched
   python3 init.py --rules-check    called by the hook when a session starts: if the block is an older version, replaces it with the current one and prints one line. If the block is absent or was edited by hand, only reports it. Silent if they match
 
@@ -116,6 +116,8 @@ def need_editor(engine):
 def cmd_editor(engine):
     spec = project(engine)
     ed = spec.get("editor", {})
+    if not ed:
+        return print(f"{engine}: no editor to find — nothing to install")
     exe, version = need_editor(engine)
     versions = find_editor(engine)[2]
     print(f"{ed.get('name', engine)} {version} — {exe}".replace("  ", " ")

@@ -1,0 +1,110 @@
+{
+  "engine": "web",
+  "models": "standard",
+  "gdd-sync": {
+    "code_ext": [
+      ".js",
+      ".mjs",
+      ".html",
+      ".css",
+      ".json"
+    ],
+    "skip_dirs": [
+      ".git",
+      ".claude",
+      "node_modules",
+      "build",
+      "docs",
+      "data"
+    ],
+    "symbol": "(?:const|let|var|function|class)\\s+([A-Za-z_$][A-Za-z0-9_$]*)"
+  },
+  "balance-table": {
+    "code": "game/balance.js",
+    "table": "data/balance.xlsx",
+    "line": "^(export const )([A-Z][A-Z0-9_]*)( = )(-?\\d+(?:\\.\\d+)?)(;\\s*(?://.*)?)$",
+    "doc_prefix": "///",
+    "comment": "//"
+  },
+  "deploy": {
+    "platform": "itch",
+    "target": "",
+    "version": {
+      "file": "game/version.js",
+      "regex": "VERSION = \"([^\"]+)\""
+    },
+    "pre": [],
+    "channels": {
+      "html5": {
+        "build": "rm -rf build/web && mkdir -p build/web && cp -R index.html game build/web/ && if [ -d assets ]; then cp -R assets build/web/; fi",
+        "dir": "build/web",
+        "must": "index.html"
+      }
+    }
+  },
+  "asset": {
+    "dir": "assets/models",
+    "format": "glb",
+    "views": [
+      "front",
+      "back"
+    ],
+    "refs": [],
+    "image": {
+      "model": "gpt-image-2.5-flare",
+      "size": "1024x1024",
+      "quality": "medium"
+    },
+    "meshy": {
+      "ai_model": "latest",
+      "target_polycount": 5000,
+      "topology": "triangle",
+      "enable_pbr": false
+    },
+    "sound": {
+      "dir": "assets/sounds",
+      "format": "mp3_44100_128",
+      "influence": 0.3,
+      "music_model": "music_v1"
+    },
+    "sprite": {
+      "dir": "assets/sprites",
+      "style_ref": "",
+      "view": "",
+      "image": {
+        "image_type": "sprite"
+      },
+      "animate": {
+        "model": "hydra",
+        "duration": 3
+      }
+    }
+  },
+  "video": {
+    "size": "landscape",
+    "page": {
+      "dir": "docs/video"
+    },
+    "clip": {
+      "model": "higgsfield/cinema-studio/4.0",
+      "seconds": 5,
+      "params": {
+        "resolution": "720p"
+      }
+    },
+    "game": {
+      "dir": "Assets/Video",
+      "ext": "mp4",
+      "convert": [
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart"
+      ]
+    }
+  }
+}

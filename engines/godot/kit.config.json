@@ -14,7 +14,8 @@
     "comment": "#"
   },
   "deploy": {
-    "itch": "",
+    "platform": "itch",
+    "target": "",
     "version": { "file": "project.godot", "regex": "config/version=\"([^\"]+)\"" },
     "pre": [],
     "channels": {

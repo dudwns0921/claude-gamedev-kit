@@ -1,38 +1,41 @@
 ---
 name: balance-table
 description: >-
-  Edits balance numbers in an Excel table (data/balance.xlsx) and keeps it aligned with the balance value file in code. Code → table (export),
-  table → code (bake), are they equal (check), serve the table to a running game (serve). Engine-agnostic
-  (kit.config.json sets the shape of a value line). Use when the user says "밸런스 표" ("balance table"), "엑셀" ("Excel"),
-  "표 구워줘" ("bake the table"), "bake", "표랑 코드 맞춰" ("align the table and the code"), "값이 게임에 안 먹어" ("the value does not take in the game"); a value was added to the balance value file or
-  a number was edited by hand (export); the user says a value was settled in the table (bake → gdd-sync to-gdd);
-  before making a deploy build (check); a runtime that cannot read disk needs the table (serve).
+  Keeps the balance table (data/balance.xlsx) — an Excel sheet where the game's balance numbers are seen at a glance — in step with the balance value file
+  in code, which is what the game runs on. Code → table (export; a hook does it whenever the value file changes), table → code (bake),
+  are they equal (check). Engine-agnostic (kit.config.json sets the shape of a value line). Use when the user says "밸런스 표" ("balance table"), "엑셀" ("Excel"),
+  "표 구워줘" ("bake the table"), "bake", "표랑 코드 맞춰" ("align the table and the code"), "표 보여줘" ("show me the table"); the user says they changed a number in the table
+  (bake → gdd-sync to-gdd); the table does not exist yet or looks out of date (export); before making a deploy build (check).
 ---
 
 # balance-table
 
-Balance values live in two places. The **table** (`data/balance.xlsx`) is where people edit; the **value file** (code) is what the game uses.
-During development the game reads the table and overrides the value file's values — values are tried without quitting the game.
-Once a value is settled, bake the table into code. Deploy builds do not read the table and use only baked values.
+The game runs on the **value file** (code). The **table** (`data/balance.xlsx`) is that file's numbers on one sheet — every value side by side,
+with its group, GDD ID and note — for the user to look over, sort and filter. A number the user changes in the table reaches the game when it is baked into the value file.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" export   # code → table (rebuilds the table)
 python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" bake     # table → code
 python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" check    # if different, prints the differing lines and exits 1. Also names values that are only in code (→ export)
-python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" serve    # serves the table at http://127.0.0.1:8765/balance
 ```
+
+**The table keeps itself current.** Once it exists, the plugin's hooks run `export --if-stale` after each edit or command, when an agent finishes and when a turn ends:
+the table is rewritten when the value file is newer than it. Nothing to do per turn. The status board's first screen has a "Balance table →" tile that opens the file.
+
+A table the script writes carries the value file's modification time, so file times say where the two stand: the same time — in step; the table newer —
+the user saved it in the spreadsheet and has not baked, or the table was never stamped (the hook leaves it alone, and the board's tile stops saying "in step"; `check` tells which); the value file newer — the hook rewrites the table.
 
 ## When to do what
 
 | What happened | What to do |
 |---|---|
-| A new value was added to the value file, or a number was edited by hand | `export`. Otherwise dev builds use the table's old value |
-| The user settled a value in the table | `bake` → `/gamedev-kit:gdd-sync to-gdd` |
+| There is no table yet | `export` — the first run is the opt-in; the hook only rewrites a table that exists |
+| The user changed a number in the table | `bake` → `/gamedev-kit:gdd-sync to-gdd` |
+| The value file is about to be edited (a task, `/gdd-sync to-code`) and the table may hold unbaked changes | `check` first. If it differs, ask the user whether to bake |
 | Making a deploy build | `check` must pass. Put it in the build script |
-| The GDD was edited and `/gdd-sync to-code` changed the value file | `export` |
 
-**export rewrites the table with the code values.** Any values being edited in the table are lost — before export, run `check` to see whether any values differ,
-and if so ask the user whether to bake first.
+**export rewrites the table with the code values**, and an edit to the value file makes the hook do exactly that. Numbers the user changed in the table and has not baked
+are lost then — that is why `check` comes before editing the value file.
 
 ## Value file rules
 
@@ -46,19 +49,8 @@ and if so ask the user whether to bake first.
 
 - Only column A Name and column B Value are read. The other columns (Code value, Group, GDD ID, Note) are for people.
   Reading goes by column, not by the header text — a table made with the older Korean header row (이름 · 값 · …) works as it is; the next `export` or `bake` rewrites the header in English.
-- Names that exist only in the table are ignored. Non-numeric cells are skipped too.
-- For values used only at start (starting crew count etc.), saving does not change a run in progress — they apply from the next run.
-
-## Reloading while running (differs per engine)
-
-`/gamedev-kit:init` installs the runtime template files into the game repository (the plugin's `engines/<engine>/files/`).
-
-- **Godot** — the game reads the table file directly (`game/config/balance_table.gd`, `game/debug/balance_watch.gd`).
-  On save it reloads within 0.5 s and shows the changed values on screen. Headless runs do not read the table and use baked values.
-- **Runtimes that cannot read disk** — `serve` serves the table as JSON: `{"stamp": "<save time>", "values": {"name": number}}`. 503 while a save is in progress.
-  The game fetches it periodically and overrides.
-
-Code that uses a value reads it from the value file every time. Storing it in a variable at startup holds on to the old value.
+- Names that exist only in the table are ignored.
+- The game does not read the table. A number changed there takes effect after `bake`, on the next run of the game.
 
 ## Deploy build check
 

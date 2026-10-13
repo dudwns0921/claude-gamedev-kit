@@ -5,6 +5,7 @@
   python3 board.py --if-stale   rewrite only when the board exists and a source is newer. Prints nothing and always exits 0 (the hook calls it)
 
 index.html is the chart — one card per stage of play, in play order: how far Function · Art · Sound · Verified have come.
+When the game has a balance table, a tile on it opens the table and says so when it is in step with the value file (the two files carry the same time).
 stage-N.html is the inside of one stage. Every state is read as written (the code is not searched here).
 
 Read-only — it writes only inside the folder of <out>. Config is "board" in kit.config.json at the project root (optional).
@@ -163,7 +164,7 @@ def cycle(path):
         for row in text[nm.end():nm.end() + end.start() if end else len(text)].split("\n"):
             cells = [c.strip() for c in row.strip().strip("|").split("|")] if row.startswith("|") else []
             name = cells[0].split(" — ")[0].strip("` ") if cells else ""
-            if len(cells) >= 4 and re.fullmatch(r"[a-z][a-z0-9_]*", name):
+            if len(cells) >= 4 and re.fullmatch(r"[a-z][a-z0-9_]*", name) and cells[1].strip("—–- "):  # no Kind: a row saying nothing is needed
                 needs.append({"name": name, "what": cells[0].partition(" — ")[2], "kind": cells[1], "have": cells[3]})
     return {"needs": needs, "file": os.path.basename(path), "num": num, "name": head.group(2).strip() if head else os.path.basename(path)[:-3],
             "stage": stage.group(1) if stage else "?", "start": start.group(1) if start else "",
@@ -584,7 +585,7 @@ def index_html(name, st, asks, now, stamp, sheet):
     outside = f" · of these, {e(CFG['common'])} {stray} (assets {stray_assets}) is outside the %" if stray else ""  # 3.9 cannot reuse the same quote inside an f-string
     body = (f'<header><div><div class="lab">Chart · in the order the player meets it</div><h1>{e(name)} <span>to completion</span></h1>'
             f'<div class="sub">{len(everything)} things the player meets — done {c["done"]} · placeholder {c["temp"]} · not made {c["none"]} · problem {c["bad"]}{outside}</div></div>'
-            '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + sheet_link(sheet) + "</div></header>"
+            '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + sheet_link(sheet) + table_link() + "</div></header>"
             '<div class="total">' + "".join(f'<div style="flex:1" title="{e(s["name"])}"><i style="width:{stage_pct(s) or 0}%"></i></div>' for s in flow) + "</div>"
             '<div class="legend"><span><i class="s-done"></i>Done</span><span><i class="s-temp"></i>Placeholder — works, to be remade</span>'
             '<span><i class="s-none"></i>Not made</span><span><i class="s-bad"></i>Problem · undecided</span></div>'
@@ -738,6 +739,24 @@ def sheet_link(d):
             + (f" · old style {old}" if old else "") + (f' · no record {len(d["loose"])}' if d["loose"] else "") + "</span><b>Asset sheet →</b></a>")
 
 
+def table_files():
+    """(the balance table, the value file) — the paths the balance-table skill keeps in its section of the config. This script only looks at the files."""
+    section = (load_json(os.path.join(ROOT, CONFIG_NAME)) or {}).get("balance-table", {})
+    return os.path.join(ROOT, section.get("table") or "data/balance.xlsx"), os.path.join(ROOT, section["code"]) if section.get("code") else ""
+
+
+def table_link():
+    """The tile that opens the balance table. A table the balance-table script wrote carries the value file's time, so equal times say the two are in step.
+    Unequal times say nothing sure — an edit in the spreadsheet, a table from a kit that did not stamp it, and a fresh clone all look alike — so the tile claims nothing then."""
+    table, code = table_files()
+    if not os.path.isfile(table):
+        return ""
+    said = "the game's numbers"
+    if code and os.path.isfile(code):
+        said = "in step with the value file" if os.stat(table).st_mtime_ns == os.stat(code).st_mtime_ns else said
+    return f'<a class="tile go" href="{rel(table)}"><span class="lab">{said}</span><b>Balance table →</b></a>'
+
+
 def stage_html(name, s, st):
     p, pic = stage_pct(s), hero_of(s)
     tabs = "".join(f'<a class="btn{" on" if x is s else ""}" href="stage-{x["i"] + 1}.html">{x["i"] + 1:02d} {e(x["name"])}</a>'
@@ -798,6 +817,7 @@ def build(outdir, index_name):
 def sources():
     gen = os.path.join(ROOT, CFG["gen"])
     return ([os.path.join(ROOT, CFG["gdd"]), os.path.join(ROOT, CONFIG_NAME), os.path.join(ROOT, CFG["notes"]), os.path.join(ROOT, CFG["design"]), gen]
+            + [p for p in table_files() if p]
             + cycle_docs() + playtest_docs() + ([os.path.join(gen, n) for n in os.listdir(gen)] if os.path.isdir(gen) else []))
 
 

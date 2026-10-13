@@ -50,6 +50,8 @@ A cycle document path and one mode.
 |---|---|---|---|---|
 | … | 3D model · sprite · sound effect · looping sound · music · font | longest side (m) for 3D, shown size (px) for a sprite, seconds for sound | `path` or `none` (a stand-in already in the game: `placeholder <path>`) | what placeholder is used |
 
+<when nothing is needed: the header with no rows, and one sentence here saying so and why — never a row that says "none", every row is counted as an asset>
+
 ### For a human to see
 What to check by playing after implementation. What you could not settle in writing (legibility · intensity of effects · whether sounds overlap).
 ```
