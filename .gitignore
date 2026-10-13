@@ -6,3 +6,6 @@ __pycache__/
 
 # personal Claude Code settings (per machine)
 .claude/settings.local.json
+
+# scratch files of the harvest sweep (tools/harvest.py) — never committed
+/harvest-*

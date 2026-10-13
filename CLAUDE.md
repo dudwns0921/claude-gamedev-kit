@@ -79,6 +79,15 @@ also a line in `docs/kit-feedback.md` (`cycle.py lesson` · `playtest.py lesson`
 A game that sees the same thing again does not open a new issue but comments on that one — an issue with comments is one seen twice.
 The personal rule is tagged with its issue (`voice.py rule tag`); once that issue closes as completed the kit carries the rule, and the feedback skill asks the user whether to drop their copy (`feedback.py state`).
 
+Turning the issues into rules is a sweep, not a chore per issue — seeing them together is what lets the same lesson from several games become one rule.
+`.github/workflows/harvest.yml` runs it when ten eligible issues have collected, or on the button (Actions → harvest → Run workflow, `force` for fewer):
+`tools/harvest.py pick` chooses the issues (from the owner · members · collaborators; an outsider's only once the owner labels it `harvest:ok`), a model reads them
+with `.github/harvest.md` as its instructions and edits the files, `tools/harvest.py apply` · `check` refuse any change outside `engines/` · `skills/` · `agents/` · `templates/` · `tests/`
+and bump the version, and the run ends with **one pull request** — never a push to main, and no second sweep while that one is open.
+Issue text is untrusted: the job the model runs in can only read the repository; the job that pushes runs no model and none of the changed code.
+The owner's part: label outsiders' issues worth reading `harvest:ok`, review the pull request as one from outside (the table of issue → lane → where, the size of each engine rule file before and after), and merge or close it.
+Merging closes the issues that became rules or were already covered; feature requests and lessons too tied to one game stay open, labelled `harvest:request` · `harvest:skip` (remove the label to have the next sweep read it again).
+
 Game folders on this machine can also be read directly, without going through issues:
 
 ```bash
@@ -88,5 +97,5 @@ python3 tools/kit_feedback.py done <game repo> 1,3 0.7.2 # mark reflected lines 
 
 Games receive the reflected rules through a hook at session start — an untouched block is replaced with the current version by itself (if the block is missing or was edited by hand, the hook only says so: `/gamedev-kit:init rules`).
 
-Choose the right place for each line — recurring traps and ways to verify go in the engine's CLAUDE.md, one-time setup goes in NOTES.md, what a tool can prevent goes in a script (better than writing it down),
+Choose the right place for each line (the sweep is told the same in `.github/harvest.md`) — recurring traps and ways to verify go in the engine's CLAUDE.md, one-time setup goes in NOTES.md, what a tool can prevent goes in a script (better than writing it down),
 and what concerns one skill goes in that skill's document. Something seen in only one game is noted as such — it is made firm when it shows up again in a second game.

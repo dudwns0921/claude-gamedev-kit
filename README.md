@@ -219,7 +219,7 @@ These are in the kit's Godot rules today, each put there by a game that hit it:
 
 > **Web builds render at 1x.** Rendering at 2x pixels on a Retina screen gives 4–5 fps.
 
-Sending to the kit is never automatic. `/gamedev-kit:feedback` shows the exact text that would become a public issue, stops on anything that looks like a game's name or a date, and sends only the lines you approve. When the kit takes one of your rules in, you are asked whether to drop your copy.
+Sending to the kit is never automatic. `/gamedev-kit:feedback` shows the exact text that would become a public issue, stops on anything that looks like a game's name or a date, and sends only the lines you approve. When enough lessons have collected there, an action drafts a single pull request that turns them into rules, and a maintainer reviews it. When the kit takes one of your rules in, you are asked whether to drop your copy.
 
 In your game's `CLAUDE.md`, only one marked block belongs to the kit. When the kit updates, a hook replaces that block at session start and leaves everything you wrote untouched; if you edited inside the block, it only tells you.
 
@@ -281,6 +281,7 @@ claude plugin update gamedev-kit@claude-gamedev-kit
 ## Repository layout
 
 ```
+.github/            harvest.yml · harvest.md — the action that drafts one pull request from the collected feedback issues
 .claude-plugin/     plugin.json · marketplace.json (this repository is both the plugin and its marketplace)
 skills/<name>/      one skill per folder, its scripts in scripts/
 agents/<name>.md    agents — only work that needs a fixed model is an agent
@@ -291,7 +292,8 @@ templates/          GDD.md · DESIGN.md · CLAUDE.md — templates installed int
 hooks/              suggest a new session when context grows · keep the kit's rule block current ·
                     say when unsent lessons pile up · redraw the board when documents change
 tools/              session_usage.py — where tokens went, from a game repo's session logs ·
-                    kit_feedback.py — collect lessons from game folders on this machine
+                    kit_feedback.py — collect lessons from game folders on this machine ·
+                    harvest.py — which issues a harvest reads, and the check on what it changed
 tests/              test_tools.py — runs the tools end to end without an engine, against fake servers; nothing leaves the machine ·
                     test_structure.py — checks the structure rules by reading files only
 ```
