@@ -30,6 +30,8 @@ A cycle document path and the mode `spec`.
    You may calculate with Bash. Do not write something unmeasured as if it were measured.
 4. **Space comes from the numbers.** Corridor width · distance · height · spacing between places are set by tying them to speed · jump · range.
    Not "corridor 3 m" but "corridor 3 m — 0.7 s at walk speed 4.5; two passing each other need 2.4 m".
+   **Right after fixing the dimensions, check that every destination can be reached** from the start position by a body of the player's radius (a grid search with Bash is enough).
+   Dimensions that are each reasonable can lock a path between them, and that otherwise surfaces only when it is built.
 5. **Write the `## 기획` section.** If the document has no such section, create it before `## 디자인`. Do not touch other sections.
    **Write short.** This section is read many times later. One rule per line, one number per table row, calculations as result and assumptions only — no working.
    Do not restate rules that are already in the GDD and unchanged.

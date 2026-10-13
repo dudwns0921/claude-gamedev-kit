@@ -32,6 +32,7 @@ SPRITE = os.path.join(KIT, "skills/asset/scripts/sprite.py")
 CLIP = os.path.join(KIT, "skills/video/scripts/clip.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
+SHEET = os.path.join(KIT, "skills/cycle/scripts/sheet.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 VOICE = os.path.join(KIT, "skills/voice/scripts/voice.py")
 INIT = os.path.join(KIT, "skills/init/scripts/init.py")
@@ -1661,6 +1662,50 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         open(os.path.join(root, "kit.config.json"), "w").write("{깨진")
         self.assertEqual(send("--notice", cwd=root), "")
         self.assertEqual(send("--notice", cwd=home), "")
+
+    def test_sheet(self):
+        """눈으로 고르는 결정을 묻는 시트 — 물음 하나에 쪽 하나, 브라우저가 있으면 그림으로 찍는다 (가짜 브라우저)."""
+        root = tempfile.mkdtemp(prefix="kit-sheet-")
+        self.addCleanup(shutil.rmtree, root, True)
+        fake, log = os.path.join(root, "browser"), os.path.join(root, "browser.log")
+        open(fake, "w").write(f"#!/bin/sh\necho \"$@\" >> '{log}'\nfor a; do case \"$a\" in --dump-dom) echo '<html data-h=\"777\">';; "
+                              "--screenshot=*) echo shot > \"${a#--screenshot=}\";; esac; done\n")
+        os.chmod(fake, 0o755)
+        json.dump({"engine": "godot", "cycle": {"browser": fake}}, open(os.path.join(root, "kit.config.json"), "w"))
+        os.makedirs(os.path.join(root, "shots"))
+        for n in ("now", "b"):
+            open(os.path.join(root, "shots", f"{n}.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 400, 300))
+        open(os.path.join(root, "shots/photo.jpg"), "wb").write(b"\xff\xd8jpg")
+        asked = [{"id": "D3", "question": "손의 자리 <어디>", "options": [{"mark": "ⓐ", "text": "지금 그대로"}, {"mark": "ⓑ", "text": "세운다", "recommend": True}],
+                  "images": [{"label": "지금", "path": "shots/now.png", "crop": [100, 80, 200, 100]}, {"label": "ⓑ", "path": "shots/b.png"}]},
+                 {"question": "둘째", "images": [{"path": "shots/photo.jpg"}]}]
+        spec = os.path.join(root, "q.json")
+
+        def sheet(*args, ok=True):
+            json.dump(asked, open(spec, "w"))
+            return run(SHEET, root, spec, *args, ok=ok)
+
+        self.assertEqual(sheet().stdout.split(), ["docs/cycle/sheets/sheet-1.png", "docs/cycle/sheets/sheet-2.png"])
+        first = open(os.path.join(root, "docs/cycle/sheets/sheet-1.html"), encoding="utf-8").read()
+        self.assertIn("<h1>D3. 손의 자리 &lt;어디&gt;</h1>", first)
+        self.assertIn('<li class="pick"><b>ⓑ</b>세운다<small>← 권함</small></li>', first)
+        self.assertIn('style="aspect-ratio: 200 / 100"><img src="data:image/png;base64,', first)
+        self.assertIn('style="width: 200.0000%; left: -50.0000%; top: -80.0000%"', first, "자른 자리가 틀을 채운다")
+        self.assertIn("<h1>2. 둘째</h1>", open(os.path.join(root, "docs/cycle/sheets/sheet-2.html"), encoding="utf-8").read())
+        shots = [l for l in open(log).read().split("\n") if "--screenshot" in l]
+        self.assertIn("--window-size=1080,777 --screenshot=", shots[0], "쪽이 잰 높이만큼 찍는다")
+
+        asked[1]["images"][0]["crop"] = [0, 0, 10, 10]
+        self.assertIn("png 가 아니라 자를 수 없다", sheet("--name", "x", ok=False).stderr)
+        self.assertFalse(os.path.exists(os.path.join(root, "docs/cycle/sheets/x-1.html")), "하나라도 틀리면 아무것도 쓰지 않는다")
+        asked[1]["images"][0] = {"path": "shots/now.png", "crop": [300, 0, 200, 100]}
+        self.assertIn("그림(400 × 300) 안의", sheet(ok=False).stderr)
+        asked[1]["images"][0] = {"path": "shots/none.png"}
+        self.assertIn("그림이 없다 — shots/none.png", sheet(ok=False).stderr)
+        del asked[1]
+        json.dump({"engine": "godot", "cycle": {"browser": os.path.join(root, "no-browser")}}, open(os.path.join(root, "kit.config.json"), "w"))
+        out = sheet("--name", "grip", "--out", "docs/ask").stdout
+        self.assertIn("docs/ask/grip-1.html\n브라우저가 없어 그림으로 찍지 못했다", out)
 
     def test_playtest_ledger(self):
         root = tempfile.mkdtemp(prefix="kit-playtest-")

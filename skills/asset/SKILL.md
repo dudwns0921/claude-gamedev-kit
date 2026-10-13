@@ -65,6 +65,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
    If the user asks you to screen them first, call `gamedev-kit:designer` with `review` and `model: opus`, pass the paths, and get text back.
 5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>` — and when it is off because it copies the first view (a palm drawn as the back of the hand, the wrong one of a left · right pair),
    say what that side shows with `--note` ("the palm faces the viewer, thumb on the viewer's left"); the note stays with that view;
+   a left · right pair (two arms, two legs) is made one side at a time — asked for in one picture, only one comes out or the two come out fused;
    if they now hand you a photo, `image <name> --ref <path>`. **Do not `approve` because it looks good to you.** `approve` only assets the user said are good.
    **When they turn one down, record what they said** — `reject <name> "<their words>"` — before redrawing. Then ask yourself whether it is about this one object or about every asset
    ("the metal is too shiny" is about every asset). If every: `learn "<the rule, one English line>"` and show them that line. See "What is attached to every asset".
@@ -229,6 +230,9 @@ Pitfalls:
   (the ElevenLabs key must have Sound Effects and Music permissions enabled). To make sprites, add `LUDO_API_KEY=...`
   (ludo.ai → account → API; the API needs a plan that includes it, and sheets from the free plan carry a watermark). **Keep the user from pasting keys into the conversation, and even if you receive one, do not write it to any file in the repository.**
 - **Blender**: `blender` must be on PATH. If not, write the executable path in `asset.blender`.
+  If the game runs Blender scripts of its own: **Blender exits 0 even when a `--python` script dies with an exception** — have the script print a last line when it has finished
+  and judge by that line, not the exit code (this is what `asset.py` does). And before decimating a mesh, merge vertices that share a position (`remove_doubles`):
+  vertices split along UV seams otherwise tear the mesh into pieces — if a size guard then stops it, look at the decimated result, do not loosen the guard.
 - All of these services charge by use. Meshy refunds credits for failed jobs. Before running several assets at once, say how many.
 
 ## Not covered

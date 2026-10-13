@@ -92,6 +92,17 @@ If the "디자인" section's "필요한 에셋" lists a 3D model, sprite or soun
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "결정" with `ask`, and ask the user all at once —
 options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
+**A decision chosen by eye is asked with a picture, one per question.** A screen, a pose, a grip, a colour: text plus a wide comparison image handed over separately cannot be chosen from (least of all on a phone).
+Write the questions to a json file and make the sheets — each comes out as one picture with the numbered question and its options on top and, below, one tightly cropped picture per option, labelled (지금 · the change · a reference):
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/sheet.py" <questions.json> [--name <name>]   # → docs/cycle/sheets/<name>-<n>.png (.html when this machine has no browser)
+```
+
+The file's shape is in the script's head (`sheet.py` with no arguments). The pictures are the captures the agents already took, and the crop boxes come from the agent that raised the decision —
+ask it for the paths and boxes, **do not Read the captures here**. Use the decision's id (`D3`) as the question's `id`, give the user every sheet at once, and let them answer by number ("D3 은 ⓑ, D4 는 지금").
+The decision is still written with `ask` and answered with `decide` — the sheet is only how it is shown.
+
 **The voice works behind this, unseen.** If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game),
 between `ask` and asking the user, follow the voice skill's "Predict": `voice.py sync`, read that document and record one prediction per decision
 (`voice.py predict D2 ② V3`, or `predict D2 -` when no principle applies). After the answers are recorded, follow its "Score" and "Learn".

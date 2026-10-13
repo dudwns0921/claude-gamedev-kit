@@ -80,4 +80,6 @@ Missing assets: <list — none if none>
 Questions for spec: <what could not be decided because the spec lacks it — none if none>
 Decisions needed:
   D1. <question> — ① <option: feel · cost> ② … · 권함: ① (one-line reason)
+      pictures: <label> <path> crop x,y,w,h · … — only for a decision that is chosen by eye and that you have captures for: one per option,
+      the box drawn tight around the subject and the same size in every picture. The caller lays them out as one sheet; it does not open them.
 ```

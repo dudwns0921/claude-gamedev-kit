@@ -45,6 +45,9 @@ Used only on cycle documents (in a playtest document the analyst has already spl
 ```
 
 Tasks in the same wave are done by different agents at the same time. **Never put tasks that change the same file in the same wave.**
+Nor tasks that change one function's signature from both sides (one its definition, another its callers in a different file): until both land the game does not start,
+so every check that runs a whole round fails. If they must share a wave, write in their "확인" that the whole-round check is not to be trusted during it,
+and put a small task that needs a running game alone at the front of that wave.
 
 Return:
 
