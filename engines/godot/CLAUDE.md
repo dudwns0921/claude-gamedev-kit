@@ -60,3 +60,8 @@ Everything that can be verified without a screen becomes a headless test. Run th
     To fade an object, dither it in screen space in the opaque pass (`discard`) — not alpha blending, which also loses depth sorting.
 12. **A `DirectionalLight3D` shines along its −z.** The direction towards the sun, which a sky shader wants, is `+basis.z`.
 13. **With IK as a `SkeletonModifier3D`, `get_bone_global_pose` read from a test gives the pose before IK.** Read bone positions inside the `skeleton_updated` signal.
+14. **A skinned mesh in the Compatibility renderer (web too) gets the same tangent at every vertex, so a normal map breaks** (bright triangular patches).
+    Compute the normal-map frame in the shader from screen derivatives, and keep a capture scene that shoots the skinned mesh beside the same mesh with its bones removed — the difference is the check.
+15. **Soften the edge of a thresholded noise with `fwidth`, not a fixed-width `smoothstep`** — a fixed width smears where the noise is gentle.
+16. **`cast_motion` misses a small ball grazing a wide thin box, and once it misses it never sees a body the shape leaves while overlapping** (projectiles pass through floors and walls).
+    Split the step into pieces shorter than the thinnest collider, check the overlap at each piece's end with `get_rest_info`, and narrow down the first overlapping position. Keep a test that fires hundreds of shots into the real room and counts the ones that get through.
