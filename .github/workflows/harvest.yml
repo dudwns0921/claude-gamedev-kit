@@ -180,7 +180,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git -c core.hooksPath=/dev/null commit -F harvest-title.txt
-          git push origin "HEAD:refs/heads/$BRANCH"
+          git push --force origin "HEAD:refs/heads/$BRANCH"   # the branch is this run's own: a re-run after a failed publish replaces what the first try left
           gh pr create --base "$BASE" --head "$BRANCH" --title "$(head -n 1 harvest-title.txt)" --body-file harvest-pr.md
 
       - name: Label the issues left out
