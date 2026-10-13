@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""소리 — 설명 한 줄에서 효과음과 음악을 만든다 (ElevenLabs).
+"""Sound — makes sound effects and music from a one-line description (ElevenLabs).
 
-  python3 sound.py sfx <이름> [--seconds <초>] [--loop] [--influence <0~1>] "<어떤 소리인지 — 영어로>"
-  python3 sound.py music <이름> --seconds <초> "<어떤 음악인지 — 영어로>"
-  python3 sound.py again <이름>...        기록에 적힌 그대로 다시 만든다 (같은 설명, 다른 결과)
-  python3 sound.py status                 만든 소리들
+  python3 sound.py sfx <name> [--seconds <seconds>] [--loop] [--influence <0~1>] "<what sound — in English>"
+  python3 sound.py music <name> --seconds <seconds> "<what music — in English>"
+  python3 sound.py again <name>...        make it again exactly as recorded (same description, different result)
+  python3 sound.py status                 the sounds made
 
-효과음은 0.5~30초(생략하면 길이를 알아서 정한다), 음악은 3~600초. --loop 는 끝과 처음이 이어지는 소리(바람 · 엔진 · 배경).
-파일은 <sound.dir>/<이름>.<mp3|wav> 에, 기록은 <work>/<이름>/sound.json 에 놓인다. 같은 이름으로 다시 만들면 파일을 덮는다.
+Sound effects are 0.5~30 s (omitted, the length is decided for you), music 3~600 s. --loop is a sound whose end runs into its start (wind · engine · background).
+The file goes to <sound.dir>/<name>.<mp3|wav>, the record to <work>/<name>/sound.json. Making the same name again overwrites the file.
 
-소리의 결은 한 곳에 있다 — asset.style_file(기본 docs/DESIGN.md)의 `<!-- sound-style -->` 와 `<!-- /sound-style -->` 사이.
-음악에는 그 문단이 붙지 않는다 — `<!-- music-style -->` 와 `<!-- /music-style -->` 사이의 문단이 있으면 그것이 붙는다.
-있으면 모든 설명 뒤에 그대로 붙는다. 설정은 프로젝트 루트 kit.config.json 의 "asset" 안 "sound".
+The sound style lives in one place — between `<!-- sound-style -->` and `<!-- /sound-style -->` in asset.style_file (default docs/DESIGN.md).
+That paragraph is not attached to music — a paragraph between `<!-- music-style -->` and `<!-- /music-style -->`, if present, is.
+If present, it follows every description as is. Config is "sound" inside "asset" in kit.config.json at the project root.
 
-키는 저장소 밖에 둔다 — 환경 변수 ELEVENLABS_API_KEY, 없으면 asset.env_file
-(기본 ~/.config/gamedev-kit/asset.env) 안의 같은 이름 줄.
+Keys stay outside the repository — environment variable ELEVENLABS_API_KEY, or else the line of the same name
+in asset.env_file (default ~/.config/gamedev-kit/asset.env).
 """
 import datetime
 import json
@@ -32,32 +32,32 @@ DEFAULTS = {
     "style_file": "docs/DESIGN.md",
     "env_file": "~/.config/gamedev-kit/asset.env",
     "sound": {
-        "dir": "",                      # 끝난 소리가 놓이는 폴더 (루트 기준)
-        "format": "mp3_44100_128",      # ElevenLabs 의 output_format. pcm_* 이면 wav 로 싸서 놓는다
-        "influence": 0.3,               # 설명을 얼마나 글자 그대로 따르는가 (0~1)
+        "dir": "",                      # folder finished sounds go to (relative to the root)
+        "format": "mp3_44100_128",      # ElevenLabs' output_format. pcm_* is wrapped as wav
+        "influence": 0.3,               # how literally the description is followed (0~1)
         "music_model": "music_v1",
     },
 }
-API = os.environ.get("ELEVENLABS_API_BASE", "https://api.elevenlabs.io/v1")  # 테스트가 바꾼다
+API = os.environ.get("ELEVENLABS_API_BASE", "https://api.elevenlabs.io/v1")  # the tests change this
 KEY = "ELEVENLABS_API_KEY"
 OPEN, CLOSE = "<!-- sound-style -->", "<!-- /sound-style -->"
 MUSIC = ("<!-- music-style -->", "<!-- /music-style -->")
 LIMITS = {"sfx": (0.5, 30), "music": (3, 600)}
-LONGEST = 450  # 효과음 설명의 길이 한도 — 결 문단이 붙은 뒤의 길이다
+LONGEST = 450  # length limit of a sound effect description — measured after the sound style paragraph is attached
 
 ROOT = ""
 CFG = dict(DEFAULTS)
 
 
 def find_root(start):
-    """kit.config.json 이 있는 폴더를 지금 폴더에서 위로 올라가며 찾는다. 도구는 플러그인 안에 있고 게임은 밖에 있다."""
+    """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
+            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
 
@@ -68,7 +68,7 @@ def setup(root=None):
     CFG = {k: have.get(k, v) for k, v in DEFAULTS.items()}
     CFG["sound"] = dict(DEFAULTS["sound"], **have.get("sound", {}))
     if not CFG["sound"]["dir"]:
-        sys.exit(f"{CONFIG_NAME} 의 {SECTION}.sound.dir 이 비어 있다 — 소리를 놓을 폴더를 적는다 (asset 스킬의 설정 절)")
+        sys.exit(f"{SECTION}.sound.dir in {CONFIG_NAME} is empty — set the folder sounds go to (the asset skill's Config section)")
 
 
 def key():
@@ -80,7 +80,7 @@ def key():
             k, _, v = line.strip().partition("=")
             if k == KEY and v:
                 return v.strip("\"'")
-    sys.exit(f"{KEY} 가 없다 — {path} 에 `{KEY}=...` 한 줄을 적는다 (asset 스킬의 '처음 한 번')")
+    sys.exit(f"{KEY} is missing — add a `{KEY}=...` line to {path} (the asset skill's 'First time only')")
 
 
 def post(path, body):
@@ -103,12 +103,12 @@ def post(path, body):
 
 def folder(name):
     if not re.fullmatch(r"[a-z0-9][a-z0-9_]*", name):
-        sys.exit(f"이름은 소문자 · 숫자 · 밑줄이다: {name!r}")
+        sys.exit(f"names are lowercase letters · digits · underscores: {name!r}")
     return os.path.join(ROOT, CFG["work"], name)
 
 
 def style(kind="sfx"):
-    """그 종류의 소리에 붙는 결 문단. 음악은 제 문단(music-style)만 본다 — 효과음의 결("no music" 따위)은 음악 설명을 망친다."""
+    """The style paragraph attached to that kind of sound. Music reads only its own paragraph (music-style) — the sound effect style ("no music" and the like) ruins a music description."""
     path = os.path.join(ROOT, CFG["style_file"])
     text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
     start, end = MUSIC if kind == "music" else (OPEN, CLOSE)
@@ -118,7 +118,7 @@ def style(kind="sfx"):
 
 
 def write(name, data):
-    """받은 소리를 게임 폴더에 놓는다. pcm 이면 wav 머리를 씌운다 (16비트 · 모노)."""
+    """Place the downloaded sound in the game folder. pcm gets a wav header (16-bit · mono)."""
     fmt = CFG["sound"]["format"]
     out = os.path.join(ROOT, CFG["sound"]["dir"], f"{name}.{'wav' if fmt.startswith('pcm_') else fmt.split('_')[0]}")
     os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -137,10 +137,10 @@ def make(rec):
     name, kind = rec["name"], rec["kind"]
     lo, hi = LIMITS[kind]
     if rec.get("seconds") is not None and not lo <= rec["seconds"] <= hi:
-        sys.exit(f"{name}: {'효과음' if kind == 'sfx' else '음악'}은 {lo}~{hi}초다")
+        sys.exit(f"{name}: {'a sound effect' if kind == 'sfx' else 'music'} is {lo}~{hi} s")
     prompt = rec["subject"] + (f". {style(kind)}" if style(kind) else "")
     if kind == "sfx" and len(prompt) > LONGEST:
-        sys.exit(f"{name}: 설명이 {len(prompt)}자다 — 결 문단까지 합쳐 {LONGEST}자 안이어야 한다 (결 문단 {len(style())}자)")
+        sys.exit(f"{name}: the description is {len(prompt)} characters — with the sound style paragraph it must fit in {LONGEST} (the paragraph is {len(style())})")
     if kind == "sfx":
         body = {"text": prompt, "prompt_influence": rec["influence"], "loop": rec["loop"]}
         if rec.get("seconds") is not None:
@@ -150,7 +150,7 @@ def make(rec):
         data = post("music", {"prompt": prompt, "music_length_ms": int(rec["seconds"] * 1000),
                               "model_id": CFG["sound"]["music_model"], "force_instrumental": True})
     if not data:
-        raise RuntimeError(f"{name}: 빈 소리가 돌아왔다")
+        raise RuntimeError(f"{name}: an empty sound came back")
     out = write(name, data)
     rec.update(prompt=prompt, out=os.path.relpath(out, ROOT), format=CFG["sound"]["format"],
                made=str(datetime.date.today()), takes=rec.get("takes", 0) + 1)
@@ -159,8 +159,8 @@ def make(rec):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(rec, f, ensure_ascii=False, indent=2)
         f.write("\n")
-    print(f"{name}: {rec['out']} — {len(data) / 1e3:.0f} KB" + (" · 이어지는 소리" if rec.get("loop") else "")
-          + (f" · {rec['takes']}번째" if rec["takes"] > 1 else ""))
+    print(f"{name}: {rec['out']} — {len(data) / 1e3:.0f} KB" + (" · looping sound" if rec.get("loop") else "")
+          + (f" · take {rec['takes']}" if rec["takes"] > 1 else ""))
 
 
 def records():
@@ -193,7 +193,7 @@ def main():
         if not 0 <= influence <= 1:
             raise ValueError
     except ValueError:
-        sys.exit("--seconds 는 초, --influence 는 0~1 이다")
+        sys.exit("--seconds is seconds, --influence is 0~1")
     try:
         if cmd in ("sfx", "music"):
             name, subject = rest[0], rest[1].strip().rstrip(".")
@@ -207,14 +207,14 @@ def main():
             have = {r["name"]: r for r in records()}
             for name in rest:
                 if name not in have:
-                    sys.exit(f"{name}: 기록이 없다 — sound.py sfx {name} \"<어떤 소리인지>\"")
+                    sys.exit(f"{name}: no record — sound.py sfx {name} \"<what sound>\"")
                 make(have[name])
         else:
             if not records():
-                print("소리가 없다 — sound.py sfx <이름> \"<어떤 소리인지>\"")
+                print("no sounds — sound.py sfx <name> \"<what sound>\"")
             for r in records():
-                length = "알아서" if r.get("seconds") is None else f"{r['seconds']}초"
-                print(f"{r['name']:<24} {'음악' if r['kind'] == 'music' else '이어짐' if r.get('loop') else '효과음':<6} "
+                length = "auto" if r.get("seconds") is None else f"{r['seconds']} s"
+                print(f"{r['name']:<24} {'music' if r['kind'] == 'music' else 'loop' if r.get('loop') else 'sfx':<6} "
                       f"{length:<8} {r['out']} · {r['subject'][:50]}")
     except RuntimeError as e:
         sys.exit(str(e))

@@ -193,7 +193,7 @@ Without `auto`, do not read it.
 
 ## next
 
-Run `cycle.py next` and continue from there — do not read the document. If it lists "대리 결정 (확인 전)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
+Run `cycle.py next` and continue from there — do not read the document. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
 Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`. An overturned decision is an answer that changes the plan: call the agent whose section it touches,
 then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## 기획` section (made before this stage existed) stands before 디자인 or 계획,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.

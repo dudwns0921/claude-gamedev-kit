@@ -25,7 +25,7 @@ and every game the user makes adds to the same document. Where a game is headed 
 | `seen.txt` | which decisions the voice has already been written from — the script only |
 
 **The home is a clone of one private git repository** — that repository is where the voice is kept; there are no copies to keep in step. `sync` commits what changed,
-takes what another machine pushed, and pushes. Run it **before reading the voice and after writing to it** (it says so in one line; relay only what is not "저장소와 같다").
+takes what another machine pushed, and pushes. Run it **before reading the voice and after writing to it** (it says so in one line; relay only what is not "same as the repository").
 If it stops because two machines edited the same lines, do not write to the voice until the user has merged it.
 
 **It stays in the background.** Predicting, scoring and learning happen without a word to the user — no predictions, no hit rates, no "I updated your voice".

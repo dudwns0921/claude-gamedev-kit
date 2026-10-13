@@ -1,9 +1,9 @@
-"""받은 메쉬를 게임에 넣을 모양으로 다듬는다. Blender 가 돌린다 — asset.py finish 가 부른다.
+"""Finishes a downloaded mesh into the shape the game takes. Run by Blender — called by asset.py finish.
 
-  blender --background --factory-startup --python blender_finish.py -- <받은.glb> <나갈 파일> <크기 m> <glb|fbx>
+  blender --background --factory-startup --python blender_finish.py -- <downloaded.glb> <output file> <size m> <glb|fbx>
 
-하는 일: 메쉬를 하나로 합치고, 가장 긴 변이 <크기> 가 되게 맞추고, 원점을 바닥 가운데에 두고, 변환을 구워 내보낸다.
-끝에 `FINISH {"tris": …, "size": [가로, 높이, 깊이]}` 한 줄을 적는다 (Y 가 위 — glTF 와 같다).
+What it does: joins the meshes into one, scales so the longest side is <size>, puts the origin at the center of the base, bakes the transforms and exports.
+It ends by printing one line, `FINISH {"tris": …, "size": [width, height, depth]}` (Y is up — as in glTF).
 """
 import json
 import sys
@@ -17,7 +17,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=src)
 meshes = [o for o in bpy.context.scene.objects if o.type == "MESH"]
 if not meshes:
-    sys.exit("메쉬가 없다")
+    sys.exit("no mesh")
 
 bpy.ops.object.select_all(action="DESELECT")
 for o in meshes:
@@ -28,17 +28,17 @@ if len(meshes) > 1:
 obj = bpy.context.view_layer.objects.active
 bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-for o in list(bpy.context.scene.objects):  # 가져올 때 딸려 온 빈 노드
+for o in list(bpy.context.scene.objects):  # empty nodes that came along on import
     if o != obj:
         bpy.data.objects.remove(o, do_unlink=True)
 
-# Blender 안에서는 Z 가 위다. 내보낼 때 Y 가 위로 바뀐다
+# Inside Blender Z is up. On export it becomes Y up
 co = [v.co.copy() for v in obj.data.vertices]
 lo = [min(c[i] for c in co) for i in range(3)]
 hi = [max(c[i] for c in co) for i in range(3)]
 longest = max(hi[i] - lo[i] for i in range(3))
 if longest <= 0:
-    sys.exit("메쉬에 크기가 없다")
+    sys.exit("the mesh has no size")
 k = size / longest
 cx, cy = (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2
 for v in obj.data.vertices:

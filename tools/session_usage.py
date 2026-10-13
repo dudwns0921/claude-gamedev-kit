@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""세션 기록에서 토큰이 어디로 갔는지 센다 — 메인 세션과 에이전트 종류별로. 고치기 전과 뒤를 견줄 때 쓴다.
+"""Count where the tokens went in the session logs — for the main session and per agent type. For comparing before and after a change.
 
-  python3 tools/session_usage.py <게임 저장소 경로>             그 저장소의 가장 새 세션
-  python3 tools/session_usage.py <게임 저장소 경로> --all       모든 세션을 하나씩
-  python3 tools/session_usage.py <세션.jsonl>
+  python3 tools/session_usage.py <game repo path>             that repository's newest session
+  python3 tools/session_usage.py <game repo path> --all       every session, one by one
+  python3 tools/session_usage.py <session.jsonl>
 
-읽기만 한다. "무게" 는 값을 어림한 것이다: 새 입력 1 · 캐시 쓰기 1.25 · 캐시 읽기 0.1 · 출력 5. 모델의 값 차이는 넣지 않았다.
-견줄 숫자 — 메인 세션의 평균 컨텍스트(턴마다 다시 읽는 양), 에이전트 한 번의 캐시 쓰기(그 에이전트가 새로 읽은 양)와 걸린 시간.
+Read-only. "weight" is a rough cost: new input 1 · cache write 1.25 · cache read 0.1 · output 5. Price differences between models are left out.
+Numbers to compare — the main session's average context (what is re-read every turn), and one agent run's cache writes (what that agent newly read) and duration.
 """
 import collections
 import datetime
@@ -18,7 +18,7 @@ import sys
 
 
 def scan(path):
-    """(토큰 합, 턴 수, 모델, 걸린 초, 턴마다의 컨텍스트 크기)"""
+    """(token totals, turns, model, seconds taken, context size at each turn)"""
     seen, first, last = {}, None, None
     for line in open(path, encoding="utf-8", errors="replace"):
         try:
@@ -29,7 +29,7 @@ def scan(path):
             first, last = first or d["timestamp"], d["timestamp"]
         m = d.get("message") or {}
         if d.get("type") == "assistant" and m.get("usage"):
-            seen[m.get("id") or d.get("uuid")] = (m.get("model"), m["usage"])  # 같은 응답이 여러 줄로 적힌다
+            seen[m.get("id") or d.get("uuid")] = (m.get("model"), m["usage"])  # one response is logged on several lines
     tot, sizes, model = collections.Counter(), [], None
     for model, u in seen.values():
         a, w, r = u.get("input_tokens", 0), u.get("cache_creation_input_tokens", 0), u.get("cache_read_input_tokens", 0)
@@ -46,7 +46,7 @@ def weight(t):
 def report(session):
     rows = {}
     tot, turns, model, _sec, sizes = scan(session)
-    rows["(메인 세션)"] = [tot, 1, turns, 0.0, {model}]
+    rows["(main session)"] = [tot, 1, turns, 0.0, {model}]
     for p in glob.glob(os.path.join(session[:-len(".jsonl")], "subagents", "*.jsonl")):
         meta = p[:-len(".jsonl")] + ".meta.json"
         kind = json.load(open(meta)).get("agentType", "?") if os.path.exists(meta) else "?"
@@ -58,8 +58,8 @@ def report(session):
         row[3] += sec
         row[4].add(m)
     whole = sum(weight(r[0]) for r in rows.values()) or 1
-    print(f"{os.path.basename(session)} — 메인 세션 {turns}턴 · 컨텍스트 평균 {sum(sizes) // max(1, len(sizes)) // 1000}k · 최대 {max(sizes or [0]) // 1000}k")
-    print(f"{'누가':30}{'횟수':>5}{'턴':>6}{'한 번에 캐시쓰기k':>12}{'캐시읽기M':>9}{'출력k':>8}{'무게%':>7}{'한 번에 분':>8}  모델")
+    print(f"{os.path.basename(session)} — main session {turns} turns · context average {sum(sizes) // max(1, len(sizes)) // 1000}k · max {max(sizes or [0]) // 1000}k")
+    print(f"{'who':30}{'runs':>5}{'turns':>6}{'cache-w k/run':>14}{'cache-r M':>10}{'out k':>9}{'weight%':>8}{'min/run':>9}   model")
     for kind, (t, n, tn, sec, models) in sorted(rows.items(), key=lambda r: -weight(r[1][0])):
         print(f"{kind:30}{n:>5}{tn:>6}{t['cw'] / n / 1e3:>14.0f}{t['cr'] / 1e6:>10.1f}{t['out'] / 1e3:>9.0f}"
               f"{100 * weight(t) / whole:>8.1f}{sec / n / 60:>9.1f}   {' '.join(sorted(str(m) for m in models))}")
@@ -76,7 +76,7 @@ def main():
     logs = os.path.expanduser("~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", target))
     sessions = sorted(glob.glob(os.path.join(logs, "*.jsonl")), key=os.path.getmtime)
     if not sessions:
-        sys.exit(f"{logs} 에 세션 기록이 없다")
+        sys.exit(f"no session logs in {logs}")
     for s in sessions if "--all" in sys.argv else sessions[-1:]:
         report(s)
 

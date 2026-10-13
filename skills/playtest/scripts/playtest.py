@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""플레이테스트 분석 문서(docs/playtest/*.md)의 장부 — 문서를 통째로 읽거나 손으로 고치지 않고 필요한 줄만 꺼내고 바꾼다.
+"""Ledger for the playtest analysis document (docs/playtest/*.md) — pulls out and changes only the lines needed, without reading the whole document or editing it by hand.
 
-  python3 playtest.py status                    문서마다 작업 수와 답 없는 질문이 있는지
-  python3 playtest.py next                      다음에 돌릴 차수의 작업
-  python3 playtest.py task T3                   요약과 작업 하나만 (구현 에이전트가 읽는 것)
-  python3 playtest.py mark T1,T3 done           [x]. `blocked` 는 [!], `open` 은 [ ]
-  python3 playtest.py mark T2 blocked "<이유>"  작업 아래 `- **막힘**:` 한 줄. done 뒤의 글은 `- **한 것**:`
-  python3 playtest.py lesson "<무엇에 걸렸나 → 어떻게 피하나>"   이 게임만의 것이 아닌 배움을 docs/kit-feedback.md 에 한 줄 (키트로 올릴 것)
+  python3 playtest.py status                    Per document: task counts and whether questions are still open
+  python3 playtest.py next                      The tasks of the next wave to run
+  python3 playtest.py task T3                   The summary and one task only (what the developer agent reads)
+  python3 playtest.py mark T1,T3 done           [x]. `blocked` is [!], `open` is [ ]
+  python3 playtest.py mark T2 blocked "<reason>"  One `- **막힘**:` line under the task. Text after done goes in `- **한 것**:`
+  python3 playtest.py lesson "<what tripped us → how to avoid it>"   One line in docs/kit-feedback.md for a lesson that is not this game's alone (to send up to the kit)
 
-문서는 가장 새 것(이름순으로 마지막)이다. 다른 문서면 `--doc <경로>`.
+The document is the newest one (last by name). For another, `--doc <path>`.
 """
 import datetime
 import json
@@ -33,14 +33,14 @@ ROOT = ""
 
 
 def find_root(start):
-    """kit.config.json 이 있는 폴더를 지금 폴더에서 위로 올라가며 찾는다. 도구는 플러그인 안에 있고 게임은 밖에 있다."""
+    """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
+            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
 
@@ -53,10 +53,10 @@ def pick(path):
     if path:
         path = path if os.path.isabs(path) else os.path.join(ROOT, path)
         if not os.path.exists(path):
-            sys.exit(f"{path}: 문서가 없다")
+            sys.exit(f"{path}: no such document")
         return path
     if not docs():
-        sys.exit(f"{DIR}/ 에 분석 문서가 없다")
+        sys.exit(f"no analysis document in {DIR}/")
     return docs()[-1]
 
 
@@ -69,7 +69,7 @@ def section(text, title):
 
 
 def tasks(text):
-    """작업 번호 → (상태 글자, 제목, 블록 시작, 블록 끝)."""
+    """Task number → (state mark, title, block start, block end)."""
     found = {}
     for m in TASK_RE.finditer(text):
         nxt = re.search(r"^##+ ", text[m.end():], re.M)
@@ -81,8 +81,8 @@ def summary(path):
     text = open(path, encoding="utf-8").read()
     marks = [t[0] for t in tasks(text).values()]
     ask = section(text, "사용자에게 물을 것")
-    return (f"{os.path.relpath(path, ROOT)} — 작업 [x] {marks.count('x')} · [ ] {marks.count(' ')} · [!] {marks.count('!')}"
-            + ("" if not ask or ask.startswith("없음") else " · 사용자에게 물을 것이 있다"))
+    return (f"{os.path.relpath(path, ROOT)} — tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · [!] {marks.count('!')}"
+            + ("" if not ask or ask.startswith("없음") else " · has questions for the user"))
 
 
 def lesson(said):
@@ -92,7 +92,7 @@ def lesson(said):
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         f.write(old.rstrip("\n") + f"\n- [ ] ({engine} · 플레이테스트 · {datetime.date.today()}) {' '.join(said.split())}\n")
-    print(f"{FEEDBACK} 에 적었다")
+    print(f"added to {FEEDBACK}")
 
 
 def main():
@@ -110,7 +110,7 @@ def main():
     global ROOT
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
     if cmd == "status":
-        return print("\n".join(summary(p) for p in docs()) or f"{DIR}/ 에 분석 문서가 없다")
+        return print("\n".join(summary(p) for p in docs()) or f"no analysis document in {DIR}/")
     if cmd == "lesson":
         return lesson(rest[0])
     path = pick(opts.get("--doc"))
@@ -120,27 +120,27 @@ def main():
         print(summary(path))
         ask = section(text, "사용자에게 물을 것")
         if ask and not ask.startswith("없음"):
-            print("사용자에게 물을 것:\n" + ask)
+            print("questions for the user:\n" + ask)
         for line in section(text, "순서").split("\n"):
             m = re.match(r"- *(\d+) *차:(.*)", line.strip())
             left = [t for t in re.findall(r"T\d+", m.group(2).split("—")[0]) if t in ts and ts[t][0] == " "] if m else []
             if left:
-                print(f"다음 차수: {m.group(1)}차")
+                print(f"next wave: {m.group(1)}")
                 for t in left:
                     kind = re.search(r"\*\*분류\*\*: *(\S+)", text[ts[t][2]:ts[t][3]])
                     print(f"  {t}. {ts[t][1]}" + (f" ({kind.group(1)})" if kind else ""))
                 break
     elif cmd == "task":
         if rest[0] not in ts:
-            sys.exit(f"{rest[0]}: 그런 작업이 없다 — " + " · ".join(ts))
+            sys.exit(f"{rest[0]}: no such task — " + " · ".join(ts))
         print(f"{os.path.relpath(path, ROOT)}\n\n## 요약\n{section(text, '요약')}\n\n{text[ts[rest[0]][2]:ts[rest[0]][3]].rstrip()}")
     else:
         if rest[1] not in BOX:
-            sys.exit("상태는 done · blocked · open 이다")
+            sys.exit("the state is done · blocked · open")
         for num in rest[0].split(","):
             ts = tasks(text)
             if num not in ts:
-                sys.exit(f"{num}: 그런 작업이 없다 — " + " · ".join(ts))
+                sys.exit(f"{num}: no such task — " + " · ".join(ts))
             a, b = ts[num][2], ts[num][3]
             block = TASK_RE.sub(lambda m: f"### [{BOX[rest[1]]}] {m.group(2)}.{m.group(3)}", text[a:b], count=1)
             if len(rest) > 2 and rest[1] in NOTE:

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""공개 저장소에 낱낱의 기록이 새지 않았는지 본다 — 게임의 이름과 날짜.
+"""Check that no individual records leaked into the public repository — games' names and dates.
 
-  python3 tools/private_check.py                    git 이 아는 파일을 전부
-  python3 tools/private_check.py --message <파일>   커밋 메시지 (commit-msg 훅이 부른다)
+  python3 tools/private_check.py                    every file git knows
+  python3 tools/private_check.py --message <file>   a commit message (called by the commit-msg hook)
 
-막을 낱말(게임의 이름 따위)은 저장소 밖에 있다: 보이스 폴더(~/.config/gamedev-kit/voice, GAMEDEV_KIT_VOICE 로 바꾼다)의
-private-words.txt, 한 줄에 하나. 그 파일이 없으면 날짜만 본다. 날짜(YYYY-MM-DD)는 tests/ 밖 어디에도 적지 않는다.
+The blocked words (games' names and the like) live outside the repository: private-words.txt in the voice folder
+(~/.config/gamedev-kit/voice, override with GAMEDEV_KIT_VOICE), one per line. Without that file only dates are checked.
+Dates (YYYY-MM-DD) are written nowhere outside tests/.
 
-훅은 저장소마다 한 번 건다:
+Install the hook once per repository:
   printf '#!/bin/sh\\nexec python3 tools/private_check.py --message "$1"\\n' > .git/hooks/commit-msg && chmod +x .git/hooks/commit-msg
 """
 import os
@@ -31,16 +32,16 @@ def problems(name, text, block, dates):
     for n, line in enumerate(text.split("\n"), 1):
         low = line.lower()
         if any(w in low for w in block):
-            yield f"{name}:{n}: 막을 낱말이 있다"
+            yield f"{name}:{n}: blocked word"
         if dates and DATE_RE.search(line):
-            yield f"{name}:{n}: 날짜가 있다"
+            yield f"{name}:{n}: date"
 
 
 def main():
     args, block, found = sys.argv[1:], words(), []
     if args[:1] == ["--message"] and len(args) == 2:
         lines = [l for l in open(args[1], encoding="utf-8").read().split("\n") if not l.startswith("#")]
-        found = list(problems("커밋 메시지", "\n".join(lines), block, True))
+        found = list(problems("commit message", "\n".join(lines), block, True))
     elif not args:
         for name in subprocess.run(["git", "-C", KIT, "ls-files"], capture_output=True, text=True).stdout.split():
             try:
@@ -51,8 +52,8 @@ def main():
     else:
         sys.exit(__doc__)
     if found:
-        sys.exit("\n".join(found) + "\n낱낱의 기록은 이 저장소에 두지 않는다 — 보이스 폴더의 records.md 로 옮긴다")
-    print("새는 것이 없다" + ("" if block else " (private-words.txt 가 없어 날짜만 봤다)"))
+        sys.exit("\n".join(found) + "\nIndividual records do not belong in this repository — move them to records.md in the voice folder")
+    print("Nothing leaked" + ("" if block else " (no private-words.txt — only dates were checked)"))
 
 
 if __name__ == "__main__":

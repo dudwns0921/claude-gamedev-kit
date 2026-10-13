@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""컨셉 그림 — 게임이 어떻게 보일지를 사용자와 맞추려고 그리는 그림. 게임에 들어가는 에셋이 아니다 (그것은 asset 스킬이 한다).
+"""Concept pictures — pictures drawn to agree with the user on how the game will look. Not assets that go into the game (the asset skill does those).
 
-  python3 concept.py new <이름> [--size 1024x1536] [--ref <그림>] "<무엇을 그리나 — 영어로>"
-  python3 concept.py list          있는 그림과 그것을 그린 글
+  python3 concept.py new <name> [--size 1024x1536] [--ref <picture>] "<what to draw — in English>"
+  python3 concept.py list          the pictures there are and the text that drew them
 
-그림은 docs/concept/<이름>.png 에, 그린 글은 옆의 <이름>.json 에 놓인다. **있는 이름은 덮어쓰지 않는다** — 고쳐 그린 것도 새 이름이다 (앞의 것과 견주어 볼 수 있게).
---size 는 화면의 방향이다: 세로 1024x1536 (기본) · 가로 1536x1024 · 정사각 1024x1024.
---ref 는 사용자가 마음에 든 그림이다 (경로, 또는 이미 있는 컨셉의 이름) — 그 그림을 보여 주며 그리게 해서, 마음에 든 것은 남고 말한 것만 바뀐다.
+A picture goes to docs/concept/<name>.png, the text that drew it to <name>.json beside it. **An existing name is never overwritten** — a redraw gets a new name too (so it can be compared with the one before).
+--size is the screen's orientation: portrait 1024x1536 (default) · landscape 1536x1024 · square 1024x1024.
+--ref is a picture the user liked (a path, or the name of an existing concept) — it is shown to the model as it draws, so what was liked stays and only what was asked changes.
 
-모델과 품질은 kit.config.json 의 asset.image 를 쓴다. 키는 저장소 밖에 둔다 — 환경 변수 OPENAI_API_KEY, 없으면 asset.env_file
-(기본 ~/.config/gamedev-kit/asset.env) 안의 같은 이름 줄. 한 장마다 돈이 든다 — 몇 장을 그릴지는 스킬이 사용자에게 먼저 말한다.
+The model and quality come from asset.image in kit.config.json. The key is kept outside the repository — the environment variable OPENAI_API_KEY, or else
+the line of that name in asset.env_file (default ~/.config/gamedev-kit/asset.env). Every picture costs money — the skill tells the user how many it will draw first.
 """
 import base64
 import json
@@ -23,10 +23,10 @@ import uuid
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "concept")
-IMAGE = {"model": "gpt-image-2.5-flare", "quality": "medium"}  # asset.image 에 적힌 것이 이긴다
+IMAGE = {"model": "gpt-image-2.5-flare", "quality": "medium"}  # what asset.image says wins
 ENV_FILE = "~/.config/gamedev-kit/asset.env"
 SIZE = "1024x1536"
-OPENAI = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")  # 테스트가 바꾼다
+OPENAI = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1")  # the tests change this
 KEEP = ("The attached image is the picture to keep: the same composition, palette, shapes and mood. "
         "Change only what is asked below and leave everything else as it is.")
 
@@ -35,14 +35,14 @@ CFG = {}
 
 
 def find_root(start):
-    """kit.config.json 이 있는 폴더를 지금 폴더에서 위로 올라가며 찾는다. 도구는 플러그인 안에 있고 게임은 밖에 있다."""
+    """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
+            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
 
@@ -55,7 +55,7 @@ def key(name):
             k, _, v = line.strip().partition("=")
             if k == name and v:
                 return v.strip("\"'")
-    sys.exit(f"{name} 가 없다 — {path} 에 `{name}=...` 한 줄을 적는다 (사용자가 한다. 키는 저장소에 두지 않는다)")
+    sys.exit(f"{name} is not set — put one line `{name}=...` in {path} (the user does this. Keys are not kept in the repository)")
 
 
 def http(url, token, body, content_type="application/json"):
@@ -88,21 +88,21 @@ def picture(name):
 
 
 def find_ref(ref):
-    """경로(지금 폴더 · 게임 루트 기준)이거나 이미 있는 컨셉의 이름."""
+    """A path (from the current folder · the game root) or the name of an existing concept."""
     for path in (ref, os.path.join(ROOT, ref), picture(ref)):
         if os.path.isfile(path):
             return os.path.abspath(path)
-    sys.exit(f"레퍼런스가 없다: {ref} — 경로(게임 루트 기준)나 있는 컨셉의 이름을 적는다 (`list`)")
+    sys.exit(f"reference not found: {ref} — give a path (from the game root) or the name of an existing concept (`list`)")
 
 
 def cmd_new(name, size, ref, prompt):
     if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", name):
-        sys.exit(f"이름은 소문자 · 숫자 · 밑줄 · 붙임표다: {name!r}")
+        sys.exit(f"a name is lowercase letters · digits · underscores · hyphens: {name!r}")
     if not re.fullmatch(r"\d+x\d+", size):
-        sys.exit(f"--size 는 1024x1536 꼴이다: {size!r}")
+        sys.exit(f"--size looks like 1024x1536: {size!r}")
     out = picture(name)
     if os.path.exists(out):
-        sys.exit(f"{os.path.relpath(out, ROOT)} 가 이미 있다 — 덮어쓰지 않는다. 고쳐 그리는 것도 새 이름으로 한다 ({name}_2 처럼)")
+        sys.exit(f"{os.path.relpath(out, ROOT)} already exists — not overwriting. A redraw gets a new name too (like {name}_2)")
     prompt = " ".join(prompt.split())
     image = dict(IMAGE, **{k: v for k, v in (CFG.get("image") or {}).items() if k in IMAGE})
     fields = dict(image, size=size, output_format="png")
@@ -118,28 +118,28 @@ def cmd_new(name, size, ref, prompt):
     with open(out[:-4] + ".json", "w", encoding="utf-8") as f:
         json.dump(dict(image, name=name, size=size, ref=os.path.relpath(src, ROOT) if ref else None, prompt=prompt), f, ensure_ascii=False, indent=2)
         f.write("\n")
-    print(f"{os.path.relpath(out, ROOT)} — 사용자가 열어 본다 (이 세션에서 읽지 않는다)")
+    print(f"{os.path.relpath(out, ROOT)} — the user opens it (it is not read in this session)")
 
 
 def cmd_list():
     d = os.path.join(ROOT, DIR)
     names = sorted(n for n in os.listdir(d) if n.lower().endswith((".png", ".jpg", ".jpeg", ".webp"))) if os.path.isdir(d) else []
     if not names:
-        return print(f"{DIR}/ 에 그림이 없다")
+        return print(f"no pictures in {DIR}/")
     for n in names:
         note = os.path.join(d, os.path.splitext(n)[0] + ".json")
         if not os.path.exists(note):
-            print(f"{DIR}/{n} — 사용자가 넣은 그림")
+            print(f"{DIR}/{n} — a picture the user put in")
             continue
         rec = json.load(open(note, encoding="utf-8"))
-        print(f"{DIR}/{n} — {rec.get('size', '')}" + (f" · {rec['ref']} 에서 고쳐 그림" if rec.get("ref") else "") + f" · {rec.get('prompt', '')}")
+        print(f"{DIR}/{n} — {rec.get('size', '')}" + (f" · redrawn from {rec['ref']}" if rec.get("ref") else "") + f" · {rec.get('prompt', '')}")
 
 
 def main():
     global ROOT, CFG
     args = sys.argv[1:]
     root = None
-    if "--root" in args:  # 테스트용
+    if "--root" in args:  # for the tests
         i = args.index("--root")
         root = args[i + 1]
         del args[i:i + 2]

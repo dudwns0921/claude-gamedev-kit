@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""밸런스 표 — 엑셀 표(xlsx)와 코드의 밸런스 값 파일을 잇는다.
+"""Balance table — ties the Excel table (xlsx) to the balance value file in code.
 
-  python3 balance_table.py export          코드의 값으로 표를 (다시) 만든다
-  python3 balance_table.py bake            표의 값을 코드에 적는다
-  python3 balance_table.py check           둘이 다르면 다른 줄을 적고 1 로 끝난다
-  python3 balance_table.py serve [포트]    표를 JSON 으로 내준다 (디스크를 못 읽는 엔진용, 기본 8765)
+  python3 balance_table.py export          (re)make the table from the values in code
+  python3 balance_table.py bake            write the table's values into the code
+  python3 balance_table.py check           if the two differ, print the differing lines and exit 1
+  python3 balance_table.py serve [port]    serve the table as JSON (for engines that cannot read disk, default 8765)
 
-표가 밸런싱하는 자리다. 값이 정해지면 bake 로 코드에 굽는다 — 배포 빌드는 표를 읽지 않고 구운 값만 쓴다.
-구운 뒤에는 /gamedev-kit:gdd-sync to-gdd.
+The table is where balancing happens. Once a value is settled, bake it into the code — a deploy build does not read the table, only the baked values.
+After baking, /gamedev-kit:gdd-sync to-gdd.
 
-어느 파일이 값 파일이고 한 줄이 어떻게 생겼는지는 프로젝트 루트 kit.config.json 의 "balance-table" 에 있다.
-외부 패키지 없이 돈다. xlsx 는 XML 을 담은 zip 이라 표준 라이브러리로 읽고 쓴다.
+Which file is the value file and what one line looks like is in "balance-table" in the project root's kit.config.json.
+Runs with no external packages. An xlsx is a zip of XML, so the standard library reads and writes it.
 """
 import json
 import os
@@ -23,12 +23,12 @@ from xml.sax.saxutils import escape
 CONFIG_NAME = "kit.config.json"
 SECTION = "balance-table"
 DEFAULTS = {
-    "code": "",                    # 밸런스 값 파일 (루트 기준)
+    "code": "",                    # the balance value file (relative to the root)
     "table": "data/balance.xlsx",
-    # 값 한 줄. 그룹 다섯: (앞) (이름) (사이) (숫자) (뒤). 숫자 하나로 정해지는 줄만 표에 올린다
+    # One value line. Five groups: (before) (name) (between) (number) (after). Only lines set by a single number go into the table
     "line": "",
-    "doc_prefix": "",              # 값 줄 바로 위 설명 주석의 머리 (`##` · `---` · `///`)
-    "comment": "",                 # 줄 끝 주석의 머리 (`#` · `--` · `//`)
+    "doc_prefix": "",              # the prefix of the description comment directly above a value line (`##` · `---` · `///`)
+    "comment": "",                 # the prefix of an end-of-line comment (`#` · `--` · `//`)
 }
 
 MARK_RE = re.compile(r"GDD:\s*([A-Z][A-Z0-9_.]*)")
@@ -44,14 +44,14 @@ LINE_RE = None
 
 
 def find_root(start):
-    """kit.config.json 이 있는 폴더를 지금 폴더에서 위로 올라가며 찾는다. 도구는 플러그인 안에 있고 게임은 밖에 있다."""
+    """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
+            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
 
@@ -65,16 +65,16 @@ def setup(root=None):
         CFG.update({k: v for k, v in section.items() if k in DEFAULTS})
     for key in ("code", "line", "comment"):
         if not CFG[key]:
-            sys.exit(f"{CONFIG_NAME} 의 {SECTION}.{key} 가 비어 있다 — /gamedev-kit:init 으로 엔진 설정을 깐다")
+            sys.exit(f"{SECTION}.{key} in {CONFIG_NAME} is empty — install the engine config with /gamedev-kit:init")
     CODE = os.path.join(ROOT, CFG["code"])
     TABLE = os.path.join(ROOT, CFG["table"])
     LINE_RE = re.compile(CFG["line"])
     if LINE_RE.groups != 5:
-        sys.exit(f"{SECTION}.line 은 그룹이 다섯이어야 한다: (앞)(이름)(사이)(숫자)(뒤)")
+        sys.exit(f"{SECTION}.line must have five groups: (before)(name)(between)(number)(after)")
 
 
 def read_code():
-    """값 파일에서 (이름, 값 문자열, GDD ID, 설명) 을 줄 순서대로."""
+    """(name, value string, GDD ID, description) from the value file, in line order."""
     rows, doc = [], []
     for line in open(CODE, encoding="utf-8").read().split("\n"):
         if CFG["doc_prefix"] and line.strip().startswith(CFG["doc_prefix"]):
@@ -96,7 +96,7 @@ def group_of(name, gdd):
     return gdd.split(".")[1] if gdd.count(".") >= 2 else name.split("_")[0]
 
 
-# ── 쓰기 ─────────────────────────────────────────────────────────────────────
+# ── Write ─────────────────────────────────────────────────────────────────────
 
 def col(i):
     return "ABCDEFGHIJ"[i]
@@ -140,7 +140,7 @@ def write_table(rows):
         "xl/_rels/workbook.xml.rels": head + f'<Relationships xmlns="{pkg}">'
         f'<Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/>'
         f'<Relationship Id="rId2" Type="{rel}/styles" Target="styles.xml"/></Relationships>',
-        # 0 보통 · 1 머리글 · 2 값(고치는 칸, 노란 바탕) · 3 코드값(회색 글자)
+        # 0 normal · 1 header · 2 value (the cell to edit, yellow fill) · 3 code value (grey text)
         "xl/styles.xml": head + f'<styleSheet xmlns="{main}">'
         '<fonts count="3"><font><sz val="12"/><name val="Calibri"/></font>'
         '<font><b/><sz val="12"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>'
@@ -163,20 +163,20 @@ def write_table(rows):
     os.makedirs(os.path.dirname(TABLE), exist_ok=True)
     with zipfile.ZipFile(TABLE, "w", zipfile.ZIP_DEFLATED) as z:
         for name, text in files.items():
-            info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))  # 같은 값이면 같은 파일 — git 이 조용하다
+            info = zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0))  # same values, same file — git stays quiet
             info.compress_type = zipfile.ZIP_DEFLATED
             z.writestr(info, text)
 
 
-# ── 읽기 ─────────────────────────────────────────────────────────────────────
+# ── Read ─────────────────────────────────────────────────────────────────────
 
 def read_table():
-    """표에서 {이름: 값 문자열}. 엑셀이 저장한 파일(공유 문자열 · 발음 표기)도 읽는다."""
+    """{name: value string} from the table. Also reads files saved by Excel (shared strings · phonetic runs)."""
     with zipfile.ZipFile(TABLE) as z:
         shared = []
         if "xl/sharedStrings.xml" in z.namelist():
             for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall(f"{NS}si"):
-                # <rPh> 는 한글 · 일본어 엑셀이 붙이는 발음 표기다 — 글자가 아니다
+                # <rPh> is the phonetic run that Korean · Japanese Excel attaches — not text
                 shared.append("".join(t.text or "" for t in si.iter(f"{NS}t") if not _in_phonetic(si, t)))
         sheets = sorted(n for n in z.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml"))
         sheet = ET.fromstring(z.read(sheets[0]))
@@ -204,18 +204,18 @@ def _in_phonetic(si, t):
 
 
 def as_code(text, was):
-    """표의 숫자를 코드에 적을 모양으로. 정수였던 값은 정수로, 실수였던 값은 소수점을 남긴다."""
+    """The table's number in the form to write into code. A value that was an integer stays an integer; a float keeps its decimal point."""
     number = float(text)
     if "." not in was:
         if number != int(number):
-            raise ValueError(f"정수 값에 소수 {text}")
+            raise ValueError(f"decimal {text} for an integer value")
         return str(int(number))
     out = f"{round(number, 6):.6f}".rstrip("0")
     return out + "0" if out.endswith(".") else out
 
 
 def diff():
-    """([(이름, 코드값, 표값)] — 표에 있고 코드와 다른 것, [코드에만 있는 이름])."""
+    """([(name, code value, table value)] — in the table and different from the code, [names only in the code])."""
     table = read_table()
     changed, unknown, missing = [], set(table), []
     for name, value, _gdd, _note in read_code():
@@ -226,11 +226,11 @@ def diff():
         try:
             new = as_code(table[name], value)
         except ValueError as e:
-            sys.exit(f"{name}: 숫자가 아니다 — {e}")
+            sys.exit(f"{name}: not a number — {e}")
         if float(new) != float(value):
             changed.append((name, value, new))
     for name in sorted(unknown):
-        print(f"  표에만 있다 (무시): {name}")
+        print(f"  only in the table (ignored): {name}")
     return changed, missing
 
 
@@ -243,14 +243,14 @@ def bake():
             lines[i] = m.group(1) + m.group(2) + m.group(3) + changed[m.group(2)] + m.group(5)
             print(f"  {m.group(2)}: {m.group(4)} → {changed[m.group(2)]}")
     open(CODE, "w", encoding="utf-8").write("\n".join(lines))
-    write_table(read_code())  # 코드값 열을 새 값으로
-    print(f"{len(changed)}개를 구웠다. 이어서 /gamedev-kit:gdd-sync to-gdd" if changed else "바뀐 값이 없다")
+    write_table(read_code())  # the 코드값 column takes the new values
+    print(f"Baked {len(changed)}. Next: /gamedev-kit:gdd-sync to-gdd" if changed else "No values changed")
 
 
-# ── 내주기 ───────────────────────────────────────────────────────────────────
+# ── Serve ───────────────────────────────────────────────────────────────────
 
 def snapshot():
-    """{"stamp": 표가 저장된 시각, "values": {이름: 숫자}}. 엑셀이 저장하는 도중이라 못 읽으면 None."""
+    """{"stamp": when the table was saved, "values": {name: number}}. None if it cannot be read because Excel is mid-save."""
     try:
         stamp = str(os.stat(TABLE).st_mtime_ns)
         table = read_table()
@@ -261,23 +261,23 @@ def snapshot():
         try:
             values[name] = float(text)
         except ValueError:
-            pass  # 숫자가 아닌 칸은 넘긴다
+            pass  # cells that are not numbers are skipped
     return {"stamp": stamp, "values": values}
 
 
 def serve(port):
-    """실행 중인 게임이 표를 가져갈 수 있게 내준다. 이 컴퓨터 안에서만 열린다 (127.0.0.1)."""
+    """Serve the table so a running game can fetch it. Open only on this machine (127.0.0.1)."""
     from http.server import BaseHTTPRequestHandler, HTTPServer
     from urllib.parse import urlparse
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            # 주소 전체를 요청 줄에 적어 보내는 클라이언트도 있다 (GET http://127.0.0.1:8765/balance)
+            # some clients put the whole address on the request line (GET http://127.0.0.1:8765/balance)
             if urlparse(self.path).path.rstrip("/") != "/balance":
-                snap, status = {"error": "/balance 만 있다"}, 404
+                snap, status = {"error": "only /balance exists"}, 404
             else:
                 snap = snapshot()
-                snap, status = (snap, 200) if snap else ({"error": "표를 읽지 못했다"}, 503)
+                snap, status = (snap, 200) if snap else ({"error": "could not read the table"}, 503)
             body = json.dumps(snap).encode("utf-8")
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -286,10 +286,10 @@ def serve(port):
             self.wfile.write(body)
 
         def log_message(self, *_args):
-            pass  # 0.5초마다 오는 요청을 다 적으면 터미널이 넘친다
+            pass  # logging a request every 0.5 s would flood the terminal
 
     server = HTTPServer(("127.0.0.1", port), Handler)
-    print(f"http://127.0.0.1:{server.server_address[1]}/balance — {os.path.relpath(TABLE, ROOT)} (Ctrl+C 로 끈다)", flush=True)
+    print(f"http://127.0.0.1:{server.server_address[1]}/balance — {os.path.relpath(TABLE, ROOT)} (Ctrl+C to stop)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -299,7 +299,7 @@ def serve(port):
 def main():
     args = [a for a in sys.argv[1:]]
     root = None
-    if "--root" in args:  # 테스트용
+    if "--root" in args:  # for tests
         i = args.index("--root")
         root = args[i + 1]
         del args[i:i + 2]
@@ -310,18 +310,18 @@ def main():
     if cmd == "export":
         rows = read_code()
         write_table(rows)
-        print(f"{os.path.relpath(TABLE, ROOT)} — {len(rows)}줄")
+        print(f"{os.path.relpath(TABLE, ROOT)} — {len(rows)} lines")
     elif cmd == "bake":
         bake()
     elif cmd == "check":
         changed, missing = diff()
         for name, old, new in changed:
-            print(f"  {name}: 코드 {old} · 표 {new}")
-        for name in missing:  # 코드에 새로 생긴 값 — 표에서는 보이지도 고쳐지지도 않는다
-            print(f"  코드에만 있다 (표에 없다): {name}")
+            print(f"  {name}: code {old} · table {new}")
+        for name in missing:  # values new in the code — the table neither shows nor edits them
+            print(f"  only in the code (not in the table): {name}")
         if changed:
-            sys.exit("표와 코드가 다르다 — balance_table.py bake")
-        print("표와 코드가 같다" + (f" — 다만 코드에만 있는 값이 {len(missing)}개다: balance_table.py export 하면 표에 든다" if missing else ""))
+            sys.exit("The table and the code differ — balance_table.py bake")
+        print("The table and the code match" + (f" — but {len(missing)} value(s) are only in the code: balance_table.py export puts them in the table" if missing else ""))
     else:
         serve(int(args[1]) if len(args) > 1 else 8765)
 

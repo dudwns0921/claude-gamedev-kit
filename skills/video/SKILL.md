@@ -33,7 +33,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/clip.py" status
 2. **`new`.** Write in English **what happens in the shot** — who or what, doing what, where, how the camera moves — one shot, one action. Do not write the look:
    the footage style paragraph is appended to every description. Give reference images with `--image` (paths from the game root) when the shot must match
    something that exists — a character, a place, a frame to start from. The game's own art (asset images, screenshots) makes the footage look like the game.
-3. **Show the user** the line `new` prints ("보낼 설명") and the reference images, with the seconds and the model. When they agree, `approve`. Changing the description, the images,
+3. **Show the user** the line `new` prints ("Prompt to send") and the reference images, with the seconds and the model. When they agree, `approve`. Changing the description, the images,
    the length or the model undoes the approval.
 4. **`make`.** Tell the user it costs credits before the first one of a session. It uploads the images, sends the request, waits and downloads `<work>/<name>/clip.mp4`.
    If the wait is cut off, `make` again continues waiting — it does not send a second request. Run several names in one call only when each was approved.

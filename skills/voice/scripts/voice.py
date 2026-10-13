@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
-"""보이스(사용자의 판단을 모은 한 장)의 재료와 채점 — 사이클 문서의 결정 줄만 꺼내고, 묻기 전에 적은 예측을 답과 견준다.
+"""The voice (one page of how the user decides): its material and its scoring — pulls only the decision lines out of the cycle documents, and checks the prediction written before asking against the answer.
 
-보이스는 게임이 아니라 사람의 것이라 게임 저장소 밖에 산다: ~/.config/gamedev-kit/voice/ (환경 변수 GAMEDEV_KIT_VOICE 로 바꾼다).
-거기에 VOICE.md(사람이 읽고 고치는 것) · log.md(예측 장부) · seen.txt(보이스에 이미 읽힌 결정)가 있고, 줄마다 어느 게임의 것인지 적힌다.
-게임의 이름은 게임 폴더의 이름이다 (kit.config.json 의 "voice": {"name": …} 로 바꾼다).
+The voice belongs to a person, not a game, so it lives outside the game repository: ~/.config/gamedev-kit/voice/ (change it with the GAMEDEV_KIT_VOICE environment variable).
+There sit VOICE.md (read and edited by people) · log.md (the prediction ledger) · seen.txt (decisions the voice has already read), and every line says which game it is from.
+The game's name is the name of the game folder (change it with "voice": {"name": …} in kit.config.json).
 
-  python3 voice.py path                    보이스 문서의 경로. 아직 없으면 그렇다고 하고 1 로 끝난다
-  python3 voice.py collect                 이 게임의 사이클마다 목표와 답이 난 결정. 권함과 답이 갈렸는지, 답을 바꿨는지([바꿈]) 표시한다
-  python3 voice.py collect new             보이스에 아직 읽히지 않은 것만
-  python3 voice.py collect done            지금 답이 난 결정을 전부 읽힌 것으로 적는다 (보이스를 쓴 뒤에)
-  python3 voice.py predict D2 ② V3,V5      묻기 전에 예측을 적는다 — 고를 것과 근거 원칙. 답이 난 결정에는 적지 못한다
-  python3 voice.py predict D2 -            근거가 될 원칙이 없다 (모름)
-  python3 voice.py score                   답이 난 결정의 예측을 채점한다. 답에서 번호를 가릴 수 없는 것은 줄로 내놓는다
-  python3 voice.py score 03 D2 hit         가릴 수 없던 것을 손으로 (hit · miss)
-  python3 voice.py stats                   적중률 — 전체 · 게임별 · 누가 물은 것 · 원칙별
+  python3 voice.py path                    Path of the voice document. If there is none yet, says so and exits 1
+  python3 voice.py collect                 This game, per cycle: the goal and the answered decisions. Marks whether the answer split from the recommendation, and whether it was changed ([바꿈])
+  python3 voice.py collect new             Only what the voice has not read yet
+  python3 voice.py collect done            Record every decision answered so far as read (after writing the voice)
+  python3 voice.py predict D2 ② V3,V5      Write a prediction before asking — the pick and the principles behind it. Not allowed on an answered decision
+  python3 voice.py predict D2 -            No principle to go on (모름)
+  python3 voice.py score                   Score the predictions of answered decisions. Where no option can be told from the answer, prints a line for it
+  python3 voice.py score 03 D2 hit         Those, by hand (hit · miss)
+  python3 voice.py stats                   Hit rate — overall · per game · per asker · per principle
 
-보이스 폴더는 비공개 git 저장소의 클론이다 — 복사본을 두지 않는다. 다른 기기에서는 같은 저장소를 받는다.
+The voice folder is a clone of a private git repository — no copies are kept. Another machine clones the same repository.
 
-  python3 voice.py setup <저장소 주소>     폴더가 없으면 받고(clone), 보이스가 이미 있으면 그 폴더를 저장소로 만들어 원격을 붙인다. 공개 저장소면 멈춘다
-  python3 voice.py autopush on             묻지 않고 올려도 된다는 사용자의 허락을 이 기기에 적는다 (off 로 거둔다). 비공개로 확인된 저장소만
-                                           (로그인 없이는 읽히지 않는 저장소 — git 이 가진 로그인으로 본다)
-  python3 voice.py sync ["<한 줄>"]         바뀐 것을 커밋하고, 원격의 것을 받고, 허락이 있으면 올린다. 읽기 전과 쓴 뒤에 돌린다
-  python3 voice.py sync --push             허락이 없을 때 — 사용자에게 묻고 난 뒤 한 번 올린다
+  python3 voice.py setup <repo url>        No folder: clone. A voice already there: make that folder a repository and attach the remote. Stops on a public repository
+  python3 voice.py autopush on             Record on this machine the user's permission to push without asking (off takes it back). Only for a repository confirmed private
+                                           (a repository that cannot be read without logging in — checked with the login git already has)
+  python3 voice.py sync ["<one line>"]     Commit what changed, take what the remote has, and push if permitted. Run before reading and after writing
+  python3 voice.py sync --push             Without the permission — push once, after asking the user
 
-predict 는 가장 새 사이클 문서(번호가 가장 큰 것)의 결정을 본다. 다른 문서면 `--doc <경로>`.
+predict looks at the decisions of the newest cycle document (the highest number). For another document, `--doc <path>`.
 """
 import datetime
 import json
@@ -44,26 +44,26 @@ LOG_HEAD = """# 보이스 예측 장부
 `[ ]` 채점 전 · `[o]` 맞음 · `[x]` 빗나감 · `[-]` 모름 (근거가 될 원칙이 없어 예측하지 않음)
 
 """
-ANON_GIT = os.environ.get("VOICE_ANON_GIT", "git")  # 테스트가 바꾼다
+ANON_GIT = os.environ.get("VOICE_ANON_GIT", "git")  # the tests change this
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
 PARTS_RE = re.compile(r"^(?P<q>.*?)(?: \((?P<who>기획|디자인|계획)\))?(?: → (?P<a>.*?)(?: \((?P<date>\d{4}-\d\d-\d\d)\))?)?$")
 LOG_RE = re.compile(r"^- \[(.)\] (\S+) (\d+) (D\d+) \(([^)]*)\) → (\S+)(?: · (V\d+(?:, V\d+)*))?", re.M)
-WORD = {"o": "맞음", "x": "빗나감"}
+WORD = {"o": "hit", "x": "miss"}
 
 ROOT = ""
 GAME = ""
 
 
 def find_root(start):
-    """kit.config.json 이 있는 폴더를 지금 폴더에서 위로 올라가며 찾는다. 도구는 플러그인 안에 있고 게임은 밖에 있다."""
+    """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
+            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
 
@@ -95,14 +95,14 @@ def section(text, title):
 
 
 def choice(text):
-    """글에서 고른 번호 하나 (①, `2번`). 없거나 둘 이상이면 빈 글 — 사람 말은 번호 없이도 답이다."""
+    """The one option picked in the text (①, `2번`). None, or more than one: empty string — what a person says is an answer even without a number."""
     found = set(re.findall(f"[{CIRCLED}]", text)) | {CIRCLED[int(n) - 1] for n in re.findall(r"(?<!\d)([1-9])번", text)}
     return found.pop() if len(found) == 1 else ""
 
 
 def decisions(text):
-    """결정 번호 → 질문 · 누가 물었나 · 권함 · 답 · 답한 날 · 답에서 가린 번호 · 답이 몇 번 났나.
-    답을 바꾸면 앞의 답 뒤에 ` → 새 답` 이 붙는다 — 고른 번호는 마지막 답에서 가린다."""
+    """Decision number → question · who asked · recommendation · answer · date answered · the option told from the answer · how many times it was answered.
+    A changed answer is appended to the earlier one as ` → new answer` — the picked option is told from the last answer."""
     out = {}
     for mark, num, rest in DECISION_RE.findall(section(text, "결정")):
         p = PARTS_RE.match(rest.strip()).groupdict()
@@ -116,9 +116,9 @@ def decisions(text):
 
 
 def split_tag(d):
-    if "를 받아들임" in d["answer"]:  # 자동 모드가 대신 정한 것을 받아들였다 — 스스로 고른 것보다 약한 근거다
+    if "를 받아들임" in d["answer"]:  # accepted what auto mode decided in their place — weaker evidence than a pick of their own
         return "받음"
-    if d["answers"] > 1:  # 답을 바꿨다 — 무엇이 달라져서 바꿨는가가 보이스에 가장 쓸모 있다
+    if d["answers"] > 1:  # changed the answer — what changed to make them do so is the most useful thing for the voice
         return "바꿈"
     if not d["rec"] or not d["chose"]:
         return "?"
@@ -127,15 +127,15 @@ def split_tag(d):
 
 def cmd_collect(mode):
     seen = set(read(SEEN).split("\n")) if os.path.exists(SEEN) else set()
-    # 답을 바꾼 결정은 읽힌 뒤에도 다시 나온다 — 몇 번째 답인지가 이름에 붙는다
+    # a decision whose answer changed shows up again even after it was read — the key carries which answer it is
     key = lambda path, num, d: f"{GAME} {number(path)} {num}" + (f" #{d['answers']}" if d["answers"] > 1 else "")
     count = {"갈림": 0, "같음": 0, "?": 0, "받음": 0, "바꿈": 0}
     if mode == "done":
         new = [key(p, num, d) for p in docs() for num, d in decisions(read(p)).items() if d["answer"] is not None and key(p, num, d) not in seen]
         if new:
             write(SEEN, "\n".join(sorted(seen - {""}) + new) + "\n")
-        return print(f"{len(new)}개를 읽힌 것으로 적었다")
-    print(f"게임: {GAME}")
+        return print(f"recorded {len(new)} as read")
+    print(f"game: {GAME}")
     for path in docs():
         text = read(path)
         rows = [(num, d) for num, d in decisions(text).items()
@@ -144,16 +144,16 @@ def cmd_collect(mode):
             continue
         title = re.match(r"# *(.*)", text)
         print(f"\n{title.group(1) if title else os.path.basename(path)}")
-        print("목표: " + " ".join(section(text, "목표").split()))
+        print("goal: " + " ".join(section(text, "목표").split()))
         for num, d in rows:
             tag = split_tag(d)
             count[tag] += 1
             print(f"  {GAME} {number(path)} {num} [{tag}] ({d['who']}) {d['q']} → {d['answer']}" + (f" ({d['date']})" if d["date"] else ""))
     total = sum(count.values())
     if not total:
-        return print("답이 난 결정이 없다" + (" (아직 읽히지 않은 것 가운데)" if mode == "new" else ""))
-    print(f"\n결정 {total} · 권함과 갈림 {count['갈림']} · 같음 {count['같음']} · 읽어서 가릴 것 {count['?']}"
-          + (f" · 대리를 받음 {count['받음']}" if count["받음"] else "") + (f" · 답을 바꿈 {count['바꿈']}" if count["바꿈"] else ""))
+        return print("no answered decisions" + (" (among those not read yet)" if mode == "new" else ""))
+    print(f"\ndecisions {total} · 갈림 {count['갈림']} · 같음 {count['같음']} · to read {count['?']}"
+          + (f" · 받음 {count['받음']}" if count["받음"] else "") + (f" · 바꿈 {count['바꿈']}" if count["바꿈"] else ""))
 
 
 def log_text():
@@ -163,23 +163,23 @@ def log_text():
 def cmd_predict(path, num, pick, cites):
     ds = decisions(read(path))
     if num not in ds:
-        sys.exit(f"{num}: 그런 결정이 없다 — " + " · ".join(ds))
+        sys.exit(f"{num}: no such decision — " + " · ".join(ds))
     if ds[num]["answer"] is not None:
-        sys.exit(f"{num}: 이미 답이 났다 — 예측은 묻기 전에 적는다")
+        sys.exit(f"{num}: already answered — a prediction is written before asking")
     log = log_text()
     if re.search(rf"^- \[.\] {re.escape(GAME)} {number(path)} {num} ", log, re.M):
-        sys.exit(f"{num}: 이미 예측을 적었다")
+        sys.exit(f"{num}: prediction already written")
     if pick == "-":
         line = f"- [-] {GAME} {number(path)} {num} ({ds[num]['who']}) → 모름"
     else:
         pick = CIRCLED[int(pick) - 1] if re.fullmatch(r"[1-9]", pick) else pick
         if pick not in CIRCLED or pick not in ds[num]["q"]:
-            sys.exit(f"{pick}: 질문에 없는 선택지다 — {ds[num]['q']}")
+            sys.exit(f"{pick}: not an option in the question — {ds[num]['q']}")
         known = re.findall(r"^- (V\d+)\.", read(VOICE), re.M) if os.path.exists(VOICE) else []
         used = [v for v in cites.split(",") if v]
         bad = [v for v in used if v not in known]
         if not used or bad:
-            sys.exit(f"근거 원칙이 {VOICE} 에 없다: {' · '.join(bad) or '(안 적음)'} — 근거가 없으면 `predict {num} -`")
+            sys.exit(f"principle not in {VOICE}: {' · '.join(bad) or '(none given)'} — with no principle to go on, `predict {num} -`")
         line = f"- [ ] {GAME} {number(path)} {num} ({ds[num]['who']}) → {pick} · {', '.join(used)}"
     write(LOG, log.rstrip("\n") + f"\n{line} ({datetime.date.today()})\n")
     print(line[2:])
@@ -201,15 +201,15 @@ def cmd_score(manual):
         elif d["chose"]:
             new = "o" if d["chose"] == pick else "x"
         else:
-            unclear.append(f"가릴 수 없다: {doc} {num} 예측 {pick} · 답: {d['answer']} — `score {doc} {num} hit|miss`")
+            unclear.append(f"cannot tell: {doc} {num} predicted {pick} · answer: {d['answer']} — `score {doc} {num} hit|miss`")
             continue
         log = log.replace(m.group(0), m.group(0).replace("- [ ]", f"- [{new}]", 1), 1)
-        marked.append(f"{doc} {num}: {WORD[new]} — 예측 {pick}" + (f" ({m.group(7)})" if m.group(7) else "") + f" · 답: {d['answer']}")
+        marked.append(f"{doc} {num}: {WORD[new]} — predicted {pick}" + (f" ({m.group(7)})" if m.group(7) else "") + f" · answer: {d['answer']}")
     if manual and not any(line.startswith(f"{manual[0]} {manual[1]}:") for line in marked):
-        sys.exit(f"{manual[0]} {manual[1]}: 채점할 예측이 없다 (예측이 없거나, 답이 아직 없거나, 이미 채점했다)")
+        sys.exit(f"{manual[0]} {manual[1]}: no prediction to score (no prediction, no answer yet, or already scored)")
     if marked:
         write(LOG, log)
-    print("\n".join(marked + unclear) or "채점할 예측이 없다")
+    print("\n".join(marked + unclear) or "no prediction to score")
 
 
 def git(*args):
@@ -221,10 +221,10 @@ def is_repo():
 
 
 def anon_url(url):
-    """로그인 없이 물어볼 주소. SSH 주소는 그대로 물으면 SSH 키가 로그인해 버려 비공개 저장소도 읽힌다 (~/.ssh/config 의 별칭도 같다) —
-    GitHub 것이면 같은 저장소의 https 주소로 바꾸고, 바꿀 수 없는 호스트의 SSH 주소는 None (물어볼 수 없다)."""
+    """The address to ask without a login. Asking an SSH address as it is lets the SSH key log in, so a private repository is read too (same for an alias in ~/.ssh/config) —
+    a GitHub one becomes the https address of the same repository; an SSH address on a host that cannot be converted gives None (cannot be asked)."""
     m = re.match(r"ssh://(?:[^@/]+@)?([^:/]+)(?::\d+)?/(.+)$", url) or ("://" not in url and re.match(r"(?:[^@/:]+@)?([^:/]+):(.+)$", url))
-    if not m or os.path.exists(url):  # https · 이 기기의 경로 따위는 키가 붙지 않는다
+    if not m or os.path.exists(url):  # https · a path on this machine and the like carry no key
         return url
     host, path = m.group(1).lower(), m.group(2).strip("/")
     if host == "github.com" or host.startswith("github.com-"):
@@ -233,8 +233,8 @@ def anon_url(url):
 
 
 def is_private(url):
-    """로그인 없이도 읽히면 공개다. 로그인해야만 읽히면 True, 로그인 없이 읽히면 False, 닿지 않거나 로그인 없이 물어볼 수 없으면 None.
-    git 이 이미 가진 로그인만 쓴다 — 따로 깔거나 로그인할 것이 없다."""
+    """Readable without a login means public. True if it reads only with a login, False if it reads without one, None if it cannot be reached or cannot be asked without a login.
+    Uses only the login git already has — nothing more to install or log in to."""
     if subprocess.run(["git", "ls-remote", url], capture_output=True, text=True).returncode:
         return None
     ask = anon_url(url)
@@ -249,57 +249,57 @@ def is_private(url):
 def cmd_setup(url):
     private = is_private(url)
     if private is False:
-        sys.exit(f"{url}: 공개 저장소다 — 보이스에는 사용자의 성향과 편향이 적힌다. 비공개로 바꾼 뒤 다시 돌린다")
+        sys.exit(f"{url}: public repository — the voice holds the user's leanings and biases. Make it private, then run again")
     if is_repo():
         origin = git("remote", "get-url", "origin").stdout.strip()
         if origin and origin != url:
-            sys.exit(f"{HOME} 은 이미 다른 저장소의 것이다: {origin}")
+            sys.exit(f"{HOME} already belongs to another repository: {origin}")
         if not origin:
             git("remote", "add", "origin", url)
-        print(f"{HOME} — 이미 저장소다")
+        print(f"{HOME} — already a repository")
     elif not os.path.isdir(HOME) or not os.listdir(HOME):
         os.makedirs(os.path.dirname(HOME), exist_ok=True)
         p = subprocess.run(["git", "clone", "-q", url, HOME], capture_output=True, text=True)
         if p.returncode:
-            sys.exit(f"받지 못했다: {p.stderr.strip()}")
-        print(f"{HOME} — 받았다" + ("" if os.path.exists(VOICE) else " (아직 빈 저장소다)"))
+            sys.exit(f"clone failed: {p.stderr.strip()}")
+        print(f"{HOME} — cloned" + ("" if os.path.exists(VOICE) else " (the repository is still empty)"))
     else:
         heads = subprocess.run(["git", "ls-remote", "--heads", url], capture_output=True, text=True)
         if heads.returncode:
-            sys.exit(f"저장소에 닿지 못했다: {heads.stderr.strip()}")
+            sys.exit(f"could not reach the repository: {heads.stderr.strip()}")
         if heads.stdout.strip():
-            sys.exit(f"저장소에도 이 기기({HOME})에도 보이스가 있다 — 어느 쪽을 남길지 사용자가 정한다. 이 기기의 것을 옮겨 두고 다시 돌리면 저장소의 것을 받는다")
+            sys.exit(f"there is a voice both in the repository and on this machine ({HOME}) — the user decides which one to keep. Move this machine's aside and run again to take the repository's")
         git("init", "-q")
         git("remote", "add", "origin", url)
-        print(f"{HOME} — 있던 보이스를 저장소로 만들었다. `sync` 가 커밋하고 올린다")
+        print(f"{HOME} — made the existing voice a repository. `sync` commits and pushes")
     if private is None:
-        print("비공개인지 확인하지 못했다 — 저장소에 닿지 못했거나(주소와 git 로그인을 본다), 로그인 없이 물어볼 수 없는 SSH 주소다. 묻지 않고 올리기는 켤 수 없다")
+        print("could not confirm it is private — the repository could not be reached (check the address and the git login), or it is an SSH address that cannot be asked without a login. Pushing without asking cannot be turned on")
     else:
-        print("비공개 저장소다. 묻지 않고 올려도 되는지 사용자에게 묻는다 — 된다고 하면 `autopush on`")
+        print("private repository. Ask the user whether it may be pushed without asking — if yes, `autopush on`")
 
 
 def cmd_autopush(state):
     if not is_repo():
-        sys.exit(f"{HOME} 은 저장소가 아니다 — `setup <저장소 주소>`")
+        sys.exit(f"{HOME} is not a repository — `setup <repo url>`")
     if state == "on" and is_private(git("remote", "get-url", "origin").stdout.strip()) is not True:
-        sys.exit("비공개로 확인된 저장소가 아니다 — 묻지 않고 올리지 않는다")
+        sys.exit("not a repository confirmed private — will not push without asking")
     git("config", "voice.autopush", "true" if state == "on" else "false")
-    print("묻지 않고 올린다 (이 기기에서)" if state == "on" else "올리기 전에 묻는다")
+    print("pushes without asking (on this machine)" if state == "on" else "asks before pushing")
 
 
 def cmd_sync(push, message):
     if not is_repo():
-        return print(f"{HOME} 은 저장소가 아니다 — 보이스가 이 기기에만 남는다. `setup <비공개 저장소 주소>`")
+        return print(f"{HOME} is not a repository — the voice stays on this machine only. `setup <private repo url>`")
     if git("status", "--porcelain").stdout.strip():
         git("add", "-A")
         p = git("commit", "-q", "-m", message or f"voice: {datetime.date.today()}")
         if p.returncode:
-            sys.exit(f"커밋하지 못했다: {(p.stderr or p.stdout).strip()}")
-        print("커밋했다")
+            sys.exit(f"commit failed: {(p.stderr or p.stdout).strip()}")
+        print("committed")
     if git("remote", "get-url", "origin").returncode:
-        return print("원격이 없다 — `setup <저장소 주소>`")
+        return print("no remote — `setup <repo url>`")
     if git("fetch", "-q", "origin").returncode:
-        return print("원격에 닿지 못했다 — 이 기기의 것으로 계속한다")
+        return print("could not reach the remote — carrying on with this machine's copy")
     branch = git("symbolic-ref", "--short", "HEAD").stdout.strip()
     remote = f"origin/{branch}"
     has = lambda ref: git("rev-parse", "-q", "--verify", ref).returncode == 0
@@ -308,25 +308,25 @@ def cmd_sync(push, message):
         behind = count(f"HEAD..{remote}") if has("HEAD") else count(remote)
         if git("pull", "-q", "--rebase", "origin", branch).returncode:
             git("rebase", "--abort")
-            sys.exit(f"두 기기의 보이스가 서로 다르게 고쳐졌다 — {HOME} 에서 손으로 합친다 (git pull --rebase). 그 전에는 보이스를 쓰지 않는다")
-        print(f"받았다 — 커밋 {behind}")
+            sys.exit(f"the voice was edited differently on two machines — merge by hand in {HOME} (git pull --rebase). Do not use the voice until then")
+        print(f"pulled — commits {behind}")
     ahead = count(f"{remote}..HEAD" if has(remote) else "HEAD") if has("HEAD") else 0
     if not ahead:
-        return print("저장소와 같다")
+        return print("same as the repository")
     if not push and git("config", "voice.autopush").stdout.strip() != "true":
-        return print(f"올리지 않은 커밋 {ahead} — 사용자에게 묻고 `sync --push` (늘 올려도 되면 `autopush on`)")
+        return print(f"unpushed commits {ahead} — ask the user, then `sync --push` (if it may always be pushed, `autopush on`)")
     p = git("push", "-q", "-u", "origin", branch)
-    print(f"올렸다 — 커밋 {ahead}" if p.returncode == 0 else f"올리지 못했다: {p.stderr.strip()}")
+    print(f"pushed — commits {ahead}" if p.returncode == 0 else f"push failed: {p.stderr.strip()}")
 
 
 def cmd_stats():
     rows = LOG_RE.findall(log_text())
     if not rows:
-        return print(f"{LOG} 에 예측이 없다")
+        return print(f"no predictions in {LOG}")
     rate = lambda hit, miss: f"{hit}/{hit + miss}" + (f" ({100 * hit // (hit + miss)}%)" if hit + miss else "")
     tally = lambda picked: (sum(1 for r in picked if r[0] == "o"), sum(1 for r in picked if r[0] == "x"))
     marks = [r[0] for r in rows]
-    print(f"적중 {rate(*tally(rows))} · 모름 {marks.count('-')} · 채점 전 {marks.count(' ')} · 예측 {len(rows)}")
+    print(f"hits {rate(*tally(rows))} · 모름 {marks.count('-')} · unscored {marks.count(' ')} · predictions {len(rows)}")
     if len({r[1] for r in rows}) > 1:
         for game in dict.fromkeys(r[1] for r in rows):
             mine = [r for r in rows if r[1] == game]
@@ -361,7 +361,7 @@ def main():
         return cmd_sync(push, rest[0] if rest else "")
     if cmd == "path":
         if not os.path.exists(VOICE):
-            sys.exit(f"보이스가 아직 없다 ({VOICE}) — /gamedev-kit:voice 로 쓴다")
+            sys.exit(f"no voice yet ({VOICE}) — write it with /gamedev-kit:voice")
         return print(VOICE)
     if cmd == "stats":
         return cmd_stats()
@@ -377,11 +377,11 @@ def main():
         path = opts.get("--doc") or (docs() or [""])[-1]
         path = path if os.path.isabs(path) else os.path.join(ROOT, path)
         if not os.path.isfile(path):
-            sys.exit(f"{DIR}/ 에 사이클 문서가 없다")
+            sys.exit(f"no cycle document in {DIR}/")
         cmd_predict(path, rest[0], rest[1], rest[2] if len(rest) > 2 else "")
     elif cmd == "score":
         if rest and rest[2] not in ("hit", "miss"):
-            sys.exit("채점은 hit · miss 다")
+            sys.exit("a score is hit · miss")
         cmd_score(rest)
 
 

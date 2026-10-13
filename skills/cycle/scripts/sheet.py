@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""눈으로 고르는 결정을 묻는 시트 — 물음 하나에 그림 한 장. 물음 · 보기와, 견줄 그림들을 한 장에 놓는다.
+"""A sheet for asking decisions that are chosen by eye — one picture per question. Puts the question · its options and the images to compare on one sheet.
 
-  python3 sheet.py <물음들.json> [--name <이름>] [--out <폴더>]
+  python3 sheet.py <questions.json> [--name <name>] [--out <folder>]
 
-화면 · 자세 · 쥠처럼 보고 고르는 결정은 글과 그림을 따로 주면 (특히 폰에서) 고르지 못한다. 그래서 한 장 안에:
-맨 위에 번호 붙은 물음과 보기(한 줄 대가 · 권하는 쪽), 그 아래 보기마다 대상 둘레를 크게 자른 그림을 라벨과 함께 나란히.
-물음이 여럿이면 번호 매긴 장 여럿이 나온다 — 사용자는 "1 은 ⓑ, 2 는 지금" 처럼 번호로 답한다.
+A decision made by looking — a screen, a pose, a grip — cannot be chosen (least of all on a phone) when the text and the images come apart. So on one sheet:
+the numbered question and its options at the top (one-line cost · the recommended one), and below, one image per option cropped large around the subject, side by side with labels.
+Several questions give several numbered sheets — the user answers by number, like "1 is ⓑ, 2 as it is".
 
-물음들.json (경로는 게임 루트 기준):
-  [{"id": "D3", "question": "활을 쥔 손의 자리",
-    "options": [{"mark": "ⓐ", "text": "지금 그대로 — 고칠 것 없음"},
-                {"mark": "ⓑ", "text": "손목을 세운다 — 클립 둘을 다시 잰다", "recommend": true}],
-    "images": [{"label": "지금", "path": "shots/now.png", "crop": [420, 180, 600, 600]},
-               {"label": "ⓑ 바꾼 것", "path": "shots/b.png", "crop": [420, 180, 600, 600]}]}]
-  id 가 없으면 차례대로 1, 2, … 다. crop 은 [x, y, 너비, 높이] 픽셀 — 없으면 그림 전체. 자르는 그림은 png 여야 한다.
+questions.json (paths are relative to the game root):
+  [{"id": "D3", "question": "Where the bow hand sits",
+    "options": [{"mark": "ⓐ", "text": "As it is — nothing to fix"},
+                {"mark": "ⓑ", "text": "Raise the wrist — two clips to re-time", "recommend": true}],
+    "images": [{"label": "Now", "path": "shots/now.png", "crop": [420, 180, 600, 600]},
+               {"label": "ⓑ changed", "path": "shots/b.png", "crop": [420, 180, 600, 600]}]}]
+  Without an id they are 1, 2, … in order. crop is [x, y, width, height] in pixels — the whole image if absent. An image to crop must be a png.
 
-<폴더>/<이름>-<번호>.html 이 나온다 (그림이 안에 들어 있어 파일 하나로 열린다). 이 기기에 Chrome 계열 브라우저가 있으면
-같은 이름의 .png 도 찍는다 — 사용자에게 건네는 것은 그 그림이다. 브라우저의 자리는 kit.config.json 의 cycle.browser.
-폴더는 기본 docs/cycle/sheets.
+Writes <folder>/<name>-<number>.html (the images are embedded, so it opens as one file). If this machine has a Chrome-family browser,
+a .png of the same name is taken too — that picture is what goes to the user. The browser's path is cycle.browser in kit.config.json.
+The folder defaults to docs/cycle/sheets.
 """
 import base64
 import html
@@ -32,7 +32,7 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 OUT = os.path.join("docs", "cycle", "sheets")
-WIDTH = 1080  # 폰 화면 한 폭에 읽히는 너비
+WIDTH = 1080  # a width that reads across one phone screen
 BROWSERS = ("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Chromium.app/Contents/MacOS/Chromium",
             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "google-chrome", "chromium", "chromium-browser", "chrome", "msedge")
 PAGE = """<!doctype html>
@@ -65,14 +65,14 @@ ROOT = ""
 
 
 def find_root(start):
-    """kit.config.json 이 있는 폴더를 지금 폴더에서 위로 올라가며 찾는다. 도구는 플러그인 안에 있고 게임은 밖에 있다."""
+    """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} 을 찾지 못했다 — 게임 저장소 안에서 돌리고 있는가, /gamedev-kit:init 을 했는가")
+            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
 
@@ -83,7 +83,7 @@ def png_size(data):
 def figure(where, img):
     path = os.path.join(ROOT, img.get("path", ""))
     if not os.path.isfile(path):
-        sys.exit(f"{where}: 그림이 없다 — {img.get('path')} (게임 루트 기준 경로)")
+        sys.exit(f"{where}: image not found — {img.get('path')} (path relative to the game root)")
     data = open(path, "rb").read()
     src = f"data:{mimetypes.guess_type(path)[0] or 'image/png'};base64,{base64.b64encode(data).decode()}"
     label = f"<figcaption>{html.escape(img.get('label', ''))}</figcaption>"
@@ -91,22 +91,22 @@ def figure(where, img):
     if not crop:
         return f"<figure>{label}<img src=\"{src}\"></figure>"
     if not size:
-        sys.exit(f"{where}: {img['path']} 는 png 가 아니라 자를 수 없다 — crop 을 빼거나 png 로 준다")
+        sys.exit(f"{where}: {img['path']} is not a png and cannot be cropped — drop crop or give a png")
     try:
         x, y, w, h = (float(v) for v in crop)
         if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > size[0] or y + h > size[1]:
             raise ValueError
     except (TypeError, ValueError):
-        sys.exit(f"{where}: crop 은 그림({size[0]} × {size[1]}) 안의 [x, y, 너비, 높이] 다 — {crop}")
-    pct = lambda v, of: f"{100 * v / of:.4f}%"  # 틀의 너비에 견준 값 — 틀이 어느 폭이 되든 같은 자리가 보인다
+        sys.exit(f"{where}: crop is [x, y, width, height] inside the image ({size[0]} × {size[1]}) — {crop}")
+    pct = lambda v, of: f"{100 * v / of:.4f}%"  # relative to the frame's width — the same spot shows whatever width the frame ends up
     return (f"<figure>{label}<div class=\"crop\" style=\"aspect-ratio: {w:g} / {h:g}\">"
             f"<img src=\"{src}\" style=\"width: {pct(size[0], w)}; left: -{pct(x, w)}; top: -{pct(y, h)}\"></div></figure>")
 
 
 def page(n, q):
-    where = f"물음 {n}"
+    where = f"question {n}"
     if not isinstance(q, dict) or not q.get("question") or not q.get("images"):
-        sys.exit(f"{where}: question 과 images 가 있어야 한다")
+        sys.exit(f"{where}: question and images are required")
     options = "".join(
         f"<li class=\"{'pick' if o.get('recommend') else ''}\"><b>{html.escape(str(o.get('mark', '')))}</b>{html.escape(str(o.get('text', '')))}"
         + ("<small>← 권함</small>" if o.get("recommend") else "") + "</li>" for o in q.get("options", []))
@@ -126,7 +126,7 @@ def browser():
 
 
 def shoot(tool, page_path, out):
-    """쪽을 그 높이만큼 찍는다. 높이는 쪽이 스스로 재어 적은 것을 먼저 읽는다."""
+    """Shoots the page at its full height. The height is read first from what the page measured and wrote itself."""
     url, run = "file://" + page_path, lambda *a: subprocess.run([tool, "--headless", "--disable-gpu", "--hide-scrollbars", *a], capture_output=True, text=True, timeout=90)
     try:
         m = re.search(r'data-h="(\d+)"', run(f"--window-size={WIDTH},800", "--dump-dom", url).stdout)
@@ -156,13 +156,13 @@ def main():
     try:
         asked = json.load(open(args[0], encoding="utf-8"))
     except (OSError, ValueError) as e:
-        sys.exit(f"{args[0]}: 읽지 못했다 — {e}")
+        sys.exit(f"{args[0]}: could not read — {e}")
     if not isinstance(asked, list) or not asked:
-        sys.exit(f"{args[0]}: 물음의 목록이어야 한다 ([{{...}}, ...])")
+        sys.exit(f"{args[0]}: must be a list of questions ([{{...}}, ...])")
     name = opts.get("--name", "sheet")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name):
-        sys.exit(f"이름은 영문 · 숫자 · 붙임표 · 밑줄이다: {name!r}")
-    pages = [page(n, q) for n, q in enumerate(asked, 1)]  # 하나라도 틀리면 아무것도 쓰지 않는다
+        sys.exit(f"the name is letters · digits · hyphens · underscores: {name!r}")
+    pages = [page(n, q) for n, q in enumerate(asked, 1)]  # if any one is wrong, nothing is written
     folder = os.path.join(ROOT, opts.get("--out", OUT))
     os.makedirs(folder, exist_ok=True)
     tool = browser()
@@ -172,7 +172,7 @@ def main():
         shot = os.path.splitext(path)[0] + ".png"
         print(os.path.relpath(shot if tool and shoot(tool, path, shot) else path, ROOT))
     if not tool:
-        print("브라우저가 없어 그림으로 찍지 못했다 — 쪽(.html)을 건넨다. Chrome 계열을 깔거나 kit.config.json 의 cycle.browser 에 자리를 적는다")
+        print("no browser, so no picture was taken — hand over the page (.html). Install a Chrome-family browser or set its path in cycle.browser of kit.config.json")
 
 
 if __name__ == "__main__":
