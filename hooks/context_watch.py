@@ -2,8 +2,8 @@
 """Say so once when the session's context grows large (UserPromptSubmit hook).
 
 Every turn the model re-reads the whole conversation so far. Carry a cycle on in one session for days and that grows to hundreds
-of thousands of tokens, which eats most of the tokens and the time. The cycle document or a handoff note (the handoff skill) lets a
-new session pick the work up — this makes that get said in time.
+of thousands of tokens, which eats most of the tokens and the time. The cycle document lets a new session pick the work up
+(what it does not hold is left in it first, with the cycle skill's `carry`) — this makes that get said in time.
 
 Only inside a game repository (where kit.config.json is): one line when the context passes 200k tokens, then one for every 100k more.
 When nothing is up it prints nothing (what it prints goes into the context). It always exits 0 — it never blocks the user's input.
@@ -66,8 +66,8 @@ def main():
     if level > told:
         print(f"[gamedev-kit] This session's context is about {size // 1000}k tokens — that much is re-read every turn. "
               "At the next stopping point in the work in hand (where a decision is asked · where a round ends · where it is time to play), suggest in one line to the user: "
-              "a new session is lighter — in a cycle, `/gamedev-kit:cycle next` in the new session (the document holds all the state), "
-              "outside a cycle, leave a note here with `/gamedev-kit:handoff` and run `/gamedev-kit:handoff resume` in the new session. "
+              "a new session is lighter — `/gamedev-kit:cycle next` in the new session picks the work up (the cycle document holds the state; "
+              "work in hand that is not in it is left there first — the cycle skill's \"Leaving a session\"). "
               "Only suggest; if the user says to keep going, carry on with the work.")
 
 

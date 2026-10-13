@@ -134,9 +134,8 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:cycle` | One cycle through a single document: `<goal>` · `next` · `status` · `auto <goal>` |
+| `/gamedev-kit:cycle` | One cycle through a single document: `<goal>` · `next` · `status` · `auto <goal>`. `next` is also how a new session picks up where the last one stopped |
 | `/gamedev-kit:playtest` | Problem list → analysis document → one agent per task. `plan` analyses only, `implement [T3 …]` builds only, `status` lists what remains |
-| `/gamedev-kit:handoff` | Leaves the work in progress as a short note in `docs/handoff/`; `handoff resume` continues from it in a new session |
 
 **Keep in sync, see where you are**
 
@@ -181,7 +180,7 @@ The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent p
 | `playtest-analyst` | Opus | Finds the causes behind a problem list and writes them as a task document. Does not change code |
 | `deployer` | Sonnet | Check, build, upload to the configured platform. On a broken build, finds the first error and returns it |
 
-**Sessions stay short.** Most tokens go to what the main session re-reads every turn, so the ledgers of cycle and playtest documents are kept by scripts, a hook suggests a new session once context passes 200k tokens, and the cycle document or a `/gamedev-kit:handoff` note carries the work across.
+**Sessions stay short.** Most tokens go to what the main session re-reads every turn, so the ledgers of cycle and playtest documents are kept by scripts, a hook suggests a new session once context passes 200k tokens, and the cycle document carries the work across — what a session has in hand outside the tasks is left in it as a few lines.
 
 ### Auto mode
 

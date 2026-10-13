@@ -13,6 +13,8 @@
   python3 cycle.py confirm D2,D5                The user accepted the proxy decisions — they become [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
   python3 cycle.py later "<in the user's own words>"   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made
+  python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
+  python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
   python3 cycle.py lesson "<what tripped us → how to avoid it>"   One line in docs/kit-feedback.md for a lesson that is not this game's alone (to send up to the kit)
 
 The document is the newest one (highest number). For another, `--doc <path>`.
@@ -27,6 +29,7 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
+NOTES = os.path.join("docs", "handoff")  # notes of the skill that carried work across sessions before `carry` did
 FEEDBACK = os.path.join("docs", "kit-feedback.md")
 FEEDBACK_HEAD = """# For the kit
 
@@ -64,6 +67,9 @@ OPEN_STAGE = re.compile(r"Play|플레이|배포|회고")  # 배포 · 회고 are
 CLOSED = ("Closed", "끝")
 WAITING_RE = re.compile(r"\*\*(?:Waiting|대기)\*\*:(.*)")
 WAVE_RE = re.compile(r"- *(?:Wave *(\d+)|(\d+) *차):(.*)")
+CARRY = "Carried over"
+CARRY_RE = re.compile(r"^- \[ \] (.+)$", re.M)
+RESUMED_RE = re.compile(r"^(?:Resumed|이어받음):", re.M)
 LATER_RE = re.compile(r"^- (?:Next|다음에): *(.+)$", re.M)
 PROXY_RE = re.compile(r"^(.*) → (.*?) · (?:proxy|대리) (.*?) \(\d{4}-\d\d-\d\d\)$")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
@@ -142,6 +148,19 @@ def waiting(block, ds):
     return [d for d in re.findall(r"D\d+", line.group(1)) if ds.get(d, (" ",))[0] not in "x~"] if line else []
 
 
+def carried(text):
+    """The lines a session left for the next one that no session has picked up yet."""
+    span = section(text, CARRY)
+    return CARRY_RE.findall(text[span[0]:span[1]]) if span else []
+
+
+def old_notes():
+    """Notes in docs/handoff/ that no session resumed — so a game that left one before `carry` existed does not lose it."""
+    d = os.path.join(ROOT, NOTES)
+    names = sorted(n for n in os.listdir(d) if n.endswith(".md")) if os.path.isdir(d) else []
+    return [os.path.join(NOTES, n) for n in names if not RESUMED_RE.search(read(os.path.join(d, n)))]
+
+
 def waves(text):
     span = section(text, "Order")
     out = []
@@ -157,14 +176,20 @@ def summary(path):
     marks = [t[0] for t in tasks(text).values()]
     dmarks = [d[0] for d in decisions(text).values()]
     open_d, proxy = sum(1 for m in dmarks if m not in "x~"), dmarks.count("~")
+    left = len(carried(text))
     return (f"{os.path.relpath(path, ROOT)} — stage: {stage_of(text)} · tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
-            f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else ""))
+            f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
+            + (f" · carried over {left}" if left else ""))
 
 
 def cmd_next(path):
     text = read(path)
     ts, ds = tasks(text), decisions(text)
     print(summary(path))
+    for line in carried(text):
+        print(f"carried over: {line}")
+    for note in old_notes():
+        print(f"handoff note not resumed: {note} — read it, then append a line `Resumed: <date>` to it")
     for num, (mark, line) in ds.items():
         if mark == "~":
             print(f"proxy decision (unconfirmed): {line[6:]}")
@@ -271,6 +296,26 @@ def cmd_later(path, said):
     print("deferred")
 
 
+def cmd_carry(path, said):
+    """What is in hand but not in the document — work outside the tasks — is left as lines the next session's `next` shows."""
+    text = read(path)
+    span = section(text, CARRY)
+    if said == "done":
+        if span:
+            write(path, text[:span[0]] + text[span[0]:span[1]].replace("- [ ] ", "- [x] ") + text[span[1]:])
+        return print(f"picked up: {len(carried(text))}")
+    if not span:
+        text = text.rstrip("\n") + f"\n\n## {CARRY}\n"
+        span = section(text, CARRY)
+    git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    body, rest = text[span[0]:span[1]].rstrip("\n"), text[span[1]:]
+    stamp = f"{datetime.date.today()} · commit {git('rev-parse', '--short', 'HEAD') or 'none'}"
+    write(path, text[:span[0]] + body + f"\n- [ ] {' '.join(said.split())} ({stamp})\n" + ("\n" + rest if rest else ""))
+    print("carried over")
+    if git("status", "--porcelain"):
+        print("there are uncommitted changes")
+
+
 def close(path):
     """Closes the previous cycle — there is no closing stage. A document standing at Play becomes `Closed` when the next cycle is made."""
     text = read(path)
@@ -287,6 +332,8 @@ def close(path):
         print("left in the previous cycle: " + " · ".join(left))
     for said in LATER_RE.findall(text):
         print(f"deferred: {said}")
+    for line in carried(text):
+        print(f"carried over, not picked up: {line}")
 
 
 def cmd_new(name, goal):
@@ -315,7 +362,7 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "stage": 1, "later": 1, "lesson": 1}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "stage": 1, "later": 1, "carry": 1, "lesson": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -341,6 +388,8 @@ def main():
         cmd_confirm(path, rest[0])
     elif cmd == "later":
         cmd_later(path, rest[0])
+    elif cmd == "carry":
+        cmd_carry(path, rest[0])
     elif cmd == "lesson":
         cmd_lesson(path, rest[0])
     else:

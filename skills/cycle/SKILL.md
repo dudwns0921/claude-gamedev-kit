@@ -7,7 +7,9 @@ description: >-
   "이번엔 ○○ 를 넣자" — "this cycle", "let's make the next version", "this time let's add ○○"); says "사이클 이어서", "다음 단계", "어디까지 했지"
   ("continue the cycle", "next stage", "where were we"); answers a decision ("D2 는 ①로", "D2 is ①"); or wants it run without them
   ("자동으로 돌려줘", "알아서 만들어 놔", "나 없는 동안 진행해줘" — "run it automatically", "build it on your own", "go on while I'm away", "auto").
-  Not for one-line fixes.
+  Also how work crosses sessions — the document holds the state, so there is no separate handoff note: use when the user says "세션 바꾸자",
+  "새 세션에서 이어가자", "인계 메모 남겨줘", "여기까지 정리해줘" ("let's switch sessions", "let's continue in a new session", "leave a handoff note",
+  "wrap up where we are"), or in a new session "이어서 하자", "아까 하던 거" ("let's continue", "what we were doing"). Not for one-line fixes.
 ---
 
 # cycle
@@ -33,6 +35,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # au
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry "<what the next session must know>"       # work in hand that the document does not hold — `next` shows it
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry done                                      # picked up — not shown again
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (when it happens)
 python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule add "<the rule and its reason>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
@@ -42,7 +46,7 @@ These act on the newest document (for another, `--doc <path>`). Use Edit only fo
 **Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
 where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one, recommend in one line:
 "Opening a new session here and continuing with `/gamedev-kit:cycle next` is lighter." If the user says just go on, go on.
-Do not chain two or more cycles in one session. If you were also doing work outside the cycle (assets · settings · another repo), leave a note with the handoff skill and move on.
+Do not chain two or more cycles in one session. If work is in hand that the document does not hold (assets · settings · another repo · a fix under way), leave it first — "Leaving a session" below.
 
 **Not done in this session**: reading code · reading images · reading logs. Agents do all of it and only summaries come back. When relaying an agent's report to the user, do not expand it at length again.
 
@@ -193,6 +197,8 @@ In the user's own words (verbatim).
 ## Play
 ```
 
+`carry` adds a `## Carried over` section at the end the first time it is used — `- [ ]` not yet picked up, `- [x]` picked up.
+
 Update the header's `Stage:` with `stage` every time the stage changes (Goal · Spec · Design · Plan · Build · Play). `next` and `status` read that line. Keep the stage name short — circumstances go in that section.
 
 Documents written before the kit wrote English use the Korean words (`# 사이클`, `단계:`, `## 목표` · `## 결정` · `## 기획` · `## 디자인` · `## 작업` · `## 순서` · `## 플레이`, `· 권함:`, `- 1차:`, `**대기**`). The script reads both, and what it adds to such a document is English — leave the old lines as they are.
@@ -203,9 +209,27 @@ Documents written before the kit wrote English use the Korean words (`# 사이�
 It holds for that run only. **When called with `auto`, read `${CLAUDE_SKILL_DIR}/auto.md` first and follow it** — it changes how decisions, missing assets and blocked tasks are handled.
 Without `auto`, do not read it.
 
+## Leaving a session
+
+The cycle document is the one thing a new session picks up from — there is no separate note. Stage, decisions and tasks are already in it. What is not — work outside the tasks,
+what the user said in this conversation that is written nowhere, a job still running — goes in with `carry`, one line each, **only what the next session cannot find in a file**:
+
+- unfinished work: what, how far, where to pick up (`file:line` · the command to type)
+- what the user decided in this conversation, in their own words (verbatim) — so it is not asked again
+- what tripped this conversation up · what must not be touched · a question still unanswered
+
+Write from what you know now — do not re-read files to write the lines; that makes the session you are leaving heavier. A handful of lines, not the history of the conversation,
+not copies of logs or code. **Point only to files inside the repository** — what lives in the session's own folder (subagent transcripts) is deleted with the session.
+The script stamps each line with the date and the commit, and says so if there are uncommitted changes — relay that. Then one line: "Open a new session and run `/gamedev-kit:cycle next`." Do not continue working in this session.
+
+Before the first cycle there is no document to carry in, and none is needed: `/gamedev-kit:start` reads where the game stands from its files.
+
 ## next
 
-Run `cycle.py next` and continue from there — do not read the document. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
+Run `cycle.py next` and continue from there — do not read the document. **If it lists "carried over" lines, those come first**: they are what the last session had in hand.
+If their commit differs from the current one, say so — the lines are a snapshot of when they were left. Run `carry done` at once (what is still unfinished when this session ends is carried again),
+ask the questions among them, and start from them — **do not scan the project to find out what the lines do not say**; open only the files that work needs.
+A "handoff note not resumed" line is a note from before `carry` existed: read that one file and treat it the same way. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
 Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`. An overturned decision is an answer that changes the plan: call the agent whose section it touches,
 then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## Spec` section (made before this stage existed) stands before Design or Plan,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.

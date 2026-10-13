@@ -1650,6 +1650,24 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("run it once in a window — kit 0.7.2", lessons)
         self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
 
+        # work crosses sessions through the document: what is in hand outside the tasks is carried in it, shown by `next`, and shown once
+        run(CYCLE, root, "carry", "sign sprite approved,  animation not run")
+        self.assertRegex(text(), r"\n\n## Carried over\n- \[ \] sign sprite approved, animation not run \(\d{4}-\d\d-\d\d · commit \w+\)\n$")
+        run(CYCLE, root, "carry", "the user said: keep the door red")
+        out = run(CYCLE, root, "next").stdout
+        self.assertIn("open decisions 1 · carried over 2\ncarried over: sign sprite approved, animation not run (", out)
+        self.assertIn("picked up: 2", run(CYCLE, root, "carry", "done").stdout)
+        self.assertNotIn("carried over", run(CYCLE, root, "next").stdout)
+        run(CYCLE, root, "carry", "deploy target still to fill in")
+        self.assertEqual(text().count("- [x] "), 3, "picked-up lines stay, checked — only the section's own")
+        os.makedirs(os.path.join(root, "docs/handoff"))
+        open(os.path.join(root, "docs/handoff/a.md"), "w").write("# Handoff — a\n\nResumed: then\n")
+        open(os.path.join(root, "docs/handoff/b.md"), "w").write("# 인계 — b\n")
+        out = run(CYCLE, root, "next").stdout
+        self.assertIn("handoff note not resumed: docs/handoff/b.md", out, "a note left before `carry` existed is not lost")
+        self.assertNotIn("a.md", out)
+        shutil.rmtree(os.path.join(root, "docs/handoff"))
+
         # there is no closing stage — a cycle standing at Play becomes Closed when the next cycle is made, and what is left · deferred is reported
         run(CYCLE, root, "later", "간판에  불을 켜는 건 다음에")
         self.assertIn("## Play\n- Next: 간판에 불을 켜는 건 다음에\n", text())
@@ -1657,6 +1675,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("closed: docs/cycle/02-shop.md", out)
         self.assertIn("left in the previous cycle: open decisions 1", out)
         self.assertIn("deferred: 간판에 불을 켜는 건 다음에", out)
+        self.assertIn("carried over, not picked up: deploy target still to fill in (", out)
         self.assertIn("Stage: Closed", text())
 
         # auto mode — what was decided in the user's place is [~]. Tasks depending on it run, and it stays unconfirmed until the user accepts or overturns it
@@ -2377,7 +2396,7 @@ none
 
         out = watch(root)
         self.assertIn("about 251k tokens", out)
-        self.assertIn("/gamedev-kit:handoff resume", out)
+        self.assertIn("/gamedev-kit:cycle next", out)
         self.assertEqual(watch(root), "", "it does not speak again at the same size")
         self.assertEqual(watch(tempfile.gettempdir(), "t2"), "", "it does not speak outside a game repository")
         open(log, "a").write(turn(3, 320_000) + "\n")
