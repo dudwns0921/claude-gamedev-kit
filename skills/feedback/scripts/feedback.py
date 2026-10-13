@@ -7,6 +7,7 @@
   python3 feedback.py send 2 --to 14       no new issue — comment "seen here too" on issue #14
   python3 feedback.py sent 2 14            write the issue number on a line the user posted by hand from the address
   python3 feedback.py skip 4 "<reason>"    a line decided not to send (it was this game's only)
+  python3 feedback.py state 12,14          where those issues stand on the kit: open · closed (completed) · closed (not planned). Read without logging in
   python3 feedback.py --notice             called by the hook at session start: one line if unsent lines have piled up
 
 Numbers count the unsent lines ([ ]) only — sending or skipping shifts them, so `list` again. A sent line becomes [>], a skipped one [-].
@@ -153,6 +154,20 @@ def open_issues(repo):
     return out
 
 
+def cmd_state(arg):
+    """One line per issue number. `closed (completed)` is the kit saying it now carries the lesson."""
+    repo = kit()[0]
+    for num in [n.strip().lstrip("#") for n in arg.split(",") if n.strip()]:
+        try:
+            req = urllib.request.Request(f"{API}/repos/{repo}/issues/{urllib.parse.quote(num)}",
+                                         headers={"Accept": "application/vnd.github+json", "User-Agent": "gamedev-kit"})
+            got = json.load(urllib.request.urlopen(req, timeout=10))
+            why = (got.get("state_reason") or "").replace("_", " ")
+            print(f"#{num} {got['state']}" + (f" ({why})" if got["state"] == "closed" and why else "") + f" — {got.get('title', '')}")
+        except Exception:
+            print(f"#{num} could not be read")
+
+
 def near(engine, text, issues):
     """Open issues of the same engine whose words overlap, the three with the most overlap first."""
     mine, found = set(WORD_RE.findall(text.lower())), []
@@ -260,7 +275,7 @@ def main():
     as_is = "--as-is" in args
     args = [a for a in args if a != "--as-is"]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"list": 0, "preview": 1, "send": 1, "sent": 2, "skip": 2}
+    need = {"list": 0, "preview": 1, "send": 1, "sent": 2, "skip": 2, "state": 1}
     if need.get(cmd) != len(rest):
         sys.exit(__doc__)
     global ROOT
@@ -271,6 +286,8 @@ def main():
         cmd_list()
     elif cmd == "preview":
         cmd_preview(rest[0])
+    elif cmd == "state":
+        cmd_state(rest[0])
     elif cmd == "send":
         cmd_send(rest[0], opts.get("--to", "").lstrip("#"), as_is)
     elif cmd == "sent":

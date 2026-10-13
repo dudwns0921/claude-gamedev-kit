@@ -23,11 +23,24 @@ The voice folder is a clone of a private git repository — no copies are kept. 
   python3 voice.py sync ["<one line>"]     Commit what changed, take what the remote has, and push if permitted. Run before reading and after writing
   python3 voice.py sync --push             Without the permission — push once, after asking the user
 
+Beside the voice sit the user's own rules — what earlier games taught that holds in their next game too. rules.md holds whatever the engine,
+rules-<engine>.md holds for one engine (the `engine` of kit.config.json). One rule per line: `- R3. <the rule and its reason> (<game>)`, with ` [issue #12]`
+after it once it was sent to the kit. The kit rules block in each game's CLAUDE.md imports both files, so they are read on every turn — their size is the cost.
+
+  python3 voice.py rule add "<text>"       A rule for this engine's games. Prints its id and its file. Syncs before and after, like every rule command that writes
+  python3 voice.py rule add --any "<text>" A rule that holds whatever the engine
+  python3 voice.py rule list               The rules that apply to this game, and each file's size in bytes
+  python3 voice.py rule list --tagged      Only those sent to the kit (carrying an issue number)
+  python3 voice.py rule drop R3            Remove it. Its number is not given out again
+  python3 voice.py rule tag R3 12          Write (or replace) the number of the kit issue it was sent as
+
 predict looks at the decisions of the newest cycle document (the highest number). For another document, `--doc <path>`.
 
 Everything is written in English. Documents written before that — cycle documents, the ledger — hold Korean words, and both are read (the tables below).
 """
+import contextlib
 import datetime
+import io
 import json
 import os
 import re
@@ -46,6 +59,12 @@ The predictions written from the voice (VOICE.md) before a decision is asked, an
 `[ ]` unscored · `[o]` hit · `[x]` miss · `[-]` unknown (no principle to go on, so no prediction)
 
 """
+RULES = os.path.join(HOME, "rules.md")
+LAST = os.path.join(HOME, "rules.last")  # the highest rule number given out so far — a dropped rule's number is not reused
+RULES_HEAD = ("# The user's rules{engine}\n\n"
+              "What this user learned in earlier games that holds {scope} — one rule per line, written by `voice.py rule`. "
+              "Claude Code loads this file into every game made with gamedev-kit.\n\n")
+RULE_RE = re.compile(r"^- R(\d+)\. (.*?)(?: \[issue #(\d+)\])?$", re.M)
 ANON_GIT = os.environ.get("VOICE_ANON_GIT", "git")  # the tests change this
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
@@ -60,9 +79,10 @@ WORD = {"o": "hit", "x": "miss"}
 
 ROOT = ""
 GAME = ""
+ENGINE = ""
 
 
-def find_root(start):
+def find_root(start, must=True):
     """Walk up from the current folder to the one holding kit.config.json. The tools live in the plugin; the game lives elsewhere."""
     d = os.path.abspath(start)
     while True:
@@ -70,8 +90,21 @@ def find_root(start):
             return d
         up = os.path.dirname(d)
         if up == d:
-            sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
+            if must:
+                sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
+            return None
         d = up
+
+
+def enter(root, must=True):
+    """Which game this is: its folder, its name, its engine. Outside a game (and not `must`) they stay empty."""
+    global ROOT, GAME, ENGINE
+    ROOT = os.path.abspath(root) if root else find_root(os.getcwd(), must)
+    if not ROOT:
+        return
+    cfg = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8"))
+    GAME = "-".join((cfg.get("voice", {}).get("name") or os.path.basename(ROOT)).split())
+    ENGINE = cfg.get("engine") or ""
 
 
 def docs():
@@ -255,7 +288,99 @@ def is_private(url):
     return anon.returncode != 0
 
 
-def cmd_setup(url):
+def rules_file(engine):
+    return os.path.join(HOME, f"rules-{engine}.md") if engine else RULES
+
+
+def ensure_rules():
+    """Make the rule files this game's CLAUDE.md imports, if they are not there — an import must not point at a missing file. (init.py writes the same heads.)"""
+    for engine in dict.fromkeys(("", ENGINE)):
+        if not os.path.exists(rules_file(engine)):
+            write(rules_file(engine), RULES_HEAD.format(engine=f" — {engine}" if engine else "",
+                                                        scope=f"in every {engine} game" if engine else "whatever the engine"))
+
+
+def rule_files():
+    """Every rule file in the home — numbers are unique across all of them, other engines' included."""
+    names = os.listdir(HOME) if os.path.isdir(HOME) else []
+    return [os.path.join(HOME, n) for n in sorted(names) if n == "rules.md" or re.fullmatch(r"rules-.+\.md", n)]
+
+
+def last_rule():
+    known = [int(m.group(1)) for path in rule_files() for m in RULE_RE.finditer(read(path))]
+    return max(known + [int(read(LAST).strip() or 0) if os.path.exists(LAST) else 0])
+
+
+def find_rule(rid):
+    """(file, its text, the rule's line as a match) — looked for in every rule file."""
+    m = re.fullmatch(r"[Rr]?(\d+)", rid)
+    for path in rule_files() if m else []:
+        text = read(path)
+        hit = next((r for r in RULE_RE.finditer(text) if r.group(1) == m.group(1)), None)
+        if hit:
+            return path, text, hit
+    sys.exit(f"{rid}: no such rule — `rule list`")
+
+
+def rule_sync(message=""):
+    """`sync` around a rule command — silent when the home is not a repository or there is nothing to tell."""
+    if not is_repo():
+        return
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        cmd_sync(False, message)
+    told = [line for line in out.getvalue().split("\n") if line and line != "same as the repository"]
+    if told:
+        print("\n".join(told))
+
+
+def cmd_rule(args, root):
+    flags = [a for a in args if a in ("--any", "--tagged")]
+    args = [a for a in args if a not in flags]
+    sub = args[0] if args else ""
+    if {"add": 2, "list": 1, "drop": 2, "tag": 3}.get(sub) != len(args):
+        sys.exit(__doc__)
+    if sub == "list":
+        enter(root)
+        shown = [p for p in dict.fromkeys((RULES, rules_file(ENGINE))) if os.path.exists(p)]
+        for path in shown:
+            print(f"{os.path.basename(path)} — {os.path.getsize(path)} bytes")
+            for m in RULE_RE.finditer(read(path)):
+                if m.group(3) or "--tagged" not in flags:
+                    print("  " + m.group(0)[2:])
+        return None if shown else print("no rules yet — `rule add \"<the rule and its reason>\"`")
+    if sub == "add":
+        enter(root)
+        text = " ".join(args[1].split())
+        if not text:
+            sys.exit("a rule needs its text — `rule add \"<the rule and its reason>\"`")
+        if "--any" not in flags and not ENGINE:
+            sys.exit(f"{CONFIG_NAME} names no engine — `rule add --any` for a rule that holds whatever the engine")
+        rule_sync()
+        ensure_rules()
+        path, num = rules_file("" if "--any" in flags else ENGINE), last_rule() + 1
+        body = read(path)
+        write(path, body + ("" if body.endswith("\n") else "\n") + f"- R{num}. {text} ({GAME})\n")
+        write(LAST, f"{num}\n")
+        print(f"R{num} — {path}")
+        return rule_sync(f"rules: R{num}")
+    rule_sync()
+    path, text, m = find_rule(args[1])
+    num = m.group(1)
+    if sub == "drop":
+        write(LAST, f"{last_rule()}\n")
+        write(path, text[:m.start()] + text[m.end():].lstrip("\n"))
+        print(f"dropped R{num} — {path}")
+        return rule_sync(f"rules: R{num} dropped")
+    issue = args[2].lstrip("#")
+    if not issue.isdigit():
+        sys.exit(f"{args[2]}: an issue number — `rule tag R{num} 12`")
+    write(path, text[:m.start()] + f"- R{num}. {m.group(2)} [issue #{issue}]" + text[m.end():])
+    print(f"R{num} [issue #{issue}] — {path}")
+    rule_sync(f"rules: R{num} is issue #{issue}")
+
+
+def cmd_setup(url, root=None):
     private = is_private(url)
     if private is False:
         sys.exit(f"{url}: public repository — the voice holds the user's leanings and biases. Make it private, then run again")
@@ -281,6 +406,8 @@ def cmd_setup(url):
         git("init", "-q")
         git("remote", "add", "origin", url)
         print(f"{HOME} — made the existing voice a repository. `sync` commits and pushes")
+    enter(root, must=False)
+    ensure_rules()
     if private is None:
         print("could not confirm it is private — the repository could not be reached (check the address and the git login), or it is an SSH address that cannot be asked without a login. Pushing without asking cannot be turned on")
     else:
@@ -358,12 +485,14 @@ def main():
     push = "--push" in args
     args = [a for a in args if a != "--push"]
     cmd, rest = (args[0] if args else ""), args[1:]
+    if cmd == "rule":
+        return cmd_rule(rest, opts.get("--root"))
     need = {"path": (0,), "collect": (0, 1), "predict": (2, 3), "score": (0, 3), "stats": (0,),
             "setup": (1,), "autopush": (1,), "sync": (0, 1)}
     if cmd not in need or len(rest) not in need[cmd] or (cmd == "autopush" and rest[0] not in ("on", "off")):
         sys.exit(__doc__)
     if cmd == "setup":
-        return cmd_setup(rest[0])
+        return cmd_setup(rest[0], opts.get("--root"))
     if cmd == "autopush":
         return cmd_autopush(rest[0])
     if cmd == "sync":
@@ -374,10 +503,7 @@ def main():
         return print(VOICE)
     if cmd == "stats":
         return cmd_stats()
-    global ROOT, GAME
-    ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
-    name = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("voice", {}).get("name")
-    GAME = "-".join((name or os.path.basename(ROOT)).split())
+    enter(opts.get("--root"))
     if cmd == "collect":
         if rest and rest[0] not in ("new", "done"):
             sys.exit(__doc__)
@@ -392,6 +518,8 @@ def main():
         if rest and rest[2] not in ("hit", "miss"):
             sys.exit("a score is hit · miss")
         cmd_score(rest)
+    if os.path.isdir(HOME):  # a home made just now gets its rule files with it
+        ensure_rules()
 
 
 if __name__ == "__main__":

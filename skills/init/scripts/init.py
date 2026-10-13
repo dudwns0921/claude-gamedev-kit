@@ -20,6 +20,8 @@ In CLAUDE.md, the kit's part is only what lies between `<!-- gamedev-kit start �
 A block written by an older kit carries the Korean markers (`gamedev-kit 시작` / `gamedev-kit 끝`): it is found too, and is rewritten with the new markers when it is brought up to date.
 When the kit bumps its version, --rules replaces just that span — the game's rules are outside the block and are not touched.
 If the inside of the block was edited by hand, it stops instead of overwriting (move the edits outside, or --force).
+The block ends with two import lines (`@<voice home>/rules.md` · `@<voice home>/rules-<engine>.md`) — the user's own rules from earlier games, which Claude Code
+reads in with the game's CLAUDE.md. They live in the voice home (~/.config/gamedev-kit/voice/, or GAMEDEV_KIT_VOICE), outside the game; if that folder exists, the two files are made when missing.
 
 How to recognise an engine project · find the editor · create one is in engines/<engine>/project.json (not copied into the game):
   marker    if this file exists, it is that engine's project
@@ -46,6 +48,18 @@ OLD_START, OLD_END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"  # wr
 # The fingerprint in the start marker is taken over the text between the marker lines only, so it does not depend on which markers a block carries.
 BLOCK_RE = re.compile("(?P<start>" + re.escape(START) + "|" + re.escape(OLD_START) + r") · ([0-9a-f]+)[^\n]*-->\n(.*?)\n"
                       "(?P<end>" + re.escape(END) + "|" + re.escape(OLD_END) + ")", re.S)
+VOICE = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")
+# The last part of the block. Import lines are plain text on lines of their own — Claude Code does not expand one inside a code span or a fenced block.
+MINE = """## The user's own rules
+
+These are the user's own rules from earlier games, kept outside this repository — they hold in this game too.
+
+@{home}/rules.md
+@{home}/rules-{engine}.md"""
+# The head of a rule file made here — the same words voice.py writes (the voice skill owns these files; the tests hold the two together).
+RULES_HEAD = ("# The user's rules{engine}\n\n"
+              "What this user learned in earlier games that holds {scope} — one rule per line, written by `voice.py rule`. "
+              "Claude Code loads this file into every game made with gamedev-kit.\n\n")
 OWN = """
 ## This game's rules
 
@@ -185,12 +199,30 @@ def add_ignore(engine, root, done):
                 + (f"{len(new)} line{'' if len(new) == 1 else 's'}: {' · '.join(new)}" if new else "every line is already there") + ")")
 
 
+def voice_home():
+    """The voice home as the block writes it: with `~` when it is under the home directory, so the block comes out the same on every machine."""
+    home = os.path.expanduser("~")
+    path = "~" + VOICE[len(home):] if VOICE.startswith(home + os.sep) else VOICE
+    return path.replace(os.sep, "/")
+
+
 def rules(engine):
-    """(head, rules body) — the body is the sections of the common template plus that engine's rules."""
+    """(head, rules body) — the body is the sections of the common template, that engine's rules, and the lines that import the user's own rules."""
     head, body = open(os.path.join(KIT, "templates", "CLAUDE.md"), encoding="utf-8").read().split("\n## ", 1)
     extra = os.path.join(ENGINES, engine, "CLAUDE.md")  # rules that hold only for that engine (running · verifying · pitfalls)
     more = open(extra, encoding="utf-8").read().strip() if os.path.exists(extra) else ""
-    return head.strip() + "\n", ("## " + body.strip() + ("\n\n" + more if more else "")).strip()
+    mine = MINE.format(home=voice_home(), engine=engine)
+    return head.strip() + "\n", ("## " + body.strip() + ("\n\n" + more if more else "") + "\n\n" + mine).strip()
+
+
+def own_rules(engine, done=None):
+    """Make the two rule files the block imports, if the voice home is there and they are not — an import must not point at a missing file."""
+    for name, scope in (("", "whatever the engine"), (engine, f"in every {engine} game")):
+        path = os.path.join(VOICE, f"rules-{name}.md" if name else "rules.md")
+        if os.path.isdir(VOICE) and not os.path.exists(path):
+            open(path, "w", encoding="utf-8").write(RULES_HEAD.format(engine=f" — {name}" if name else "", scope=scope))
+            if done is not None:
+                done.append(f"  new      {path}")
 
 
 def digest(body):
@@ -218,6 +250,7 @@ def rules_state(root, engine):
 
 
 def sync_rules(root, engine, force):
+    own_rules(engine)
     path = os.path.join(root, "CLAUDE.md")
     head, body = rules(engine)
     state = rules_state(root, engine)
@@ -251,6 +284,7 @@ def check_rules():
     cfg = json.load(open(os.path.join(d, "kit.config.json"), encoding="utf-8"))
     if cfg.get("engine") not in engines() or cfg.get("init", {}).get("rules") is False:
         return
+    own_rules(cfg["engine"])
     state = rules_state(d, cfg["engine"])
     if state == "stale":  # the block is the kit's — an untouched block is aligned without asking
         path = os.path.join(d, "CLAUDE.md")
@@ -347,6 +381,7 @@ def main():
         head, body = rules(engine)
         open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8").write(head + "\n" + block(body) + OWN)
     done.append(f"  {'new ' if made_claude else 'kept'}     CLAUDE.md")
+    own_rules(engine, done)
 
     ignore = os.path.join(root, ".gitignore")
     text = open(ignore, encoding="utf-8").read() if os.path.exists(ignore) else ""

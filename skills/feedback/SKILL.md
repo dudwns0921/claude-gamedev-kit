@@ -30,6 +30,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" send 1,3
 python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" send 2 --to 14   # add to issue #14 instead of opening a new one
 python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" sent 2 14        # the user opened it by hand
 python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" skip 4 "<why>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" state 12,14      # where those issues stand: open · closed (completed) · closed (not planned)
+python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule list --tagged    # the user's own rules already sent to the kit, with their issue numbers
+python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule tag R3 12        # this rule went out as issue #12
 ```
 
 Numbers count unsent lines only, so they shift after every `send` · `sent` · `skip` — run `list` again before using a number.
@@ -40,7 +43,10 @@ the script reads both, and what goes out to an issue is the same either way.
 
 ## Procedure
 
-1. **`list`.** If there is nothing unsent, say so and stop.
+1. **`list`.** Then look at what came back from the kit: `voice.py rule list --tagged` gives the user's own rules that were sent, each with its issue number —
+   pass those numbers to `state`. For a rule whose issue is `closed (completed)`, the kit now carries it: ask the user, one line per rule, whether to drop the personal copy
+   (`voice.py rule drop R<n>`). **Do not drop without the answer** — and leave alone a rule whose issue is open, closed for another reason, or could not be read.
+   If there is nothing unsent and nothing to ask, say so and stop.
 2. **Sort the lines before previewing.** Read each one as a stranger on another game would:
    - Relies on this game's structure · rules · names → it should not have been written here. Ask whether to `skip` it (and whether it belongs in the project's CLAUDE.md "Pitfalls").
    - Two lines say the same thing → send one, `skip` the other with "same as: <the other line>".
@@ -53,8 +59,10 @@ the script reads both, and what goes out to an issue is the same either way.
 4. **Show the preview as is and ask.** One question for the batch: which numbers go, which join an existing issue. Do not paraphrase the text —
    the user is approving these words. Do not send a line the user did not answer for.
 5. **`send` what was approved.** Report the issue numbers.
+   Each line sent this way is also one of the user's own rules (a lesson for the kit is a personal rule first). Find it in `voice.py rule list` and write the issue on it —
+   `voice.py rule tag R<n> <issue>` — for a new issue and for one joined with `--to` alike. That tag is how step 1 later knows the kit took it in. No matching rule → tag nothing.
    If the script answers with an address instead (no `gh`, or `gh` is not logged in), pass the address on as is — the user opens it and submits.
-   When they give the issue number, `list` again and write it with `sent`. Do not log in to `gh` for them.
+   When they give the issue number, `list` again and write it with `sent`, and tag the matching rule the same way. Do not log in to `gh` for them.
 
 The script reads the kit's open issues without logging in. If it could not read them it says so — send anyway if the user wants; a duplicate is cheap to merge later.
 

@@ -50,7 +50,7 @@ You need Claude Code, Python 3.9 or later, and the engine's editor. Everything e
 ## Why use it
 
 - **One workflow, every time.** The same stages, the same documents and the same answer to "who decides this" — in every cycle and every game. Sessions end and models change; the workflow stays, so the tenth cycle runs like the first and you always know where the game stands.
-- **It gets better at your games.** Two things pile up as you work. Your **voice**: how you decide when a choice could go either way. And **lessons**: the engine traps you hit and the ways you found to verify things, sent back to the kit and returned as rules. The next game starts with all of it.
+- **It gets better at your games.** Two things pile up as you work. Your **voice**: how you decide when a choice could go either way. And **lessons**: the engine traps you hit and the ways you found to verify things, kept as your own rules from the moment you hit them; the general ones are sent back to the kit and returned as rules for everyone. The next game starts with all of it.
 
 <p align="center">
   <img src="assets/compounds.svg" alt="Three games in a row; the stacks of voice and lessons under each one grow, with what came before carried over" width="860">
@@ -188,6 +188,8 @@ You do nothing for it. Before a decision is asked, the kit predicts your answer;
 
 The voice belongs to you, not to a game. It lives outside the game repos in `~/.config/gamedev-kit/voice/` (override with `GAMEDEV_KIT_VOICE`), as a clone of one private repository of yours, and grows across games and engines. `/gamedev-kit:init` asks for that repository's address once per machine and stops if the repository is readable without login. A principle needs two decisions behind it to stand.
 
+Your own rules live beside it (`rules.md`, and `rules-<engine>.md` per engine): the lessons that would trip you again in another game. Every game's `CLAUDE.md` imports them, so a rule written today holds in the next session of any game you make. `/gamedev-kit:voice` shows them.
+
 ### Auto mode
 
 `/gamedev-kit:cycle auto <goal>` runs from the goal to the end of the build without asking. Your voice decides — by a matching principle if there is one, otherwise by the agent's recommendation.
@@ -218,7 +220,8 @@ A line in your voice is the same kind of thing about you rather than the engine 
 ```
 you trip in a game ─▶ the lesson is sorted on the spot
                         ├─ this game only ───────────▶ that game's CLAUDE.md
-                        └─ other games will hit it ──▶ docs/kit-feedback.md (one line each)
+                        ├─ your next game too ───────▶ your own rules (private) — loaded into every game you make, from the next session
+                        └─ of those, anyone's game ──▶ also docs/kit-feedback.md (one line each)
                                                           │  /gamedev-kit:feedback — only lines you approve
                                                           ▼
                                        issues in this repository — lines from any game meet here
@@ -232,6 +235,7 @@ you trip in a game ─▶ the lesson is sorted on the spot
 
 </details>
 
+- **A lesson lands in your own rules first.** It applies at once, in every game of yours, without waiting for the kit and without leaving your private repository. Only the ones that hold for anyone are sent on; when the kit takes one in, you are asked whether to drop your copy.
 - **Anyone using the kit can send lessons.** When unsent lines pile up, a hook says so at session start. Nothing goes out by itself: issues are public, so you see the text first.
 - **One test sorts them**: would you need to know this when making a different game? Only what still makes sense without the game's name, files and numbers is sent.
 - **A tool beats a rule.** What a script can prevent is prevented by the script instead of being written down.

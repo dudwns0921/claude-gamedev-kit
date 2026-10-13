@@ -52,12 +52,14 @@ So the order when improving: ① what the main session reads and writes (ledgers
 
 ## Where records go
 
-What comes out of making a game falls into three kinds. This repository is public — only the middle kind comes here.
+What comes out of making a game falls into these kinds. This repository is public — only what holds for any game comes here.
 
 | What | Where |
 |---|---|
 | Individual records — what was made in which game and how many, measured figures, dates, cycle · playtest documents, **what was actually used and what was not** | That game's repository; what spans games goes in the user's private repository (`records.md` in the voice folder) |
-| What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of `docs/kit-feedback.md` |
+| What holds only in that game — its own traps and ways to verify | That game's CLAUDE.md |
+| What holds in this user's next game too — traps, ways to verify, ways of working tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in the voice folder — private; every game imports them, so they hold from the next session) |
+| What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules and `docs/kit-feedback.md` |
 | The user's judgement — which side they choose when it could go either way, biases | The voice (private repository) |
 
 So the README and documents here state **only what the kit does**. Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
@@ -70,9 +72,12 @@ must not be here, so the list lives outside the repository) and for dates. The t
 Engine settings done by hand in a game repository, traps that were hit, and ways to verify are carried over to `engines/<engine>/NOTES.md` (what to do after installing) and
 `engines/<engine>/CLAUDE.md` (what becomes the games' rules), so the next game does not go through the same thing again.
 
-The path is this: where a game trips (when a task is blocked · after a playtest fix), lessons that are not only that game's accumulate one line at a time in `docs/kit-feedback.md` (`cycle.py lesson` · `playtest.py lesson`).
+A lesson is sorted where the game trips (when a task is blocked · after a playtest fix), into three tiers: only that game → its CLAUDE.md; would trip the same user in another game →
+one of their own rules (`voice.py rule add` — private, loaded into every game of theirs by the import lines at the end of the kit rules block, so it holds at once); of those, would trip anyone →
+also a line in `docs/kit-feedback.md` (`cycle.py lesson` · `playtest.py lesson`). So a lesson for the kit is always a personal rule first, and the kit can take its time.
 `/gamedev-kit:feedback` sends the accumulated lines to this repository as issues (titles start with `feedback(<engine>):`) — the same path from anyone's game. The script strips dates · cycle numbers and blocks games' names, and the skill shows the outgoing text and asks.
 A game that sees the same thing again does not open a new issue but comments on that one — an issue with comments is one seen twice.
+The personal rule is tagged with its issue (`voice.py rule tag`); once that issue closes as completed the kit carries the rule, and the feedback skill asks the user whether to drop their copy (`feedback.py state`).
 
 Game folders on this machine can also be read directly, without going through issues:
 

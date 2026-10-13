@@ -93,7 +93,10 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 ## Aligning the kit rules (`/gamedev-kit:init rules`)
 
 In the game's CLAUDE.md, the kit's part is the single span between `<!-- gamedev-kit start … -->` and `<!-- gamedev-kit end -->` (a block written by an older kit has `gamedev-kit 시작` / `gamedev-kit 끝` there — it is found the same way, and gets the new markers when it is replaced) — it holds the common rules (GDD sync · balance table · cycle …) and
-that engine's rules (Running · Verification · Pitfalls). When the kit bumps its version, replace only that span wholesale. **Outside the block is the game's and is not touched.**
+that engine's rules (Running · Verification · Pitfalls), and ends with two import lines — `@~/.config/gamedev-kit/voice/rules.md` and `…/rules-<engine>.md` — that bring in the user's own rules
+from earlier games (the voice skill's "Rules"; the files live in the voice home, outside the game, and init makes them when that home exists and they are missing).
+The first time a session opens the game, Claude Code asks the user to allow an import from outside the project — say in one line that it is their own rules file.
+When the kit bumps its version, replace only that span wholesale. **Outside the block is the game's and is not touched.**
 At session start a hook looks at the block: **an old version it replaces by itself** (only the block, and only if nobody edited inside it) and says so in one line; a missing or hand-edited block it only reports. So after the kit is updated there is normally nothing to run.
 
 ```bash

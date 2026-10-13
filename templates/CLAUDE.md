@@ -51,5 +51,5 @@ Do not read cycle · playtest documents whole — that skill's script extracts t
 
 ## What was learned, and what goes outside
 
-- A pitfall or a way to verify that is specific to this game goes in this file's "Pitfalls"; one that another game on the same engine would hit gets a line in `docs/kit-feedback.md` (`lesson` of the cycle or playtest skill — written when it happens, not saved up). Those lines go to the kit only through `/gamedev-kit:feedback`, after the user has seen them.
+- A pitfall or a way to verify is sorted when it happens, not saved up: specific to this game → this file's "Pitfalls"; would trip this user again in another game → one of the user's own rules (`rule add` of the voice skill — it holds from the next session); of those, one that would trip anyone → also a line in `docs/kit-feedback.md` (`lesson` of the cycle or playtest skill). Those lines go to the kit only through `/gamedev-kit:feedback`, after the user has seen them.
 - Before anything is uploaded, show the target · version · size and get consent. Logins and API keys live outside the repository — do not write them in any file.

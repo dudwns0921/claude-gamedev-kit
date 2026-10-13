@@ -9,6 +9,8 @@ description: >-
   "보이스 보여줘" ("show me the voice"), "내 판단 정리해줘" ("sum up how I decide"), "내 편향이 뭐야" ("what are my biases"),
   "보이스 고쳐줘" ("fix the voice"), "예측 얼마나 맞아" ("how often are the predictions right"), "적중률" ("hit rate"); when the cycle skill asks decisions (predict),
   gets the answers (score · learn), decides in auto mode (decide), or starts a new cycle (review); when tying the voice to its repository (setup).
+  Beside the voice it keeps the user's own rules — what earlier games taught that holds in their next game too, loaded into every game: use when the user says
+  "내 규칙 보여줘" ("show my rules"), "이건 내 규칙으로" ("make this one of my rules"), "내 규칙에서 빼줘" ("drop it from my rules"), or when the cycle · playtest · feedback skills add, tag or drop a rule.
 ---
 
 # voice
@@ -24,6 +26,7 @@ and every game the user makes adds to the same document. Where a game is headed 
 | `VOICE.md` | the voice — written here, corrected by the user |
 | `log.md` | predictions and their scores — the script only |
 | `seen.txt` | which decisions the voice has already been written from — the script only |
+| `rules.md` · `rules-<engine>.md` | the user's own rules — see "Rules" below. `rules.last` beside them is the script's (the last number given out) |
 
 **The home is a clone of one private git repository** — that repository is where the voice is kept; there are no copies to keep in step. `sync` commits what changed,
 takes what another machine pushed, and pushes. Run it **before reading the voice and after writing to it** (it says so in one line; relay only what is not "same as the repository").
@@ -47,6 +50,10 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" predict D2 ② V3  # before askin
 python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" score            # after the answers are recorded
 python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" stats
 python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" sync "<one line: what changed>"   # before reading · after writing
+python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" rule add "<the rule and its reason>"   # a rule for this engine's games (--any: whatever the engine)
+python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" rule list        # the rules that apply to this game, and each file's size (--tagged: only those sent to the kit)
+python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" rule drop R3
+python3 "${CLAUDE_SKILL_DIR}/scripts/voice.py" rule tag R3 12   # it went to the kit as issue #12
 ```
 
 **Do not read the cycle documents to do any of this.** `collect` pulls out the decision lines; that is all the voice is written from.
@@ -80,6 +87,22 @@ Then go straight on, without waiting to be asked for each step: `sync` → the o
 (kept on this machine only; the script refuses unless the repository is private). Without that, `sync` reports unpushed commits and you ask before `sync --push`.
 
 If `sync` says the home is not a repository, say in one line that the voice stays on this machine until `/gamedev-kit:voice setup <private repo url>` — once, not every time.
+
+## Rules — what earlier games taught, carried into the next
+
+The voice is how the user decides; the rules are what their games taught — a trap, a way to verify, a way of working — that would trip them again in another game.
+They are the middle of three places a lesson can go: the game's own CLAUDE.md (this game only), **the user's rules** (every game of this user), the kit (every user's games —
+by way of `docs/kit-feedback.md` and the feedback skill). A lesson bound for the kit is written here first, so it holds at once instead of waiting for the kit.
+
+- `rules.md` holds whatever the engine; `rules-<engine>.md` holds for one engine — the `engine` in the game's `kit.config.json`. `rule add` writes to this game's engine file, `rule add --any` to `rules.md`.
+- One rule per line: `- R3. <the rule and its reason> (<game>)`, with ` [issue #12]` after it once it was sent to the kit (`rule tag`). Numbers run across all the files and are never reused.
+  Write the rule so it stands in another game: what to do or check, and why. The game it came from is noted by the script — here, unlike in the kit, a game's name is fine.
+- **They are loaded, not looked up.** The kit rules block in every game's CLAUDE.md ends with two import lines (`@…/rules.md` · `@…/rules-<engine>.md`), so Claude Code reads both files
+  into every session of every game — a rule added now holds from the next session, and Claude Code asks the user once per project to allow the import. Nothing has to be read by hand.
+- **Size is the cost** — the files are read on every turn. `rule list` prints each file's bytes; when a rule turns out wrong, or the kit has taken it in (the feedback skill asks), `rule drop` it.
+- `rule add` · `drop` · `tag` sync by themselves — take what the repository has, write, commit, and push where pushing is permitted (otherwise they say what `sync` says). No `sync` call around them.
+- Adding a rule is not asked: it stays on this machine and in the user's private repository. When the user asks to see their rules ("내 규칙 보여줘" · "show my rules"), relay `rule list` as it is;
+  "이건 내 규칙으로" · "make this one of my rules" → `rule add` in their words; dropping one they did not ask to drop is asked first.
 
 ## Learn — folding answers into the voice
 

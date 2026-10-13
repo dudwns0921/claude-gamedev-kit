@@ -34,6 +34,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the 
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (when it happens)
+python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule add "<the rule and its reason>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
 These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
@@ -157,13 +158,16 @@ When the user puts something off ("나중에", "다음에 하자" — "later", "
 ## What was learned — when it happens
 
 There is no end-of-cycle step to save this for. Look at two moments: when a Build wave returns a blocked task or "Deviations from the document", and when a playtest round's build returns
-(the playtest skill does this itself for its own tasks — do not repeat it). What counts: what tripped us up · engine settings done by hand · a newly found way to check. **Split each in two:**
+(the playtest skill does this itself for its own tasks — do not repeat it). What counts: what tripped us up · engine settings done by hand · a newly found way to check. **Sort each one of three ways, as it is written:**
 
-- **Specific to this game** (relies on this game's structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
-- **Not specific to this game** (another game on the same engine would hit it, or a kit tool fell short) → add one line each to `docs/kit-feedback.md` with `lesson`.
-  Write it so it makes sense without the game's names · files · numbers: "what tripped us → how to avoid (check) it". If the project's CLAUDE.md needs it too, write it in both.
+1. **Only this game** (relies on this game's structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
+2. **Would trip this user again in another game** (their engine, their genre, their tools, their way of working) → one of their own rules: `voice.py rule add "<the rule and its reason>"`
+   (`--any` when it holds whatever the engine). It holds from the next session, in every game of theirs; nothing is asked, and nothing leaves the machine but their private repository.
+3. **Of those, would trip anyone** (another user's game on the same engine would hit it, or a kit tool fell short) → **also** one line in `docs/kit-feedback.md` with `lesson`, so it can be sent to the kit.
+   Write it so it makes sense without the game's names · files · numbers: "what tripped us → how to avoid (check) it".
 
-If the split is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
+A lesson for the kit is therefore always a personal rule first — the rule works now, the kit catches up later. If the project's CLAUDE.md needs it too, write it there as well.
+If the sorting is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
 
 ## Cycle document
 
