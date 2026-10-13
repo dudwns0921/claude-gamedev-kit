@@ -25,7 +25,10 @@ Documents written before the kit wrote English use the Korean words for all of t
    If one task exceeds forty lines, check whether it should be two. More than twelve tasks means the cycle is big — raise whether to split it under "Decisions needed".
 3. **Decide neither scope nor rules.** If the goal is too big to do in full, return the options for cutting it under "Decisions needed".
    Numbers go in at the "start" value from the "Spec" section — in the value file, with a `GDD: <ID>` marker, editable from the table. Dimensions are also exactly the spec's.
-   If you need a rule, number or dimension that the spec lacks, do not invent it; return it under "Questions for spec". Still write tasks that hang on a decision, but add `- **Waiting**: D2`.
+   **A gap is a question for the agent that owns it, not a decision for the user.** A rule, number or dimension the spec lacks → "Questions for spec".
+   How something looks or sounds that the design lacks → "Questions for design". Do not invent the answer, and do not turn the gap into a "Decisions needed" item —
+   the user is asked only what is theirs: scope, and a choice the owning agent hands back as contested. Give each question the reading the task currently carries,
+   so the build can go on if the answer agrees and a line or two changes if it does not. Still write tasks that hang on a decision, but add `- **Waiting**: D2`.
 4. For anything in the design section's "Assets needed" that does not exist, write the task to proceed with a placeholder asset, and note that you did so.
    **Put the placeholder where the real one will go** — the same path and file name, the size from the table — so the real asset replaces a file and no code changes.
    Real assets are made after the whole build, all at once; do not write a task that waits for one.
@@ -56,8 +59,9 @@ Return:
 ```
 Plan: done | blocked
 Tasks: <n>, <m> waves
-Questions for spec: <what could not be decided because the spec lacks it — none if none>
-Decisions needed:
+Questions for spec: <a rule · number · dimension the spec lacks, with the reading the task carries — none if none>
+Questions for design: <a look or a sound the design lacks, with the reading the task carries — none if none>
+Decisions needed: <only scope — the goal is too big, what to cut>
   D1. <question> — ① … ② … · recommended: ① (one-line reason) · tasks waiting: T2
 ```
 

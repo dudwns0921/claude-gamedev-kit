@@ -12,6 +12,9 @@ If some sections already have text (a resumed session), read those and continue 
 Ask the user to describe **one full loop from the player's seat**, however roughly: who the player is and what they are after, what the hands actually do,
 how a round ends, and what carries over to the next one. One open question, no options — options here would put your game in place of theirs.
 
+If the user hands the game over instead ("네가 골라" — "you pick", "아무거나 작은 걸로" — "anything small"), offer **one line** as a seed, say it is yours, and ask the same open question about it —
+they confirm, change or replace it. Do not go on to design the rest: every line below that they did not say is still marked as filled in by you.
+
 Then **say it back as nested loops** and let them correct it:
 
 ```

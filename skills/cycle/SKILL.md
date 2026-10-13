@@ -88,8 +88,9 @@ Call them one at a time in the order systems designer → designer → developer
 - If the systems designer returns "nothing touches the rules", go straight to Design.
 - Of the systems designer's "Decisions needed", those that split a rule (is this rule A or B) are **asked first, before going to Design** — what the next two write changes wholesale with the answer.
   Do not ask about "start" values of numbers. They are tuned in the table after the build.
-- If the designer or developer returns "Questions for spec", call the systems designer again with them attached, and if the "Spec" section changed, call the asker again.
-  Do not answer in their place.
+- **The agents ask each other; the user is asked only what is theirs.** If the designer or developer returns "Questions for spec", call the systems designer again with them attached;
+  if the developer returns "Questions for design", call the designer again with them attached. If the section they own changed, call the asker again. Do not answer in their place,
+  and do not pass these to the user — an owner that cannot settle one from what is already decided hands it back under "Decisions needed", and only then is it asked.
 
 If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that does not exist, tell the user — what to do about it is asked as a decision: make it with the asset skill (needs its services set up), bring their own file, or leave the placeholder.
 **Either way the build runs on placeholders.** Assets are not made during Build — they are made after it, all at once ("Assets" below).

@@ -28,7 +28,8 @@ A cycle document path and one mode.
    for "Spaces" decide what material · color · light the place has. **Take dimensions and numbers from the spec as they are** — asset sizes come from there too.
 3. Decide what is needed. If `docs/DESIGN.md` already has a rule, point to that rule; if not, decide it here and add it to DESIGN.md.
 4. **Do not decide matters of taste.** Return two or three options, the feel each creates and the work it costs, and the one you recommend, under "Decisions needed".
-   The user decides.
+   The user decides. **Do not ask again what is already settled**: something the GDD states (its Scope says no sound this version) or a decision already answered in this
+   cycle is taken as given, not offered back as an option.
 5. Fill the cycle document's `## Design` section in the shape below. Do not touch other sections.
    **Write short.** This section is read many times later. One or two lines per item — write only what was decided, and why only for contested points, in one line.
    Point to what is already in `docs/DESIGN.md` · the "Spec" section · earlier cycles instead of copying it. Do not write how you investigated.
