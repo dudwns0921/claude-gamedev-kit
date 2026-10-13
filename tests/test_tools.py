@@ -910,7 +910,6 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("<span>lamp</span>", open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read(), "move the asset records and the board follows")
         self.assertNotIn("old style", sheet.split("<span>jar</span>")[1].split("</div></div>")[0])
 
-    @unittest.skipUnless(shutil.which("blender"), "blender not found")
     def test_start(self):
         """An empty game on its way to the first cycle — where it stands is read from files. Concept pictures are drawn by a fake API server."""
         none = tempfile.mkdtemp(prefix="kit-start-none-")
@@ -1028,6 +1027,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         open(os.path.join(other, "design/GDD.md"), "w", encoding="utf-8").write("# 게임\n\n## 개요\n글\n\n## Rules\n\n## 부록 A\n")
         self.assertIn("empty sections: Rules · sections with text: 개요 · sections not checked", run(START, other, "status").stdout)
 
+    @unittest.skipUnless(shutil.which("blender"), "blender not found")
     def test_asset_blender(self):
         root, asset, seen, _env = self.asset_project("blender")
         open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- asset-style -->\nLow-poly.\n<!-- /asset-style -->\n")
