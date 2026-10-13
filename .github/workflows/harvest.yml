@@ -5,7 +5,7 @@
 #   - a secret: CLAUDE_CODE_OAUTH_TOKEN (from `claude setup-token`) or ANTHROPIC_API_KEY — one of the two is enough
 #   - Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests"
 # Labels (created by the run if missing): `harvest:ok` — the owner's approval of an outsider's issue, without it only issues from the
-# owner · members · collaborators are read; `harvest:request` · `harvest:skip` — set by a sweep on issues it left out, remove one to have it read again.
+# owner · members · collaborators are read; `harvest:request` · `harvest:skip` · `harvest:wait` — set by a sweep on issues it left out, remove one to have it read again (a `wait` is read again by itself once another game comments on it).
 #
 # A pull request opened with the default token does not trigger other workflows, so the tests run here, before anything is pushed.
 #
@@ -173,6 +173,7 @@ jobs:
           gh label create "harvest:ok" --force --color 0e8a16 --description "Approved by the owner: the next harvest sweep may read this issue"
           gh label create "harvest:request" --force --color 1d76db --description "Harvest: a feature request rather than a lesson"
           gh label create "harvest:skip" --force --color cfd3d7 --description "Harvest: too tied to one game to become a rule"
+          gh label create "harvest:wait" --force --color fbca04 --description "Harvest: seen in one game so far — read again when another game reports it"
 
       - name: Branch, commit, pull request
         run: |

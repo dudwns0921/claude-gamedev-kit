@@ -81,6 +81,7 @@ one of their own rules (`voice.py rule add` — private, loaded into every game 
 also a line in `docs/kit-feedback.md` (`cycle.py lesson` · `playtest.py lesson`). So a lesson for the kit is always a personal rule first, and the kit can take its time.
 `/gamedev-kit:feedback` sends the accumulated lines to this repository as issues (titles start with `feedback(<engine>):`) — the same path from anyone's game. The script strips dates · cycle numbers and blocks games' names, and the skill shows the outgoing text and asks.
 A game that sees the same thing again does not open a new issue but comments on that one — an issue with comments is one seen twice.
+**The kit takes a rule when a second game has seen it.** Until then the lesson works where it was learned, among its sender's own rules; a shortcoming of the kit itself is fixed on the first report.
 The personal rule is tagged with its issue (`voice.py rule tag`); once that issue closes as completed the kit carries the rule, and the feedback skill asks the user whether to drop their copy (`feedback.py state`).
 
 Turning the issues into rules is a sweep, not a chore per issue — seeing them together is what lets the same lesson from several games become one rule.

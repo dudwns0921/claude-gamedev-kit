@@ -11,7 +11,7 @@
 The model reads harvest-issues.md and writes harvest-result.json; it has no git, no gh and no token. Everything that goes out is done by
 the workflow from the files written here. Issue text is data from outside — it reaches no shell command, and in the markdown it sits inside a fence.
 
-pick: an issue is eligible when its title starts with `feedback(`, it carries neither `harvest:request` nor `harvest:skip`, and its author is
+pick: an issue is eligible when its title starts with `feedback(`, it carries neither `harvest:request` nor `harvest:skip` (and, with `harvest:wait`, has gained a comment from another game), and its author is
 the owner · a member · a collaborator — or it carries `harvest:ok`, the owner's approval of an outsider's issue. An open pull request from a
 `harvest/` branch means a sweep is still under review: nothing is picked. Fewer than the threshold and no --force: nothing is picked.
 Reads the GitHub API with GITHUB_TOKEN · GITHUB_REPOSITORY; with --issues (and --pulls) it reads those JSON files and nothing else.
@@ -36,12 +36,13 @@ MANIFEST = ".claude-plugin/plugin.json"
 ALLOWED = ("engines/", "skills/", "agents/", "templates/", "tests/")  # the folders a sweep may change
 RULE_FILES = "engines/*/CLAUDE.md"  # read on every turn in every game — their size is shown in the pull request
 TRUSTED = ("OWNER", "MEMBER", "COLLABORATOR")
-OK, REQUEST, SKIP = "harvest:ok", "harvest:request", "harvest:skip"
+OK, REQUEST, SKIP, WAIT = "harvest:ok", "harvest:request", "harvest:skip", "harvest:wait"
 BRANCH = "harvest/"
 EDITS = ("rule", "notes", "script", "skill")  # lanes that change a file
 CLOSES = EDITS + ("duplicate",)  # lanes that close the issue when the pull request merges
 ASIDE = {"request": (REQUEST, "a feature request rather than a lesson"),
-         "skip": (SKIP, "too tied to one game to state as a rule for every game")}
+         "skip": (SKIP, "too tied to one game to state as a rule for every game"),
+         "wait": (WAIT, "seen in one game so far; it is read again when another game reports it here")}
 TITLE_RE = re.compile(r"^\d+\.\d+\.\d+ — harvest: lessons from issues( #\d+)+$")
 ENGINE_RE = re.compile(r"^feedback\(([\w.-]+)\)")
 VERSION_RE = re.compile(r'("version"\s*:\s*")(\d+)\.(\d+)\.(\d+)(")')
@@ -79,6 +80,7 @@ def eligible(issue):
     labels = {l.get("name") if isinstance(l, dict) else l for l in issue.get("labels") or []}
     return ("pull_request" not in issue and (issue.get("title") or "").startswith("feedback(")
             and not labels & {REQUEST, SKIP}
+            and (WAIT not in labels or (issue.get("comments") or 0) >= 2)  # the sweep's own comment is one; a second is another game
             and (issue.get("author_association") in TRUSTED or OK in labels))
 
 
@@ -234,7 +236,7 @@ def cmd_check(_):
         sys.exit(f"{TITLE}: not a title `apply` writes")
     labels = read_json(LABELS)
     if not (isinstance(labels, list) and all(
-            isinstance(l, dict) and type(l.get("issue")) is int and l.get("label") in (REQUEST, SKIP) and isinstance(l.get("comment"), str)
+            isinstance(l, dict) and type(l.get("issue")) is int and l.get("label") in (REQUEST, SKIP, WAIT) and isinstance(l.get("comment"), str)
             for l in labels)):
         sys.exit(f"{LABELS}: not what `apply` writes")
     if not os.path.exists(PR_BODY):

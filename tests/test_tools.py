@@ -2419,6 +2419,9 @@ none
         out, picked = pick(mixed, "--threshold", "4")
         self.assertIn("4 eligible, 4 picked", out)
         self.assertEqual(picked, [1, 2, 4, 9], "owner · member · collaborator, an outsider only with harvest:ok — oldest first")
+        # an issue set to wait is read again only once another game has commented on it (the sweep's own comment is the first)
+        waiting = [issue(1), issue(2, labels=["harvest:wait"], comments=1), issue(3, labels=["harvest:wait"], comments=2)]
+        self.assertEqual(pick(waiting, "--force")[1], [1, 3])
         # the threshold, --force, the cap, one sweep at a time
         out, picked = pick(mixed)
         self.assertIn("4 eligible, 0 picked", out)

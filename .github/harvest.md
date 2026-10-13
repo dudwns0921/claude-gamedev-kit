@@ -28,6 +28,7 @@ Each issue ends in exactly one lane.
 | `skill` | It concerns how one skill works | That skill's document under `skills/<name>/` (or the agent it calls, under `agents/`) |
 | `duplicate` | A rule already in the kit covers it | Nothing changes — name the existing rule |
 | `request` | A feature request, not a lesson | Nothing changes — the issue is labelled and stays open for the maintainer |
+| `wait` | It would make a good rule, but only one game has seen it | Nothing changes — the issue is labelled and stays open; it is read again when another game reports it |
 | `skip` | It depends on one game's structure, or is too specific to state as a rule that holds for any game | Nothing changes — the issue is labelled |
 
 The issue's title names its engine (`feedback(<engine>): …`). A lesson that is not about the engine at all — it is about the cycle, the balance
@@ -46,8 +47,11 @@ the trap or reported it, change the script and add the case to its test, and wri
   If it already covers the case as written, the issue is a `duplicate`.
 - The engine rule files are loaded on every turn of every game made with the kit, so each line there is paid for again and again. A sweep that
   leaves a file tighter and more useful is better than one that leaves it longer. The pull request shows each file's size before and after.
-- A comment count on an issue means other games saw it too. That is the strongest evidence a lesson holds beyond one game; an issue seen once, tied
-  to one game's layout, is a `skip`.
+- **The kit takes a rule when a second game has seen it, not before.** A comment on an issue ("Seen here too") is another game reporting the same thing — that is
+  the evidence a lesson holds beyond the game that sent it. An issue nobody else has reported yet is a `wait`, however well it reads: its sender already has it
+  among their own rules, where it works in every game of theirs, so nothing is lost by waiting, and every rule added here is read on every turn of everyone's games.
+  Two things do not wait: a shortcoming of the kit itself (a script that should have caught something, a skill document that misled) is fixed on the first report,
+  and so is a correction to a rule already here. An issue tied to one game's layout is a `skip`, not a `wait` — no second game will have it.
 
 ## How a rule is written
 
