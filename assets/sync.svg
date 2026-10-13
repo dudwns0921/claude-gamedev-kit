@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 470" width="1200" height="470" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>The design document and the code cannot drift apart — every GDD row is tied to a marker in code</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07110e"/><stop offset="0.55" stop-color="#0b2a22"/><stop offset="1" stop-color="#1a1033"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3dffb0"/><stop offset="0.45" stop-color="#d8ff5a"/><stop offset="0.8" stop-color="#ffd24a"/><stop offset="1" stop-color="#ff8ad1"/>
+    </linearGradient>
+    <linearGradient id="you" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5dffc0"/><stop offset="1" stop-color="#16b877"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3dffb0" stop-opacity="0.3"/><stop offset="1" stop-color="#3dffb0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spot2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#b06cff" stop-opacity="0.34"/><stop offset="1" stop-color="#b06cff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#3dffb0" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-120%" width="200%" height="340%"><feGaussianBlur stdDeviation="7"/></filter>
+    <clipPath id="card"><rect x="6" y="6" width="1188" height="458" rx="28"/></clipPath>
+    <path id="star" d="M0,-10 L2.4,-2.4 L10,0 L2.4,2.4 L0,10 L-2.4,2.4 L-10,0 L-2.4,-2.4 Z"/>
+  </defs>
+  <style>
+    .tw { animation: tw 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    @keyframes tw { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+    .new { animation: pop 2.4s ease-in-out infinite; }
+    @keyframes pop { 0%,100% { opacity: .35; } 50% { opacity: .95; } }
+  </style>
+
+  
+  <g clip-path="url(#card)">
+    <rect x="6" y="6" width="1188" height="458" fill="url(#bg)"/>
+    <rect x="6" y="6" width="1188" height="458" fill="url(#grid)"/>
+    <ellipse cx="220" cy="110" rx="420" ry="230" fill="url(#spot)"/>
+    <ellipse cx="1010" cy="330" rx="400" ry="260" fill="url(#spot2)"/>
+
+    <text x="78" y="84" font-size="44" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">The design and the code cannot drift apart</text>
+    <text x="78" y="84" font-size="44" font-weight="900" letter-spacing="-1.2" fill="url(#title)">The design and the code cannot drift apart</text>
+    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">Every number and rule in the GDD is tied to a marker in code</text>
+
+    <rect x="70" y="150" width="470" height="232" rx="16" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.8" stroke-width="2"/>
+    <text x="92" y="182" font-size="17" font-weight="800" fill="#8ad8ff" letter-spacing="1.5">GDD · SYNC TABLE</text>
+    <rect x="660" y="150" width="470" height="232" rx="16" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.8" stroke-width="2"/>
+    <text x="682" y="182" font-size="17" font-weight="800" fill="#8ad8ff" letter-spacing="1.5">CODE</text>
+
+    <text x="92" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700" fill="#f2fbff">BAL.COIN.VALUE</text>
+    <text x="330" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="800" text-anchor="middle" fill="#ffd24a">5</text>
+    <rect x="398" y="205" width="118" height="30" rx="15" fill="#3dffb0" fill-opacity="0.16" stroke="#3dffb0" stroke-width="2"/>
+    <text x="457.0" y="226" font-size="16" font-weight="800" text-anchor="middle" fill="#3dffb0">synced</text>
+    <text x="682" y="220" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="700" fill="#f2fbff">const COIN_VALUE := <tspan fill="#ffd24a" font-weight="900">5</tspan></text>
+    <text x="682" y="241" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#7fd6b4"># GDD: BAL.COIN.VALUE</text>
+    <path d="M552,220 H648 M562,212 L551,220 L562,228 M638,212 L649,220 L638,228" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="92" y="282" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700" fill="#f2fbff">BAL.EEL.DAMAGE</text>
+    <text x="330" y="282" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="800" text-anchor="middle" fill="#ff5b6b">8</text>
+    <rect x="398" y="261" width="118" height="30" rx="15" fill="#ff5b6b" fill-opacity="0.16" stroke="#ff5b6b" stroke-width="2"/>
+    <text x="457.0" y="282" font-size="16" font-weight="800" text-anchor="middle" fill="#ff5b6b">mismatch</text>
+    <text x="682" y="276" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="700" fill="#f2fbff">const DAMAGE := <tspan fill="#ff5b6b" font-weight="900">10</tspan></text>
+    <text x="682" y="297" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15" fill="#7fd6b4"># GDD: BAL.EEL.DAMAGE</text>
+    <path class="new" d="M552,276 H648" fill="none" stroke="#ff5b6b" stroke-width="8" filter="url(#glow)"/>
+    <path d="M552,276 H586 M614,276 H648" fill="none" stroke="#ff5b6b" stroke-width="3" stroke-linecap="round"/>
+    <text x="600" y="284" font-size="26" font-weight="900" text-anchor="middle" fill="#ff5b6b">≠</text>
+    <text x="92" y="338" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="700" fill="#f2fbff">RULE.END.WRECK</text>
+    <text x="330" y="338" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" font-weight="800" text-anchor="middle" fill="#ffd24a">—</text>
+    <rect x="398" y="317" width="118" height="30" rx="15" fill="#a9b4c0" fill-opacity="0.16" stroke="#a9b4c0" stroke-width="2"/>
+    <text x="457.0" y="338" font-size="16" font-weight="800" text-anchor="middle" fill="#a9b4c0">missing</text>
+    <rect x="682" y="312" width="426" height="40" rx="8" fill="none" stroke="#a9b4c0" stroke-opacity="0.6" stroke-width="2" stroke-dasharray="7 7"/>
+    <text x="895" y="338" font-size="17" font-weight="600" text-anchor="middle" fill="#a9b4c0">no marker yet — not built</text>
+    <path d="M552,332 H648" fill="none" stroke="#a9b4c0" stroke-opacity="0.7" stroke-width="3" stroke-dasharray="6 8" stroke-linecap="round"/>
+
+    <text x="80" y="428" font-size="19" font-weight="800" fill="#5dffc0"><tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">gdd-sync</tspan> <tspan fill="#e6f3f8" font-weight="500">finds where they differ —</tspan> <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">to-code</tspan> <tspan fill="#e6f3f8" font-weight="500">makes the GDD the truth,</tspan> <tspan font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">to-gdd</tspan> <tspan fill="#e6f3f8" font-weight="500">makes the code the truth</tspan></text>
+  </g>
+  <rect x="6" y="6" width="1188" height="458" rx="28" fill="none" stroke="url(#title)" stroke-width="3"/>
+</svg>

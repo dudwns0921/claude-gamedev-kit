@@ -1865,6 +1865,22 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("pushed — commits 1", voice(a, "sync"))
         self.assertIn("same as the repository", voice(a, "sync"))
 
+        # the repository gets a README saying what each file is — it rode along with the first commit
+        readme = lambda home: open(os.path.join(home, "README.md"), encoding="utf-8").read()
+        self.assertTrue(readme(a).startswith("# Voice\n\n<!-- gamedev-kit start -->"))
+        self.assertIn("| `rules-<engine>.md` |", readme(a))
+        # a README the owner wrote is kept: the kit's part goes between its markers, once, and is only rewritten when it differs
+        open(os.path.join(a, "README.md"), "w", encoding="utf-8").write("# Mine\n\nmy own notes\n")
+        self.assertIn("pushed — commits 1", voice(a, "sync"))
+        self.assertTrue(readme(a).startswith("# Mine\n\nmy own notes\n\n<!-- gamedev-kit start -->"))
+        self.assertEqual(readme(a).count("<!-- gamedev-kit start -->"), 1)
+        stale = readme(a).replace("It is private on purpose", "It is old") + "after\n"
+        open(os.path.join(a, "README.md"), "w", encoding="utf-8").write(stale)
+        voice(a, "sync")
+        self.assertIn("It is private on purpose", readme(a))
+        self.assertTrue(readme(a).endswith("<!-- gamedev-kit end -->\nafter\n"))
+        self.assertIn("same as the repository", voice(a, "sync"))
+
         # a rule is synced as it is written: committed, and pushed where pushing is permitted
         game = os.path.join(top, "game")
         os.makedirs(game)

@@ -83,6 +83,9 @@ On a machine with no voice it clones; on a machine that already has one it turns
 Then go straight on, without waiting to be asked for each step: `sync` → the one question below → if this is a game with decisions the voice has not read
 (`collect new` prints any), "Learn". One call from the user should end with a voice in the repository.
 
+`sync` keeps a `README.md` in the repository saying what each file is. With no README it writes one; into an existing README it puts its part between
+`<!-- gamedev-kit start -->` and `<!-- gamedev-kit end -->` and leaves the rest as the user wrote it. Nothing to do by hand.
+
 **Pushing is going outward, so it is asked.** Ask once: "may the voice be pushed to this repository without asking each time?" — if yes, `voice.py autopush on`
 (kept on this machine only; the script refuses unless the repository is private). Without that, `sync` reports unpushed commits and you ask before `sync --push`.
 

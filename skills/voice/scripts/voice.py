@@ -64,6 +64,22 @@ LAST = os.path.join(HOME, "rules.last")  # the highest rule number given out so 
 RULES_HEAD = ("# The user's rules{engine}\n\n"
               "What this user learned in earlier games that holds {scope} — one rule per line, written by `voice.py rule`. "
               "Claude Code loads this file into every game made with gamedev-kit.\n\n")
+README = os.path.join(HOME, "README.md")
+README_START, README_END = "<!-- gamedev-kit start -->", "<!-- gamedev-kit end -->"
+README_BLOCK = README_START + """
+This repository holds what [gamedev-kit](https://github.com/dudwns0921/claude-gamedev-kit) has learned about how its owner makes games.
+It is private on purpose: it records leanings, biases and the names of games. The kit reads and writes it — edit by hand only where it says so.
+
+| File | What it holds | Written by |
+|---|---|---|
+| `VOICE.md` | Principles and biases — how the owner decides when a choice could go either way, each with the decisions behind it | the kit, from the owner's answers; lines marked "written by the user" are the owner's own words |
+| `log.md` | The prediction made before each decision was asked, and how it scored | `voice.py predict` · `score` — not edited by hand |
+| `rules.md` | The owner's rules that hold whatever the engine — traps hit, ways to verify | `voice.py rule` |
+| `rules-<engine>.md` | The owner's rules for one engine | `voice.py rule` |
+
+Every game made with the kit loads the rule files through its `CLAUDE.md`, and the voice is read before decisions are asked.
+On another machine: `/gamedev-kit:voice setup <this repository's address>`.
+""" + README_END
 RULE_RE = re.compile(r"^- R(\d+)\. (.*?)(?: \[issue #(\d+)\])?$", re.M)
 ANON_GIT = os.environ.get("VOICE_ANON_GIT", "git")  # the tests change this
 CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩"
@@ -300,6 +316,19 @@ def ensure_rules():
                                                         scope=f"in every {engine} game" if engine else "whatever the engine"))
 
 
+def ensure_readme():
+    """Keep the kit's part of the repository's README current. No README → write one; a README without the part → add it at the end;
+    whatever the owner wrote outside the markers is left alone. True when the file changed."""
+    old = read(README) if os.path.exists(README) else ""
+    if README_START in old and README_END in old:
+        new = old.split(README_START, 1)[0] + README_BLOCK + old.split(README_END, 1)[1]
+    else:
+        new = (old.rstrip("\n") + "\n\n" if old.strip() else "# Voice\n\n") + README_BLOCK + "\n"
+    if new != old:
+        write(README, new)
+    return new != old
+
+
 def rule_files():
     """Every rule file in the home — numbers are unique across all of them, other engines' included."""
     names = os.listdir(HOME) if os.path.isdir(HOME) else []
@@ -446,7 +475,11 @@ def cmd_sync(push, message):
             git("rebase", "--abort")
             sys.exit(f"the voice was edited differently on two machines — merge by hand in {HOME} (git pull --rebase). Do not use the voice until then")
         print(f"pulled — commits {behind}")
-    ahead = count(f"{remote}..HEAD" if has(remote) else "HEAD") if has("HEAD") else 0
+    unpushed = lambda: count(f"{remote}..HEAD" if has(remote) else "HEAD") if has("HEAD") else 0
+    if ensure_readme():  # after taking what the repository has — two machines each writing one would collide
+        git("add", "README.md")
+        git("commit", "-q", "--amend", "--no-edit") if unpushed() else git("commit", "-q", "-m", "voice: README")  # ride along with a commit that has not gone out
+    ahead = unpushed()
     if not ahead:
         return print("same as the repository")
     if not push and git("config", "voice.autopush").stdout.strip() != "true":

@@ -49,15 +49,31 @@ You need Claude Code, Python 3.9 or later, and the engine's editor. Everything e
 
 ## Why use it
 
-- **One workflow, every time.** The same stages, the same documents and the same answer to "who decides this" — in every cycle and every game. Sessions end and models change; the workflow stays, so the tenth cycle runs like the first and you always know where the game stands.
-- **It gets better at your games.** Two things pile up as you work. Your **voice**: how you decide when a choice could go either way. And **lessons**: the engine traps you hit and the ways you found to verify things, kept as your own rules from the moment you hit them; the general ones are sent back to the kit and returned as rules for everyone. The next game starts with all of it.
+Claude Code can already write the game. What goes wrong over weeks is everything around the writing: the design document and the code drift apart, nobody can say how finished the game is, and what you learned in the last game is gone by the next. The kit is one workflow, the same in every cycle and every game, built around three things.
+
+### 1. The design and the code stay one thing
 
 <p align="center">
-  <img src="assets/compounds.svg" alt="Three games in a row; the stacks of voice and lessons under each one grow, with what came before carried over" width="860">
+  <img src="assets/sync.svg" alt="A GDD sync table beside code: one row synced, one mismatched — the GDD says 8 and the code says 10 — and one with no marker in code yet" width="860">
 </p>
 
-- **You stay the designer.** Rules, numbers and looks are asked, not assumed. What the agents write is a proposal until you answer.
-- **Nothing is locked in.** The GDD, the cycle documents and the code are plain files in your repository. You ship where you choose.
+Every number and rule in the GDD has an ID, and the code that implements it carries a `GDD: <ID>` marker. `/gamedev-kit:gdd-sync` compares the two and reports what is synced, what disagrees and what is not built — then aligns whichever side you name. Balance numbers go one step further: edit them in an Excel table, and `/gamedev-kit:balance-table` bakes them into code.
+
+### 2. You always see where the game stands
+
+<p align="center"><img src="assets/board.png" alt="The status board of a sample game: five stage cards in play order, each with a completion ring and four meters for function, art, sound and verification, and three undecided questions above them" width="860"></p>
+
+`/gamedev-kit:board` draws the game as the player meets it: one card per stage of play, each showing what is done, what is a placeholder, what is not made and what is a problem — and what is still undecided. A script reads it all from the GDD, the cycle and playtest documents and the asset records; no model is involved, and a hook redraws it whenever those documents change.
+
+### 3. It gets better at your games
+
+<p align="center">
+  <img src="assets/compounds.svg" alt="Three games in a row; the stacks of voice and of your own rules under each one grow, with what came before carried over" width="860">
+</p>
+
+Two things pile up as you work, in a private repository of your own. Your **voice**: how you decide when a choice could go either way, learned from your answers. And your **rules**: the traps you hit and the ways you found to verify things. Both are loaded into every game you make with the kit, so the next one starts with all of it. A lesson that would trip anyone can also be sent on to the kit, where it becomes a rule for everybody.
+
+You stay the designer throughout — rules, numbers and looks are asked, not assumed — and nothing is locked in: the GDD, the cycle documents and the code are plain files in your repository.
 
 It is built for a game you make over weeks. If you want a small game out of one prompt in a few minutes, a prompt-to-game platform will get you there faster.
 
@@ -130,10 +146,6 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 | `/gamedev-kit:balance-table` | Edit balance numbers in an Excel table and keep it aligned with the value file in code (export · bake · check · serve) |
 | `/gamedev-kit:board` | A status board as HTML pages: one card per stage of play, showing how far function, art, sound and verification have come. Once drawn, a hook redraws it whenever the documents change — no model involved |
 
-<p align="center"><img src="assets/board.png" alt="The status board of a sample game: five stage cards in play order, each with a completion ring and four meters for function, art, sound and verification, and three undecided questions above them" width="860"></p>
-
-The board, drawn by a script from the game's documents: one card per stage of play, showing what is done, what is a placeholder, what is not made and what is a problem.
-
 **Assets and footage**
 
 | Command | What it does |
@@ -189,6 +201,25 @@ You do nothing for it. Before a decision is asked, the kit predicts your answer;
 The voice belongs to you, not to a game. It lives outside the game repos in `~/.config/gamedev-kit/voice/` (override with `GAMEDEV_KIT_VOICE`), as a clone of one private repository of yours, and grows across games and engines. `/gamedev-kit:init` asks for that repository's address once per machine and stops if the repository is readable without login. A principle needs two decisions behind it to stand.
 
 Your own rules live beside it (`rules.md`, and `rules-<engine>.md` per engine): the lessons that would trip you again in another game. Every game's `CLAUDE.md` imports them, so a rule written today holds in the next session of any game you make. `/gamedev-kit:voice` shows them.
+
+### Your private repository
+
+The voice and your rules live in one private repository of yours, so they follow you across games and machines and never touch the kit or a game's repository. Setting it up takes a minute, once:
+
+1. **Create an empty private repository** on GitHub. Any name works — `gamedev-voice`, say.
+2. **Tie it in.** In Claude Code, inside any game: `/gamedev-kit:voice setup <the repository's address>`. `/gamedev-kit:init` also asks for it at the end, so on a new game you can simply answer there. The kit uses the login git already has, and stops if the repository can be read without one.
+3. **Say once whether it may push without asking.** If you say no, it tells you when there are unpushed commits and asks each time.
+4. **Approve the import, once per game.** The first session in a game asks whether its `CLAUDE.md` may load files from outside the project — those are your rules.
+
+On another machine, run step 2 again with the same address; it clones what is there. Without a repository everything still works, kept on that machine only.
+
+| File | What it holds |
+|---|---|
+| `VOICE.md` | Your principles and biases, each with the decisions behind it |
+| `log.md` | The predictions made before you answered, and how they scored |
+| `rules.md` · `rules-<engine>.md` | Your own rules — for any engine, and for one |
+
+The kit also keeps a short `README.md` there saying what each file is. If the repository already has a README, it adds its part between two markers and leaves the rest as you wrote it.
 
 ### Auto mode
 
