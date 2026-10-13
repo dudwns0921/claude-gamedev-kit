@@ -10,6 +10,9 @@
     <linearGradient id="you" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#5dffc0"/><stop offset="1" stop-color="#16b877"/>
     </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
     <radialGradient id="spot" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#3dffb0" stop-opacity="0.3"/><stop offset="1" stop-color="#3dffb0" stop-opacity="0"/>
     </radialGradient>
@@ -28,6 +31,8 @@
     @keyframes tw { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
     .new { animation: pop 2.4s ease-in-out infinite; }
     @keyframes pop { 0%,100% { opacity: .35; } 50% { opacity: .95; } }
+    .sweep { animation: sweep 5s ease-in-out infinite; }
+    @keyframes sweep { 0% { transform: translateX(-500px); } 60%,100% { transform: translateX(1300px); } }
   </style>
 
   
@@ -37,9 +42,39 @@
     <ellipse cx="220" cy="110" rx="420" ry="230" fill="url(#spot)"/>
     <ellipse cx="1010" cy="330" rx="400" ry="260" fill="url(#spot2)"/>
 
+    <g transform="translate(1078,108) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.69s" fill="#ffd24a"/></g>
+    <g transform="translate(43,28) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.34s" fill="#3dffb0"/></g>
+    <g transform="translate(41,433) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.89s" fill="#ffd24a"/></g>
+    <g transform="translate(1172,366) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.44s" fill="#3dffb0"/></g>
+    <g transform="translate(570,168) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-2.01s" fill="#ffffff"/></g>
+    <g transform="translate(1162,447) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-2.39s" fill="#ffd24a"/></g>
+    <g transform="translate(642,364) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.31s" fill="#ff8ad1"/></g>
+    <g transform="translate(1013,80) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.89s" fill="#3dffb0"/></g>
+    <g transform="translate(438,18) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.14s" fill="#ffffff"/></g>
+    <g transform="translate(51,221) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.62s" fill="#3dffb0"/></g>
+    <g transform="translate(1182,151) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.99s" fill="#ffd24a"/></g>
+    <g transform="translate(581,181) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-2.32s" fill="#ffd24a"/></g>
+    <g transform="translate(1098,401) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.49s" fill="#8ad8ff"/></g>
+    <g transform="translate(581,376) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.04s" fill="#3dffb0"/></g>
+    <g transform="translate(1139,104) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.45s" fill="#8ad8ff"/></g>
+    <g transform="translate(114,19) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-1.44s" fill="#8ad8ff"/></g>
+    <g transform="translate(29,287) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.32s" fill="#ffffff"/></g>
+    <g transform="translate(1159,232) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.91s" fill="#8ad8ff"/></g>
+    <g transform="translate(631,196) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-2.26s" fill="#3dffb0"/></g>
+    <g transform="translate(1109,423) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.55s" fill="#ffd24a"/></g>
+    <g transform="translate(629,351) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.08s" fill="#ff8ad1"/></g>
+    <g transform="translate(960,85) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.55s" fill="#ffffff"/></g>
+    <g transform="translate(582,28) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.8s" fill="#ff8ad1"/></g>
+    <g transform="translate(26,414) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.07s" fill="#8ad8ff"/></g>
+    <g transform="translate(1171,404) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-1.84s" fill="#ffd24a"/></g>
+    <g transform="translate(628,164) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-1.68s" fill="#3dffb0"/></g>
+    <g transform="translate(1154,425) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-2.49s" fill="#8ad8ff"/></g>
+    <g transform="translate(603,358) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.44s" fill="#ff8ad1"/></g>
+
     <text x="78" y="84" font-size="44" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">The design and the code cannot drift apart</text>
     <text x="78" y="84" font-size="44" font-weight="900" letter-spacing="-1.2" fill="url(#title)">The design and the code cannot drift apart</text>
     <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">Every number and rule in the GDD is tied to a marker in code</text>
+    <rect class="sweep" x="0" y="40" width="240" height="100" fill="url(#shine)" opacity="0.16" transform="skewX(-20)"/>
 
     <rect x="70" y="150" width="470" height="232" rx="16" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.8" stroke-width="2"/>
     <text x="92" y="182" font-size="17" font-weight="800" fill="#8ad8ff" letter-spacing="1.5">GDD · SYNC TABLE</text>

@@ -91,7 +91,7 @@ It is built for a game you make over weeks. If you want a small game out of one 
 /gamedev-kit:cycle add a shop between runs where the player spends coins
 ```
 
-The kit writes one document in `docs/cycle/` and moves it through the stages in the banner above. After the plan it stops and asks you the open decisions, each with options and a recommendation. You answer (`D2: option 1`), and the build runs — tasks that touch different files run in parallel.
+The kit writes one document in `docs/cycle/` and moves it through the stages in the banner above. After the plan it stops and asks you the open decisions, each with options and a recommendation — a decision chosen by eye comes as a picture. You answer (`D2: option 1`), and the build runs; tasks that touch different files run in parallel.
 
 | You type | What happens |
 |---|---|
@@ -134,7 +134,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:cycle` | One cycle through a single document. Decisions that are chosen by eye are asked with a picture: the question, the options and a crop for each on one sheet |
+| `/gamedev-kit:cycle` | One cycle through a single document: `<goal>` · `next` · `status` · `auto <goal>` |
 | `/gamedev-kit:playtest` | Problem list → analysis document → one agent per task. `plan` analyses only, `implement [T3 …]` builds only, `status` lists what remains |
 | `/gamedev-kit:handoff` | Leaves the work in progress as a short note in `docs/handoff/`; `handoff resume` continues from it in a new session |
 
@@ -144,7 +144,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 |---|---|
 | `/gamedev-kit:gdd-sync` | Compares the GDD's sync table with `GDD: <ID>` markers in code. Reports by default; `to-code` or `to-gdd` aligns one side to the other |
 | `/gamedev-kit:balance-table` | Edit balance numbers in an Excel table and keep it aligned with the value file in code (export · bake · check · serve) |
-| `/gamedev-kit:board` | A status board as HTML pages: one card per stage of play, showing how far function, art, sound and verification have come. Once drawn, a hook redraws it whenever the documents change — no model involved |
+| `/gamedev-kit:board` | Draws the status board as HTML pages and keeps it current |
 
 **Assets and footage**
 
@@ -158,12 +158,20 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 | Command | What it does |
 |---|---|
 | `/gamedev-kit:deploy` | Build and upload to itch.io with butler (`prepare` · `push` · `status`), then draft the itch.io devlog for that build (`devlog`). You paste the devlog yourself |
-| `/gamedev-kit:feedback` | Sends what this game taught you that other games will also hit (`docs/kit-feedback.md`) to this repository as issues. Shows the exact text and sends only the lines you approve |
-| `/gamedev-kit:voice` | Shows what the kit has learned about how you decide, and lets you correct it — see [Voice](#voice) |
+| `/gamedev-kit:feedback` | Sends the lessons that hold for anyone's game to this repository as issues — only the lines you approve |
+| `/gamedev-kit:voice` | Shows your voice and your rules, and lets you correct them — see [Your voice and your rules](#your-voice-and-your-rules) |
 
-## Agents
+## How it works
 
-The model is fixed per agent, so analysis and design run on the strongest model and writing code to a finished plan runs on a cheaper one, whatever model your session uses. The session only conducts.
+<p align="center"><img src="assets/hero.jpg" alt="A fox kit at a workbench presses the play button on a handmade console, with maps, sprites, a balance table and a speaker circling it in a loop" width="720"></p>
+
+The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent per role, a document per stage, each stage reading the one before — fitted to one version of a game.
+
+**There is no closing stage.** A cycle rests at play: play, say, fix, as many times as it takes. Stating the next goal closes the previous cycle and shows once what it left undone.
+
+**No agent decides for you.** Agents return "things to decide" as options with one recommendation, and your answer goes into the cycle document verbatim. Work that hangs on an unanswered decision is not done.
+
+**The model is fixed per agent**, so analysis and design run on the strongest model and writing code to a finished plan runs on a cheaper one, whatever model your session uses. The session only conducts.
 
 | Agent | Model | What it does |
 |---|---|---|
@@ -174,33 +182,46 @@ The model is fixed per agent, so analysis and design run on the strongest model 
 | `deployer` | Sonnet | Check, build, butler push. On a broken build, finds the first error and returns it |
 | `devlog-writer` | Sonnet | Drafts the itch.io devlog for a deployed build from what was actually made. Does not post it |
 
-## How a cycle works
+**Sessions stay short.** Most tokens go to what the main session re-reads every turn, so the ledgers of cycle and playtest documents are kept by scripts, a hook suggests a new session once context passes 200k tokens, and the cycle document or a `/gamedev-kit:handoff` note carries the work across.
 
-<p align="center"><img src="assets/hero.jpg" alt="A fox kit at a workbench presses the play button on a handmade console, with maps, sprites, a balance table and a speaker circling it in a loop" width="720"></p>
+### Auto mode
 
-The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent per role, a document per stage, each stage reading the one before — fitted to one version of a game.
+`/gamedev-kit:cycle auto <goal>` runs from the goal to the end of the build without asking. Your voice decides — by a matching principle if there is one, otherwise by the agent's recommendation.
 
-```
-goal ─▶ spec ───────────▶ design ─▶ plan ───▶ build ───▶ play ◀─┐
-you     systems-designer  designer  developer developer  you ───┘ fix what you found (playtest)
-                                       ▲
-                               decisions are asked
-                        (auto: your voice decides ─▶ stops here)
-```
+- Decisions made for you are marked `[~]` in the cycle document with their basis, and stay unconfirmed until you accept or overturn them. Overturning one redoes the work that hung on it.
+- Some decisions stay yours: anything that costs money or credits, anything that leaves your machine, and anything that discards what you made. Only the work that hangs on them waits.
+- It stops before play. It does not ship and does not start the next cycle — nothing is stacked on a version nobody has played.
+- A decision made for you is not evidence for your voice until you accept it.
 
-**There is no closing stage.** A cycle rests at play: play, say, fix, as many times as it takes. Stating the next goal closes the previous cycle and shows once what it left undone. Lessons are written down where you tripped, not collected at the end.
-
-**No agent decides for you.** Agents return "things to decide" as options with one recommendation, and your answer goes into the cycle document's decisions section verbatim. Work that hangs on an unanswered decision is not done.
+## Your voice and your rules
 
 ### Voice
 
-From those answers the kit builds your **voice**: the side you keep choosing when a decision could go either way (principles), where you keep departing from the recommendation (biases), and what is not yet known.
+From your answers the kit builds your **voice**: the side you keep choosing when a decision could go either way (principles), where you keep departing from the recommendation (biases), and what is not yet known. A principle needs two decisions behind it to stand.
 
-You do nothing for it. Before a decision is asked, the kit predicts your answer; when you answer, it scores the prediction and folds the answer in. Neither the prediction nor the hit rate is shown, because a visible prediction pulls the answer toward it. You see the voice twice: when a new cycle starts (only the lines added since) and when you call `/gamedev-kit:voice` — that is where you correct it.
+You do nothing for it. Before a decision is asked, the kit predicts your answer; when you answer, it scores the prediction and folds the answer in. Neither the prediction nor the hit rate is shown, because a visible prediction pulls the answer toward it. You see the voice when a new cycle starts (only the lines added since) and when you call `/gamedev-kit:voice` — that is where you correct it.
 
-The voice belongs to you, not to a game. It lives outside the game repos in `~/.config/gamedev-kit/voice/` (override with `GAMEDEV_KIT_VOICE`), as a clone of one private repository of yours, and grows across games and engines. `/gamedev-kit:init` asks for that repository's address once per machine and stops if the repository is readable without login. A principle needs two decisions behind it to stand.
+### Rules
 
-Your own rules live beside it (`rules.md`, and `rules-<engine>.md` per engine): the lessons that would trip you again in another game. Every game's `CLAUDE.md` imports them, so a rule written today holds in the next session of any game you make. `/gamedev-kit:voice` shows them.
+A rule is one line that would have saved an afternoon. Where a game trips — a task is blocked, a playtest fix lands — the lesson is sorted on the spot:
+
+| The lesson holds for | It goes to | When it applies |
+|---|---|---|
+| this game only | that game's `CLAUDE.md` | at once |
+| your next game too | **your own rules**, in your private repository | from the next session, in every game you make — no approval |
+| anyone's game | also `docs/kit-feedback.md`, to be sent to the kit | once the kit takes it in, for everybody |
+
+These are in the kit's Godot rules today, each put there by a game that hit it:
+
+> **Run every headless test under a time limit.** A script with a parse error does not fail the run — it hangs. When a run hangs, look for a parse error first.
+
+> **Do not write comments in `project.godot`.** When the editor or an import rewrites the file, a `#` line becomes a broken key and the setting line right below it disappears.
+
+> **Web builds render at 1x.** Rendering at 2x pixels on a Retina screen gives 4–5 fps.
+
+Sending to the kit is never automatic. `/gamedev-kit:feedback` shows the exact text that would become a public issue, stops on anything that looks like a game's name or a date, and sends only the lines you approve. When the kit takes one of your rules in, you are asked whether to drop your copy.
+
+In your game's `CLAUDE.md`, only one marked block belongs to the kit. When the kit updates, a hook replaces that block at session start and leaves everything you wrote untouched; if you edited inside the block, it only tells you.
 
 ### Your private repository
 
@@ -211,70 +232,14 @@ The voice and your rules live in one private repository of yours, so they follow
 3. **Say once whether it may push without asking.** If you say no, it tells you when there are unpushed commits and asks each time.
 4. **Approve the import, once per game.** The first session in a game asks whether its `CLAUDE.md` may load files from outside the project — those are your rules.
 
-On another machine, run step 2 again with the same address; it clones what is there. Without a repository everything still works, kept on that machine only.
+On another machine, run step 2 again with the same address; it clones what is there. Without a repository everything still works, kept on that machine only (`~/.config/gamedev-kit/voice/`).
 
 | File | What it holds |
 |---|---|
 | `VOICE.md` | Your principles and biases, each with the decisions behind it |
 | `log.md` | The predictions made before you answered, and how they scored |
 | `rules.md` · `rules-<engine>.md` | Your own rules — for any engine, and for one |
-
-The kit also keeps a short `README.md` there saying what each file is. If the repository already has a README, it adds its part between two markers and leaves the rest as you wrote it.
-
-### Auto mode
-
-`/gamedev-kit:cycle auto <goal>` runs from the goal to the end of the build without asking. Your voice decides — by a matching principle if there is one, otherwise by the agent's recommendation.
-
-- Decisions made for you are marked `[~]` in the cycle document with their basis, and stay unconfirmed until you accept or overturn them. Overturning one redoes the work that hung on it.
-- Some decisions stay yours: anything that costs money or credits (asset generation), anything that leaves your machine, and anything that discards what you made. They are left open and only the work that hangs on them waits. Missing assets get placeholders.
-- It stops before play. It does not ship and does not start the next cycle — nothing is stacked on a version nobody has played.
-- A decision made for you is not evidence for your voice until you accept it, and counts for less than one you made yourself.
-- It is on for that one run. Continuing with `next` asks again.
-
-## It compounds
-
-The kit does not teach how to implement — Claude Code already does that. What it holds is what a model has no way of knowing: the traps of a given engine, how to verify without a screen, the order of work and who decides what. That grows with every game, along two paths: your [voice](#voice), and lessons.
-
-A lesson is one line that would have saved an afternoon. These are in the Godot rules today, each put there by a game that hit it:
-
-> **Run every headless test under a time limit.** A script with a parse error does not fail the run — it hangs. When a run hangs, look for a parse error first.
-
-> **Do not write comments in `project.godot`.** When the editor or an import rewrites the file, a `#` line becomes a broken key and the setting line right below it disappears.
-
-> **Web builds render at 1x.** Rendering at 2x pixels on a Retina screen gives 4–5 fps.
-
-A line in your voice is the same kind of thing about you rather than the engine — for example, *"when a number can be tuned in the table later, don't hold the build for it"* — and it stands only once two of your decisions back it.
-
-<details>
-<summary>How a lesson travels from one game to all of them</summary>
-
-```
-you trip in a game ─▶ the lesson is sorted on the spot
-                        ├─ this game only ───────────▶ that game's CLAUDE.md
-                        ├─ your next game too ───────▶ your own rules (private) — loaded into every game you make, from the next session
-                        └─ of those, anyone's game ──▶ also docs/kit-feedback.md (one line each)
-                                                          │  /gamedev-kit:feedback — only lines you approve
-                                                          ▼
-                                       issues in this repository — lines from any game meet here
-                                                          │
-                                                          ▼
-                             engines/<engine>/CLAUDE.md · skill documents · scripts
-                                                          │  /gamedev-kit:init rules
-                                                          ▼
-                    the kit's rule block in every game's CLAUDE.md — a new game starts with it
-```
-
-</details>
-
-- **A lesson lands in your own rules first.** It applies at once, in every game of yours, without waiting for the kit and without leaving your private repository. Only the ones that hold for anyone are sent on; when the kit takes one in, you are asked whether to drop your copy.
-- **Anyone using the kit can send lessons.** When unsent lines pile up, a hook says so at session start. Nothing goes out by itself: issues are public, so you see the text first.
-- **One test sorts them**: would you need to know this when making a different game? Only what still makes sense without the game's name, files and numbers is sent.
-- **A tool beats a rule.** What a script can prevent is prevented by the script instead of being written down.
-- **Your game receives one block.** In your `CLAUDE.md`, only the marked block belongs to the kit. When the kit updates, a hook replaces that block at session start and leaves everything you wrote untouched; if you edited inside the block, it only tells you.
-
-## Tokens and time
-
-Measured on real session logs, most tokens go to **what the main session re-reads every turn**. So the ledgers of cycle and playtest documents are kept by scripts rather than by reading whole documents, a hook suggests a new session once context passes 200k tokens, and the cycle document or a `/gamedev-kit:handoff` note carries the context across. Compare before and after with `python3 tools/session_usage.py <game repo>`.
+| `README.md` | What each file is. Kept by the kit; if you already have a README it adds its part between two markers and leaves the rest |
 
 ## Engines
 
@@ -288,9 +253,9 @@ Pick the engine in `/gamedev-kit:init`. The kit finds the editor, creates the pr
 | Asset formats | glb · png · mp3 | fbx · png · mp3 |
 | Cutscene formats | mp4 · ogv | mp4 |
 
-`gdd-sync`, `balance-table`, `cycle`, `playtest`, `board`, `asset` and `video` work the same on both. Each engine also brings its own rules into your game's `CLAUDE.md` — how to verify without opening the editor, and the traps found while making games with it.
+Everything else works the same on both. Each engine also brings its own rules into your game's `CLAUDE.md` — how to verify without opening the editor, and the traps found while making games with it.
 
-Everything engine-specific lives in one folder, `engines/<engine>/`. The skills and scripts read only values from `kit.config.json` (extensions, patterns, paths, build commands), so supporting another engine means adding a folder.
+Everything engine-specific lives in one folder, `engines/<engine>/`; the skills and scripts read only values from `kit.config.json`, so supporting another engine means adding a folder.
 
 ## Optional services
 
@@ -328,8 +293,6 @@ tools/              session_usage.py — where tokens went, from a game repo's s
 tests/              test_tools.py — runs the tools end to end without an engine, against fake servers; nothing leaves the machine ·
                     test_structure.py — checks the structure rules by reading files only
 ```
-
-The tools live in the plugin and the game lives elsewhere. Scripts walk up from the current folder to find `kit.config.json` and treat that folder as the game's root.
 
 ## License
 

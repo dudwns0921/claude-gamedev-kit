@@ -10,6 +10,9 @@
     <linearGradient id="you" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#5dffc0"/><stop offset="1" stop-color="#16b877"/>
     </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
     <radialGradient id="spot" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="#3dffb0" stop-opacity="0.3"/><stop offset="1" stop-color="#3dffb0" stop-opacity="0"/>
     </radialGradient>
@@ -28,6 +31,8 @@
     @keyframes tw { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
     .new { animation: pop 2.4s ease-in-out infinite; }
     @keyframes pop { 0%,100% { opacity: .35; } 50% { opacity: .95; } }
+    .sweep { animation: sweep 5s ease-in-out infinite; }
+    @keyframes sweep { 0% { transform: translateX(-500px); } 60%,100% { transform: translateX(1300px); } }
   </style>
 
   <g clip-path="url(#card)">
@@ -36,24 +41,42 @@
     <ellipse cx="220" cy="110" rx="420" ry="230" fill="url(#spot)"/>
     <ellipse cx="1010" cy="330" rx="400" ry="260" fill="url(#spot2)"/>
 
-    <g transform="translate(956,484) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-0.49s" fill="#8ad8ff"/></g>
-    <g transform="translate(1004,40) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.79s" fill="#3dffb0"/></g>
-    <g transform="translate(1133,122) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-1.92s" fill="#ffd24a"/></g>
-    <g transform="translate(60,36) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-2.29s" fill="#8ad8ff"/></g>
-    <g transform="translate(91,484) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.35s" fill="#ff8ad1"/></g>
-    <g transform="translate(1053,484) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-1.06s" fill="#8ad8ff"/></g>
-    <g transform="translate(200,477) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.08s" fill="#8ad8ff"/></g>
-    <g transform="translate(64,20) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.98s" fill="#ffffff"/></g>
-    <g transform="translate(889,476) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.88s" fill="#ff8ad1"/></g>
-    <g transform="translate(711,20) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.84s" fill="#3dffb0"/></g>
-    <g transform="translate(152,475) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-0.49s" fill="#8ad8ff"/></g>
-    <g transform="translate(420,24) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-1.09s" fill="#ffd24a"/></g>
-    <g transform="translate(30,28) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-0.49s" fill="#8ad8ff"/></g>
-    <g transform="translate(703,29) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-0.54s" fill="#ffd24a"/></g>
+
+    <g transform="translate(697,215) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-2.07s" fill="#8ad8ff"/></g>
+    <g transform="translate(987,149) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-1.69s" fill="#ffd24a"/></g>
+    <g transform="translate(261,29) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.26s" fill="#ffffff"/></g>
+    <g transform="translate(54,202) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.03s" fill="#ffd24a"/></g>
+    <g transform="translate(1166,271) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-2.38s" fill="#ffffff"/></g>
+    <g transform="translate(223,247) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.36s" fill="#8ad8ff"/></g>
+    <g transform="translate(515,182) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.0s" fill="#3dffb0"/></g>
+    <g transform="translate(1033,85) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-2.27s" fill="#ff8ad1"/></g>
+    <g transform="translate(672,24) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.47s" fill="#ffd24a"/></g>
+    <g transform="translate(44,302) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.94s" fill="#ffd24a"/></g>
+    <g transform="translate(1149,267) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.86s" fill="#8ad8ff"/></g>
+    <g transform="translate(660,150) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.17s" fill="#ff8ad1"/></g>
+    <g transform="translate(373,273) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.48s" fill="#ffffff"/></g>
+    <g transform="translate(1160,75) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.67s" fill="#3dffb0"/></g>
+    <g transform="translate(762,30) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.43s" fill="#ffffff"/></g>
+    <g transform="translate(43,342) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.18s" fill="#ffd24a"/></g>
+    <g transform="translate(1179,250) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.96s" fill="#ffffff"/></g>
+    <g transform="translate(412,215) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-2.32s" fill="#ff8ad1"/></g>
+    <g transform="translate(854,268) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.53s" fill="#ff8ad1"/></g>
+    <g transform="translate(1055,39) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.46s" fill="#3dffb0"/></g>
+    <g transform="translate(456,28) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-2.39s" fill="#ff8ad1"/></g>
+    <g transform="translate(37,429) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.81s" fill="#ff8ad1"/></g>
+    <g transform="translate(1159,245) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.63s" fill="#ff8ad1"/></g>
+    <g transform="translate(555,170) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.21s" fill="#8ad8ff"/></g>
+    <g transform="translate(606,253) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.62s" fill="#8ad8ff"/></g>
+    <g transform="translate(1068,94) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-1.69s" fill="#ffd24a"/></g>
+    <g transform="translate(144,38) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-2.08s" fill="#ff8ad1"/></g>
+    <g transform="translate(33,216) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-1.64s" fill="#ffffff"/></g>
+    <g transform="translate(1146,243) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.97s" fill="#3dffb0"/></g>
+    <g transform="translate(490,187) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-1.18s" fill="#8ad8ff"/></g>
 
     <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">Every game leaves the next one better off</text>
     <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="url(#title)">Every game leaves the next one better off</text>
     <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">What you decide and what tripped you carry into every game after it</text>
+    <rect class="sweep" x="0" y="40" width="240" height="100" fill="url(#shine)" opacity="0.16" transform="skewX(-20)"/>
 
     <path d="M95,376 H365" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
     <rect class="new" style="animation-delay:-0.0s" x="106" y="352" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
