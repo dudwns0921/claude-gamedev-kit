@@ -14,6 +14,9 @@
 - **Deploy (itch.io)**: write `user/game` in `deploy.itch` in `kit.config.json`. In the editor's Project → Export create a preset named **`Web`**
   and download the export templates (once, by the user in the editor). If you name the preset differently, change `deploy.channels.html5.build`.
   The version is read from `config/version` in `project.godot` — set it in Project Settings → Application → Config → Version.
+  The export does not create its target folder — the build command makes it first (`mkdir -p build/web && …`).
+  Add `build/*` to the preset's exclude filter: a build folder inside the project is packed into the next `.pck`, pictures and all.
+  Plain text (a licence `.txt`) is not packed by default — add `*.txt` to the preset's include filter, or put the credits in the game.
   To add a desktop build, add a channel: `"windows": { "build": "godot --headless --path . --export-release Windows build/windows/game.exe", "dir": "build/windows" }`.
 - **Assets (asset skill)**: finished models land in `assets/models/<name>.glb`. Godot reads glb as is — if the editor is open it imports when you return to the window,
   if closed import with `godot --headless --path . --import`. 1 unit is 1 m, so `--size` is the in-game size as is. The origin is the center of the bottom.

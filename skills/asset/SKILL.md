@@ -38,7 +38,7 @@ so only approved images become meshes, and after approval it runs to the end wit
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" new <name> --size <meters> [--poly <triangle count>] [--ref <photo> [--as-is]] "<what it is — in English>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <name>... [--view back] [--ref <photo>]
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <name>... [--view back [--note "<words for that view only>"]] [--ref <photo>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" approve <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" reject <name> "<the user's words>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" learn "<one line — in English>"
@@ -63,7 +63,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" status
 4. **`image`.** For several, give the names at once. When done, give the user the image paths and tell them to open the images themselves.
    **Do not Read the images yourself** — a picture stays in this session to the end and is re-read every turn. The one who looks is the user.
    If the user asks you to screen them first, call `gamedev-kit:designer` with `review` and `model: opus`, pass the paths, and get text back.
-5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>`;
+5. **Wait for the user's answer.** If they ask for changes — if the object is wrong, fix `subject` in `asset.json` and run `image`; if only one view is off, `image --view <view>` — and when it is off because it copies the first view (a palm drawn as the back of the hand, the wrong one of a left · right pair),
+   say what that side shows with `--note` ("the palm faces the viewer, thumb on the viewer's left"); the note stays with that view;
    if they now hand you a photo, `image <name> --ref <path>`. **Do not `approve` because it looks good to you.** `approve` only assets the user said are good.
    **When they turn one down, record what they said** — `reject <name> "<their words>"` — before redrawing. Then ask yourself whether it is about this one object or about every asset
    ("the metal is too shiny" is about every asset). If every: `learn "<the rule, one English line>"` and show them that line. See "What is attached to every asset".
@@ -198,6 +199,7 @@ A sound comes out in one step — there is no intermediate gate like the image. 
 2. **Write the description.** In English, what is heard, in order: what hits what, material, intensity, tail (cuts short / rings).
    Not "coin pickup" but "a small metal coin dropped on a stone floor, one bright ping, short tail". Do not write the game's sound style (8-bit, dry, no reverb) —
    if the `<!-- sound-style -->` … `<!-- /sound-style -->` paragraph in `docs/DESIGN.md` exists, the script attaches it.
+   Music does not get that paragraph (words for effects, like "no music" or "short tail", wreck a music description) — it gets `<!-- music-style -->` … `<!-- /music-style -->` if that exists.
    If that paragraph is empty, decide it with the user while making the first few sounds and write it down. Same as the art style paragraph: changing it clashes with sounds already made.
 3. **Length.** If the design section "연출과 소리" gives seconds, pass them with `--seconds`. Sound effects are 0.5–30 s (omit to let it decide), music 3–600 s.
    Use `--loop` for sounds that run endlessly, like wind, engines and ambience. Keep sounds that answer an input short — long ones overlap.

@@ -32,6 +32,7 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import time
 import urllib.error
@@ -52,6 +53,10 @@ LUDO = os.environ.get("LUDO_API_BASE", "https://api.ludo.ai/api")  # 테스트�
 KEY = "LUDO_API_KEY"
 POLL = float(os.environ.get("ASSET_POLL_SEC", "2"))
 WAIT = 30 * 60
+PNG = b"\x89PNG\r\n\x1a\n"
+KINDS = ((b"RIFF", "webp"), (b"\xff\xd8", "jpg"), (b"GIF8", "gif"))
+CONVERT = (("sips", "-s", "format", "png", "{src}", "--out", "{out}"), ("ffmpeg", "-y", "-loglevel", "error", "-i", "{src}", "{out}"),
+           ("magick", "{src}", "{out}"), ("dwebp", "{src}", "-o", "{out}"))  # 있는 것을 차례로 써 본다
 DONE = ("succeeded", "failed", "canceled")
 FRAMES = (4, 9, 16, 25, 36, 49, 64)
 
@@ -171,7 +176,26 @@ def approved(rec):
 
 def png_size(path):
     head = open(path, "rb").read(24)
-    return struct.unpack(">II", head[16:24]) if head[:8] == b"\x89PNG\r\n\x1a\n" else (0, 0)
+    return struct.unpack(">II", head[16:24]) if head[:8] == PNG else (0, 0)
+
+
+def save_png(out, data):
+    """받은 그림을 PNG 로 놓는다. 이름만 .png 이고 속은 다른 형식(WebP 따위)이면 이 기기의 도구로 바꾼다 — 엔진은 이름을 믿고 읽다가 못 읽는다."""
+    if data[:8] == PNG:
+        return open(out, "wb").write(data)
+    kind = next((ext for magic, ext in KINDS if data.startswith(magic)), "bin")
+    raw = f"{os.path.splitext(out)[0]}.{kind}"
+    open(raw, "wb").write(data)
+    if os.path.exists(out):
+        os.remove(out)
+    for tool, *args in CONVERT:
+        if not shutil.which(tool):
+            continue
+        subprocess.run([shutil.which(tool)] + [a.format(src=raw, out=out) for a in args], capture_output=True)
+        if os.path.exists(out) and open(out, "rb").read(8) == PNG:
+            return os.remove(raw)
+    sys.exit(f"{rel(raw)}: 받은 그림이 PNG 가 아닌데({kind}) 바꿀 도구가 없다 — {' · '.join(c[0] for c in CONVERT)} 가운데 하나를 깐다. "
+             f"받은 것은 그대로 두었다 (다시 돌리면 새로 산다 — 손으로 PNG 로 바꿔 {rel(out)} 에 놓아도 된다)")
 
 
 def stage(rec):
@@ -214,7 +238,7 @@ def image(name, ref=None):
             prompt = said
             path, body = "/assets/image", lambda: dict(CFG["image"], **kind, prompt=prompt)
         result, credits = run(rec, rec, name, path, body)
-        open(out, "wb").write(http(result[0]["url"], auth=False))
+        save_png(out, http(result[0]["url"], auth=False))
     rec.setdefault("prompts", {})["still"] = prompt
     rec["approved"] = None  # 그림이 바뀌면 승인도 다시
     rec["image"] = dict(CFG["image"], style_ref=CFG["style_ref"], credits=credits,
@@ -258,7 +282,7 @@ def animate(name, motion, prompt, seconds, frames):
     result, credits = run(rec, m, f"{name} {motion}", "/assets/sprite/animate",
                           lambda: dict(ask, motion_prompt=prompt, initial_image=upload(still_path(name)), gif=True))
     sheet = os.path.join(asset.folder(name), f"{motion}.png")
-    open(sheet, "wb").write(http(result["spritesheet_url"], auth=False))
+    save_png(sheet, http(result["spritesheet_url"], auth=False))
     gif = ""
     if result.get("gif_url"):
         gif = os.path.join(asset.folder(name), f"{motion}.gif")

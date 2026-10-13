@@ -215,12 +215,13 @@ def as_code(text, was):
 
 
 def diff():
-    """[(이름, 코드값, 표값)] — 표에 있고 코드와 다른 것."""
+    """([(이름, 코드값, 표값)] — 표에 있고 코드와 다른 것, [코드에만 있는 이름])."""
     table = read_table()
-    changed, unknown = [], set(table)
+    changed, unknown, missing = [], set(table), []
     for name, value, _gdd, _note in read_code():
         unknown.discard(name)
         if name not in table:
+            missing.append(name)
             continue
         try:
             new = as_code(table[name], value)
@@ -230,11 +231,11 @@ def diff():
             changed.append((name, value, new))
     for name in sorted(unknown):
         print(f"  표에만 있다 (무시): {name}")
-    return changed
+    return changed, missing
 
 
 def bake():
-    changed = {name: new for name, _old, new in diff()}
+    changed = {name: new for name, _old, new in diff()[0]}
     lines = open(CODE, encoding="utf-8").read().split("\n")
     for i, line in enumerate(lines):
         m = LINE_RE.match(line)
@@ -313,12 +314,14 @@ def main():
     elif cmd == "bake":
         bake()
     elif cmd == "check":
-        changed = diff()
+        changed, missing = diff()
         for name, old, new in changed:
             print(f"  {name}: 코드 {old} · 표 {new}")
+        for name in missing:  # 코드에 새로 생긴 값 — 표에서는 보이지도 고쳐지지도 않는다
+            print(f"  코드에만 있다 (표에 없다): {name}")
         if changed:
             sys.exit("표와 코드가 다르다 — balance_table.py bake")
-        print("표와 코드가 같다")
+        print("표와 코드가 같다" + (f" — 다만 코드에만 있는 값이 {len(missing)}개다: balance_table.py export 하면 표에 든다" if missing else ""))
     else:
         serve(int(args[1]) if len(args) > 1 else 8765)
 

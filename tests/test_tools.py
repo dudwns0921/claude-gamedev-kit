@@ -195,6 +195,10 @@ class Tools(unittest.TestCase):
             self.assertEqual(p.returncode, 1)
             self.assertIn("PLAYER_HP: 코드 100 · 표 120", p.stdout)
             self.assertIn("표에만 있다 (무시): NO_SUCH_NAME", p.stdout)
+            self.assertRegex(p.stdout, r"코드에만 있다 \(표에 없다\): [A-Z_]+\n", "코드에 새로 생긴 값이 표에 없으면 말한다")
+            excel_save(table, {"PLAYER_HP": "100"})
+            self.assertRegex(run(TABLE, root, "check").stdout, r"표와 코드가 같다 — 다만 코드에만 있는 값이 \d개다")
+            excel_save(table, {"PLAYER_HP": "120", "PLAYER_WALK_SPEED": "4.25", "COIN_VALUE": "5", "UNMARKED": "3", "NO_SUCH_NAME": "1"})
 
             run(TABLE, root, "bake")
             after = open(code, encoding="utf-8").read()
@@ -558,11 +562,20 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         back = posts("/images/edits")[0]
         self.assertIn(b"back view", back)
         self.assertIn(b'name="image[]"; filename="front.png"', back, "뒷면은 앞면을 보고 그린다")
+        self.assertIn("The object is: A wooden crate with iron corners. Draw what is really seen from this side — do not mirror".encode(), back,
+                      "앞 그림만 보고 그리면 앞을 뒤집어 베낀다 — 무엇인지와 뒤집지 말 것을 같이 말한다")
         self.assertIn("보고 approve", asset("status"))
+        os.makedirs(os.path.join(root, "assets/_gen/loose"))
+        open(os.path.join(root, "assets/_gen/loose/asset.json"), "w").write('{"name": "loose"}')
+        self.assertIn("loose", asset("status"), "손으로 적어 빠진 것이 있는 기록에도 죽지 않는다")
+        shutil.rmtree(os.path.join(root, "assets/_gen/loose"))
 
         self.assertIn("승인된 이미지가 없다", asset("mesh", "crate", ok=False))
         asset("approve", "crate")
-        asset("image", "crate", "--view", "back")
+        self.assertIn("--note 는 --view 와 같이", asset("image", "crate", "--note", "x", ok=False))
+        asset("image", "crate", "--view", "back", "--note", "The hinge  side faces the viewer")
+        self.assertIn(b"show the side this view faces. The hinge side faces the viewer. Chunky low-poly", posts("/images/edits")[-1], "그 면에만 붙는 글")
+        self.assertEqual(rec("crate")["notes"], {"back": "The hinge side faces the viewer"})
         self.assertIn("승인된 이미지가 없다", asset("mesh", "crate", ok=False), "이미지를 다시 그리면 승인도 다시")
         self.assertEqual(posts("/multi-image-to-3d"), [])
         asset("approve", "crate")
@@ -796,7 +809,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
     def test_sprite(self):
         """2D: 그림 → 승인 → 움직이는 시트. 가짜 Ludo 서버 — 작업을 걸고, 물어서 받고, 받은 주소에서 파일을 내려받는다."""
-        seen, jobs = [], {}
+        seen, jobs, webp = [], {}, []
         png = lambda w, h: b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", w, h)
 
         class Fake(http.server.BaseHTTPRequestHandler):
@@ -827,6 +840,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
                 seen.append(("GET", self.path, self.headers.get("Authorization"), None))
                 if path == "/assets/account":
                     return self.reply({"credits": {"available": 87.5}})
+                if path.startswith("/file/") and webp:
+                    return self.reply(b"RIFF\x10\x00\x00\x00WEBPVP8 ")
                 if path.startswith("/file/"):
                     return self.reply(png(512, 256) if "sheet" in path else png(1024, 1024) + path.encode())
                 job = path.rsplit("/", 1)[1]
@@ -932,6 +947,21 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         sprite("new", "boom", "터진다")
         self.assertIn("400: 안 된다", sprite("image", "boom", ok=False))
 
+        # 이름만 .png 인 WebP 가 오면 이 기기의 도구로 PNG 로 바꿔 놓는다. 도구가 없으면 받은 것을 두고 멈춘다
+        webp.append(1)
+        tools = os.path.join(root, "bin")
+        os.makedirs(os.path.join(tools, "none"))
+        open(os.path.join(tools, "ffmpeg"), "w").write(f"#!{sys.executable}\nimport struct, sys\n"
+                                                       "open(sys.argv[-1], 'wb').write(b'\\x89PNG\\r\\n\\x1a\\n' + struct.pack('>I4sII', 13, b'IHDR', 640, 320))\n")
+        os.chmod(os.path.join(tools, "ffmpeg"), 0o755)
+        sprite("new", "owl", "An owl")
+        self.assertIn("assets/_gen/owl/still.png — 640 × 320 px", sprite("image", "owl", env=dict(env, PATH=tools + os.pathsep + env["PATH"])))
+        self.assertEqual(os.listdir(os.path.join(root, "assets/_gen/owl")).count("still.webp"), 0)
+        sprite("new", "bat", "A bat")
+        self.assertIn("still.webp: 받은 그림이 PNG 가 아닌데(webp) 바꿀 도구가 없다", sprite("image", "bat", ok=False, env=dict(env, PATH=os.path.join(tools, "none"))))
+        self.assertEqual(sorted(n for n in os.listdir(os.path.join(root, "assets/_gen/bat")) if n.startswith("still")), ["still.webp"])
+        del webp[:]
+
         # 현황판은 스프라이트도 놓는다
         run(BOARD, root)
         sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
@@ -984,7 +1014,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         first = open(os.path.join(root, "assets/sounds/coin.mp3"), "rb").read()
 
         os.makedirs(os.path.join(root, "docs"))
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- sound-style -->\n8-bit,\ndry.\n<!-- /sound-style -->\n")
+        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- sound-style -->\n8-bit,\ndry.\n<!-- /sound-style -->\n<!-- music-style -->\nChiptune,\nslow.\n<!-- /music-style -->\n")
         self.assertIn("2번째", sound("again", "coin"))
         self.assertEqual(seen[1][2]["text"], "A metal coin on stone, one bright ping. 8-bit, dry.", "소리의 결이 설명 뒤에 붙는다")
         self.assertNotEqual(open(os.path.join(root, "assets/sounds/coin.mp3"), "rb").read(), first)
@@ -998,7 +1028,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("3~600초", sound("music", "theme", "--seconds", "1", "x", ok=False))
         sound("music", "theme", "--seconds", "45", "Calm exploration theme")
         self.assertEqual(seen[3][0].split("?")[0], "/music")
-        self.assertEqual(seen[3][2], {"prompt": "Calm exploration theme. 8-bit, dry.", "music_length_ms": 45000,
+        self.assertEqual(seen[3][2], {"prompt": "Calm exploration theme. Chiptune, slow.", "music_length_ms": 45000,  # 효과음의 결은 음악에 붙지 않는다
                                       "model_id": "music_v1", "force_instrumental": True})
 
         self.assertIn("422: 안 된다", sound("sfx", "boom", "터진다", ok=False))

@@ -99,6 +99,8 @@ between `ask` and asking the user, follow the voice skill's "Predict": `voice.py
 
 When answers come, record them with `decide D1 "<the user's words verbatim>"`. If an answer changes the spec · design · plan (scope cut · a different option chosen),
 call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
+If an answer puts work off ("○○ first, then △△"), the put-off part is in no task list and `next` will say nothing is left — write it down while recording the answer:
+a task if it belongs to this cycle (call `plan`), `later` if it does not.
 
 ### 5. 구현
 
@@ -108,6 +110,8 @@ Pass three lines — `build T<n>`, the document path, and the task-extraction co
 Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
 Record returned results with `mark` (agents do not edit the document): done → `mark T1,T3 done`, blocked · failed → `mark T2 blocked "<reason>"`.
 Do not fix a blocked task here yourself — ask the user whether to call `plan` again with "Why blocked" attached.
+**While `plan` is running, do not run `mark` · `ask` · `decide`** — it is rewriting the same document (and may set a blocked task back to open). Record them all after it returns.
+Before the first wave on a machine that has not run this project (a fresh clone), check that the engine executable written in CLAUDE.md exists — without it a whole wave comes back unverified.
 A blocked task or a returned "Deviations from the document" may be something learned — see "What was learned" below.
 
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;

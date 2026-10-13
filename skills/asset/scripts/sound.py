@@ -10,6 +10,7 @@
 파일은 <sound.dir>/<이름>.<mp3|wav> 에, 기록은 <work>/<이름>/sound.json 에 놓인다. 같은 이름으로 다시 만들면 파일을 덮는다.
 
 소리의 결은 한 곳에 있다 — asset.style_file(기본 docs/DESIGN.md)의 `<!-- sound-style -->` 와 `<!-- /sound-style -->` 사이.
+음악에는 그 문단이 붙지 않는다 — `<!-- music-style -->` 와 `<!-- /music-style -->` 사이의 문단이 있으면 그것이 붙는다.
 있으면 모든 설명 뒤에 그대로 붙는다. 설정은 프로젝트 루트 kit.config.json 의 "asset" 안 "sound".
 
 키는 저장소 밖에 둔다 — 환경 변수 ELEVENLABS_API_KEY, 없으면 asset.env_file
@@ -40,6 +41,7 @@ DEFAULTS = {
 API = os.environ.get("ELEVENLABS_API_BASE", "https://api.elevenlabs.io/v1")  # 테스트가 바꾼다
 KEY = "ELEVENLABS_API_KEY"
 OPEN, CLOSE = "<!-- sound-style -->", "<!-- /sound-style -->"
+MUSIC = ("<!-- music-style -->", "<!-- /music-style -->")
 LIMITS = {"sfx": (0.5, 30), "music": (3, 600)}
 LONGEST = 450  # 효과음 설명의 길이 한도 — 결 문단이 붙은 뒤의 길이다
 
@@ -105,12 +107,14 @@ def folder(name):
     return os.path.join(ROOT, CFG["work"], name)
 
 
-def style():
+def style(kind="sfx"):
+    """그 종류의 소리에 붙는 결 문단. 음악은 제 문단(music-style)만 본다 — 효과음의 결("no music" 따위)은 음악 설명을 망친다."""
     path = os.path.join(ROOT, CFG["style_file"])
     text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
-    if OPEN not in text or CLOSE not in text:
+    start, end = MUSIC if kind == "music" else (OPEN, CLOSE)
+    if start not in text or end not in text:
         return ""
-    return " ".join(text.split(OPEN, 1)[1].split(CLOSE, 1)[0].split())
+    return " ".join(text.split(start, 1)[1].split(end, 1)[0].split())
 
 
 def write(name, data):
@@ -134,7 +138,7 @@ def make(rec):
     lo, hi = LIMITS[kind]
     if rec.get("seconds") is not None and not lo <= rec["seconds"] <= hi:
         sys.exit(f"{name}: {'효과음' if kind == 'sfx' else '음악'}은 {lo}~{hi}초다")
-    prompt = rec["subject"] + (f". {style()}" if style() else "")
+    prompt = rec["subject"] + (f". {style(kind)}" if style(kind) else "")
     if kind == "sfx" and len(prompt) > LONGEST:
         sys.exit(f"{name}: 설명이 {len(prompt)}자다 — 결 문단까지 합쳐 {LONGEST}자 안이어야 한다 (결 문단 {len(style())}자)")
     if kind == "sfx":

@@ -94,6 +94,8 @@ Rewrites the 코드 위치 and 상태 columns to the current state. **Never touc
 
 Put the marker on **the line that defines the value**, not a line that uses it. The script reads `= number` on the same line, so keep one per line.
 Use the engine's comment syntax — the script only looks for the text `GDD: <ID>`.
+Do not put a HUD row's marker on lines that define numeric constants: each such line is compared with the first number in that row's value cell,
+so a row marked on several numbers reads as 불일치. And `--write` does not clear a 불일치 that was typed into the table by hand — fix that cell yourself.
 
 ```gdscript
 static var CREW_START := 12  # GDD: BAL.CREW.START

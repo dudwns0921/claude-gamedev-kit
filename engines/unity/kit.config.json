@@ -21,6 +21,7 @@
     }
   },
   "asset": {
+    "work": "art/_gen",
     "dir": "Assets/Models",
     "format": "fbx",
     "views": ["front", "back"],

@@ -18,7 +18,7 @@ Once a value is settled, bake the table into code. Deploy builds do not read the
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" export   # code → table (rebuilds the table)
 python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" bake     # table → code
-python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" check    # if different, prints the differing lines and exits 1
+python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" check    # if different, prints the differing lines and exits 1. Also names values that are only in code (→ export)
 python3 "${CLAUDE_SKILL_DIR}/scripts/balance_table.py" serve    # serves the table at http://127.0.0.1:8765/balance
 ```
 

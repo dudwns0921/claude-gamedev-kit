@@ -60,6 +60,8 @@ Decisions needed:
 
 The cause has already been found and the place to fix is written down. Your job is to fix it as written and verify.
 Other agents may be doing other tasks at the same time. Do not touch anything outside your task's "고칠 곳".
+Their unfinished work is in the same working tree: **never `git stash`, `git checkout -- <file>` or `git reset`** to see or measure the state before your change —
+read the old version with `git show HEAD:<file>`, or measure it in a separate `git worktree`.
 
 1. **Extract and read only your task.** Run the "extract task" command the caller gave you — it prints only your task and the decisions it hangs on (for a playtest document, "요약").
    **Do not Read the whole document** (tens of thousands of tokens). If you were given no command, find line numbers with `grep -n '^##' <document>` and Read only your task's range.

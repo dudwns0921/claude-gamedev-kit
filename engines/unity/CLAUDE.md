@@ -35,3 +35,5 @@ Everything that can be verified without a screen becomes an EditMode test. Run t
 4. **IL2CPP strips code that is reached only by reflection** (JSON deserialization into a type, `Type.GetType` by name). It works in the editor and fails on the device —
    keep such types with `[Preserve]` or a `link.xml`.
 5. **The editor is not the device.** Touch, screen sizes with notches, the back button and performance are checked only on a phone. Say so when reporting a change as verified.
+6. **In batch mode `AssetDatabase.ImportPackage` does nothing** — the import is queued and the process quits before it runs (TMP Essential Resources never arrive this way).
+   A `.unitypackage` is a gzipped tar: one folder per asset, named by its GUID, holding `asset`, `asset.meta` and `pathname`. Unpack it and put each file at its path with its `.meta`.

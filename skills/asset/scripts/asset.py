@@ -2,7 +2,7 @@
 """에셋 — 설명 한 줄에서 게임에 넣을 3D 모델까지: 이미지(OpenAI) → 승인 → 메쉬(Meshy) → 다듬기(Blender).
 
   python3 asset.py new <이름> --size <미터> [--poly <삼각형 수>] [--ref <사진> [--as-is]] "<무엇인지 — 영어로>"
-  python3 asset.py image <이름>... [--view back] [--ref <사진>]   이미지를 만든다. --view 면 그 면만 다시
+  python3 asset.py image <이름>... [--view back [--note "<그 면에만 붙는 글 — 영어로>"]] [--ref <사진>]   이미지를 만든다. --view 면 그 면만 다시
   python3 asset.py approve <이름>...               사람이 이미지를 보고 난 뒤. 승인한 이미지만 메쉬가 된다
   python3 asset.py reject <이름> "<사용자의 말>"   물린다 — 왜 물렸는지를 기록에 남기고 승인을 푼다
   python3 asset.py learn "<한 줄 — 영어로>"        물리며 배운 것을 "배운 것" 에 한 줄 보탠다. 그 뒤 모든 에셋에 붙는다
@@ -72,6 +72,9 @@ FOR_3D = ("A single object, centered, the whole object inside the frame with a m
           "Transparent background. Flat, even, neutral lighting — no cast shadows, no ground, no rim light. "
           "No text, no labels, no other objects.")
 SAME = "The same object as in the first image — identical shape, proportions, colors and materials — shown in"
+# 앞 그림만 보고 그리면 좌우가 다른 것(손등과 손바닥 · 한쪽 팔다리)은 앞을 뒤집어 베낀다 — 무엇인지와 뒤집지 말 것을 같이 말한다
+TURNED = ("The object is: {subject}. Draw what is really seen from this side — do not mirror, flip or repeat the first image. "
+          "Where the two sides differ, show the side this view faces.")
 STYLE_ONLY = "Use the attached images only as a style reference (palette, shading, level of detail); do not copy their subjects."
 SUBJECT_REF = ("The first attached image shows the subject: redraw this exact object — the same silhouette, proportions, colours and "
                "distinctive details — in the style described below.")
@@ -250,8 +253,12 @@ def draw(prompt, inputs):
     return base64.b64decode(json.loads(raw)["data"][0]["b64_json"])
 
 
-def image(name, only, ref=None):
+def image(name, only, ref=None, note=None):
     rec, words = load(name), look()
+    if note is not None:
+        if not only:
+            sys.exit("--note 는 --view 와 같이 쓴다 — 그 면에만 붙는 글이다")
+        rec.setdefault("notes", {})[only] = " ".join(note.split())
     if ref:
         rec["ref"] = ref
     subject = os.path.join(ROOT, rec["ref"]) if rec.get("ref") else ""
@@ -268,14 +275,16 @@ def image(name, only, ref=None):
     if first not in todo and not os.path.exists(image_path(name, first)):
         sys.exit(f"{name}: 기준 면({first}) 이미지가 먼저 있어야 한다")
     for view in todo:
+        said = rec.get("notes", {}).get(view)
+        mine = f"{said.rstrip('.')}. " if said else ""  # 이 면에만 붙는 글 (어느 쪽이 보는 이에게 가까운가 따위)
         if view == first and subject and rec.get("as_is"):
             prompt, data = f"(레퍼런스를 그대로 썼다: {rec['ref']})", open(subject, "rb").read()
         elif view == first:
             lead = f"{SUBJECT_REF} " + (f"{STYLE_REST} " if refs else "") if subject else (f"{STYLE_ONLY} " if refs else "")
-            prompt = f"{lead}{rec['subject']}. {VIEWS[view].capitalize()}. {words} {FOR_3D}"
+            prompt = f"{lead}{rec['subject']}. {VIEWS[view].capitalize()}. {mine}{words} {FOR_3D}"
             data = draw(prompt, ([subject] if subject else []) + refs)
         else:
-            prompt = f"{SAME} {VIEWS[view]}. {words} {FOR_3D}"
+            prompt = f"{SAME} {VIEWS[view]}. {TURNED.format(subject=rec['subject'])} {mine}{words} {FOR_3D}"
             data = draw(prompt, [image_path(name, first)])
         os.makedirs(folder(name), exist_ok=True)
         open(image_path(name, view), "wb").write(data)
@@ -408,13 +417,13 @@ def status():
         print("에셋이 없다 — asset.py new <이름> --size <미터> \"<무엇인지>\"")
     for n in names:
         rec = load(n)
-        print(f"{n:<24} {stage(rec):<28} {rec['size']} m · {rec['subject'][:50]}")
+        print(f"{n:<24} {stage(rec):<28} {rec.get('size', '?')} m · {rec.get('subject', '')[:50]}")  # 손으로 적은 기록은 빠진 것이 있다
 
 
 def main():
     args = sys.argv[1:]
     opts = {}
-    for flag in ("--root", "--size", "--poly", "--view", "--ref"):
+    for flag in ("--root", "--size", "--poly", "--view", "--ref", "--note"):
         if flag in args:
             i = args.index(flag)
             if i + 1 >= len(args):
@@ -453,7 +462,7 @@ def main():
             print(f"{name}: {os.path.relpath(folder(name), ROOT)}/asset.json" + (f" · 레퍼런스 {ref}" + (" (그대로 쓴다)" if as_is else "") if ref else ""))
         elif cmd == "image":
             for name in rest:
-                image(name, opts.get("--view"), ref)
+                image(name, opts.get("--view"), ref, opts.get("--note"))
         elif cmd == "reject":
             if len(rest) != 2:
                 sys.exit(__doc__)

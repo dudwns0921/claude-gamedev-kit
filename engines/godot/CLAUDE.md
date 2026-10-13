@@ -15,6 +15,7 @@ The Godot executable lives in a different place on each machine (`godot` is ofte
 
 - `--import` **rewrites `project.godot`** (line order changes, and autoload lines added by editor plugins can be erased).
   After running it look at `git diff project.godot`, and revert if it changed unintentionally. Do not run it while the editor is open.
+  Check whether the editor has the project open as a step of its own, before the import (`pgrep -fl -i godot`) — chained into one command with the import, you find out after it has run.
 - Put an empty `.gdignore` file in folders Godot must not import, like `docs/` · `assets/_gen/`.
 
 ## Verification
@@ -27,6 +28,12 @@ Everything that can be verified without a screen becomes a headless test. Run th
   **If the screen is locked or the window is covered, nothing is captured** (it does not draw). If the window grabs the mouse, mouse movement during the shot changes the framing.
 - **Motion by frames.** `<godot> --path . --write-movie <folder>/<scene>.png --fixed-fps 10 --resolution 800x450 res://tests/capture_play.tscn -- <scene>`.
 - `Parameter "material" is null` in headless output is noise from having no renderer. Look only at `SCRIPT ERROR`.
+- **Run every headless test under a time limit.** A script with a parse error does not fail the run — it hangs. When a run hangs, look for a parse error first.
+  macOS has no `timeout` command (a loop that calls it gets rc 127 every time and checks nothing): `perl -e 'alarm shift; exec @ARGV' <seconds> <command>`.
+- **In a windowed run, wait two `process_frame`s before reading a value that moves per frame** (a Tween, the field of view). A test that only counts physics ticks
+  can read it before `_process` has run once — it looks unmoved, and the same test passes headless.
+- **Put the process id in the save path a test uses** (`OS.get_process_id()`). Two runs of the same smoke test at once otherwise write the same save file.
+- **Frame time swings by about a fifth between runs.** To measure what an effect costs, switch it on and off in turns inside one process — do not compare two runs.
 - **Headless does not compile shaders.** If you changed a shader, run the capture scene once in a window and look for `SHADER ERROR` in the output.
 
 ## Pitfalls (Godot)
@@ -47,3 +54,9 @@ Everything that can be verified without a screen becomes a headless test. Run th
 9. **When a test attaches a game that uses pause as a child,** if the test's `process_mode` is ALWAYS the game inherits it and pause does not take effect — set PAUSABLE on the game node.
    While a menu pauses the tree, a test waiting on a timer is paused too.
 10. **Web builds render at 1x** — `window/dpi/allow_hidpi.web=false` in `project.godot`. Rendering at 2x pixels on Retina gives 4~5 fps.
+11. **The Compatibility renderer — what a web build uses — is not Forward+ with less.** With the same `light_energy`, sky ambient and sky reflection, lit surfaces come out about twice as bright,
+    and `GeometryInstance3D.transparency` is ignored. Branch the values on the renderer (`RenderingServer.get_current_rendering_method() == "gl_compatibility" or OS.has_feature("web")`)
+    and shoot the capture once more on desktop with `--rendering-method gl_compatibility`. Lower sky ambient with `ambient_light_sky_contribution`, not `ambient_light_energy`.
+    To fade an object, dither it in screen space in the opaque pass (`discard`) — not alpha blending, which also loses depth sorting.
+12. **A `DirectionalLight3D` shines along its −z.** The direction towards the sun, which a sky shader wants, is `+basis.z`.
+13. **With IK as a `SkeletonModifier3D`, `get_bone_global_pose` read from a test gives the pose before IK.** Read bone positions inside the `skeleton_updated` signal.

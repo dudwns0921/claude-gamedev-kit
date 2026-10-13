@@ -23,6 +23,8 @@ write only the other work in the note and point to the document for the cycle.
 ## Leaving a note
 
 1. **Write from what you know now.** Do not re-read files to write the note — that makes the session you are leaving heavier.
+   **Point only to files inside the repository.** What lives in the session's own folder (subagent transcripts, journals) is deleted with the session —
+   if the next session needs a review's or an analysis's findings, copy them into the cycle document or a file in the repository and point to that.
    Run only `git status --short` and `git rev-parse --short HEAD`.
 2. Write it to `docs/handoff/YYYY-MM-DD-HHMM-<short-name>.md`. Shape below, **under forty lines.** The reader is a new session that knows nothing of this conversation —
    it must be able to type its first command from this note alone.
