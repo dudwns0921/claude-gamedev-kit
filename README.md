@@ -130,6 +130,10 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 | `/gamedev-kit:balance-table` | Edit balance numbers in an Excel table and keep it aligned with the value file in code (export · bake · check · serve) |
 | `/gamedev-kit:board` | A status board as HTML pages: one card per stage of play, showing how far function, art, sound and verification have come. Once drawn, a hook redraws it whenever the documents change — no model involved |
 
+<p align="center"><img src="assets/board.png" alt="The status board of a sample game: five stage cards in play order, each with a completion ring and four meters for function, art, sound and verification, and three undecided questions above them" width="860"></p>
+
+The board, drawn by a script from the game's documents: one card per stage of play, showing what is done, what is a placeholder, what is not made and what is a problem.
+
 **Assets and footage**
 
 | Command | What it does |

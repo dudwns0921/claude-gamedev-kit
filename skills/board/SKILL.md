@@ -1,8 +1,8 @@
 ---
 name: board
 description: >-
-  Draws the game's status board (항해도) — HTML pages made by a script. First screen: the stages of play in the order the player meets them,
-  one card each, with how complete it is across 기능 · 아트 · 사운드 · 검증 (됨 · 임시 · 안 만듦 · 문제). A card opens that stage's page: GDD rows,
+  Draws the game's status board — HTML pages made by a script. First screen: the stages of play in the order the player meets them,
+  one card each, with how complete it is across function · art · sound · verification (done · placeholder · not made · problem). A card opens that stage's page: GDD rows,
   art, sounds, checks, open questions, the cycle tasks that touched it. Everything is read from the GDD table, asset records, cycle and playtest
   documents. Once drawn, it redraws itself as the documents change — a hook runs the script, no model involved.
   Use when the user says "현황판", "보드 보여줘", "지금 어디까지 됐어", "진행 상황 한눈에", "얼마나 만들었어", asks to see progress or the decisions so far
@@ -27,7 +27,7 @@ read the GDD or cycle documents to describe the board.** The page is for the use
 
 Two kinds of page, written next to each other in `docs/board/`:
 
-- `index.html` — **the chart (항해도).** One screen: the stages of play in the order the player meets them, one card each, with a completion ring
+- `index.html` — **the chart.** One screen: the stages of play in the order the player meets them, one card each, with a completion ring
   and four meters. Nothing else. A card links to its stage page.
 - `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, and the cycle tasks that touched it.
 
@@ -35,21 +35,22 @@ The board shows the flow, not the history: answered decisions and the per-cycle 
 
 Every state is read, never judged:
 
-| Meter | 됨 / 임시 / 안 만듦 / 문제 come from | Kept right by |
+| Meter | Done / Placeholder / Not made / Problem come from | Kept right by |
 |---|---|---|
-| 기능 | `docs/GDD.md` appendix A — 동기 / — / 미구현 / 불일치 | `/gamedev-kit:gdd-sync` |
-| 아트 · 사운드 | asset records in `assets/_gen` (a record whose file is in the game = 됨) and the `### 필요한 에셋` table of each cycle document (있는가: `없음` = 안 만듦, `임시 …` = 임시) | `/gamedev-kit:asset`, the designer agent |
-| 검증 | each cycle that touched the stage (끝 — closed by the next cycle — = 됨, 플레이 = 임시 "해 볼 차례", earlier = 안 만듦); playtest tasks (`[ ]` = 문제); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
-| 못 정한 것 | unstruck bullets of the GDD section whose heading contains `미정`, and unanswered cycle decisions | the GDD, `cycle.py` |
+| Function | `docs/GDD.md` appendix A — 동기 / — / 미구현 / 불일치 | `/gamedev-kit:gdd-sync` |
+| Art · Sound | asset records in `assets/_gen` (a record whose file is in the game = done) and the `### 필요한 에셋` table of each cycle document (있는가: `없음` = not made, `임시 …` = placeholder) | `/gamedev-kit:asset`, the designer agent |
+| Verified | each cycle that touched the stage (끝 — closed by the next cycle — = done, 플레이 = placeholder "your turn to play", earlier = not made); playtest tasks (`[ ]` = problem); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
+| Undecided | unstruck bullets of the GDD section whose heading contains `미정`, and unanswered cycle decisions | the GDD, `cycle.py` |
 
 **If the user says something on the board is wrong after playing** ("엔딩 소리가 이상해", "이건 아직 임시야"), do not edit the HTML. If it is a list of
 problems, that is `/gamedev-kit:playtest`. If it is one remark, append one line to `docs/board-notes.md` and rerun the script:
 
 ```
-- 이타카 · 엔딩 | 사운드 | 문제 | 엔딩 음악이 너무 일찍 끊긴다
+- Ending | Sound | problem | the ending music cuts off too early
 ```
 
-Stage name (a part of it is enough) | 기능 · 아트 · 사운드 · 검증 | 문제 · 임시 · 됨 · 없음 | the user's words. Delete the line when it is fixed.
+Stage name (a part of it is enough) | Function · Art · Sound · Verified | problem · placeholder · done · none | the user's words
+(the Korean names 기능 · 아트 · 사운드 · 검증 and 문제 · 임시 · 됨 · 없음 are read too). Delete the line when it is fixed.
 
 ## The flow — set once per game
 
@@ -58,31 +59,31 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 
 ```json
 "board": {
-  "loop_label": "구간 × 6",
+  "loop_label": "leg × 6",
   "flow": [
-    { "name": "세이렌 구간", "about": "one line the card shows", "loop": true,
+    { "name": "The sirens", "about": "one line the card shows", "loop": true,
       "sections": ["4.1", "4.2"],            "ids": ["HUD.ROPE", "RULE.FAIL.*"],
-      "assets": ["siren*", "wax_*"],         "words": ["밀랍", "선원"],
+      "assets": ["siren*", "wax_*"],         "words": ["wax", "crew"],
       "image": "docs/capture/siren.png" }
   ]
 }
 ```
 
 - `sections` — GDD sections whose table rows belong here. `ids` — row IDs (globs) that belong here whatever their section; wins over `sections`.
-- `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "미분류".
+- `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "Unsorted".
 - `words` — words that pull playtest tasks and open questions without a table ID to this stage.
 - `image` — the card's picture (a capture). Without it the first art thumbnail is used. `loop` — consecutive stages that repeat get one bracket.
-- Rows, assets and questions no stage claims are shown under "미분류" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
+- Rows, assets and questions no stage claims are shown under "Unsorted" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
 
 - `"ignore"` (beside `flow`) — asset names (globs) not to count: planned in a cycle document, then dropped.
-- "미분류" is not part of the completion %. It is a to-do for the flow: place what is there, or ignore it. Because it is outside the %, its count is shown beside it —
-  a tile on the first screen, the bar under the stages, and the line the script prints ("미분류 N (에셋 M — 완성 % 밖)"). When relaying the %, relay that count with it.
+- "Unsorted" is not part of the completion %. It is a to-do for the flow: place what is there, or ignore it. Because it is outside the %, its count is shown beside it —
+  a tile on the first screen, the bar under the stages, and the line the script prints ("Unsorted N (assets M — outside the %)"). When relaying the %, relay that count with it.
 
 Other keys: `"out"`, `"gdd"`, `"cycles"`, `"playtests"`, `"gen"`, `"notes"`, `"reload_sec"`.
 
 **The asset sheet** (`assets.html`, linked from the first screen) lays every asset record out in one grid — models and images side by side, sounds in a row to play one after another —
-under the three layers attached to every asset (화풍 · 세계 · 배운 것, read from `docs/DESIGN.md`; another file → `board.design`). Each tile says where the asset stands (그림만 · 승인 · 게임에 있음)
-and marks: **옛 화풍** (drawn under a 화풍 paragraph that has since changed), **물림** (turned down — hover for what the user said), 견본 (a style reference), 레퍼런스 (made from a photo).
+under the three layers attached to every asset (art style · world · learned, read from `docs/DESIGN.md`; another file → `board.design`). Each tile says where the asset stands (image only · approved · in the game)
+and marks: **old style** (drawn under an art style paragraph that has since changed), **rejected** (turned down — hover for what the user said), sample (a style reference), reference (made from a photo).
 It is for the user's eye — do not read the page or the images to judge consistency yourself unless asked.
 
 Add `docs/board/` to `.gitignore` — the pages are redrawn from the documents and carry a timestamp, so committing them only makes noise.

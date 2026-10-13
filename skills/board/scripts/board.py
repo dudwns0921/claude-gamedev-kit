@@ -33,7 +33,7 @@ DEFAULTS = {
     "design": "docs/DESIGN.md",    # 화풍 · 세계 · 배운 것이 든 문서 — 에셋 시트의 머리에 놓인다
     "notes": "docs/board-notes.md",  # 사용자가 해 보고 적는 것: `- 단계 | 칸 | 문제 | 글`
     "open_heading": "미정",         # GDD 에서 "아직 못 정한 것" 을 적는 절의 제목에 든 말
-    "common": "미분류",             # 어느 단계에도 안 드는 것이 모이는 곳 — 완성 % 에는 들지 않는다
+    "common": "Unsorted",          # 어느 단계에도 안 드는 것이 모이는 곳 — 완성 % 에는 들지 않는다
     "ignore": [],                  # 세지 않을 에셋 이름 (glob) — 계획만 되고 버린 것
     "flow": [],                    # 플레이 순서의 단계들. 비면 GDD 절마다 하나
 }
@@ -155,11 +155,15 @@ def cycle(path):
 #   아트 · 사운드 — 에셋 기록(assets/_gen)과 사이클 문서의 "필요한 에셋" 표 (없음 · 임시)
 #   검증   — 그 단계를 건드린 사이클이 플레이 단계를 지났는가, 플레이테스트 문서의 작업, 사용자가 적은 것(board-notes)
 
-LANES = ["기능", "아트", "사운드", "검증"]
+LANES = ["기능", "아트", "사운드", "검증"]  # 문서(board-notes)에 적는 이름이자 안에서 쓰는 열쇠
+LANE_LABEL = {"기능": "Function", "아트": "Art", "사운드": "Sound", "검증": "Verified"}  # 화면에 보이는 이름
+LANE_KEY = {v.lower(): k for k, v in LANE_LABEL.items()}
+STAGE_LABEL = {"목표": "Goal", "기획": "Spec", "디자인": "Design", "계획": "Plan", "구현": "Build", "플레이": "Play", "끝": "Closed"}
 WEIGHT = {"done": 1.0, "temp": 0.5, "none": 0.0, "bad": 0.0}
-WORD = {"done": "됨", "temp": "임시", "none": "안 만듦", "bad": "문제"}
+WORD = {"done": "Done", "temp": "Placeholder", "none": "Not made", "bad": "Problem"}
 ORDER = ["bad", "none", "temp", "done"]
-NOTE_WORD = {"문제": "bad", "임시": "temp", "됨": "done", "없음": "none", "안 만듦": "none"}
+NOTE_WORD = {"문제": "bad", "임시": "temp", "됨": "done", "없음": "none", "안 만듦": "none",
+             "problem": "bad", "placeholder": "temp", "done": "done", "none": "none", "not made": "none"}
 IMG_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 SOUND_EXT = (".mp3", ".ogg", ".wav")
 MODEL_EXT = (".glb", ".gltf", ".fbx", ".obj")
@@ -247,7 +251,7 @@ def asset_items(st, where, cycles, tasks):
             if not out:  # 기록만 있고 게임에 안 들어간 것 (버린 시도) 은 세지 않는다
                 continue
             front = os.path.join(gdir, name, "still.png" if fn == "sprite.json" else "front.png")
-            found[name] = dict(item("done", name, " · ".join(x for x in (rec.get("kind") or ("모델" if lane == "아트" else ""),
+            found[name] = dict(item("done", name, " · ".join(x for x in (rec.get("kind") or ("model" if lane == "아트" else ""),
                                                                          rec.get("made") or rec.get("created") or "") if x),
                                     img=front if os.path.exists(front) else picture(out), audio=out if lane == "사운드" else ""), lane=lane)
     made = set(found)
@@ -260,13 +264,13 @@ def asset_items(st, where, cycles, tasks):
             there = (n["name"] in made or n["name"] in files or (any(os.path.exists(os.path.join(ROOT, c)) for c in cited) if cited
                                                                  else not (have.startswith("없음") or have in ("", "—"))))
             it["st"] = "temp" if "임시" in have else "done" if there else "none"
-            it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — 적힌 파일이 없다" if cited and not there else "")
-            it["tags"] = [f'사이클 {c["num"]}']
+            it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — the file named is missing" if cited and not there else "")
+            it["tags"] = [f'Cycle {c["num"]}']
             it["audio"] = it["audio"] or sound(files.get(n["name"], ""))
             found[n["name"]] = it
     for name, path in files.items():  # 기록 없이 게임에 든 소리 · 모델도 센다 (손으로 넣은 것)
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
-            found[name] = dict(item("done", name, "기록 없음", audio=sound(path)), lane="사운드" if sound(path) else "아트")
+            found[name] = dict(item("done", name, "no record", audio=sound(path)), lane="사운드" if sound(path) else "아트")
     for name, it in found.items():
         if any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
             continue
@@ -281,26 +285,27 @@ def asset_items(st, where, cycles, tasks):
 def check_items(st, where, cycles, playtests):
     for c in cycles:
         state = "done" if re.match(r"끝|회고|배포", c["stage"]) else "temp" if c["stage"].startswith("플레이") else "none"
-        said = {"done": "해 봤다", "temp": "해 볼 차례", "none": f'{c["stage"]} 단계'}[state]
+        said = {"done": "played", "temp": "your turn to play", "none": f'at {stage_word(c["stage"])}'}[state]
         hit = {}
         for t in c["tasks"]:
             for i in {where[x] for x in t["ids"] if x in where}:
                 hit.setdefault(i, []).append(t)
         for i, ts in hit.items():
-            st[i]["lanes"]["검증"].append(item(state, f'사이클 {c["num"]} — {c["name"]}', said))
+            st[i]["lanes"]["검증"].append(item(state, f'Cycle {c["num"]} — {c["name"]}', said))
             st[i]["work"].append((c, ts))
     for p in playtests:
         date = re.match(r"\d{4}-\d\d-\d\d", p["file"])
         for t in p["tasks"]:
             s = place_ids(st, where, t["all_ids"]) or place_words(st, t["title"]) or st[-1]
             s["lanes"]["검증"].append(item("done" if t["mark"] == "x" else "bad", t["title"],
-                                         f'플레이테스트 {date.group(0) if date else ""} · {"고쳤다" if t["mark"] == "x" else "아직"}'))
+                                         f'Playtest {date.group(0) if date else ""} · {"fixed" if t["mark"] == "x" else "open"}'))
     for line in read(os.path.join(ROOT, CFG["notes"])).split("\n"):
         cells = [c.strip() for c in line.lstrip("-* ").split("|")] if line.strip().startswith(("-", "*")) else []
         if len(cells) < 4:
             continue
         s = next((s for s in st if cells[0] and cells[0] in s["name"]), st[-1])
-        s["lanes"][cells[1] if cells[1] in LANES else "검증"].append(item(NOTE_WORD.get(cells[2], "bad"), " | ".join(cells[3:]), "사용자가 적었다"))
+        lane = cells[1] if cells[1] in LANES else LANE_KEY.get(cells[1].lower(), "검증")
+        s["lanes"][lane].append(item(NOTE_WORD.get(cells[2].lower(), "bad"), " | ".join(cells[3:]), "noted by the user"))
 
 
 def open_questions(st, cycles):
@@ -316,12 +321,17 @@ def open_questions(st, cycles):
             t = re.match(r"\*\*(.+?)\*\*:?\s*(.*)", b) or re.match(r"(.+?)(?: — |: | \(|\. )(.*)", b)  # 굵은 제목이 없으면 첫 마디
             out.append({"title": (t.group(1) if t else b).replace("**", ""), "text": (t.group(2) if t else "").replace("**", ""), "from": "GDD"})
     for c in cycles:
-        out += [{"title": f'{d["num"]} {d["title"]}', "text": "대신 정했다 — 확인을 기다린다" if d["proxy"] else "답을 기다린다", "from": f'사이클 {c["num"]}'} for d in c["decisions"] if not d["done"]]
+        out += [{"title": f'{d["num"]} {d["title"]}', "text": "decided for you — waiting for your confirmation" if d["proxy"] else "waiting for your answer", "from": f'Cycle {c["num"]}'} for d in c["decisions"] if not d["done"]]
     for q in out:
         s = place_words(st, q["title"] + " " + q["text"]) or st[-1]
         q["stage"] = s["i"]
         s["open"].append(q)
     return out
+
+
+def stage_word(stage):
+    """사이클 문서에 적힌 단계 이름을 화면에 보일 말로."""
+    return STAGE_LABEL.get(stage, stage)
 
 
 def score(items):
@@ -425,7 +435,7 @@ background:conic-gradient(var(--gold) calc(var(--p)*1%),#2a2a38 0);animation:spi
 .body{padding:0 14px 14px;margin-top:-34px;position:relative;display:flex;flex-direction:column;gap:8px}
 .node h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;text-shadow:0 2px 12px #000}
 .node p{margin:0 0 4px;font-size:12px;color:var(--tx2);min-height:36px}
-.lane{display:grid;grid-template-columns:42px 1fr 44px;gap:8px;align-items:center;font:11px var(--mono);color:var(--tx2)}
+.lane{display:grid;grid-template-columns:58px 1fr 44px;gap:8px;align-items:center;font:11px var(--mono);color:var(--tx2)}
 .lane em{font-style:normal;text-align:right;color:var(--tx3)}
 .seg{display:flex;gap:2px;height:8px}.seg i{display:block;min-width:3px}.seg.empty{border:1px dashed var(--line2)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center}
@@ -491,7 +501,7 @@ const every=RELOAD;if(every)setInterval(()=>{if(!document.hidden&&!a&&!box.class
 
 
 def shell(title, body):
-    return (f'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    return (f'<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{e(title)}</title><style>{CHART_CSS}</style><div class="page">{body}</div>'
             f'<script>{CHART_JS.replace("RELOAD", str(int(CFG["reload_sec"])))}</script></html>\n')
 
@@ -501,7 +511,7 @@ def lane_rows(s):
     for lane in LANES:
         items = s["lanes"][lane]
         done = sum(1 for i in items if i["st"] == "done")
-        out.append(f'<div class="lane"><span>{lane}</span>{meter(items)}<em>{f"{done}/{len(items)}" if items else "없음"}</em></div>')
+        out.append(f'<div class="lane"><span>{LANE_LABEL[lane]}</span>{meter(items)}<em>{f"{done}/{len(items)}" if items else "none"}</em></div>')
     return "".join(out)
 
 
@@ -522,43 +532,44 @@ def index_html(name, st, asks, now, stamp, sheet):
     c = tally(everything)
     pcts = [p for p in (stage_pct(s) for s in flow) if p is not None]
     total = round(sum(pcts) / len(pcts)) if pcts else 0
-    tiles = [("gold", "완성", f"{total}%"), ("warn" if stray else "", f'{CFG["common"]} · % 밖', stray), ("", "지금", f'{now["num"]} · {now["stage"]}' if now else "—"), ("", "임시로 둔 것", c["temp"]),
-             ("", "안 만든 것", c["none"]), ("red" if c["bad"] else "", "문제", c["bad"]), ("red" if asks else "", "못 정한 것", len(asks))]
+    tiles = [("gold", "Complete", f"{total}%"), ("warn" if stray else "", f'{CFG["common"]} · outside %', stray),
+             ("", "Now", f'{now["num"]} · {stage_word(now["stage"])}' if now else "—"), ("", "Placeholders", c["temp"]),
+             ("", "Not made", c["none"]), ("red" if c["bad"] else "", "Problems", c["bad"]), ("red" if asks else "", "Undecided", len(asks))]
     cards = []
     for s in flow:
         p, items = stage_pct(s), [i for lane in LANES for i in s["lanes"][lane]]
         t, pic = tally(items), hero_of(s)
         chips = "".join(f'<span class="chip{cls}">{label} {n}</span>' for label, n, cls in
-                        (("문제", t["bad"], " bad"), ("안 만듦", t["none"], ""), ("임시", t["temp"], ""), ("못 정함", len(s["open"]), " bad")) if n)
+                        (("Problem", t["bad"], " bad"), ("Not made", t["none"], ""), ("Placeholder", t["temp"], ""), ("Undecided", len(s["open"]), " bad")) if n)
         cls = " warn" if t["bad"] else " low" if (p or 0) < 50 else ""
         cards.append(
             f'<div class="slot" style="--i:{s["i"]}"><a class="node{cls}" href="stage-{s["i"] + 1}.html">'
             + (f'<div class="hero" style="background-image:url({pic})"></div>' if pic else '<div class="hero none"></div>')
             + f'<span class="ghost">{s["i"] + 1:02d}</span>{ring(p)}<div class="body"><span class="lab">{stage_label(s)}</span>'
-            f'<h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>{lane_rows(s)}<div class="chips">{chips}<span class="chip go">자세히 →</span></div></div></a></div>')
+            f'<h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>{lane_rows(s)}<div class="chips">{chips}<span class="chip go">Details →</span></div></div></a></div>')
     loops = [s["i"] for s in flow if s["loop"]]
-    loop = (f'<div class="loop" style="--a:{loops[0]};--c:{loops[-1] - loops[0] + 1}"><span class="lab">{e(str(CFG.get("loop_label", "반복")))}</span></div>'
+    loop = (f'<div class="loop" style="--a:{loops[0]};--c:{loops[-1] - loops[0] + 1}"><span class="lab">{e(str(CFG.get("loop_label", "loop")))}</span></div>'
             if loops else "")
     shown = asks[:6]
     strip = "".join(f'<a class="ask" href="{ask_href(q)}">'
                     f'<b>{e(q["title"])}</b><span>{e(q["text"]) or "&nbsp;"}</span></a>' for q in shown)
     strip += f'<span class="ask more">+{len(asks) - len(shown)}</span>' if len(asks) > len(shown) else ""
     rest = st[-1]
-    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">어느 단계에도 안 든 것 — 완성 % 에 들지 않는다</span>'
-                 f'<b>{e(rest["name"])} {stray}</b><span>에셋 {stray_assets}</span>{lane_rows(rest)}'
-                 f'<span class="chip go" style="margin-left:auto">자세히 →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
-    outside = f" · 이 가운데 {e(CFG['common'])} {stray} (에셋 {stray_assets}) 은 완성 % 밖" if stray else ""  # 3.9 는 f-string 안에 같은 따옴표를 못 쓴다
-    body = (f'<header><div><div class="lab">항해도 · 플레이어가 겪는 순서대로</div><h1>{e(name)} <span>완성까지</span></h1>'
-            f'<div class="sub">겪는 것 {len(everything)}가지 — 됨 {c["done"]} · 임시 {c["temp"]} · 안 만듦 {c["none"]} · 문제 {c["bad"]}{outside}</div></div>'
+    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">In no stage — not counted in the %</span>'
+                 f'<b>{e(rest["name"])} {stray}</b><span>assets {stray_assets}</span>{lane_rows(rest)}'
+                 f'<span class="chip go" style="margin-left:auto">Details →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
+    outside = f" · of these, {e(CFG['common'])} {stray} (assets {stray_assets}) is outside the %" if stray else ""  # 3.9 는 f-string 안에 같은 따옴표를 못 쓴다
+    body = (f'<header><div><div class="lab">Chart · in the order the player meets it</div><h1>{e(name)} <span>to completion</span></h1>'
+            f'<div class="sub">{len(everything)} things the player meets — done {c["done"]} · placeholder {c["temp"]} · not made {c["none"]} · problem {c["bad"]}{outside}</div></div>'
             '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + sheet_link(sheet) + "</div></header>"
             '<div class="total">' + "".join(f'<div style="flex:1" title="{e(s["name"])}"><i style="width:{stage_pct(s) or 0}%"></i></div>' for s in flow) + "</div>"
-            '<div class="legend"><span><i class="s-done"></i>됨</span><span><i class="s-temp"></i>임시 — 돌아가지만 다시 만들 것</span>'
-            '<span><i class="s-none"></i>안 만듦</span><span><i class="s-bad"></i>문제 · 못 정함</span></div>'
-            + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">못 정한 것 {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
+            '<div class="legend"><span><i class="s-done"></i>Done</span><span><i class="s-temp"></i>Placeholder — works, to be remade</span>'
+            '<span><i class="s-none"></i>Not made</span><span><i class="s-bad"></i>Problem · undecided</span></div>'
+            + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">Undecided {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
             + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>{rest_html}'
-            f'<footer><span>{stamp} 에 그렸다 · 상태는 GDD 표 · 에셋 기록 · 사이클 · 플레이테스트 문서에서 읽은 그대로다</span>'
+            f'<footer><span>Drawn {stamp} · every state is read as written in the GDD table · asset records · cycle · playtest documents</span>'
             '</footer>')
-    return shell(f"{name} 항해도", body), total
+    return shell(f"{name} — chart", body), total
 
 
 def it_html(i):
@@ -572,9 +583,9 @@ def it_html(i):
 def col_html(lane, items):
     items = sorted(items, key=lambda i: ORDER.index(i["st"]))
     done = sum(1 for i in items if i["st"] == "done")
-    head = f'<h3>{lane}<small>{f"{done}/{len(items)}" if items else "없음"}</small></h3>{meter(items)}'
+    head = f'<h3>{LANE_LABEL[lane]}<small>{f"{done}/{len(items)}" if items else "none"}</small></h3>{meter(items)}'
     if not items:
-        return f'<section class="col">{head}<p class="sub">이 단계에서 읽힌 것이 없다.</p></section>'
+        return f'<section class="col">{head}<p class="sub">Nothing read for this stage.</p></section>'
     if lane == "아트":
         body = '<div class="thumbs">' + "".join(
             f'<div class="thumb st-{i["st"]}" title="{e(i["note"] or i["sub"])}"><i class="s-{i["st"]}"></i>'
@@ -586,7 +597,7 @@ def col_html(lane, items):
     body = f'<ul>{"".join(map(it_html, todo))}</ul>' if todo else ""
     if rest:
         inner = f'<ul>{"".join(map(it_html, rest))}</ul>'
-        body += inner if len(rest) <= 10 and not todo else f'<details{"" if todo or len(rest) > 14 else " open"}><summary>됨 {len(rest)}개 펼치기</summary>{inner}</details>'
+        body += inner if len(rest) <= 10 and not todo else f'<details{"" if todo or len(rest) > 14 else " open"}><summary>Show {len(rest)} done</summary>{inner}</details>'
     return f'<section class="col">{head}{body}</section>'
 
 
@@ -618,12 +629,12 @@ def sheet_data():
             old = bool(style) and not rec.get("as_is") and (drawn != mark if drawn else bool(first) and style not in first)
             here = os.path.abspath(front) if front else ""
             models.append({"name": name, "img": front, "st": "done" if placed else "temp" if rec.get("approved") else "none",
-                           "state": "게임에 있음" if placed else "승인" if rec.get("approved") else "그림만" if front else "그림 없음",
+                           "state": "in the game" if placed else "approved" if rec.get("approved") else "image only" if front else "no image",
                            "old": old, "ref": bool(here) and any(os.path.abspath(os.path.join(ROOT, r)) == here for r in refs),
                            "from": rec.get("ref") or "", "said": rec.get("said") or [], "what": rec.get("subject", "")})
         rec = load_json(os.path.join(gdir, name, "sound.json"))
         if isinstance(rec, dict) and rec.get("out") and os.path.exists(os.path.join(ROOT, rec["out"])):
-            sub = " · ".join(x for x in (rec.get("kind", ""), f'{rec["seconds"]:g}초' if rec.get("seconds") else "") if x)
+            sub = " · ".join(x for x in (rec.get("kind", ""), f'{rec["seconds"]:g}s' if rec.get("seconds") else "") if x)
             sounds.append(item("done", name, sub, rec.get("subject", ""), audio=os.path.join(ROOT, rec["out"])))
     # 기록 없이 게임에 든 것(손으로 넣은 그림 · 모델 · 소리)도 놓는다 — 시트에 없으면 통일성을 볼 때 빠진다
     adir, loose = os.path.join(ROOT, CFG["assets"]), []
@@ -643,9 +654,9 @@ def sheet_data():
             if low.endswith(IMG_EXT) and any(stem.startswith(m + "_") for m in beside):
                 continue  # 모델 옆에 그 이름으로 풀려 나온 텍스처 — 따로 만든 에셋이 아니다
             if low.endswith(SOUND_EXT):
-                sounds.append(item("done", stem, "기록 없음", os.path.relpath(path, ROOT), audio=path))
+                sounds.append(item("done", stem, "no record", os.path.relpath(path, ROOT), audio=path))
             elif low.endswith(IMG_EXT + MODEL_EXT) and stem not in names:
-                loose.append({"name": fn, "img": path if low.endswith(IMG_EXT) else "", "st": "done", "state": "기록 없음", "old": False, "ref": False,
+                loose.append({"name": fn, "img": path if low.endswith(IMG_EXT) else "", "st": "done", "state": "no record", "old": False, "ref": False,
                               "from": "", "said": [], "what": os.path.relpath(path, ROOT)})
     return {"loose": loose, "style": style, "world": " ".join(design_block("asset-world").split()),
             "learned": [re.sub(r"^[-*]\s*", "", x.strip()) for x in design_block("asset-learned").split("\n") if x.strip()],
@@ -655,12 +666,12 @@ def sheet_data():
 
 def sheet_tile(m):
     said = " / ".join(s["said"] for s in m["said"])
-    chips = (f'<span class="chip">{m["state"]}</span>' + ('<span class="chip bad">옛 화풍</span>' if m["old"] else "")
-             + ('<span class="chip go" style="margin-left:0">견본</span>' if m["ref"] else "")
-             + ('<span class="chip">레퍼런스</span>' if m["from"] else "")
-             + (f'<span class="chip bad" title="{e(said)}">물림 {len(m["said"])}</span>' if m["said"] else ""))
+    chips = (f'<span class="chip">{m["state"]}</span>' + ('<span class="chip bad">old style</span>' if m["old"] else "")
+             + ('<span class="chip go" style="margin-left:0">sample</span>' if m["ref"] else "")
+             + ('<span class="chip">reference</span>' if m["from"] else "")
+             + (f'<span class="chip bad" title="{e(said)}">rejected {len(m["said"])}</span>' if m["said"] else ""))
     pic = (f'<button class="im zoom" data-zoom="{rel(m["img"])}" data-cap="{e(m["name"])}" style="background-image:url({rel(m["img"])})"></button>'
-           if m["img"] else '<div class="im">그림 없음</div>')
+           if m["img"] else '<div class="im">no image</div>')
     return (f'<div class="thumb st-{m["st"]}" title="{e(m["what"])}"><i class="s-{m["st"]}"></i>{pic}<span>{e(m["name"])}</span>'
             f'<div class="chips" style="padding:0 6px 6px">{chips}</div></div>')
 
@@ -668,63 +679,63 @@ def sheet_tile(m):
 def sheet_html(name, d):
     """에셋 시트 — 모든 에셋을 한 화면에 나란히. 통일성은 나란히 놓아야 보인다."""
     old = sum(1 for m in d["models"] if m["old"])
-    refs = "".join(f'<div class="thumb"><button class="im zoom" data-zoom="{rel(r)}" data-cap="견본" style="background-image:url({rel(r)})"></button>'
+    refs = "".join(f'<div class="thumb"><button class="im zoom" data-zoom="{rel(r)}" data-cap="sample" style="background-image:url({rel(r)})"></button>'
                    f'<span>{e(os.path.basename(r))}</span></div>' for r in d["refs"])
     learned = "".join(f'<li class="it"><div class="t">{e(x)}</div></li>' for x in d["learned"])
-    none = '<p class="sub" style="margin:0 0 6px">없다.</p>'
+    none = '<p class="sub" style="margin:0 0 6px">None.</p>'
 
     def rule(title, text, empty):
         return f'<h4>{title}</h4><p class="sub" style="margin:0 0 6px">{e(text) if text else empty}</p>'
 
     wide = 'style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"'
-    grid = (f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["models"]))}</div>' if d["models"] else '<p class="sub">에셋 기록이 없다.</p>')
+    grid = (f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["models"]))}</div>' if d["models"] else '<p class="sub">No asset records.</p>')
     if d["loose"]:
-        grid += (f'<h3 style="margin-top:16px">기록 없이 든 것<small>{len(d["loose"])}</small></h3>'
+        grid += (f'<h3 style="margin-top:16px">In the game without a record<small>{len(d["loose"])}</small></h3>'
                  f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["loose"]))}</div>')
-    body = ('<div class="bar"><a class="btn" href="index.html">← 항해도</a></div>'
-            f'<div class="banner"><div><div class="lab">에셋 시트 · 나란히 놓고 본다</div><h1>{e(name)}</h1>'
-            f'<div class="sub">모델 · 그림 {len(d["models"])} · 소리 {len(d["sounds"])}'
-            + (f' · <b style="color:var(--red2)">옛 화풍으로 그린 것 {old}</b>' if old else "") + "</div></div></div>"
-            '<div class="under"><section class="col"><h3>기준<small>모든 에셋에 붙는 글</small></h3>'
-            + rule("화풍 — 고정", d["style"], "비어 있다. 첫 에셋을 만들기 전에 정한다.") + rule("세계 — 무엇이 있나", d["world"], "없다.")
-            + f'<h4>배운 것 — 물리며 나온 말 {len(d["learned"])}</h4>' + (f"<ul>{learned}</ul>" if learned else none)
-            + rule("소리의 결", d["sound"], "없다.")
-            + (f'<h4>견본 {len(d["refs"])}</h4><div class="thumbs">{refs}</div>' if refs else "") + "</section>"
-            f'<section class="col"><h3>모델 · 그림<small>{len(d["models"])}</small></h3>{grid}'
-            f'<h3 style="margin-top:16px">소리<small>{len(d["sounds"])}</small></h3>'
-            + (f'<ul>{"".join(map(it_html, d["sounds"]))}</ul>' if d["sounds"] else '<p class="sub">없다.</p>') + "</section></div>")
-    return shell(f"에셋 시트 · {name}", body)
+    body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a></div>'
+            f'<div class="banner"><div><div class="lab">Asset sheet · side by side</div><h1>{e(name)}</h1>'
+            f'<div class="sub">models · images {len(d["models"])} · sounds {len(d["sounds"])}'
+            + (f' · <b style="color:var(--red2)">drawn in an old style {old}</b>' if old else "") + "</div></div></div>"
+            '<div class="under"><section class="col"><h3>Basis<small>attached to every asset</small></h3>'
+            + rule("Art style — fixed", d["style"], "Empty. Set it before making the first asset.") + rule("World — what exists", d["world"], "None.")
+            + f'<h4>Learned — said when rejecting {len(d["learned"])}</h4>' + (f"<ul>{learned}</ul>" if learned else none)
+            + rule("Sound style", d["sound"], "None.")
+            + (f'<h4>Samples {len(d["refs"])}</h4><div class="thumbs">{refs}</div>' if refs else "") + "</section>"
+            f'<section class="col"><h3>Models · images<small>{len(d["models"])}</small></h3>{grid}'
+            f'<h3 style="margin-top:16px">Sounds<small>{len(d["sounds"])}</small></h3>'
+            + (f'<ul>{"".join(map(it_html, d["sounds"]))}</ul>' if d["sounds"] else '<p class="sub">None.</p>') + "</section></div>")
+    return shell(f"Asset sheet · {name}", body)
 
 
 def sheet_link(d):
     if not d["models"] and not d["sounds"] and not d["loose"]:
         return ""
     old = sum(1 for m in d["models"] if m["old"])
-    return (f'<a class="tile go" href="assets.html"><span class="lab">모델 · 그림 {len(d["models"])} · 소리 {len(d["sounds"])}'
-            + (f" · 옛 화풍 {old}" if old else "") + (f' · 기록 없음 {len(d["loose"])}' if d["loose"] else "") + "</span><b>에셋 시트 →</b></a>")
+    return (f'<a class="tile go" href="assets.html"><span class="lab">models · images {len(d["models"])} · sounds {len(d["sounds"])}'
+            + (f" · old style {old}" if old else "") + (f' · no record {len(d["loose"])}' if d["loose"] else "") + "</span><b>Asset sheet →</b></a>")
 
 
 def stage_html(name, s, st):
     p, pic = stage_pct(s), hero_of(s)
     tabs = "".join(f'<a class="btn{" on" if x is s else ""}" href="stage-{x["i"] + 1}.html">{x["i"] + 1:02d} {e(x["name"])}</a>'
                    for x in st if not x["common"] or any(x["lanes"].values()) or x["open"])
-    tiles = "".join(f'<div class="tile"><span class="lab">{lane}</span><b>{"—" if score(s["lanes"][lane]) is None else str(round(score(s["lanes"][lane]) * 100)) + "%"}</b></div>'
+    tiles = "".join(f'<div class="tile"><span class="lab">{LANE_LABEL[lane]}</span><b>{"—" if score(s["lanes"][lane]) is None else str(round(score(s["lanes"][lane]) * 100)) + "%"}</b></div>'
                     for lane in LANES)
     asks = "".join(f'<div class="ask" style="margin-bottom:6px"><b style="white-space:normal">{e(q["title"])}</b>'
                    f'<span style="white-space:normal">{e(q["text"])} <em class="lab">{e(q["from"])}</em></span></div>' for q in s["open"])
     mark = {"x": "", "!": " blocked"}
-    work = "".join(f'<h4>사이클 {e(c["num"])} — {e(c["name"])} · {e(c["stage"])}</h4>'
+    work = "".join(f'<h4>Cycle {e(c["num"])} — {e(c["name"])} · {e(stage_word(c["stage"]))}</h4>'
                    + "".join(f'<span class="task{mark.get(t["mark"], " open")}" title="{e(t["did"])}"><b>{t["num"]}</b> {e(t["title"])}</span>' for t in ts)
                    for c, ts in reversed(s["work"]))
-    body = (f'<div class="bar"><a class="btn" href="index.html">← 항해도</a><a class="btn go" href="assets.html">에셋 시트 →</a><div class="tabs">{tabs}</div></div>'
+    body = (f'<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a><div class="tabs">{tabs}</div></div>'
             f'<div class="banner">' + (f'<button class="pic zoom" data-zoom="{pic}" data-cap="{e(s["name"])}" style="background-image:url({pic})"></button>' if pic else "") + ring(p, "big")
-            + f'<div><div class="lab">{stage_label(s, "단계 ")}</div><h1>{e(s["name"])}</h1><div class="sub">{e(s["about"])}</div></div>'
+            + f'<div><div class="lab">{stage_label(s, "Stage ")}</div><h1>{e(s["name"])}</h1><div class="sub">{e(s["about"])}</div></div>'
             f'<div class="tiles">{tiles}</div></div>'
             f'<div class="cols">{"".join(col_html(lane, s["lanes"][lane]) for lane in LANES)}</div>'
             '<div class="under">'
-            f'<section class="col"><h3 style="color:var(--red2)">못 정한 것<small>{len(s["open"])}</small></h3>{asks or "<p class=sub>없다.</p>"}</section>'
-            f'<section class="col"><h3>이 단계를 건드린 작업</h3>{work or "<p class=sub>없다.</p>"}</section></div>')
-    return shell(f'{s["name"]} · {name} 항해도', body)
+            f'<section class="col"><h3 style="color:var(--red2)">Undecided<small>{len(s["open"])}</small></h3>{asks or "<p class=sub>None.</p>"}</section>'
+            f'<section class="col"><h3>Tasks that touched this stage</h3>{work or "<p class=sub>None.</p>"}</section></div>')
+    return shell(f'{s["name"]} · {name} — chart', body)
 
 
 def build(outdir, index_name):
@@ -735,8 +746,8 @@ def build(outdir, index_name):
     playtests = [cycle(p) for p in playtest_docs()]
     live = [r for r in rows if r["state"] != "폐기"]
     waiting = sum(1 for c in cycles for d in c["decisions"] if not d["done"])
-    line = (f'GDD 동기 {sum(1 for r in live if r["state"] == "동기")}/{len(live)} · 불일치 {sum(1 for r in live if r["state"] == "불일치")}'
-            f' · 사이클 {len(cycles)}개 · 답 없는 결정 {waiting}')
+    line = (f'GDD synced {sum(1 for r in live if r["state"] == "동기")}/{len(live)} · mismatched {sum(1 for r in live if r["state"] == "불일치")}'
+            f' · cycles {len(cycles)} · unanswered decisions {waiting}')
     st = make_stages(titles, rows)
     touched, where = {}, {}
     for c in cycles:
@@ -758,7 +769,7 @@ def build(outdir, index_name):
     pages = {index_name: index, "assets.html": sheet_html(name, sheet)}
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     stray, stray_assets = stray_of(st)
-    return pages, f"{line} · 완성 {total}%" + (f' · {CFG["common"]} {stray} (에셋 {stray_assets} — 완성 % 밖)' if stray else "")
+    return pages, f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
 
 
 def sources():
