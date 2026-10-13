@@ -1,165 +1,259 @@
-# claude-gamedev-kit
+<p align="center">
+  <img src="assets/banner.svg" alt="claude-gamedev-kit — goal, spec, design, plan, build, play" width="860">
+</p>
 
-게임을 Claude Code 로 만들 때 쓰는 플러그인. 지금은 **Godot** 과 **Unity**(Android) 용이다 — 엔진마다 다른 것은 `engines/<엔진>/` 한 폴더에 모여 있어서, 다른 엔진은 폴더 하나를 더하는 일이다.
+A [Claude Code](https://code.claude.com) plugin for making a game from an empty folder to a build you can ship. You say what the next version should do; agents write the spec, the design and the code; you play it and say what is wrong. Every decision comes back to you.
 
-| 스킬 | 하는 일 |
-|---|---|
-| `/gamedev-kit:init` | 빈 폴더에서 시작해도 된다 — 어느 엔진인지 묻고, 이 기기의 에디터와 빌드에 드는 모듈을 찾고(없으면 무엇을 깔지 알린다), 엔진 프로젝트가 없으면 만든 뒤, 게임 저장소에 설정 · GDD 틀 · CLAUDE.md 규칙 · 런타임 틀 · 엔진의 `.gitignore` 줄을 깐다. 끝나면 `start` 로 넘긴다. `rules` 는 키트가 판을 올린 뒤 CLAUDE.md 의 키트 규칙 블록만 맞춘다 |
-| `/gamedev-kit:start` | 키트를 깐 빈 게임을 첫 사이클까지 데려간다 — GDD(한 바퀴를 플레이어의 자리에서 듣고, 한 번에 하나씩 물어 확인된 것만 적는다) → 컨셉(화면 방향 · 시점 · 2D/3D 를 먼저 묻고, 레퍼런스나 컨셉 그림으로 생김새를 맞춘다) → 첫 목표(가장 안쪽 루프 한 바퀴) → `cycle` 로 넘긴다. 어디까지 왔는지는 파일에서 읽으니 세션을 끊어도 이어진다. 단계는 건너뛸 수 있다 |
-| `/gamedev-kit:gdd-sync` | GDD 부록 A 동기화 표와 코드의 `GDD: <ID>` 표식을 대조하고 한쪽으로 맞춘다 |
-| `/gamedev-kit:balance-table` | 밸런스 값을 엑셀 표에서 고치고 코드와 맞춘다 (export · bake · check · serve) |
-| `/gamedev-kit:playtest` | 플레이하며 적은 문제 목록 → 분석 문서(`docs/playtest/`) → 작업마다 에이전트 하나가 구현 |
-| `/gamedev-kit:cycle` | 한 사이클 — 목표 → 기획 → 디자인 → 계획 → 구현 → 플레이 — 를 문서 하나(`docs/cycle/`)로 끌고 간다. `auto` 를 붙이면 묻지 않고 플레이 앞까지 간다 — 결정은 보이스가 대신한다 눈으로 고르는 결정은 물음 하나에 그림 한 장으로 묻는다 — 물음 · 보기와 보기마다 자른 그림을 한 장에 놓는다 |
-| `/gamedev-kit:voice` | 사용자의 보이스(결정이 갈릴 때 어느 쪽을 고르는가 — 원칙 · 편향). 게임 밖 비공개 저장소에, 게임이 바뀌어도 이어 쌓인다. 사이클 뒤에서 보이지 않게 돈다: 묻기 전에 답을 예측하고, 답이 오면 채점해 보이스에 보탠다. 새 사이클을 시작할 때와 "보이스 보자" 할 때만 보인다 |
-| `/gamedev-kit:handoff` | 세션을 바꿀 때 하던 일을 짧은 메모(`docs/handoff/`)로 남기고, 새 세션에서 그 메모로 잇는다 |
-| `/gamedev-kit:asset` | 3D 에셋 — 설명(· 레퍼런스 사진) → 이미지(OpenAI) → 사람이 승인 → 메쉬(Meshy) → 크기 · 원점 맞추기(Blender) → 게임 폴더.<br>2D 스프라이트 — 설명(· 레퍼런스 그림) → 멈춘 그림([Ludo](https://ludo.ai)) → 사람이 승인 → 움직이는 시트(Ludo) → 게임 폴더.<br>소리 — 설명 → 효과음 · 이어지는 소리 · 음악(ElevenLabs) → 게임 폴더.<br>모든 에셋에 같은 글이 붙는다: 화풍(고정) · 세계 · 배운 것(물리며 사용자가 한 말에서 한 줄씩) |
-| `/gamedev-kit:board` | 현황판(항해도) — 플레이 순서의 단계마다 카드 하나: 기능 · 아트 · 사운드 · 검증이 얼마나 됐나 (됨 · 임시 · 안 만듦 · 문제). 카드를 누르면 그 단계의 쪽 — GDD 행 · 에셋 그림(눌러 확대) · 소리(재생) · 플레이테스트 · 못 정한 것 · 건드린 작업. GDD 표 · 에셋 기록 · 사이클 · 플레이테스트 문서에서 스크립트가 읽어 그린다. 에셋 시트 한 쪽은 모든 에셋을 나란히 놓는다 — 옛 화풍으로 그린 것 · 물린 것이 표시된다. 한 번 그리면 문서가 바뀔 때마다 훅이 스스로 다시 그린다 (모델을 쓰지 않는다) |
-| `/gamedev-kit:video` | 영상 — 찍은 듯한 장면: 설명(· 기준 그림) → 사람이 승인 → 생성([Higgsfield](https://docs.higgsfield.ai/docs)) → 사람이 본다 → 놓는다.<br>게임 밖(트레일러 · devlog 클립)은 mp4, 게임 안에서 트는 컷씬은 엔진이 읽는 형식으로. 올리지는 않는다 |
-| `/gamedev-kit:deploy` | 사이클의 단계가 아니다 — 사이클을 몇 번 돈 뒤 내보내고 싶을 때 부른다. 빌드해서 butler 로 itch.io 에 올리고 (check · build · push · status), 그 빌드의 itch.io devlog 초안을 칸마다 채워 쓴다 (붙여 넣는 것은 사용자) |
-| `/gamedev-kit:feedback` | 이 게임에서 배운 것 가운데 다른 게임도 걸릴 것(`docs/kit-feedback.md`)을 키트 저장소의 이슈로 보낸다 — 날짜 · 사이클 번호를 떼고, 게임의 이름으로 보이는 낱말이 있으면 멈추고, 이미 열린 비슷한 이슈를 찾아 준다. 나갈 글을 그대로 보여 주고 승낙한 줄만 보낸다 |
+Works with **Godot** and **Unity** (Android).
 
-| 에이전트 | 모델 | 하는 일 |
-|---|---|---|
-| `playtest-analyst` | Fable | 문제 목록의 원인을 찾아 작업 문서로 쓴다. 코드는 고치지 않는다 |
-| `systems-designer` | Fable | 사이클의 목표를 규칙 · 밸런스 수치 · 공간의 치수로 쓴다. 값은 정하지 않고 계산을 붙인 범위로 내놓는다 |
-| `designer` | Fable (스크린샷 확인은 Opus) | 기획이 어떻게 보이고 들리는가(UI 의 생김새 · 연출 · 소리 · 에셋 목록)를 쓴다. 규칙 · 수치 · 치수는 정하지 않는다. 스크린샷을 `docs/DESIGN.md` 에 비추어 본다 |
-| `developer` | plan 은 Opus · build 는 Sonnet | 사이클의 작업을 나누고(plan), 사이클 · 플레이테스트 문서의 작업 하나를 적힌 대로 구현한다(build). 다시 분석하지 않는다 |
-| `deployer` | Sonnet | 검사 · 빌드 · butler push. 빌드가 깨지면 첫 오류를 찾아 돌려준다 |
-| `devlog-writer` | Sonnet | 실제로 만든 것만 읽고, 배포한 빌드의 itch.io devlog 초안(`docs/devlog/`)을 쓴다. 올리지 않는다 |
+## Quick start
 
-모델은 에이전트에 정해져 있어서 세션이 어떤 모델이든 분석 · 기획은 Fable, 작업을 나누는 것은 Opus, 적힌 대로 구현하는 것은 Sonnet 이 한다
-(구현과 스크린샷 확인은 스킬이 부를 때 모델을 낮춰 넘긴다). 세션은 지휘만 한다.
-서로 다른 파일을 고치는 작업은 동시에 돈다.
-
-## 사이클
-
-[gstack](https://github.com/garrytan/gstack) 의 틀 — 역할마다 에이전트, 단계마다 문서, 뒤 단계가 앞 단계의 문서를 읽는다 — 을 게임 한 판에 맞춘 것이다.
-
-```
-목표 ─▶ 기획 ─────────▶ 디자인 ─▶ 계획 ─▶ 구현 ─▶ 플레이 ◀─┐
-사용자   systems-designer  designer  developer developer  사용자 ──┘ 해 보고 말한 것을 고친다 (playtest)
-                                       ▲
-                                    결정을 묻는다
-                              (auto: 보이스가 대신한다 ─▶ 여기서 멈춘다)
-```
-
-**닫는 단계는 없다.** 사이클은 플레이에 머문다 — 해 보고, 말하고, 고치는 일이 몇 번이고 돈다. 다음 목표를 말하면 그때 앞 사이클이 닫히고(`끝`),
-거기 남은 작업과 미뤄 둔 것을 한 번 보여 준다. 배운 것은 끝에 모아 적지 않고 걸려 넘어진 그 자리에서 적는다.
-
-배포는 사이클에 들어 있지 않다 — 사이클을 몇 번 돈 뒤 내보낼 만할 때 사용자가 따로 부른다 (`/gamedev-kit:deploy`). devlog 는 지난 배포 뒤의 사이클을 모아 쓴다.
-
-**대신 정해 주는 CEO 에이전트는 없다.** 에이전트는 "결정할 것" 을 선택지와 권하는 것 하나로 돌려주고, 사용자의 답이 사이클 문서의 "결정" 절에
-그대로 적힌다. 답이 없는 결정에 걸린 일은 하지 않는다.
-
-### 보이스 — 뒤에서 쌓인다
-
-그 답들에서 사용자의 **보이스**가 쌓인다: 결정이 갈릴 때 되풀이해 고른 쪽(원칙), 권함과 되풀이해 갈린 쪽(편향), 아직 모르는 것.
-사용자가 할 일은 없다 — 묻는 말에 답하면 된다. 뒤에서는 묻기 전에 답을 예측해 적어 두고(답이 난 결정에는 스크립트가 적지 못하게 한다), 답이 오면 채점하고,
-그 답을 보이스에 보탠다. 예측도 적중률도 보이지 않는다 (예측이 보이면 답이 끌려간다). 보이는 것은 두 번이다: 새 사이클을 시작할 때(그 사이 새로 생긴 줄만)와 "보이스 보자" 할 때 — 그때 틀린 것을 고친다.
-
-보이스는 게임이 아니라 사람의 것이다 — 게임 저장소 밖(`~/.config/gamedev-kit/voice/`, `GAMEDEV_KIT_VOICE` 로 바꾼다)에 살고, 어느 게임 · 어느 엔진에서 한 결정이든
-같은 문서에 쌓인다 (줄마다 어느 게임의 것인지 적힌다). 키트 저장소에는 아무것도 남지 않는다.
-그 폴더는 사용자의 **비공개 저장소 하나의 클론**이다 — 복사본을 두지 않는다. `/gamedev-kit:init` 이 마지막에 그 저장소의 주소를 묻고(기기마다 한 번.
-로그인 없이 읽히는 저장소 — 공개 — 면 멈춘다. git 이 가진 로그인만 쓴다), 그 뒤로는 읽기 전에 받고 쓴 뒤에 커밋해 올린다. 묻지 않고 올리는 것은 사용자가 한 번 허락한 기기에서만이다.
-원칙은 결정 둘이 받쳐야 서고, 한 게임에서만 본 것은 그렇다고 적어 둔다.
-
-### 자동 모드 — 자리를 비운 동안
-
-`/gamedev-kit:cycle auto <목표>` 는 묻지 않고 목표에서 구현 끝까지 간다. 결정은 보이스가 대신한다 — 맞는 원칙이 있으면 그 원칙으로, 없으면 에이전트가 권한 쪽으로.
-대신 정한 것은 사이클 문서에 `[~]` 로 적히고(무엇을 근거로 했는지와 함께), 돌아온 사용자가 받아들이거나 뒤집을 때까지 확인 전이다. 뒤집으면 그 결정에 걸린 작업을 다시 한다.
-
-- 사용자의 것으로 남는 결정: 돈 · 크레딧이 드는 일(에셋 생성), 밖으로 나가는 일, 사용자가 만든 것을 버리는 일. 열어 두고, 걸린 작업만 세워 둔다. 없는 에셋은 임시 에셋으로 간다.
-- 플레이 앞에서 멈춘다. 내보내지 않고, 다음 사이클을 잇지 않는다 — 아무도 해 보지 않은 판 위에 다음 판을 쌓지 않는다.
-- 대신 정한 결정은 받아들이기 전까지 보이스의 근거가 되지 않는다. 받아들인 것도 스스로 고른 것보다 약하게 센다 — 보이스가 제 추측으로 굳지 않게.
-- 그 실행 한 번에만 켜진다. 다음에 `next` 로 이으면 다시 묻는다.
-
-밖으로 나가는 것은 배포 하나다: 올리기 전에 대상 · 버전 · 크기를 보여 주고 묻는다. butler 로그인은 사용자가 한 번 하고 저장소 밖에 둔다.
-itch.io devlog 는 초안까지만 쓰고, 붙여 넣는 것은 사용자다.
-
-## 만들수록 쌓인다
-
-이 키트는 구현하는 법을 가르치지 않는다 — 그것은 Claude Code 가 이미 한다. 여기 들어 있는 것은 모델이 알 방법이 없는 것이다:
-그 엔진에서 걸려 넘어지는 함정, 화면 없이 확인하는 방법, 일의 순서와 누가 무엇을 정하는가. 그리고 그것은 게임을 만들 때마다 늘어난다.
-
-```
-게임에서 걸려 넘어진다 ─▶ 그 자리에서 배운 것을 둘로 가른다 (작업이 막혔을 때 · 플레이테스트를 고친 뒤)
-                              ├─ 이 게임만의 것 ─────▶ 그 게임의 CLAUDE.md
-                              └─ 다른 게임도 걸릴 것 ─▶ docs/kit-feedback.md (한 줄씩)
-                                                          │  /gamedev-kit:feedback — 사용자가 보고 승낙한 줄만
-                                                          ▼
-                                    키트 저장소의 이슈 — 어느 게임에서 온 줄이든 여기서 만난다
-                                                          │  같은 것을 또 보면 그 이슈에 "여기서도 봤다"
-                                                          ▼
-                                    키트의 engines/<엔진>/CLAUDE.md · 스킬 문서 · 스크립트
-                                                          │  /gamedev-kit:init rules
-                                                          ▼
-                              모든 게임의 CLAUDE.md 안 키트 규칙 블록 — 새 게임은 처음부터 갖고 시작한다
-```
-
-- **쓰는 사람 누구나 올린다**: 안 보낸 줄이 쌓이면 세션이 시작될 때 훅이 알린다. 저절로 나가는 것은 없다 — 이슈는 공개라, 나갈 글을 보여 주고 묻는다.
-- **가르는 기준은 하나다**: 다음에 다른 게임을 만들 때도 알아야 하는가. 그 게임의 이름 · 파일 · 숫자를 빼고도 뜻이 통하는 것만 올라온다.
-- **글보다 도구가 낫다**: 스크립트가 막을 수 있는 것은 규칙으로 적지 않고 스크립트가 막게 한다 (효과음 설명의 길이 한도가 그렇게 들어갔다).
-- **받는 쪽은 블록 하나다**: 게임의 CLAUDE.md 에서 키트의 것은 표시된 블록 사이뿐이다. 키트가 판을 올리면 그 사이만 바뀌고, 게임에서 쓴 규칙은 그대로다.
-  세션이 시작될 때 블록이 옛 판이면 훅이 스스로 바꾸고 한 줄로 알린다 (블록 안을 손으로 고쳤으면 알리기만 한다).
-
-지금 든 Godot 규칙(검증 방법 · 함정)은 이렇게 실제 게임에서 올라온 것이다.
-
-## 토큰과 시간
-
-실제 세션 기록으로 재 보면 토큰의 대부분은 **메인 세션이 턴마다 다시 읽는 양**에서 나간다.
-그래서: 사이클 · 플레이테스트 문서의 장부는 스크립트가 맡고(`cycle.py` · `playtest.py` — 문서를 통째로 읽지 않는다),
-컨텍스트가 20만 토큰을 넘으면 훅이 새 세션을 권하게 하고, 넘어갈 때는 사이클 문서나 `/gamedev-kit:handoff` 메모가 맥락을 들고 간다.
-고치기 전과 뒤는 `python3 tools/session_usage.py <게임 저장소>` 로 견준다.
-
-## 엔진
-
-| 엔진 | gdd-sync | 표 ↔ 코드 | 실행 중에 표 다시 읽기 | itch.io 배포 | 3D 에셋 · 스프라이트 · 소리 | 영상 |
-|---|---|---|---|---|---|---|
-| Godot | ○ | ○ | ○ 게임이 표 파일을 직접 읽는다 | ○ `Web` 프리셋을 빌드해 올린다 | ○ glb · png · mp3 | ○ mp4 · ogv |
-| Unity | ○ | ○ | ✕ 구운 값으로 돈다 | ✕ 대신 Google Play 용 AAB 를 빌드한다 (`build android`) — 올리는 것은 사용자가 Play Console 에서 | ○ fbx · png · mp3 | ○ mp4 |
-
-테스트(`tests/test_tools.py`)는 가짜 butler · 가짜 OpenAI/Meshy/Ludo/ElevenLabs/Higgsfield 서버 · 가짜 ffmpeg · 가짜 에디터로 돈다 — 밖으로는 아무것도 나가지 않는다.
-
-## 설치
-
-게임 저장소에서:
+In your game's folder (an empty one is fine):
 
 ```bash
 claude plugin marketplace add dudwns0921/claude-gamedev-kit
-```
-
-```bash
 claude plugin install gamedev-kit@claude-gamedev-kit --scope project
 ```
 
-그다음 Claude 에게 `/gamedev-kit:init` — 엔진 프로젝트가 없는 빈 폴더여도 된다. 깔고 나면 `/gamedev-kit:start` 가 GDD · 컨셉 · 첫 사이클의 목표까지 간다.
+Then, inside Claude Code:
 
-올린 뒤 받기:
+```
+/gamedev-kit:init      pick an engine; the kit finds the editor, creates the project and installs its files
+/gamedev-kit:start     write the GDD together, agree on the look, set the first goal
+/gamedev-kit:cycle     build that goal — and every goal after it
+```
+
+You need Claude Code, Python 3.9 or later, and the engine's editor. Everything else is optional and listed under [Optional services](#optional-services).
+
+## Why use it
+
+If you want a small game out of one prompt in a few minutes, a prompt-to-game platform or an agent built into the editor will get you there faster. This kit is not that. It is for a game you make over weeks, in your own repository, on your own engine.
+
+- **One workflow, every time.** The same stages, the same documents and the same answer to "who decides this" — in every cycle and every game. Sessions end and models change; the workflow is what stays, so the tenth cycle runs like the first and you always know where the game stands.
+- **It gets better at your games.** Two things accumulate as you work. Your **voice**: how you decide when a choice could go either way. And **lessons**: the engine traps you hit and the ways you found to verify things, sent back to the kit as issues and returned as rules. The next game starts with all of it.
+- **You stay the designer.** Rules, numbers and looks are asked, not assumed. What the agents write is a proposal until you answer.
+- **Nothing is locked in.** The GDD, the cycle documents and the code are plain files in your repo. You ship where you choose.
+
+## How you use it
+
+### 1. Start a game — once
+
+`/gamedev-kit:init` asks which engine, finds the editor on your machine (and tells you what to install if a build module is missing), creates the engine project if there is none, and installs the kit's files: `kit.config.json`, a GDD template, rules for your game's `CLAUDE.md`, and a balance value file.
+
+`/gamedev-kit:start` then takes you to the first cycle. It interviews you one question at a time and writes down only what you confirmed, agrees on the look with references or concept images, and proposes a first goal: one lap of the innermost loop. You can stop at any point — where the game stands is read from its files, so any later session picks it up.
+
+### 2. Run a cycle — again and again
+
+```
+/gamedev-kit:cycle add a shop between runs where the player spends coins
+```
+
+The kit writes one document in `docs/cycle/` and moves it through the stages in the banner above. After the plan it stops and asks you the open decisions, each with options and a recommendation. You answer (`D2: option 1`), and the build runs — tasks that touch different files run in parallel.
+
+| You type | What happens |
+|---|---|
+| `/gamedev-kit:cycle <goal>` | New cycle: spec, design and plan, then your decisions |
+| `/gamedev-kit:cycle next` | Next stage of the current cycle |
+| `/gamedev-kit:cycle status` | Current stage, remaining tasks, unanswered decisions |
+| `/gamedev-kit:cycle auto <goal>` | Runs up to the point of playing without asking — see [Auto mode](#auto-mode) |
+
+### 3. Play it, say what is wrong
+
+A cycle ends at **play** and stays there. Play the build, write down what you saw, and hand over the list:
+
+```
+/gamedev-kit:playtest
+- the jump feels floaty near the apex
+- coins sometimes spawn inside walls
+- shop prices are unreadable on a small screen
+```
+
+An analyst agent reads the code and the GDD, finds the causes and writes a task document in `docs/playtest/`; a developer agent builds each task. Repeat until it is good, then state the next goal — that closes the cycle.
+
+### 4. Ship it — when you decide
+
+```
+/gamedev-kit:deploy
+```
+
+Shipping is not a stage of the cycle. Call it after as many cycles as you like. The kit builds, shows you the target, version and size, and uploads only when you approve.
+
+## Commands
+
+**Set up**
+
+| Command | What it does |
+|---|---|
+| `/gamedev-kit:init` | Sets up a game repo, from an empty folder if need be. `init rules` realigns the kit's rule block in your `CLAUDE.md` after the kit updates |
+| `/gamedev-kit:start` | GDD → concept → first goal → hands over to `cycle`. Stages can be skipped |
+
+**Make**
+
+| Command | What it does |
+|---|---|
+| `/gamedev-kit:cycle` | One cycle through a single document. Decisions that are chosen by eye are asked with a picture: the question, the options and a crop for each on one sheet |
+| `/gamedev-kit:playtest` | Problem list → analysis document → one agent per task. `plan` analyses only, `implement [T3 …]` builds only, `status` lists what remains |
+| `/gamedev-kit:handoff` | Leaves the work in progress as a short note in `docs/handoff/`; `handoff resume` continues from it in a new session |
+
+**Keep in sync, see where you are**
+
+| Command | What it does |
+|---|---|
+| `/gamedev-kit:gdd-sync` | Compares the GDD's sync table with `GDD: <ID>` markers in code. Reports by default; `to-code` or `to-gdd` aligns one side to the other |
+| `/gamedev-kit:balance-table` | Edit balance numbers in an Excel table and keep it aligned with the value file in code (export · bake · check · serve) |
+| `/gamedev-kit:board` | A status board as HTML pages: one card per stage of play, showing how far function, art, sound and verification have come. Once drawn, a hook redraws it whenever the documents change — no model involved |
+
+**Assets and footage**
+
+| Command | What it does |
+|---|---|
+| `/gamedev-kit:asset` | **3D model**: description → image → you approve → mesh → size and origin fixed → game folder. **2D sprite**: description → still picture → you approve → animated sprite sheet → game folder. **Sound**: description → effect, loop or music → game folder. One art style paragraph is attached to every asset, and what you say when rejecting one is kept as a lesson for the next |
+| `/gamedev-kit:video` | Footage that looks filmed: description → you approve → generated → you watch → placed. Trailers and devlog clips as mp4, in-game cutscenes in the format the engine reads |
+
+**Ship and give back**
+
+| Command | What it does |
+|---|---|
+| `/gamedev-kit:deploy` | Build and upload to itch.io with butler (`prepare` · `push` · `status`), then draft the itch.io devlog for that build (`devlog`). You paste the devlog yourself |
+| `/gamedev-kit:feedback` | Sends what this game taught you that other games will also hit (`docs/kit-feedback.md`) to this repository as issues. Shows the exact text and sends only the lines you approve |
+| `/gamedev-kit:voice` | Shows what the kit has learned about how you decide, and lets you correct it — see [Voice](#voice) |
+
+## Agents
+
+The model is fixed per agent, so analysis and design run on the strongest model and writing code to a finished plan runs on a cheaper one, whatever model your session uses. The session only conducts.
+
+| Agent | Model | What it does |
+|---|---|---|
+| `systems-designer` | Fable | Turns a goal into rules, balance numbers and the dimensions of spaces. Offers ranges with the calculation attached; does not fix values |
+| `designer` | Fable (Opus for screenshot checks) | Writes how the spec looks and sounds: UI, effects, sound, the asset list. Checks screenshots against `docs/DESIGN.md` |
+| `developer` | Opus to plan, Sonnet to build | Splits a cycle into tasks, then implements one task exactly as written. Does not re-analyse |
+| `playtest-analyst` | Fable | Finds the causes behind a problem list and writes them as a task document. Does not change code |
+| `deployer` | Sonnet | Check, build, butler push. On a broken build, finds the first error and returns it |
+| `devlog-writer` | Sonnet | Drafts the itch.io devlog for a deployed build from what was actually made. Does not post it |
+
+## How a cycle works
+
+<p align="center"><img src="assets/hero.jpg" alt="A fox kit at a workbench presses the play button on a handmade console, with maps, sprites, a balance table and a speaker circling it in a loop" width="720"></p>
+
+The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent per role, a document per stage, each stage reading the one before — fitted to one version of a game.
+
+```
+goal ─▶ spec ───────────▶ design ─▶ plan ───▶ build ───▶ play ◀─┐
+you     systems-designer  designer  developer developer  you ───┘ fix what you found (playtest)
+                                       ▲
+                               decisions are asked
+                        (auto: your voice decides ─▶ stops here)
+```
+
+**There is no closing stage.** A cycle rests at play: play, say, fix, as many times as it takes. Stating the next goal closes the previous cycle and shows once what it left undone. Lessons are written down where you tripped, not collected at the end.
+
+**No agent decides for you.** Agents return "things to decide" as options with one recommendation, and your answer goes into the cycle document's decisions section verbatim. Work that hangs on an unanswered decision is not done.
+
+### Voice
+
+From those answers the kit builds your **voice**: the side you keep choosing when a decision could go either way (principles), where you keep departing from the recommendation (biases), and what is not yet known.
+
+You do nothing for it. Before a decision is asked, the kit predicts your answer; when you answer, it scores the prediction and folds the answer in. Neither the prediction nor the hit rate is shown, because a visible prediction pulls the answer toward it. You see the voice twice: when a new cycle starts (only the lines added since) and when you call `/gamedev-kit:voice` — that is where you correct it.
+
+The voice belongs to you, not to a game. It lives outside the game repos in `~/.config/gamedev-kit/voice/` (override with `GAMEDEV_KIT_VOICE`), as a clone of one private repository of yours, and grows across games and engines. `/gamedev-kit:init` asks for that repository's address once per machine and stops if the repository is readable without login. A principle needs two decisions behind it to stand.
+
+### Auto mode
+
+`/gamedev-kit:cycle auto <goal>` runs from the goal to the end of the build without asking. Your voice decides — by a matching principle if there is one, otherwise by the agent's recommendation.
+
+- Decisions made for you are marked `[~]` in the cycle document with their basis, and stay unconfirmed until you accept or overturn them. Overturning one redoes the work that hung on it.
+- Some decisions stay yours: anything that costs money or credits (asset generation), anything that leaves your machine, and anything that discards what you made. They are left open and only the work that hangs on them waits. Missing assets get placeholders.
+- It stops before play. It does not ship and does not start the next cycle — nothing is stacked on a version nobody has played.
+- A decision made for you is not evidence for your voice until you accept it, and counts for less than one you made yourself.
+- It is on for that one run. Continuing with `next` asks again.
+
+## It compounds
+
+The kit does not teach how to implement — Claude Code already does that. What it holds is what a model has no way of knowing: the traps of a given engine, how to verify without a screen, the order of work and who decides what. That grows with every game.
+
+```
+you trip in a game ─▶ the lesson is sorted on the spot
+                        ├─ this game only ───────────▶ that game's CLAUDE.md
+                        └─ other games will hit it ──▶ docs/kit-feedback.md (one line each)
+                                                          │  /gamedev-kit:feedback — only lines you approve
+                                                          ▼
+                                       issues in this repository — lines from any game meet here
+                                                          │
+                                                          ▼
+                             engines/<engine>/CLAUDE.md · skill documents · scripts
+                                                          │  /gamedev-kit:init rules
+                                                          ▼
+                    the kit's rule block in every game's CLAUDE.md — a new game starts with it
+```
+
+- **Anyone using the kit can send lessons.** When unsent lines pile up, a hook says so at session start. Nothing goes out by itself: issues are public, so you see the text first.
+- **One test sorts them**: would you need to know this when making a different game? Only what still makes sense without the game's name, files and numbers is sent.
+- **A tool beats a rule.** What a script can prevent is prevented by the script instead of being written down.
+- **Your game receives one block.** In your `CLAUDE.md`, only the marked block belongs to the kit. When the kit updates, a hook replaces that block at session start and leaves everything you wrote untouched; if you edited inside the block, it only tells you.
+
+## Tokens and time
+
+Measured on real session logs, most tokens go to **what the main session re-reads every turn**. So the ledgers of cycle and playtest documents are kept by scripts rather than by reading whole documents, a hook suggests a new session once context passes 200k tokens, and the cycle document or a `/gamedev-kit:handoff` note carries the context across. Compare before and after with `python3 tools/session_usage.py <game repo>`.
+
+## Engines
+
+Pick the engine in `/gamedev-kit:init`. The kit finds the editor, creates the project and from then on drives the editor from the command line to import, check for script errors and build.
+
+| | Godot 4 | Unity |
+|---|---|---|
+| What `deploy` builds | A Web export, uploaded to itch.io | An Android App Bundle for Google Play. You upload it in the Play Console |
+| What `init` looks for | The `godot` executable (or `GODOT`) | An editor installed through Unity Hub (or `UNITY`) with Android Build Support, the Android SDK and NDK, and OpenJDK |
+| Balance table while the game runs | The game reads the table file directly, so an edit shows up without a restart | The game runs on baked values; bake, then run again |
+| Asset formats | glb · png · mp3 | fbx · png · mp3 |
+| Cutscene formats | mp4 · ogv | mp4 |
+
+`gdd-sync`, `balance-table`, `cycle`, `playtest`, `board`, `asset` and `video` work the same on both. Each engine also brings its own rules into your game's `CLAUDE.md` — how to verify without opening the editor, and the traps found while making games with it.
+
+Everything engine-specific lives in one folder, `engines/<engine>/`. The skills and scripts read only values from `kit.config.json` (extensions, patterns, paths, build commands), so supporting another engine means adding a folder.
+
+## Optional services
+
+Nothing here is needed for the cycle itself. Keys stay outside the repository, in `~/.config/gamedev-kit/asset.env`; the skill walks you through it the first time.
+
+| For | You need |
+|---|---|
+| Concept images, 3D models | `OPENAI_API_KEY`, `MESHY_API_KEY`, and Blender to fix size and origin |
+| 2D sprites | `LUDO_API_KEY` ([Ludo](https://ludo.ai)) |
+| Sound and music | `ELEVENLABS_API_KEY` |
+| Footage | `HF_API_KEY_ID` and `HF_API_KEY_SECRET` ([Higgsfield](https://docs.higgsfield.ai/docs)), and ffmpeg |
+| itch.io | [butler](https://itch.io/docs/butler/), logged in once by you |
+
+## Language
+
+Slash commands work in any language. The documents the kit writes into your game — the GDD, cycle and playtest documents — use Korean section headings, and the skills also trigger on Korean phrases.
+
+## Updating
 
 ```bash
 claude plugin marketplace update claude-gamedev-kit
-```
-
-```bash
 claude plugin update gamedev-kit@claude-gamedev-kit
 ```
 
-## 구조
+## Repository layout
 
 ```
-.claude-plugin/     plugin.json · marketplace.json (이 저장소가 플러그인이자 마켓플레이스다)
-skills/<이름>/      스킬 하나가 폴더 하나. 자기 스크립트는 scripts/ 에
-agents/<이름>.md    에이전트. 모델을 정해 두어야 하는 일만 에이전트로 둔다
-engines/<엔진>/     kit.config.json(엔진 설정) · NOTES.md(깐 뒤 할 일) · CLAUDE.md(엔진 규칙 — 검증 방법과 함정. 게임에서 배운 것이 여기로 돌아온다) · files/(게임에 복사될 틀)
-                    project.json(프로젝트를 알아보고 · 에디터를 찾고 · 만드는 법 — init 이 읽는다. 게임에 복사되지 않는다) · gitignore(게임의 .gitignore 에 더할 줄)
-templates/          GDD.md · DESIGN.md · CLAUDE.md — 게임 저장소에 깔리는 틀
-hooks/              훅 둘 — 세션의 컨텍스트가 커지면 새 세션을 권하게 하고, 게임의 CLAUDE.md 에 든 키트 규칙이 옛 판이면 알린다
-tools/              session_usage.py — 게임 저장소의 세션 기록에서 토큰이 어디로 갔는지 센다 · kit_feedback.py — 이 기기의 게임 폴더들에 쌓인 "키트로 올릴 것" 을 이슈를 거치지 않고 바로 모은다
-tests/              python3 tests/test_tools.py — 엔진 없이 도구만 검사 · python3 tests/test_structure.py — 파일만 보고 구조 규칙을 검사
+.claude-plugin/     plugin.json · marketplace.json (this repository is both the plugin and its marketplace)
+skills/<name>/      one skill per folder, its scripts in scripts/
+agents/<name>.md    agents — only work that needs a fixed model is an agent
+engines/<engine>/   kit.config.json (engine settings) · NOTES.md (what to do after installing) · CLAUDE.md (engine rules:
+                    how to verify, and traps) · files/ (templates copied into the game) · project.json (how to recognise
+                    the project, find the editor and create one) · gitignore (lines added to the game's .gitignore)
+templates/          GDD.md · DESIGN.md · CLAUDE.md — templates installed into the game repo
+hooks/              suggest a new session when context grows · keep the kit's rule block current ·
+                    say when unsent lessons pile up · redraw the board when documents change
+tools/              session_usage.py — where tokens went, from a game repo's session logs ·
+                    kit_feedback.py — collect lessons from game folders on this machine
+tests/              test_tools.py — runs the tools end to end without an engine, against fake servers; nothing leaves the machine ·
+                    test_structure.py — checks the structure rules by reading files only
 ```
 
-도구는 플러그인 안에 있고 게임은 밖에 있다. 스크립트는 지금 폴더에서 위로 올라가며 `kit.config.json` 을 찾아 그곳을 게임 루트로 본다.
+The tools live in the plugin and the game lives elsewhere. Scripts walk up from the current folder to find `kit.config.json` and treat that folder as the game's root.
 
-## 라이선스
+## License
 
 [MIT](LICENSE)

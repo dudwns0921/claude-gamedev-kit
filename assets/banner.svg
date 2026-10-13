@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>claude-gamedev-kit — goal, spec, design, plan, build, play</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07110e"/><stop offset="0.55" stop-color="#0b2a22"/><stop offset="1" stop-color="#1a1033"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3dffb0"/><stop offset="0.45" stop-color="#d8ff5a"/><stop offset="0.8" stop-color="#ffd24a"/><stop offset="1" stop-color="#ff8ad1"/>
+    </linearGradient>
+    <linearGradient id="you" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5dffc0"/><stop offset="1" stop-color="#16b877"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3dffb0" stop-opacity="0.35"/><stop offset="1" stop-color="#3dffb0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spot2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#b06cff" stop-opacity="0.32"/><stop offset="1" stop-color="#b06cff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#3dffb0" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-80%" width="200%" height="260%"><feGaussianBlur stdDeviation="9"/></filter>
+    <filter id="soft" x="-50%" y="-80%" width="200%" height="260%"><feGaussianBlur stdDeviation="4"/></filter>
+    <clipPath id="card"><rect x="6" y="6" width="1188" height="408" rx="28"/></clipPath>
+    <path id="star" d="M0,-10 L2.4,-2.4 L10,0 L2.4,2.4 L0,10 L-2.4,2.4 L-10,0 L-2.4,-2.4 Z"/>
+  </defs>
+  <style>
+    .tw { animation: tw 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    @keyframes tw { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+    .sweep { animation: sweep 5s ease-in-out infinite; }
+    @keyframes sweep { 0% { transform: translateX(-500px); } 60%,100% { transform: translateX(1300px); } }
+    .pulse { animation: pulse 2.2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
+    .dash { stroke-dasharray: 10 12; animation: dash 1.2s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -22; } }
+  </style>
+
+  <g clip-path="url(#card)">
+    <rect x="6" y="6" width="1188" height="408" fill="url(#bg)"/>
+    <rect x="6" y="6" width="1188" height="408" fill="url(#grid)"/>
+    <ellipse cx="250" cy="120" rx="420" ry="230" fill="url(#spot)"/>
+    <ellipse cx="1040" cy="330" rx="380" ry="230" fill="url(#spot2)"/>
+
+    <g transform="translate(693,224) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-0.19s" fill="#8ad8ff"/></g>
+    <g transform="translate(222,25) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.13s" fill="#3dffb0"/></g>
+    <g transform="translate(522,398) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-2.46s" fill="#8ad8ff"/></g>
+    <g transform="translate(156,47) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.75s" fill="#ffd24a"/></g>
+    <g transform="translate(1137,375) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.97s" fill="#8ad8ff"/></g>
+    <g transform="translate(158,387) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.02s" fill="#ffffff"/></g>
+    <g transform="translate(958,37) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.49s" fill="#8ad8ff"/></g>
+    <g transform="translate(1043,395) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.75s" fill="#3dffb0"/></g>
+    <g transform="translate(271,223) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.1s" fill="#3dffb0"/></g>
+    <g transform="translate(672,243) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-2.18s" fill="#ff8ad1"/></g>
+    <g transform="translate(1000,395) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-1.68s" fill="#ffffff"/></g>
+    <g transform="translate(612,224) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-0.44s" fill="#3dffb0"/></g>
+    <g transform="translate(1041,40) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-1.02s" fill="#ffffff"/></g>
+    <g transform="translate(195,47) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.25s" fill="#ff8ad1"/></g>
+    <g transform="translate(880,371) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.49s" fill="#ffd24a"/></g>
+    <g transform="translate(199,209) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.68s" fill="#3dffb0"/></g>
+    <g transform="translate(328,45) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.19s" fill="#8ad8ff"/></g>
+    <g transform="translate(833,387) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.16s" fill="#3dffb0"/></g>
+    <g transform="translate(457,29) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-0.0s" fill="#ffd24a"/></g>
+    <g transform="translate(1128,45) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.39s" fill="#ff8ad1"/></g>
+    <g transform="translate(741,195) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-1.25s" fill="#ff8ad1"/></g>
+    <g transform="translate(205,223) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.16s" fill="#ffd24a"/></g>
+    <g transform="translate(1087,376) scale(0.35)"><use href="#star" class="tw" style="animation-delay:-1.97s" fill="#ff8ad1"/></g>
+    <g transform="translate(216,38) scale(0.7)"><use href="#star" class="tw" style="animation-delay:-2.01s" fill="#8ad8ff"/></g>
+    <g transform="translate(1139,190) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-1.59s" fill="#ffd24a"/></g>
+    <g transform="translate(520,400) scale(0.5)"><use href="#star" class="tw" style="animation-delay:-0.52s" fill="#ffffff"/></g>
+
+    <!-- wordmark -->
+    <text x="78" y="126" font-size="74" font-weight="900" letter-spacing="-2.5" fill="#3dffb0" filter="url(#glow)" opacity="0.75">claude-gamedev-kit</text>
+    <text x="78" y="126" font-size="74" font-weight="900" letter-spacing="-2.5" fill="url(#title)">claude-gamedev-kit</text>
+    <text x="81" y="172" font-size="28" font-weight="700" fill="#ffffff">Make a game with Claude Code, one playable cycle at a time</text>
+    <rect class="sweep" x="0" y="60" width="240" height="126" fill="url(#shine)" opacity="0.16" transform="skewX(-20)"/>
+
+    <rect class="pulse" x="80" y="278" width="150" height="56" rx="28" fill="#3dffb0" filter="url(#glow)"/>
+    <rect x="80" y="278" width="150" height="56" rx="28" fill="url(#you)" stroke="#eafff6" stroke-width="2"/>
+    <text x="155" y="315" font-size="25" font-weight="900" text-anchor="middle" fill="#04261a">Goal</text>
+    <text x="155" y="368" font-size="19" font-weight="800" text-anchor="middle" fill="#5dffc0">you</text>
+    <path d="M235,306 H252 M245,299 L253,306 L245,313" fill="none" stroke="#ffd24a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="258" y="278" width="150" height="56" rx="28" fill="#8ad8ff" opacity="0.28" filter="url(#soft)"/>
+    <rect x="258" y="278" width="150" height="56" rx="28" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="333" y="315" font-size="25" font-weight="800" text-anchor="middle" fill="#f2fbff">Spec</text>
+    <text x="333" y="368" font-size="19" font-weight="600" text-anchor="middle" fill="#e6f3f8">systems-designer</text>
+    <path d="M413,306 H430 M423,299 L431,306 L423,313" fill="none" stroke="#ffd24a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="436" y="278" width="150" height="56" rx="28" fill="#8ad8ff" opacity="0.28" filter="url(#soft)"/>
+    <rect x="436" y="278" width="150" height="56" rx="28" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="511" y="315" font-size="25" font-weight="800" text-anchor="middle" fill="#f2fbff">Design</text>
+    <text x="511" y="368" font-size="19" font-weight="600" text-anchor="middle" fill="#e6f3f8">designer</text>
+    <path d="M591,306 H608 M601,299 L609,306 L601,313" fill="none" stroke="#ffd24a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="614" y="278" width="150" height="56" rx="28" fill="#8ad8ff" opacity="0.28" filter="url(#soft)"/>
+    <rect x="614" y="278" width="150" height="56" rx="28" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="689" y="315" font-size="25" font-weight="800" text-anchor="middle" fill="#f2fbff">Plan</text>
+    <text x="689" y="368" font-size="19" font-weight="600" text-anchor="middle" fill="#e6f3f8">developer</text>
+    <path d="M769,306 H786 M779,299 L787,306 L779,313" fill="none" stroke="#ffd24a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="792" y="278" width="150" height="56" rx="28" fill="#8ad8ff" opacity="0.28" filter="url(#soft)"/>
+    <rect x="792" y="278" width="150" height="56" rx="28" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="867" y="315" font-size="25" font-weight="800" text-anchor="middle" fill="#f2fbff">Build</text>
+    <text x="867" y="368" font-size="19" font-weight="600" text-anchor="middle" fill="#e6f3f8">developer</text>
+    <path d="M947,306 H964 M957,299 L965,306 L957,313" fill="none" stroke="#ffd24a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect class="pulse" x="970" y="278" width="150" height="56" rx="28" fill="#3dffb0" filter="url(#glow)"/>
+    <rect x="970" y="278" width="150" height="56" rx="28" fill="url(#you)" stroke="#eafff6" stroke-width="2"/>
+    <text x="1045" y="315" font-size="25" font-weight="900" text-anchor="middle" fill="#04261a">Play</text>
+    <text x="1045" y="368" font-size="19" font-weight="800" text-anchor="middle" fill="#5dffc0">you</text>
+
+    <!-- play → fix → play -->
+    <path d="M1045,270 C1045,214 867,214 867,264" fill="none" stroke="#ff8ad1" stroke-width="7" filter="url(#soft)" opacity="0.7"/>
+    <path class="dash" d="M1045,270 C1045,214 867,214 867,264" fill="none" stroke="#ff8ad1" stroke-width="3" stroke-linecap="round"/>
+    <path d="M859,256 L867,267 L875,256" fill="none" stroke="#ff8ad1" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="956" y="212" font-size="19" font-weight="800" text-anchor="middle" fill="#ffc4e8">fix what you found</text>
+  </g>
+  <rect x="6" y="6" width="1188" height="408" rx="28" fill="none" stroke="url(#title)" stroke-width="3"/>
+</svg>

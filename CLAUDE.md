@@ -1,84 +1,84 @@
 # CLAUDE.md — claude-gamedev-kit
 
-Claude Code 플러그인 저장소다. 게임 코드는 여기 없다 — 게임 저장소에 설치돼 쓰인다.
+This is a Claude Code plugin repository. There is no game code here — the plugin is installed into game repositories and used there.
 
-## 규칙
+## Rules
 
-- **엔진마다 다른 것은 `engines/<엔진>/` 에만 둔다.** 스킬과 스크립트에 엔진 이름으로 갈리는 분기를 넣지 않는다.
-  스크립트는 `kit.config.json` 의 값(확장자 · 정규식 · 경로)만 본다. 새 엔진은 폴더 하나를 더하는 일이어야 한다.
-  지금 든 엔진은 Godot 과 Unity(Android) 다 — **게임 하나를 끝까지 만들며 확인한 엔진만 넣는다** (Roblox 설정은 0.9.0 에서 뺐다. git 기록에 있다).
-  Unity 는 게임을 만들며 채워 가는 중이다 — 어디까지 돌려 봤는지는 `records.md` 에 적는다.
-  스크립트에 엔진 이름이 문자열로 들어가면 `tests/test_structure.py` 가 막는다.
-- **스킬은 자기 폴더로 완결된다.** 다른 스킬의 스크립트를 import 하지 않는다. 설정은 `kit.config.json` 에 스킬 이름으로 된 절을 쓴다.
-- **스크립트는 표준 라이브러리만 쓴다** (Python 3.9 — 깐 쪽에 없는 패키지를 쓰면 거기서만 죽는다. `tests/test_structure.py` 가 막는다). Blender 가 돌리는 스크립트(`blender_finish.py`)만 `bpy` 를 쓴다. 게임 루트는 지금 폴더에서 위로 올라가며 찾는다 — 스크립트 위치로 찾지 않는다.
-- **게임 저장소의 파일을 덮어쓰지 않는다.** init 은 없는 파일만 만든다. 하나만 예외다 — 게임의 CLAUDE.md 안 `<!-- gamedev-kit 시작 -->` 블록은 키트의 것이라
-  `init --rules` 가 통째로 바꾼다 (블록 밖은 건드리지 않고, 블록 안을 손으로 고쳤으면 멈춘다). 게임에 깔리는 규칙을 고치면 이 블록으로 나간다.
-- **스킬 문서와 훅이 가리키는 파일은 있어야 한다.** 스크립트를 옮기거나 이름을 바꾸면 그것을 부르는 문서(`${CLAUDE_SKILL_DIR}/…`)와
-  `hooks/hooks.json`(`${CLAUDE_PLUGIN_ROOT}/…`)도 같이 고친다 — 훅은 조용히 실패한다. `tests/test_structure.py` 가 막는다.
-- **플러그인의 설명은 `plugin.json` 한 곳에만 적는다.** `marketplace.json` 의 플러그인 항목에 또 적으면 한쪽만 낡는다.
-- 스킬 이름은 게임의 CLAUDE.md 와 GDD 에 박힌다 (`/gamedev-kit:gdd-sync`). 바꾸지 않는다.
-- **밖으로 나가는 일(배포 · 게시)은 스크립트가 검사하고, 묻는 일은 스킬이 한다.** 에이전트는 승낙을 받지도 건너뛰지도 않는다.
-  로그인과 토큰은 사용자가 하고 저장소 밖에 둔다.
-- **사이클 · 플레이테스트 문서를 통째로 읽게 하는 지시를 쓰지 않는다.** 필요한 줄은 그 스킬의 스크립트(`cycle.py` · `playtest.py`)가 꺼낸다.
-- **게임의 이름을 적지 않는다.** 이 저장소는 어느 게임에나 깔리는 것이다. 게임에서 배운 것을 옮길 때는 그 게임의 이름 · 파일 · 숫자를 빼고,
-  규칙과 그 까닭만 남긴다 ("어디서 배웠나" 는 그 게임의 `docs/kit-feedback.md` 에 남는다 — 커밋 메시지에도 게임의 이름은 적지 않는다). 예시에는 `<게임>` 을 쓴다.
-- 고친 뒤에는 `.claude-plugin/plugin.json` 의 `version` 을 올린다 — 안 올리면 설치된 쪽이 새 판을 받지 않는다.
+- **Whatever differs per engine lives only in `engines/<engine>/`.** Do not put branches on an engine's name into skills or scripts.
+  Scripts read only values from `kit.config.json` (extensions · regexes · paths). Adding an engine must be a matter of adding one folder.
+  The engines included now are Godot and Unity (Android) — **only an engine verified by making a whole game with it goes in** (the Roblox settings were removed in 0.9.0; they are in the git history).
+  Unity is being filled in while a game is made with it — how far it has been run is recorded in `records.md`.
+  `tests/test_structure.py` blocks an engine's name appearing as a string in a script.
+- **A skill is complete within its own folder.** Do not import another skill's scripts. Settings go in `kit.config.json` under a section named after the skill.
+- **Scripts use only the standard library** (Python 3.9 — a package missing on the installing side breaks only there. `tests/test_structure.py` blocks it). Only the script Blender runs (`blender_finish.py`) uses `bpy`. The game root is found by walking up from the current folder — never from the script's location.
+- **Do not overwrite files in the game repository.** init creates only files that do not exist. There is one exception — the `<!-- gamedev-kit 시작 -->` block inside the game's CLAUDE.md belongs to the kit,
+  so `init --rules` replaces it whole (it does not touch anything outside the block, and stops if the inside was edited by hand). A change to the rules installed into games goes out through this block.
+- **Files that skill documents and hooks point to must exist.** When moving or renaming a script, also fix the documents that call it (`${CLAUDE_SKILL_DIR}/…`) and
+  `hooks/hooks.json` (`${CLAUDE_PLUGIN_ROOT}/…`) — hooks fail silently. `tests/test_structure.py` blocks it.
+- **The plugin's description is written in one place, `plugin.json`.** Writing it again in the plugin entry of `marketplace.json` leaves one side stale.
+- Skill names are embedded in the games' CLAUDE.md and GDD (`/gamedev-kit:gdd-sync`). Do not change them.
+- **For anything that goes out (deploying · posting), the script checks and the skill asks.** An agent neither obtains approval nor skips it.
+  Logins and tokens are done by the user and kept outside the repository.
+- **Do not write instructions that make something read a cycle or playtest document whole.** The lines needed are pulled out by that skill's script (`cycle.py` · `playtest.py`).
+- **Do not write a game's name.** This repository is installed into any game. When bringing over something learned in a game, drop that game's name · files · numbers and
+  keep only the rule and its reason ("where it was learned" stays in that game's `docs/kit-feedback.md` — do not write a game's name in commit messages either). Use `<game>` in examples.
+- After a change, bump `version` in `.claude-plugin/plugin.json` — without it the installed side does not receive the new version.
 
-## 검증
-
-```bash
-python3 tests/test_tools.py        # 엔진 설정마다 임시 프로젝트를 만들어 gdd-sync · balance-table 을 끝까지 돌린다. init 의 엔진 프로젝트 만들기는 가짜 에디터, deploy 는 가짜 butler, feedback 은 가짜 gh · 가짜 GitHub 서버, asset 과 start 의 컨셉 그림은 가짜 API 서버로, video 는 가짜 Higgsfield 서버 · 가짜 ffmpeg 로 (asset 의 다듬기는 Blender 가 있으면 진짜로)
-python3 tests/test_structure.py    # 아무것도 돌리지 않고 파일만 본다 — 스킬 문서와 훅이 가리키는 파일이 있는가, 스크립트에 엔진 이름으로 갈리는 분기가 없는가, 표준 라이브러리만 쓰는가
-claude plugin validate .           # 매니페스트
-```
-
-Godot 런타임 틀은 이 테스트가 보지 않는다. 고쳤으면 그 엔진에서 직접 돌려 본다 — 무엇을 돌려 봤고 무엇을 못 봤는지는 `records.md` 에 적는다 (아래 "기록은 어디에 두는가").
-
-토큰과 시간은 게임 저장소의 세션 기록으로 잰다 — 고치기 전과 뒤를 견준다:
+## Verification
 
 ```bash
-python3 tools/session_usage.py <게임 저장소>    # 메인 세션의 평균 컨텍스트, 에이전트 한 번의 캐시 쓰기와 걸린 시간
+python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init's engine project creation runs against a fake editor, deploy against a fake butler, feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
+python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's name in scripts, is only the standard library used
+claude plugin validate .           # manifest
 ```
 
-## 토큰은 어디서 나가는가
+These tests do not cover the Godot runtime templates. If you change them, run them in that engine yourself — what was run and what was not is recorded in `records.md` (see "Where records go" below).
 
-실제 게임의 세션 기록으로 재면: 메인 세션이 턴마다 다시 읽는 양이 가장 크고(세션을 오래 이어 갈수록), 그다음이 작업마다 부르는 개발자 에이전트,
-그다음이 분석 · 기획 에이전트다. 상시 올라가는 description 은 여기에 견주면 작다. (잰 수치는 여기 적지 않는다 — 아래 "기록은 어디에 두는가".)
-그래서 고칠 때의 순서: ① 메인 세션이 읽고 쓰는 양(장부는 스크립트로, 세션은 사이클마다 끊는다) ② 에이전트가 문서를 통째로 읽지 않게
-③ 에이전트가 쓰는 절의 길이. 스킬 본문을 줄이는 것은 그다음이다.
+Tokens and time are measured from the game repository's session logs — compare before and after a change:
 
-## 기록은 어디에 두는가
+```bash
+python3 tools/session_usage.py <game repo>    # the main session's average context, and one agent run's cache writes and duration
+```
 
-게임을 만들며 생기는 것은 셋으로 갈린다. 이 저장소는 공개다 — 가운데 것만 여기로 온다.
+## Where tokens go
 
-| 무엇 | 어디에 |
+Measured on real games' session logs: the largest share is what the main session re-reads every turn (more so the longer a session runs), then the developer agent called per task,
+then the analysis · design agents. The always-loaded descriptions are small next to these. (The measured figures are not written here — see "Where records go" below.)
+So the order when improving: ① what the main session reads and writes (ledgers by script, sessions cut at each cycle) ② agents not reading documents whole
+③ the length of the sections agents write. Shortening skill bodies comes after that.
+
+## Where records go
+
+What comes out of making a game falls into three kinds. This repository is public — only the middle kind comes here.
+
+| What | Where |
 |---|---|
-| 낱낱의 기록 — 어느 게임에서 무엇을 몇 개 만들었나, 잰 수치, 날짜, 사이클 · 플레이테스트 문서, **무엇을 실제로 써 봤고 무엇을 못 써 봤나** | 그 게임의 저장소, 게임을 넘는 것은 사용자의 비공개 저장소(보이스 폴더의 `records.md`) |
-| 어느 게임에나 통하는 것 — 함정, 확인 방법, 도구의 모자란 점 | `docs/kit-feedback.md` 를 거쳐 여기 (규칙 · 스크립트) |
-| 사용자의 판단 — 갈릴 때 어느 쪽을 고르는가, 편향 | 보이스 (비공개 저장소) |
+| Individual records — what was made in which game and how many, measured figures, dates, cycle · playtest documents, **what was actually used and what was not** | That game's repository; what spans games goes in the user's private repository (`records.md` in the voice folder) |
+| What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of `docs/kit-feedback.md` |
+| The user's judgement — which side they choose when it could go either way, biases | The voice (private repository) |
 
-그래서 여기 README 와 문서에는 **키트가 무엇을 하는가만** 적는다. 써 봤는가 · 못 써 봤는가(확인 상태), 뺀 것의 내력, 몇 개 · 몇 턴 · 며칠 같은 수치와 날짜는 `records.md` 에 적는다 (커밋 메시지에도 적지 않는다).
+So the README and documents here state **only what the kit does**. Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
 
-글로 적어 둔 규칙만으로는 샌다 — `tools/private_check.py` 가 막는다: git 이 아는 파일과 커밋 메시지에서 게임의 이름(보이스 폴더의 `private-words.txt` — 이름 자체가
-여기 있으면 안 되니 저장소 밖에 있다)과 날짜를 찾는다. 테스트가 돌리고, commit-msg 훅으로도 건다 (거는 법은 그 파일 머리에). 새 게임을 시작하면 그 이름을 `private-words.txt` 에 한 줄 더한다.
+Rules written down are not enough — `tools/private_check.py` enforces it: it searches the files git knows and commit messages for games' names (`private-words.txt` in the voice folder — the names themselves
+must not be here, so the list lives outside the repository) and for dates. The tests run it, and it is also installed as a commit-msg hook (how to install it is at the top of that file). When starting a new game, add its name as a line in `private-words.txt`.
 
-## 게임에서 배운 것은 여기로 돌아온다
+## What games teach comes back here
 
-게임 저장소에서 엔진 설정을 손으로 한 것, 걸려 넘어진 함정, 확인하는 방법은 `engines/<엔진>/NOTES.md`(깐 뒤 할 일)와
-`engines/<엔진>/CLAUDE.md`(게임의 규칙이 될 것)에 옮겨 적는다. 다음 게임이 같은 일을 다시 겪지 않게.
+Engine settings done by hand in a game repository, traps that were hit, and ways to verify are carried over to `engines/<engine>/NOTES.md` (what to do after installing) and
+`engines/<engine>/CLAUDE.md` (what becomes the games' rules), so the next game does not go through the same thing again.
 
-길은 이렇다: 게임에서 걸려 넘어진 그 자리에서(작업이 막혔을 때 · 플레이테스트를 고친 뒤) 이 게임만의 것이 아닌 배움이 `docs/kit-feedback.md` 에 한 줄씩 쌓인다 (`cycle.py lesson` · `playtest.py lesson`).
-쌓인 줄은 `/gamedev-kit:feedback` 이 이 저장소의 이슈로 보낸다 (제목이 `feedback(<엔진>):` 으로 시작한다) — 쓰는 사람 누구의 게임에서든 같은 길이다. 스크립트가 날짜 · 사이클 번호를 떼고 게임의 이름을 막고, 스킬이 나갈 글을 보여 주고 묻는다.
-같은 것을 또 본 게임은 새로 열지 않고 그 이슈에 단다 — 댓글이 붙은 이슈가 두 번 본 것이다.
+The path is this: where a game trips (when a task is blocked · after a playtest fix), lessons that are not only that game's accumulate one line at a time in `docs/kit-feedback.md` (`cycle.py lesson` · `playtest.py lesson`).
+`/gamedev-kit:feedback` sends the accumulated lines to this repository as issues (titles start with `feedback(<engine>):`) — the same path from anyone's game. The script strips dates · cycle numbers and blocks games' names, and the skill shows the outgoing text and asks.
+A game that sees the same thing again does not open a new issue but comments on that one — an issue with comments is one seen twice.
 
-이 기기에 있는 게임 폴더는 이슈를 거치지 않고 바로 읽을 수도 있다:
+Game folders on this machine can also be read directly, without going through issues:
 
 ```bash
-python3 tools/kit_feedback.py list <게임 저장소> …       # 아직 반영하지 않은 줄
-python3 tools/kit_feedback.py done <게임 저장소> 1,3 0.7.2 # 반영한 줄을 [x] 로
+python3 tools/kit_feedback.py list <game repo> …       # lines not yet reflected
+python3 tools/kit_feedback.py done <game repo> 1,3 0.7.2 # mark reflected lines [x]
 ```
 
-반영한 규칙은 게임마다 세션이 시작될 때 훅이 받는다 — 손대지 않은 블록은 스스로 지금 판으로 바꾼다 (블록이 없거나 손으로 고쳐졌으면 알리기만 한다: `/gamedev-kit:init rules`).
+Games receive the reflected rules through a hook at session start — an untouched block is replaced with the current version by itself (if the block is missing or was edited by hand, the hook only says so: `/gamedev-kit:init rules`).
 
-줄마다 맞는 자리를 고른다 — 되풀이될 함정과 확인 방법은 엔진의 CLAUDE.md, 깔 때 한 번 하는 일은 NOTES.md, 도구가 막을 수 있는 것은 스크립트(글로 적는 것보다 낫다),
-한 스킬의 일이면 그 스킬 문서. 한 게임에서만 본 것은 그렇다고 적어 둔다 — 두 번째 게임에서 다시 보이면 그때 굳힌다.
+Choose the right place for each line — recurring traps and ways to verify go in the engine's CLAUDE.md, one-time setup goes in NOTES.md, what a tool can prevent goes in a script (better than writing it down),
+and what concerns one skill goes in that skill's document. Something seen in only one game is noted as such — it is made firm when it shows up again in a second game.
