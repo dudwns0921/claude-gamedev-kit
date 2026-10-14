@@ -45,7 +45,7 @@ The voice (how this user decides) is kept outside this repository and works unse
 
 ## Keep sessions short
 
-The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · a new goal).
+The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · a new goal) reached by work in this session — a session that just opened at one is already the new one.
 Do not read cycle · playtest documents whole — that skill's script extracts the lines needed.
 
 ## What was learned, and what goes outside

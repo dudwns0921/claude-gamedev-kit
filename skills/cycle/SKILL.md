@@ -44,8 +44,9 @@ python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule add "<the rule and 
 These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
 
 **Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
-where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one, recommend in one line:
+where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
 "Opening a new session here and continuing with `/gamedev-kit:cycle next` is lighter." If the user says just go on, go on.
+A session that opened with `next` often starts at one of these (decisions asked again · Play) — it is already the light session, so do not recommend another; recommend only once this session has run a stage, a wave or a playtest round.
 Do not chain two or more cycles in one session. If work is in hand that the document does not hold (assets · settings · another repo · a fix under way), leave it first — "Leaving a session" below.
 
 **Not done in this session**: reading code · reading images · reading logs. Agents do all of it and only summaries come back. When relaying an agent's report to the user, do not expand it at length again.
