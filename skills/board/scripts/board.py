@@ -618,11 +618,14 @@ paint();
 (async()=>{const c=window.claude;if(!c||!c.use)return;const db=await c.use('db').catch(()=>null);if(!db)return;DB=db;paint();
  db.collection('answers').onSnapshot(s=>{s.docs.forEach(d=>{const v=d.data();if(v&&v.key&&here(v.key))A[v.key]={pick:v.pick,note:v.note,saved:true}});keep();paint()},()=>{})})();})();
 """
-# The bundle for a link holds every page in one document (a page's capabilities reach that page only); links become #names.
+# The bundle for a link holds every page in one document (a page's capabilities reach that page only). Links become #names that the page
+# switches itself on a tap — the viewer around the link does not pass in-page navigation through, so nothing may depend on the address changing.
 ROUTER_JS = """
 const P=[...document.querySelectorAll('.page[data-page]')];
-function go(){const h=decodeURIComponent(location.hash.slice(1))||P[0].dataset.page,hit=P.find(p=>p.dataset.page===h)||P[0];P.forEach(p=>p.hidden=p!==hit);scrollTo(0,0)}
-addEventListener('hashchange',()=>{document.documentElement.classList.add('still');go()});go();
+function show(name){const hit=P.find(p=>p.dataset.page===name)||P[0];P.forEach(p=>p.hidden=p!==hit);scrollTo(0,0)}
+document.addEventListener('click',ev=>{const a=ev.target.closest('a[href^="#"]');if(!a)return;ev.preventDefault();
+ document.documentElement.classList.add('still');show(decodeURIComponent(a.getAttribute('href').slice(1)))});
+show(decodeURIComponent(location.hash.slice(1))||P[0].dataset.page);
 """
 HEAD = '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
 # The cards rise and the rings fill once — not again on every self-reload or page switch, where it reads as the page shaking
