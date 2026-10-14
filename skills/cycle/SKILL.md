@@ -112,7 +112,11 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/sheet.py" <questions.json> [--name <name>] 
 
 The file's shape is in the script's head (`sheet.py` with no arguments). The pictures are the captures the agents already took, and the crop boxes come from the agent that raised the decision —
 ask it for the paths and boxes, **do not Read the captures here**. Use the decision's id (`D3`) as the question's `id`, give the user every sheet at once, and let them answer by number ("D3 은 ⓑ, D4 는 지금" — "D3 is ⓑ, D4 as it is").
-The decision is still written with `ask` and answered with `decide` — the sheet is only how it is shown.
+The decision is still written with `ask` and answered with `decide` — the sheet is only how it is shown. The script keeps the questions beside the pictures
+(`<name>.json`), and the board's review page shows the same pictures with a button per option.
+
+**If the board is shared** (`board.share` in `kit.config.json`), republish it once the decisions are written — the board skill's "The link" — and give the link with the questions:
+the user can answer on the phone, or in the chat as before.
 
 **The voice works behind this, unseen.** If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game),
 between `ask` and asking the user, follow the voice skill's "Predict": `voice.py sync`, read that document and record one prediction per decision
@@ -138,6 +142,7 @@ A blocked task or a returned "Deviations from the document" may be something lea
 
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
 the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
+If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
 The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving.
 
 **Assets — after the build, all at once.** The cycle owns each asset's slot — name, path, size — not how it gets made. Only now, with every wave done and the verification passed, fill the slots the user said to fill. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
@@ -227,7 +232,8 @@ Before the first cycle there is no document to carry in, and none is needed: `/g
 
 ## next
 
-Run `cycle.py next` and continue from there — do not read the document. **If it lists "carried over" lines, those come first**: they are what the last session had in hand.
+Run `cycle.py next` and continue from there — do not read the document. If the board is shared, read the answers tapped on it first (the board skill's "Reading the answers").
+**If it lists "carried over" lines, those come first**: they are what the last session had in hand.
 If their commit differs from the current one, say so — the lines are a snapshot of when they were left. Run `carry done` at once (what is still unfinished when this session ends is carried again),
 ask the questions among them, and start from them — **do not scan the project to find out what the lines do not say**; open only the files that work needs.
 A "handoff note not resumed" line is a note from before `carry` existed: read that one file and treat it the same way. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.

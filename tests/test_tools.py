@@ -1506,7 +1506,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         open(os.path.join(root, "assets/sounds/zzz_orphan.mp3"), "w").write("x")
         self.assertIn("Unsorted 1 (assets 1 — outside the %)", run(BOARD, root).stdout, "what is outside the completion % is shown with its count")
         chart = open(out, encoding="utf-8").read()
-        self.assertIn('<div class="tile warn"><span class="lab">Unsorted · outside %</span><b>1</b></div>', chart)
+        self.assertIn('<div class="tile warn minor"><span class="lab">Unsorted · outside %</span><b>1</b></div>', chart)
         self.assertIn("of these, Unsorted 1 (assets 1) is outside the %", chart)
         self.assertIn("<b>Unsorted 1</b><span>assets 1</span>", chart)
         os.remove(os.path.join(root, "assets/sounds/zzz_orphan.mp3"))
@@ -1570,6 +1570,84 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual((p.returncode, p.stdout, p.stderr), (0, "", ""), "outside a game repository, nothing happens")
         p = subprocess.run([sys.executable, BOARD], cwd=empty, capture_output=True, text=True)
         self.assertIn("kit.config.json not found — run this inside a game repository, after /gamedev-kit:init", p.stderr)
+
+    def test_board_review(self):
+        """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,
+        checks by playing — one card each. `share` bundles every page into one for a link and sends only new files; `answers` turns the
+        saved taps into what each asks for, once, and ignores answers to questions that changed."""
+        root = tempfile.mkdtemp(prefix="kit-review-")
+        self.addCleanup(shutil.rmtree, root, True)
+        open(os.path.join(root, "kit.config.json"), "w").write("{}")
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        png = b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 400, 300)
+        os.makedirs(os.path.join(root, "shots"))
+        open(os.path.join(root, "shots/now.png"), "wb").write(png)
+        run(CYCLE, root, "new", "bow", "Draw the bow")
+        run(CYCLE, root, "ask", "Design", "Where the hand sits — ① as it is ② raise it · recommended: ②")
+        run(CYCLE, root, "ask", "Spec", "Restart — ① every time ② once · recommended: ①")
+        run(CYCLE, root, "decide", "D2", "②", "--proxy", "V1")
+        json.dump([{"id": "D1", "question": "Where the hand sits", "options": [{"mark": "ⓐ", "text": "as it is"}, {"mark": "ⓑ", "text": "raise it", "recommend": True}],
+                    "images": [{"label": "Now", "path": "shots/now.png", "crop": [10, 20, 100, 50]}]}], open(os.path.join(root, "q.json"), "w"))
+        json.dump({"cycle": {"browser": "/nonexistent"}}, open(os.path.join(root, "kit.config.json"), "w"))  # no picture taken — only the kept questions matter here
+        run(SHEET, root, os.path.join(root, "q.json"), "--name", "bow")
+        self.assertTrue(os.path.exists(os.path.join(root, "docs/cycle/sheets/bow.json")), "the sheet keeps its questions for the review page")
+        gen = os.path.join(root, "assets/_gen/knight")
+        os.makedirs(gen)
+        open(os.path.join(gen, "front.png"), "wb").write(png + b"knight")
+        json.dump({"name": "knight", "subject": "a knight", "said": [{"said": "too dark"}]}, open(os.path.join(gen, "asset.json"), "w"))
+
+        self.assertIn("review 3", run(BOARD, root).stdout)
+        review = open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read()
+        self.assertIn('data-key="c01-D1"', review)
+        self.assertIn('data-pick="ⓑ"><b>ⓑ</b><span>raise it</span><em>recommended</em>', review, "the sheet's options and its pick")
+        self.assertIn('class="crop zoom"', review, "with the picture cropped as the sheet asked")
+        self.assertIn("<span>Accept ②</span>", review, "a decision made for the user, with its pick")
+        self.assertIn('data-pick="accept"', review, "a proxy decision can be accepted")
+        self.assertIn('data-pick="approve"', review)
+        self.assertIn("Turned down: too dark", review)
+        self.assertNotIn("Check by playing", review, "no checks before the cycle reaches Play")
+        self.assertIn('href="review.html"><span class="lab">waiting on you</span><b>Review 3 →</b>', open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read())
+        doc = os.path.join(root, "docs/cycle/01-bow.md")
+        text = open(doc, encoding="utf-8").read().replace("Stage: Goal", "Stage: Play").replace("## Design\n", "## Design\n\n### For a human to see\n- Is the string readable\n")
+        open(doc, "w", encoding="utf-8").write(text)
+        self.assertIn("review 4", run(BOARD, root).stdout, "at Play, what to check by playing joins")
+
+        out = run(BOARD, root, "share").stdout
+        self.assertIn("files new 2", out, "the crop's picture and the asset image")
+        self.assertIn("first publish", out)
+        share = os.path.join(root, "docs/board/share")
+        sent = json.load(open(os.path.join(share, "publish.json")))
+        self.assertEqual(sent["page"], os.path.join("docs", "board", "share", "index.html"))
+        self.assertEqual(sorted(sent["parts"][0]), sent["all"])
+        for f in sent["all"]:
+            self.assertTrue(os.path.exists(os.path.join(share, f)), "each new file is copied under the bundle's root")
+        page = open(os.path.join(share, "index.html"), encoding="utf-8").read()
+        self.assertNotIn("<!doctype", page.lower(), "the link wraps the page in its own skeleton")
+        self.assertIn('<div class="page" data-page="review.html">', page, "the review comes first when something waits")
+        self.assertIn('href="#index.html"', page, "links between pages become #names")
+        self.assertNotIn("@import", page)
+        run(BOARD, root, "share", "--done", "https://claude.ai/artifact/abc")
+        self.assertEqual(json.load(open(os.path.join(root, "kit.config.json")))["board"]["share"], "https://claude.ai/artifact/abc")
+        out = run(BOARD, root, "share").stdout
+        self.assertIn("files new 0", out, "what the link already has is not sent again")
+        self.assertIn("to https://claude.ai/artifact/abc", out)
+
+        saved = os.path.join(share, "answers/answers")
+        os.makedirs(saved)
+        for key, pick, note in (("c01-D1", "ⓑ", "a little"), ("c01-D2", "accept", ""), ("c00-D9", "①", "")):
+            json.dump({"key": key, "pick": pick, "note": note, "at": 1}, open(os.path.join(saved, key + ".json"), "w"))
+        keys = [i["key"] for i in json.load(open(os.path.join(root, "docs/board/review.json")))]
+        knight, check = next(k for k in keys if k.startswith("asset-knight-")), next(k for k in keys if "-chk-" in k)
+        json.dump({"key": knight, "pick": "redo", "note": "armour too shiny", "at": 1}, open(os.path.join(saved, "a.json"), "w"))
+        json.dump({"key": check, "pick": "problem", "note": "lost in the fog", "at": 1}, open(os.path.join(saved, "c.json"), "w"))
+        out = run(BOARD, root, "answers", os.path.join(share, "answers")).stdout
+        self.assertIn("D1 → ⓑ — “a little”", out)
+        self.assertIn("D2 (decided for you: ②) → accept", out)
+        self.assertIn("knight (3D model — asset.py) → redo — “armour too shiny”", out)
+        self.assertIn("✗ Is the string readable — “lost in the fog”", out)
+        self.assertIn("1 saved answer(s) are to questions no longer on the page", out, "an answer to an old question is not relayed")
+        self.assertIn("No new answers.", run(BOARD, root, "answers", os.path.join(share, "answers")).stdout, "an answer is relayed once")
 
     def test_cycle(self):
         root = tempfile.mkdtemp(prefix="kit-cycle-")

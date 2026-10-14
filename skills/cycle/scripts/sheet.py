@@ -15,7 +15,8 @@ questions.json (paths are relative to the game root):
                {"label": "ⓑ changed", "path": "shots/b.png", "crop": [420, 180, 600, 600]}]}]
   Without an id they are 1, 2, … in order. crop is [x, y, width, height] in pixels — the whole image if absent. An image to crop must be a png.
 
-Writes <folder>/<name>-<number>.html (the images are embedded, so it opens as one file). If this machine has a Chrome-family browser,
+Writes <folder>/<name>-<number>.html (the images are embedded, so it opens as one file) and keeps the questions as <folder>/<name>.json —
+the board's review page reads that file to show the same pictures beside its answer buttons. If this machine has a Chrome-family browser,
 a .png of the same name is taken too — that picture is what goes to the user. The browser's path is cycle.browser in kit.config.json.
 The folder defaults to docs/cycle/sheets.
 """
@@ -165,6 +166,8 @@ def main():
     pages = [page(n, q) for n, q in enumerate(asked, 1)]  # if any one is wrong, nothing is written
     folder = os.path.join(ROOT, opts.get("--out", OUT))
     os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, f"{name}.json"), "w", encoding="utf-8") as f:  # kept — the board's review page shows the same pictures beside its buttons
+        json.dump(asked, f, ensure_ascii=False, indent=1)
     tool = browser()
     for n, text in enumerate(pages, 1):
         path = os.path.join(folder, f"{name}-{n}.html")

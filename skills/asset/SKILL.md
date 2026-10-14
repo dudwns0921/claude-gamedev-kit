@@ -126,7 +126,8 @@ Three layers in `docs/DESIGN.md`, joined in this order behind every description 
 
 **Seeing them together.** Consistency shows only side by side. The board's asset sheet (`docs/board/assets.html`, drawn by the board skill's script, no model) lays every asset out in one grid
 under these three layers, and marks the ones drawn under an older Art style paragraph, the ones turned down and why, and the style references. After making a batch, give the user that page rather than a list of paths.
-What they point at there is `reject` · `learn` material.
+What they point at there is `reject` · `learn` material. If the board is shared (`board.share` in `kit.config.json`), republish it too (the board skill's "The link"):
+its review page puts each image waiting for approval on a card with Approve · Redo, and the answers come back through that skill.
 
 ## Art style
 
