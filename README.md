@@ -12,7 +12,7 @@ You need:
 - [Claude Code](https://code.claude.com)
 - [Python](https://www.python.org/downloads/) 3.9 or later
 - [Node.js](https://nodejs.org) — for the dashboard
-- The editor of the engine you make the game with (see below) — a plain web game needs none
+- The editor of the engine you make the game with (below) — a plain web game needs none
 - Optional, to have assets made: API keys in `~/.config/gamedev-kit/asset.env` — OpenAI and Meshy (3D models), Ludo (sprites), ElevenLabs (sounds), Higgsfield (clips). The kit walks you through it the first time.
   Without them a cycle runs on placeholders, and any file you put in its place counts.
 
@@ -34,11 +34,11 @@ I played it — the prices are unreadable → finds the causes and fixes them
 
 Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, … — if you would rather type one.
 
-### Made with it so far
+### Engines games have been made with
 
-- **[Godot](https://godotengine.org/download)** — a 3D action adventure for computers · a 3D defense game for computers and the browser · a 3D bow fight in the browser
-- **[Unity](https://unity.com/download)** — a 2D top-down phone game, played upright (Android)
-- **Web** (plain HTML and JavaScript) — a small dodge game in the browser
+- [Godot](https://godotengine.org/download)
+- [Unity](https://unity.com/download)
+- Web — plain HTML and JavaScript, no editor
 
 ## Why use it
 
