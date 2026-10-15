@@ -1024,7 +1024,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertNotIn("no pictures", out)
         fill("## 5. Art direction")
         out = run(START, root, "status").stdout
-        self.assertIn("[done] concept — the art direction is written and there are 3 pictures", out)
+        self.assertIn("[done] concept — the art direction is written, with 3 pictures", out)
         self.assertIn("next: first goal stage", out)
         self.assertTrue(out.strip().endswith(os.path.join("stages", "goal.md")))
         run(CYCLE, root, "new", "first", "한 바퀴를 돈다")
