@@ -4,6 +4,7 @@
   python3 asset.py new <name> --size <meters> [--poly <triangles>] [--ref <photo> [--as-is]] "<what it is — in English>"
   python3 asset.py image <name>... [--view back [--note "<text for that view only — in English>"]] [--ref <photo>]   make the images. With --view, redo only that view
   python3 asset.py approve <name>...               after a human has looked at the images. Only approved images become meshes
+  python3 asset.py keep <name>...                  the art style changed after it was drawn and the user keeps it — no longer shown as old style
   python3 asset.py reject <name> "<the user's words>"   turn it down — records why and lifts the approval
   python3 asset.py learn "<one line — in English>"  add what turning assets down taught as one line of "Learned". Attached to every asset from then on
   python3 asset.py look                            what is attached to every asset — Art style · World · Learned
@@ -295,6 +296,17 @@ def image(name, only, ref=None, note=None):
     save(rec)
 
 
+def keep(name):
+    """The images stay although the art style changed after they were drawn — marked as drawn in the current one, so the board stops calling them old style.
+    The approval is not touched."""
+    rec = load(name)
+    if not os.path.exists(image_path(name, CFG["views"][0])):
+        sys.exit(f"{name}: no images — asset.py image {name}")
+    rec["image"] = dict(rec.get("image") or {}, style=hashlib.sha1(style().encode()).hexdigest()[:8], kept=str(datetime.date.today()))
+    save(rec)
+    print(f"{name}: kept under the current art style")
+
+
 def reject(name, said):
     """The user turned it down — their words are the material for "Learned". Lifts the approval."""
     rec = load(name)
@@ -433,7 +445,7 @@ def main():
     as_is = "--as-is" in args
     args = [a for a in args if a != "--as-is"]
     cmd, rest = (args[0] if args else ""), args[1:]
-    if cmd not in ("new", "image", "approve", "reject", "learn", "look", "mesh", "finish", "status") or (cmd not in ("status", "look") and not rest):
+    if cmd not in ("new", "image", "approve", "keep", "reject", "learn", "look", "mesh", "finish", "status") or (cmd not in ("status", "look") and not rest):
         sys.exit(__doc__)
     setup(opts.get("--root"))
     ref = opts.get("--ref")
@@ -475,6 +487,9 @@ def main():
         elif cmd == "approve":
             for name in rest:
                 approve(name)
+        elif cmd == "keep":
+            for name in rest:
+                keep(name)
         elif cmd == "mesh":
             mesh(rest)
         elif cmd == "finish":

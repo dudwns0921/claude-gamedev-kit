@@ -4,6 +4,7 @@
   python3 sprite.py new <name> [--type <kind>] [--ref <picture> [--as-is]] "<what it is — in English>"
   python3 sprite.py image <name>... [--ref <picture>]  make one still picture
   python3 sprite.py approve <name>...                  after a human has looked at the picture. It goes to the game folder
+  python3 sprite.py keep <name>...                     the art style changed after it was drawn and the user keeps it — no longer shown as old style
   python3 sprite.py reject <name> "<the user's words>"  turn it down — records why and lifts the approval
   python3 sprite.py animate <name> <motion> [--seconds <seconds>] [--frames <count>] "<what motion — in English>"
                                                        animate the approved picture into a sheet. Costs credits
@@ -259,6 +260,16 @@ def approve(name):
     print(f"{name}: approved — {rec['out']}")
 
 
+def keep(name):
+    """The picture stays although the art style changed after it was drawn — marked as drawn in the current one, so the board stops calling it old style."""
+    rec = load(name)
+    if not os.path.exists(still_path(name)):
+        sys.exit(f"{name}: no picture — sprite.py image {name}")
+    rec["image"] = dict(rec.get("image") or {}, style=hashlib.sha1(asset.style().encode()).hexdigest()[:8], kept=str(datetime.date.today()))
+    save(rec)
+    print(f"{name}: kept under the current art style")
+
+
 def reject(name, said):
     """The user turned it down — their words are the material for "Learned". Lifts the approval."""
     rec = load(name)
@@ -332,7 +343,7 @@ def main():
     as_is = "--as-is" in args
     args = [a for a in args if a != "--as-is"]
     cmd, rest = (args[0] if args else ""), args[1:]
-    if cmd not in ("new", "image", "approve", "reject", "animate", "status", "credits") or (cmd not in ("status", "credits") and not rest):
+    if cmd not in ("new", "image", "approve", "keep", "reject", "animate", "status", "credits") or (cmd not in ("status", "credits") and not rest):
         sys.exit(__doc__)
     setup(opts.get("--root"))
     ref = opts.get("--ref")
@@ -365,6 +376,9 @@ def main():
         elif cmd == "approve":
             for name in rest:
                 approve(name)
+        elif cmd == "keep":
+            for name in rest:
+                keep(name)
         elif cmd == "reject":
             if len(rest) != 2:
                 sys.exit(__doc__)

@@ -846,7 +846,7 @@ def sheet_data():
             elif low.endswith(IMG_EXT + MODEL_EXT) and stem not in names:
                 loose.append({"name": fn, "img": path if low.endswith(IMG_EXT) else "", "tool": "", "views": [], "st": "done", "state": "no record", "old": False, "ref": False,
                               "from": "", "said": [], "what": os.path.relpath(path, ROOT)})
-    return {"loose": loose, "style": style, "world": " ".join(design_block("asset-world").split()),
+    return {"loose": loose, "style": style, "mark": mark, "world": " ".join(design_block("asset-world").split()),
             "learned": [re.sub(r"^[-*]\s*", "", x.strip()) for x in design_block("asset-learned").split("\n") if x.strip()],
             "sound": " ".join(design_block("sound-style").split()),
             "refs": [os.path.join(ROOT, r) for r in refs if os.path.exists(os.path.join(ROOT, r))], "models": models, "sounds": sounds}
@@ -1006,9 +1006,12 @@ def review_items(cycles, sheet):
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
     for m in sheet["models"]:
-        if m["state"] == "image only" and m["views"]:
-            stamp = short("".join(hashlib.sha1(open(p, "rb").read()).hexdigest() for p in m["views"]))
-            items.append({"key": f'{m["tool"]}-{m["name"]}-{stamp}', "kind": "asset", "ref": m["name"], "tool": m["tool"],
+        # Drawn under an art style that has since changed — whatever its state, it waits on the user: keep this look, or redraw it.
+        # Otherwise only an image not yet approved waits.
+        if (m["old"] or m["state"] == "image only") and m["views"]:
+            stamp = short("".join(hashlib.sha1(open(p, "rb").read()).hexdigest() for p in m["views"]) + (sheet["mark"] if m["old"] else ""))
+            items.append({"key": f'{"old-" if m["old"] else ""}{m["tool"]}-{m["name"]}-{stamp}', "kind": "style" if m["old"] else "asset",
+                          "ref": m["name"], "tool": m["tool"], "state": m["state"],
                           "title": m["name"], "what": m["what"], "views": m["views"], "said": m["said"], "old": m["old"]})
     if c and re.match(STAGE_PLAY, c["stage"]):
         for line in check_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
@@ -1037,7 +1040,8 @@ def picture(img):
 
 def card(i):
     """One question, kept short — it is read on a phone."""
-    label = {"decision": lambda: f'{i["ref"]}', "asset": lambda: f'asset {i["ref"]}', "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
+    label = {"decision": lambda: f'{i["ref"]}', "asset": lambda: f'asset {i["ref"]}', "style": lambda: f'old-style asset {i["ref"]}',
+             "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
     head = f'<div class="card" data-key="{e(i["key"])}" data-label="{e(label)}">'
     note = '<textarea class="note" rows="1" placeholder="{}"></textarea><div class="state"></div></div>'
     if i["kind"] == "decision":
@@ -1052,16 +1056,18 @@ def card(i):
         return (head + (f'<span class="lab">{e(tag)}</span>' if tag else "")
                 + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>' + (f'<div class="figs">{figs}</div>' if figs else "")
                 + f'<div class="opts">{opts}</div>' + note.format("Note (optional)"))
-    if i["kind"] == "asset":
+    if i["kind"] in ("asset", "style"):
         figs = "".join(f'<figure><figcaption>{e(os.path.splitext(os.path.basename(v))[0])}</figcaption>'
                        f'<button class="im zoom" data-zoom="{rel(v)}" data-cap="{e(i["ref"])}" style="background-image:url({rel(v)})"></button></figure>'
                        for v in i["views"])
         said = " / ".join(x.get("said", "") for x in i["said"] if isinstance(x, dict))
-        return (head + f'<span class="lab">{"3D model" if i["tool"] == "asset" else "sprite"}{" · old style" if i["old"] else ""}</span>'
+        buttons = ('<button class="opt" data-pick="keep">Keep this look</button><button class="opt no" data-pick="redraw">Redraw in today\'s style</button>'
+                   if i["kind"] == "style" else
+                   '<button class="opt" data-pick="approve">Approve</button><button class="opt no" data-pick="redo">Redo</button>')
+        return (head + f'<span class="lab">{"3D model" if i["tool"] == "asset" else "sprite"} · {e(i["state"])}{" · old style" if i["old"] else ""}</span>'
                 f'<h3>{e(i["title"])}</h3>' + (f'<div class="sub clamp">{e(i["what"])}</div>' if i["what"] else "")
                 + (f'<div class="was clamp">Turned down: {e(said)}</div>' if said else "") + f'<div class="figs">{figs}</div>'
-                '<div class="opts pair"><button class="opt" data-pick="approve">Approve</button><button class="opt no" data-pick="redo">Redo</button></div>'
-                + note.format("What is off?"))
+                f'<div class="opts pair">{buttons}</div>' + note.format("What is off?"))
     return (head + f'<h3>{md(i["title"])}</h3>'
             '<div class="opts pair"><button class="opt" data-pick="ok">OK</button><button class="opt no" data-pick="problem">Problem</button></div>'
             + note.format("What did you see?"))
@@ -1069,7 +1075,8 @@ def card(i):
 
 def review_html(name, items, stamp):
     cyc = next((i["cycle"] for i in items if i.get("cycle")), "")
-    groups = [("decision", f"Decisions · cycle {cyc}"), ("asset", "Assets to approve"), ("check", f"Check by playing · cycle {cyc}")]
+    groups = [("decision", f"Decisions · cycle {cyc}"), ("asset", "Assets to approve"), ("style", "Drawn in an old art style"),
+              ("check", f"Check by playing · cycle {cyc}")]
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
                     for kind, title in groups for its in [[i for i in items if i["kind"] == kind]] for n in [len(its)] if its)
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a></div>'
@@ -1080,6 +1087,60 @@ def review_html(name, items, stamp):
                '<button class="btn go send" hidden>Send to Claude</button><span class="sent"></span></div>' if items else "")
             + f'<footer><span>Drawn {stamp}</span></footer>')
     return f"Review · {name}", body
+
+
+# ── The board as data — what a page elsewhere (your board service) draws from ──
+#
+# Every path is as `rel` gives it: beside the local board, or the content-named f/<hash> file while bundling.
+
+def data_item(i):
+    return dict(i, img=rel(i["img"]), audio=rel(i["audio"]))
+
+
+def picture_data(img):
+    path = os.path.join(ROOT, str(img.get("path", "")))
+    out = {"label": str(img.get("label", "")), "src": rel(path) if os.path.isfile(path) else ""}
+    size, crop = png_size(path) if out["src"] and img.get("crop") else None, img.get("crop")
+    try:
+        if size and len(crop) == 4 and float(crop[2]) > 0 and float(crop[3]) > 0:
+            out.update(crop=[float(v) for v in crop], size=list(size))
+    except (TypeError, ValueError):
+        pass
+    return out
+
+
+def review_data(i):
+    out = {k: i[k] for k in ("key", "kind", "ref", "title")}
+    if i["kind"] == "decision":
+        out.update(cycle=i["cycle"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
+                   options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
+    elif i["kind"] in ("asset", "style"):
+        out.update(tool=i["tool"], state=i["state"], what=i["what"], old=i["old"], views=[rel(v) for v in i["views"]],
+                   said=[x.get("said", "") for x in i["said"] if isinstance(x, dict)])
+    else:
+        out.update(cycle=i["cycle"])
+    return out
+
+
+def chart_data(st, asks, cycles, sheet, review):
+    stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "loop": s["loop"], "complete": stage_pct(s),
+               "image": hero_of(s), "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
+               "open": [{"title": q["title"], "text": q["text"], "from": q["from"]} for q in s["open"]],
+               "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
+                         "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}
+              for s in st if not s["common"] or any(s["lanes"].values()) or s["open"]]
+    model = lambda m: {"name": m["name"], "img": rel(m["img"]), "tool": m["tool"], "st": m["st"], "state": m["state"], "old": m["old"],
+                       "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"])}
+    return {"lanes": [{"key": k, "label": LANE_LABEL[k]} for k in LANES],
+            "stages": stages,
+            "asks": [{"title": q["title"], "text": q["text"], "from": q["from"], "stage": q["stage"]} for q in asks],
+            "cycles": [{"num": c["num"], "name": c["name"], "stage": stage_word(c["stage"]), "start": c["start"], "goal": c["goal"],
+                        "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"))},
+                        "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
+            "review": [review_data(i) for i in review],
+            "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
+                       "models": [model(m) for m in sheet["models"]], "loose": [model(m) for m in sheet["loose"]],
+                       "sounds": [data_item(x) for x in sheet["sounds"]]}}
 
 
 def review_link(items):
@@ -1122,8 +1183,10 @@ def build(outdir, index_name):
     c = tally([i for s in st for lane in LANES for i in s["lanes"][lane]])
     summary = {"name": name, "drawn": stamp, "complete": total, "share": CFG["share"] or None,
                "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"])} if now else None,
-               "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "undecided": len(asks), "review": len(review)},
-               "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]]}
+               "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(review),
+                          "old_style": sum(1 for m in sheet["models"] if m["old"])},
+               "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
+               "board": chart_data(st, asks, cycles, sheet, review)}
     return pages, review, summary, (f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
                                     + f" · review {len(review)}")
 
@@ -1134,7 +1197,9 @@ def sources():
     return ([os.path.join(ROOT, CFG["gdd"]), os.path.join(ROOT, CONFIG_NAME), os.path.join(ROOT, CFG["notes"]), os.path.join(ROOT, CFG["design"]), gen, sheets]
             + ([os.path.join(sheets, n) for n in os.listdir(sheets)] if os.path.isdir(sheets) else [])
             + [p for p in table_files() if p]
-            + cycle_docs() + playtest_docs() + ([os.path.join(gen, n) for n in os.listdir(gen)] if os.path.isdir(gen) else []))
+            + cycle_docs() + playtest_docs() + ([os.path.join(gen, n) for n in os.listdir(gen)] if os.path.isdir(gen) else [])
+            # a record rewritten in place (approve · keep · reject) does not touch its folder's time — the records themselves are watched
+            + [os.path.join(gen, n, fn) for n in (os.listdir(gen) if os.path.isdir(gen) else []) for fn in ("asset.json", "sprite.json", "sound.json")])
 
 
 PART_FILES = 200            # files per publish — the link takes up to 255 in one go
@@ -1158,7 +1223,7 @@ def keep_review(review):
     folder = os.path.dirname(os.path.join(ROOT, CFG["out"]))
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "review.json"), "w", encoding="utf-8") as f:
-        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "tool", "proxy", "title")} for i in review], f, ensure_ascii=False, indent=1)
+        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "tool", "state", "proxy", "title")} for i in review], f, ensure_ascii=False, indent=1)
 
 
 def draw(quiet):
@@ -1321,7 +1386,7 @@ def answers(path):
         sys.exit(f"{path}: could not read — save the rows of the \"answers\" collection as JSON")
     seen_path = os.path.join(folder, "answered.json")
     seen = load_json(seen_path) or {}
-    groups, stale = {"decision": [], "asset": [], "check": []}, 0
+    groups, stale = {"decision": [], "asset": [], "style": [], "check": []}, 0
     for r in rows_in(data):
         i, mark = items.get(r["key"]), f'{r.get("pick", "")}|{r.get("note", "")}'
         if not i:
@@ -1342,6 +1407,14 @@ def answers(path):
     if groups["asset"]:
         out.append("Assets — the asset skill: approve, or reject with the user's words:")
         out += [f'  {i["ref"]} ({"3D model — asset.py" if i.get("tool") == "asset" else "sprite — sprite.py"}) → {pick or "?"}{note(n)}' for i, pick, n in groups["asset"]]
+    if groups["style"]:
+        out.append("Drawn in an old art style — the asset skill: keep → `keep <name>` (and `approve <name>` when it was waiting for approval);"
+                   " redraw → `image <name>`, then show the new images:")
+        for i, pick, n in groups["style"]:
+            tool = "asset.py" if i.get("tool") == "asset" else "sprite.py"
+            what = (f"keep — {tool} keep {i['ref']}" + (f" · approve {i['ref']}" if i.get("state") == "image only" else "") if pick == "keep"
+                    else f"redraw — {tool} image {i['ref']}" if pick == "redraw" else pick or "?")
+            out.append(f'  {i["ref"]} ({i.get("state", "")}) → {what}{note(n)}')
     if groups["check"]:
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
         out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem' + (" (hand the problems to the playtest skill as one list):" if bad else ""))

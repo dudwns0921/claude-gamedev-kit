@@ -888,6 +888,22 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         run(BOARD, root, "--if-stale")
         sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
         self.assertIn("drawn in an old style 4", sheet, "a photo used as is has nothing to do with the art style")
+        # An old-style asset waits on the user whatever its state — keep this look, or redraw it. Keeping marks it as drawn in today's style
+        board = lambda: json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
+        styled = [i for i in board()["board"]["review"] if i["kind"] == "style"]
+        self.assertEqual(len(styled), 4)
+        self.assertEqual(board()["counts"]["old_style"], 4)
+        review = open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read()
+        self.assertIn("Drawn in an old art style", review)
+        self.assertIn('data-pick="keep">Keep this look</button>', review)
+        self.assertIn("kept under the current art style", asset("keep", "urn"))
+        self.assertEqual(rec("urn")["image"]["style"], __import__("hashlib").sha1(b"Chunky low-poly, bright palette.").hexdigest()[:8])
+        run(BOARD, root, "--if-stale")
+        self.assertEqual(board()["counts"]["old_style"], 3)
+        self.assertNotIn("urn", [i["ref"] for i in board()["board"]["review"] if i["kind"] == "style"])
+        crate = next(m for m in board()["board"]["assets"]["models"] if m["name"] == "crate")
+        self.assertEqual((crate["state"], crate["old"], crate["img"]), ("in the game", True, "../../assets/_gen/crate/front.png"),
+                         "the board as data — paths as seen from the board's folder")
 
         # What is in the game without a record also goes on the sheet. If the page is missing (after a kit upgrade) the hook redraws it
         os.makedirs(os.path.join(root, "assets/ui"))
@@ -1714,6 +1730,11 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("knight (3D model — asset.py) → redo — “armour too shiny”", out)
         self.assertIn("✗ Is the string readable — “lost in the fog”", out)
         self.assertIn("1 saved answer(s) are to questions no longer on the page", out, "an answer to an old question is not relayed")
+        data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))["board"]
+        d1 = next(i for i in data["review"] if i["key"] == "c01-D1")
+        self.assertEqual((d1["recommend"], d1["options"][1], d1["pictures"][0]["crop"], d1["pictures"][0]["size"]),
+                         ("ⓑ", {"mark": "ⓑ", "text": "raise it"}, [10.0, 20.0, 100.0, 50.0], [400, 300]), "a decision as data, with its cropped picture")
+        self.assertEqual(data["cycles"][0]["decisions"], {"open": 2, "all": 2})
         self.assertIn("No new answers.", run(BOARD, root, "answers", os.path.join(share, "answers")).stdout, "an answer is relayed once")
 
     def test_cycle(self):

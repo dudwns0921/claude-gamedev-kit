@@ -104,6 +104,7 @@ The hook brings the table up to the value file before it redraws the board.
 |---|---|---|
 | Decision | the newest cycle's unanswered decisions (`[ ]`), and those decided for the user in auto mode (`[~]`) — with the comparison pictures of the cycle's sheet script when it made some (`docs/cycle/sheets/*.json`, by decision id) | one per option (the recommended one marked); Accept for a proxy decision |
 | Asset | asset images not yet approved (3D model views, sprite stills) | Approve · Redo (the note is the reason) |
+| Old style | any asset drawn under an art style paragraph that has since changed, whatever its state | Keep this look (→ the asset skill's `keep`) · Redraw in today's style (→ `image`) |
 | Check | once the newest cycle is at Play: the spec's "To see by playing" and the design's "For a human to see" | OK · Problem (the note is what was seen) |
 
 The chart's "Review N →" tile and the undecided strip open it. Each card's key changes when its question does (another cycle, a redrawn image, reworded check),
@@ -172,7 +173,8 @@ Each game names only its id in the service, in `kit.config.json`:
 
 (Environment variables of the same names win over the file.) Then at the end of every turn
 a hook runs `board.py push --if-changed` in the background: when the board was redrawn since the last push, it asks the service which pictures it lacks, sends only those,
-then the page and its summary (`docs/board/board.json`, the board as data). Without a game id, an address or a token the hook does nothing. To send at once or see an error:
+then the page and the board as data (`docs/board/board.json` — the counts, and under `board` every stage with its items, the open questions, the cycles,
+the review cards and the asset sheet; the service draws its own screens from it). Without a game id, an address or a token the hook does nothing. To send at once or see an error:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" push

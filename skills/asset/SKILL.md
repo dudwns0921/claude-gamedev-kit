@@ -75,6 +75,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" new <name> --size <meters> [--pol
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" image <name>... [--view back [--note "<words for that view only>"]] [--ref <photo>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" approve <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" reject <name> "<the user's words>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" keep <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" learn "<one line — in English>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" look
 python3 "${CLAUDE_SKILL_DIR}/scripts/asset.py" mesh <name>...
@@ -145,6 +146,8 @@ muted earthy palette with one saturated accent color, no fine surface detail, ma
 Decide the art style paragraph with the user. Draft it from the colors and tone in `docs/DESIGN.md` and the art direction in the GDD, then generate two or three test assets with `image` and revise while looking at them together.
 When an image they like comes out, put its path in `asset.refs` in `kit.config.json` — from then on every first image is drawn with it as reference.
 **Changing the art style makes it clash with assets already made.** Say so before changing it.
+After a change, every asset drawn before it waits on the user in the board's review ("Drawn in an old art style"): **Keep this look** → `keep <name>` (the same for `sprite.py`),
+also `approve` when it was waiting for approval; **Redraw in today's style** → `image <name>`, then show the new images as usual. Only on the user's answer — do not settle them yourself.
 
 ## Config
 
@@ -186,6 +189,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" new <name> [--type <kind>] [--re
 python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" image <name>... [--ref <picture>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" approve <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" reject <name> "<the user's words>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" keep <name>...
 python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" animate <name> <motion> [--seconds <seconds>] [--frames <count>] "<the motion — in English>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" status
 python3 "${CLAUDE_SKILL_DIR}/scripts/sprite.py" credits
