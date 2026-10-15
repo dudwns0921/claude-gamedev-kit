@@ -105,7 +105,6 @@ The hook brings the table up to the value file before it redraws the board.
 |---|---|---|
 | Decision | the newest cycle's unanswered decisions (`[ ]`), and those decided for the user in auto mode (`[~]`) — with the comparison pictures of the cycle's sheet script when it made some (`docs/cycle/sheets/*.json`, by decision id) | one per option (the recommended one marked); Accept for a proxy decision |
 | Asset | asset images not yet approved (3D model views, sprite stills) | Approve · Redo (the note is the reason) |
-| Old style | any asset drawn under an art style paragraph that has since changed, whatever its state | Keep this look (→ the asset skill's `keep`) · Redraw in today's style (→ `image`) |
 | Check | once the newest cycle is at Play: the spec's "To see by playing" and the design's "For a human to see" | OK · Problem (the note is what was seen) |
 
 The chart's "Review N →" tile and the undecided strip open it. Each card's key changes when its question does (another cycle, a redrawn image, reworded check),

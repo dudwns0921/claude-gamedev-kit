@@ -40,6 +40,7 @@ import urllib.request
 import webbrowser
 
 CONFIG_NAME = "kit.config.json"
+ASSET_WORK = "assets/_gen"  # where the asset skill keeps its records when asset.work is not set
 SECTION = "board"
 DEFAULTS = {
     "out": "docs/board/index.html",
@@ -1016,11 +1017,9 @@ def review_items(cycles, sheet):
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
     for m in sheet["models"]:
-        # Drawn under an art style that has since changed — whatever its state, it waits on the user: keep this look, or redraw it.
-        # Otherwise only an image not yet approved waits.
-        if (m["old"] or m["state"] == "image only") and m["views"]:
-            stamp = short("".join(hashlib.sha1(open(p, "rb").read()).hexdigest() for p in m["views"]) + (sheet["mark"] if m["old"] else ""))
-            items.append({"key": f'{"old-" if m["old"] else ""}{m["tool"]}-{m["name"]}-{stamp}', "kind": "style" if m["old"] else "asset",
+        if m["state"] == "image only" and m["views"]:  # an old art style is the user's to judge by eye on the sheet — not asked here
+            stamp = short("".join(hashlib.sha1(open(p, "rb").read()).hexdigest() for p in m["views"]))
+            items.append({"key": f'{m["tool"]}-{m["name"]}-{stamp}', "kind": "asset",
                           "ref": m["name"], "tool": m["tool"], "state": m["state"],
                           "title": m["name"], "what": m["what"], "views": m["views"], "said": m["said"], "old": m["old"]})
     if c and re.match(STAGE_PLAY, c["stage"]):
@@ -1050,8 +1049,7 @@ def picture(img):
 
 def card(i):
     """One question, kept short — it is read on a phone."""
-    label = {"decision": lambda: f'{i["ref"]}', "asset": lambda: f'asset {i["ref"]}', "style": lambda: f'old-style asset {i["ref"]}',
-             "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
+    label = {"decision": lambda: f'{i["ref"]}', "asset": lambda: f'asset {i["ref"]}', "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
     head = f'<div class="card" data-key="{e(i["key"])}" data-label="{e(label)}">'
     note = '<textarea class="note" rows="1" placeholder="{}"></textarea><div class="state"></div></div>'
     if i["kind"] == "decision":
@@ -1066,14 +1064,12 @@ def card(i):
         return (head + (f'<span class="lab">{e(tag)}</span>' if tag else "")
                 + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>' + (f'<div class="figs">{figs}</div>' if figs else "")
                 + f'<div class="opts">{opts}</div>' + note.format("Note (optional)"))
-    if i["kind"] in ("asset", "style"):
+    if i["kind"] == "asset":
         figs = "".join(f'<figure><figcaption>{e(os.path.splitext(os.path.basename(v))[0])}</figcaption>'
                        f'<button class="im zoom" data-zoom="{rel(v)}" data-cap="{e(i["ref"])}" style="background-image:url({rel(v)})"></button></figure>'
                        for v in i["views"])
         said = " / ".join(x.get("said", "") for x in i["said"] if isinstance(x, dict))
-        buttons = ('<button class="opt" data-pick="keep">Keep this look</button><button class="opt no" data-pick="redraw">Redraw in today\'s style</button>'
-                   if i["kind"] == "style" else
-                   '<button class="opt" data-pick="approve">Approve</button><button class="opt no" data-pick="redo">Redo</button>')
+        buttons = '<button class="opt" data-pick="approve">Approve</button><button class="opt no" data-pick="redo">Redo</button>'
         return (head + f'<span class="lab">{"3D model" if i["tool"] == "asset" else "sprite"} · {e(i["state"])}{" · old style" if i["old"] else ""}</span>'
                 f'<h3>{e(i["title"])}</h3>' + (f'<div class="sub clamp">{e(i["what"])}</div>' if i["what"] else "")
                 + (f'<div class="was clamp">Turned down: {e(said)}</div>' if said else "") + f'<div class="figs">{figs}</div>'
@@ -1085,8 +1081,7 @@ def card(i):
 
 def review_html(name, items, stamp):
     cyc = next((i["cycle"] for i in items if i.get("cycle")), "")
-    groups = [("decision", f"Decisions · cycle {cyc}"), ("asset", "Assets to approve"), ("style", "Drawn in an old art style"),
-              ("check", f"Check by playing · cycle {cyc}")]
+    groups = [("decision", f"Decisions · cycle {cyc}"), ("asset", "Assets to approve"), ("check", f"Check by playing · cycle {cyc}")]
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
                     for kind, title in groups for its in [[i for i in items if i["kind"] == kind]] for n in [len(its)] if its)
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a></div>'
@@ -1124,7 +1119,7 @@ def review_data(i):
     if i["kind"] == "decision":
         out.update(cycle=i["cycle"], doc=i["doc"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
-    elif i["kind"] in ("asset", "style"):
+    elif i["kind"] == "asset":
         out.update(tool=i["tool"], state=i["state"], what=i["what"], old=i["old"], views=[rel(v) for v in i["views"]],
                    said=[x.get("said", "") for x in i["said"] if isinstance(x, dict)])
     else:
@@ -1223,8 +1218,11 @@ def setup(root):
         raise RuntimeError(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
     whole = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8"))
     CFG = dict(DEFAULTS, **whole.get(SECTION, {}))
-    if "gen" not in whole.get(SECTION, {}) and whole.get("asset", {}).get("work"):
-        CFG["gen"] = whole["asset"]["work"]  # follow the asset skill if it moved the asset records
+    work = whole.get("asset", {}).get("work") if isinstance(whole.get("asset"), dict) else None
+    if "gen" not in whole.get(SECTION, {}) and work:
+        CFG["gen"] = work  # follow the asset skill if it moved the asset records
+    # The board reading records from one folder and the asset scripts keeping them in another: the board shows what the scripts cannot find
+    CFG["gen_apart"] = "gen" in whole.get(SECTION, {}) and os.path.normpath(CFG["gen"]) != os.path.normpath(work or ASSET_WORK)
     return whole
 
 
@@ -1258,6 +1256,8 @@ def draw(quiet):
     keep_review(review)
     if not quiet:
         print(f"{os.path.relpath(out, ROOT)} — {line}")
+        if CFG.get("gen_apart"):
+            print(f"board.gen ({CFG['gen']}) is not where the asset scripts keep their records (asset.work) — set asset.work to the same folder")
 
 
 def load_name():
@@ -1537,7 +1537,7 @@ def answers(path):
         sys.exit(f"{path}: could not read — save the rows of the \"answers\" collection as JSON")
     seen_path = os.path.join(folder, "answered.json")
     seen = load_json(seen_path) or {}
-    groups, stale = {"decision": [], "asset": [], "style": [], "check": []}, 0
+    groups, stale = {"decision": [], "asset": [], "check": []}, 0
     for r in rows_in(data):
         i, mark = items.get(r["key"]), f'{r.get("pick", "")}|{r.get("note", "")}'
         if not i:
@@ -1558,14 +1558,6 @@ def answers(path):
     if groups["asset"]:
         out.append("Assets — the asset skill: approve, or reject with the user's words:")
         out += [f'  {i["ref"]} ({"3D model — asset.py" if i.get("tool") == "asset" else "sprite — sprite.py"}) → {pick or "?"}{note(n)}' for i, pick, n in groups["asset"]]
-    if groups["style"]:
-        out.append("Drawn in an old art style — the asset skill: keep → `keep <name>` (and `approve <name>` when it was waiting for approval);"
-                   " redraw → `image <name>`, then show the new images:")
-        for i, pick, n in groups["style"]:
-            tool = "asset.py" if i.get("tool") == "asset" else "sprite.py"
-            what = (f"keep — {tool} keep {i['ref']}" + (f" · approve {i['ref']}" if i.get("state") == "image only" else "") if pick == "keep"
-                    else f"redraw — {tool} image {i['ref']}" if pick == "redraw" else pick or "?")
-            out.append(f'  {i["ref"]} ({i.get("state", "")}) → {what}{note(n)}')
     if groups["check"]:
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
         out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem' + (" (hand the problems to the playtest skill as one list):" if bad else ""))

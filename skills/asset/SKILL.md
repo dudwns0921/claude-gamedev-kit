@@ -147,8 +147,8 @@ muted earthy palette with one saturated accent color, no fine surface detail, ma
 Decide the art style paragraph with the user. Draft it from the colors and tone in `docs/DESIGN.md` and the art direction in the GDD, then generate two or three test assets with `image` and revise while looking at them together.
 When an image they like comes out, put its path in `asset.refs` in `kit.config.json` — from then on every first image is drawn with it as reference.
 **Changing the art style makes it clash with assets already made.** Say so before changing it.
-After a change, every asset drawn before it waits on the user in the board's review ("Drawn in an old art style"): **Keep this look** → `keep <name>` (the same for `sprite.py`),
-also `approve` when it was waiting for approval; **Redraw in today's style** → `image <name>`, then show the new images as usual. Only on the user's answer — do not settle them yourself.
+After a change, the board's asset sheet marks what was drawn before it as **old style** — for the user to judge by eye; nothing is asked.
+When they say one is fine as it is, `keep <name>` (the same for `sprite.py`) clears the mark; when they want it redrawn, `image <name>` and show the new images as usual.
 
 ## Config
 

@@ -889,19 +889,15 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         run(BOARD, root, "--if-stale")
         sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
         self.assertIn("drawn in an old style 4", sheet, "a photo used as is has nothing to do with the art style")
-        # An old-style asset waits on the user whatever its state — keep this look, or redraw it. Keeping marks it as drawn in today's style
+        # An old style is for the eye on the sheet — not a question on the review. `keep` clears the mark when the user says it is fine
         board = lambda: json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
-        styled = [i for i in board()["board"]["review"] if i["kind"] == "style"]
-        self.assertEqual(len(styled), 4)
         self.assertEqual(board()["counts"]["old_style"], 4)
-        review = open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read()
-        self.assertIn("Drawn in an old art style", review)
-        self.assertIn('data-pick="keep">Keep this look</button>', review)
+        self.assertNotIn("old", "".join(i["key"] for i in board()["board"]["review"] if i["kind"] == "asset" and i["state"] != "image only"))
+        self.assertEqual({i["kind"] for i in board()["board"]["review"]} - {"asset", "decision", "check"}, set(), "no other kind of card")
         self.assertIn("kept under the current art style", asset("keep", "urn"))
         self.assertEqual(rec("urn")["image"]["style"], __import__("hashlib").sha1(b"Chunky low-poly, bright palette.").hexdigest()[:8])
         run(BOARD, root, "--if-stale")
         self.assertEqual(board()["counts"]["old_style"], 3)
-        self.assertNotIn("urn", [i["ref"] for i in board()["board"]["review"] if i["kind"] == "style"])
         crate = next(m for m in board()["board"]["assets"]["models"] if m["name"] == "crate")
         self.assertEqual((crate["state"], crate["old"], crate["img"]), ("in the game", True, "../../assets/_gen/crate/front.png"),
                          "the board as data — paths as seen from the board's folder")
@@ -925,6 +921,11 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         os.rename(os.path.join(root, "art_tmp"), os.path.join(root, "art/_gen"))
         run(BOARD, root)
         self.assertIn("<span>lamp</span>", open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read(), "move the asset records and the board follows")
+        cfg["board"] = {"gen": "art/_gen"}
+        cfg["asset"].pop("work")
+        json.dump(cfg, open(cfg_path, "w"))
+        self.assertIn("board.gen (art/_gen) is not where the asset scripts keep their records", run(BOARD, root).stdout,
+                      "the board reading one folder and the asset scripts another — said, so it is fixed in the config")
         self.assertNotIn("old style", sheet.split("<span>jar</span>")[1].split("</div></div>")[0])
 
     def test_start(self):
