@@ -16,7 +16,8 @@
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
-  python3 cycle.py later "<in the user's own words>"   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made
+  python3 cycle.py later "<in the user's own words>" [--key <review key>]   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made.
+                                                With --key (an answer from the dashboard that is work for later), the line names the card — the board shows it waiting, not in hand
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
@@ -374,12 +375,14 @@ def cmd_drop(path, names, why):
     print(f"not needed: {' · '.join(names.split(','))}")
 
 
-def cmd_later(path, said):
+def cmd_later(path, said, key=""):
     text = read(path)
     span = section(text, "Play") or sys.exit("the document has no `## Play` section")
+    if key and not re.fullmatch(r"[\w.-]+", key):
+        sys.exit(f"{key}: a review key, as `board.py answers` lists them")
     body = text[span[0]:span[1]].rstrip("\n")
-    write(path, text[:span[0]] + body + f"\n- Next: {' '.join(said.split())}\n\n" + text[span[1]:])
-    print("deferred")
+    write(path, text[:span[0]] + body + f"\n- Next: {' '.join(said.split())}" + (f" (board: {key})" if key else "") + "\n\n" + text[span[1]:])
+    print("deferred" + (f" — the card {key} shows it waiting for a later cycle" if key else ""))
 
 
 def cmd_carry(path, said):
@@ -445,7 +448,7 @@ def cmd_new(name, goal):
 def main():
     args = sys.argv[1:]
     opts, images = {}, []
-    for flag in ("--root", "--doc"):
+    for flag in ("--root", "--doc", "--key"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
@@ -490,7 +493,7 @@ def main():
     elif cmd == "drop":
         cmd_drop(path, *rest)
     elif cmd == "later":
-        cmd_later(path, rest[0])
+        cmd_later(path, rest[0], opts.get("--key", ""))
     elif cmd == "carry":
         cmd_carry(path, rest[0])
     else:

@@ -1122,7 +1122,10 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(os.listdir(box), ["5.taken"])
         self.assertIn("1 answer(s) from the board", watch("--notice").stdout, "a batch taken and never read is not lost")
         self.assertIn("D3 → ②", run(BOARD, root, "answers", "--inbox").stdout)
-        self.assertEqual(watch("--notice").stdout, "", "read — not told again")
+        self.assertIn("taken but never settled (c02-D3)", watch("--notice").stdout, "read, but not yet recorded — the batch is not told again, the answer is")
+        run(CYCLE, root, "decide", "D3", "②")
+        run(BOARD, root)
+        self.assertEqual(watch("--notice").stdout, "", "read and recorded — nothing to tell")
         # a watcher whose session has ended stops instead of taking batches for no one
         for mode, shell in (("", False), ("--rewake", False), ("", True), ("--rewake", True)):
             for left in (".watching", ".rewake"):  # what the watchers before left — a fresh beat would make the hook stand aside at once
@@ -1149,6 +1152,38 @@ if sys.argv[1:3] == ["run", "start"]:
 
         json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertEqual(watch(timeout=10).returncode, 0, "a game without a dashboard: the monitor ends at once")
+
+    def test_answer_later(self):
+        """An answer from the dashboard is settled in the turn it arrives. One that is work for a later cycle is put off by its card's key:
+        the card reads waiting, not in hand; one left in none of the three ways is told to the next session."""
+        root = tempfile.mkdtemp(prefix="kit-later-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN + "\n## Open questions\n\n- How rich is rich enough to end the game?\n")
+        json.dump({"board": {"service": {"game": "g"}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "day", "One day")
+        run(BOARD, root)
+        q = next(i for i in json.load(open(os.path.join(root, "docs/board/review.json"))) if i["kind"] == "question")
+        box = os.path.join(root, "docs/board/inbox")
+        os.makedirs(box)
+        json.dump([{"key": q["key"], "pick": "", "note": "find what people count as success, in money"}], open(os.path.join(box, "1.json"), "w"))
+        out = run(BOARD, root, "answers", "--inbox").stdout
+        self.assertIn("Settle every answer now, one of three ways", out)
+        self.assertIn(f'cycle.py later "<the user\'s words>" --key <key>', out)
+        self.assertIn("research it now, then ask again", out)
+        self.assertTrue(os.path.exists(os.path.join(box, "1.relayed")))
+        notice = lambda: subprocess.run([sys.executable, BOARD, "--root", root, "watch", "--notice"], capture_output=True, text=True).stdout
+        self.assertIn(f"1 answer(s) from the dashboard were taken but never settled ({q['key']})", notice(), "taken, then left — the next session is told")
+
+        self.assertIn(f"the card {q['key']} shows it waiting", run(CYCLE, root, "later", "find what people count as success", "--key", q["key"]).stdout)
+        self.assertIn(f"- Next: find what people count as success (board: {q['key']})", open(os.path.join(root, "docs/cycle/01-day.md"), encoding="utf-8").read())
+        self.assertIn("a b: a review key", run(CYCLE, root, "later", "x", "--key", "a b", ok=False).stderr)
+        run(BOARD, root)
+        item = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["key"] == q["key"])
+        self.assertEqual(item["later"], "find what people count as success", "the dashboard shows it waiting for a later cycle")
+        self.assertIn("waiting — a later cycle: find what people count as success", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
+        self.assertNotIn("never settled", notice(), "put off is settled")
+        self.assertIn("find what people count as success", run(CYCLE, root, "new", "next", "The next day").stdout, "the next cycle's start lists it")
 
     def test_cycle_uncommitted(self):
         """`new` and `carry` say when there is uncommitted work — not because of the lines they write themselves."""

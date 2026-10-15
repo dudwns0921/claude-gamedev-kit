@@ -124,6 +124,14 @@ def cycle_docs():
     return sorted(os.path.join(d, n) for n in os.listdir(d) if re.match(r"\d+-.*\.md$", n)) if os.path.isdir(d) else []
 
 
+LATER_KEY = re.compile(r"^- (?:Next|다음에): *(.+?) \(board: ([\w.-]+)\)\s*$", re.M)
+
+
+def parked():
+    """Answers from the dashboard that are work for later — `cycle.py later … --key` names the card: {key: what was put off}."""
+    return {key: said for p in cycle_docs() for said, key in LATER_KEY.findall(read(p))}
+
+
 # ── Reading ───────────────────────────────────────────────────────────
 
 def gdd():
@@ -966,6 +974,10 @@ def review_items(cycles, sheet, asks=()):
     if c and re.match(STAGE_PLAY, c["stage"]):
         for line in check_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
             items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "title": line})
+    later = parked()
+    for i in items:  # put off to a later cycle — the card says so instead of reading as in hand
+        if i["key"] in later:
+            i["later"] = later[i["key"]]
     return items
 
 
@@ -997,7 +1009,8 @@ def card(i):
     """One question, kept short — it is read on a phone."""
     label = {"decision": lambda: f'{i["ref"]}' + ("" if i["latest"] else f' (cycle {i["cycle"]})'), "asset": lambda: f'asset {i["ref"]}',
              "question": lambda: f'GDD “{i["ref"][:40]}”', "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
-    head = f'<div class="card" data-key="{e(i["key"])}" data-label="{e(label)}">'
+    head = (f'<div class="card" data-key="{e(i["key"])}" data-label="{e(label)}">'
+            + (f'<span class="lab">waiting — a later cycle: {e(i["later"])}</span>' if i.get("later") else ""))
     note = '<textarea class="note" rows="1" placeholder="{}"></textarea><div class="state"></div></div>'
     if i["kind"] == "decision":
         chose = next((ch for ch in i["proxy"] if ch in MARKS), "")
@@ -1058,6 +1071,8 @@ def picture_data(img):
 
 def review_data(i):
     out = {k: i[k] for k in ("key", "kind", "ref", "title")}
+    if i.get("later"):
+        out["later"] = i["later"]
     if i["kind"] == "decision":
         out.update(cycle=i["cycle"], doc=i["doc"], latest=i["latest"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
@@ -1503,14 +1518,15 @@ def board_folder():
 def tidy_inbox(asked):
     """A relayed batch leaves once the board the dashboard holds no longer asks any of its questions (the session recorded them) — or after a day.
     Run by `push` after the dashboard took the board: dropped at a redraw alone, a card would read open again until the board reached it."""
-    box = os.path.join(board_folder(), "inbox")
+    box, later = os.path.join(board_folder(), "inbox"), parked()
     for name in os.listdir(box) if os.path.isdir(box) else []:
         p = os.path.join(box, name)
         if not name.endswith(".relayed"):
             continue
         rows = rows_in(load_json(p) or [])
-        # a row stays while the board asks its question in the words it was answered in — asked anew (`cycle.py reask`), the card is open again
-        keep = [r for r in rows if r.get("key") in asked and r.get("asked", asked[r["key"]]) == asked[r["key"]]]
+        # a row stays while the board asks its question in the words it was answered in — asked anew (`cycle.py reask`), the card is open again;
+        # put off to a later cycle (`cycle.py later … --key`), it is settled too
+        keep = [r for r in rows if r.get("key") in asked and r.get("asked", asked[r["key"]]) == asked[r["key"]] and r.get("key") not in later]
         if not keep or time.time() - os.path.getmtime(p) > 86400:
             os.remove(p)
         elif len(keep) != len(rows):
@@ -1553,6 +1569,18 @@ def running(pid):
         return False
     except OSError:
         return True  # there, but not ours to signal
+
+
+def unsettled():
+    """Keys of answers relayed to a session that the board still asks in the same words and that were not put off — taken, then left."""
+    folder = board_folder()
+    asked = {i["key"]: i.get("asked", "") for i in load_json(os.path.join(folder, "review.json")) or [] if isinstance(i, dict) and "key" in i}
+    box, later, out = os.path.join(folder, "inbox"), parked(), []
+    for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
+        if name.endswith(".relayed"):
+            out += [r["key"] for r in rows_in(load_json(os.path.join(box, name)) or [])
+                    if r.get("key") in asked and r.get("asked", asked[r["key"]]) == asked[r["key"]] and r["key"] not in later]
+    return list(dict.fromkeys(out))
 
 
 def told(n):
@@ -1605,6 +1633,11 @@ def watch(mode):
         n = claim(stranded=True)
         if n:
             print(told(n))
+        loose = unsettled()
+        if loose:
+            print(f"{len(loose)} answer(s) from the dashboard were taken but never settled ({' · '.join(loose)}) — their cards read \"the session is on it\". "
+                  f"Settle each: done, researched and asked again, or `cycle.py later \"…\" --key <key>`; unclear → "
+                  f"python3 \"{os.path.abspath(__file__)}\" reopen <key>.")
         return
     parent, session = os.getppid(), session_pid()
     gone = lambda: os.getppid() != parent or not running(session)  # the session that started this watcher has ended — it would take batches for no one
@@ -1726,7 +1759,12 @@ def answers(path):
             json.dump(rows, open(p, "w", encoding="utf-8"), ensure_ascii=False)
         os.replace(p, os.path.splitext(p)[0] + ".relayed")
     if any(groups.values()):
-        out.append(f'Leaving one open (unclear, mistyped, not to act on now)? python3 "{os.path.abspath(__file__)}" reopen <key> — its card can be answered again')
+        out.append("Settle every answer now, one of three ways — an answer left as it is reads \"the session is on it\" on the dashboard:")
+        out.append("  done — recorded as above")
+        out.append("  it asks for research (\"look into it\", \"match reality\") — research it now, then ask again with what you found as the options and a recommendation"
+                   " (`cycle.py reask` for a decision; for a GDD question `cycle.py ask` a decision and strike the question → \"asked as Dn\")")
+        out.append("  work for later, not this cycle — cycle.py later \"<the user's words>\" --key <key> (the card shows it waiting; the next cycle's start lists it)")
+        out.append(f'  unclear or mistyped — python3 "{os.path.abspath(__file__)}" reopen <key> and say so (its card can be answered again)')
         out.append("  keys: " + " · ".join(f'{i["ref"][:30]} = {i["key"]}' for g in groups.values() for i, _p, _n in g))
     print("\n".join(out) if any(groups.values()) else "No new answers." + (f" ({out[-1]})" if stale else ""))
 

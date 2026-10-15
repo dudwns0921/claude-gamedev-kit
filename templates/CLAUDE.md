@@ -40,6 +40,8 @@ Claude does not decide scope · taste · numbers · whether to ship. Offer optio
 **Every question for the user is a decision**, whatever stage or skill it comes up in (build, play, a playtest fix, an asset, a logo): write it with `cycle.py ask <stage> "…"` in the newest cycle document before asking —
 the board's review and the dashboard show only what is written there, and a question asked only in the chat is lost when the session changes. **Anything to look at while deciding goes with it**: a capture of now, the candidates, a measurement, a reference — `--image "<label>=<path>"` on the `ask`
 (or a sheet, for options compared side by side — the cycle skill's "chosen by eye"). Not a separate page, not only a path in the chat.
+**An answer from the dashboard is settled in the turn it arrives**, one of three ways: done (recorded); research it asks for ("look into it", "match reality") — research now and ask again with what was found as options and a recommendation;
+work for a later cycle — `cycle.py later "<their words>" --key <key>`, so its card reads waiting and the next cycle's start lists it. Left as it is, its card reads "the session is on it" with no one on it.
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
 ## Keep sessions short
