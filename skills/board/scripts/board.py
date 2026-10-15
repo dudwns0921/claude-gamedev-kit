@@ -174,7 +174,15 @@ PROXY_LINE = re.compile(r"^(.*) → (.*? · (?:proxy|대리) .*?)$")  # the arro
 def decision(mark, num, rest):
     """Splits `question — ① … ② … · recommended: ① (Spec) → the user's answer (date)`."""
     proxy = PROXY_LINE.match(rest.strip()) if mark == "~" else None
-    ask, _, answer = (proxy.group(1), "", proxy.group(2)) if proxy else rest.strip().partition(" → ")
+    if proxy:
+        ask, answer = proxy.group(1), proxy.group(2)
+    elif mark == " ":  # still open: no answer yet — an arrow in it belongs to the question or its options
+        ask, answer = rest.strip(), ""
+    else:  # the answer follows the stage that closes the question (`… · recommended: ① (Play) → the answer`) — options may hold arrows too
+        rec = re.search(RECOMMENDED, rest)
+        at = re.compile(r"\([^()]{1,12}\) → ").search(rest, rec.end() if rec else 0) or re.search(r" → ", rest)
+        ask, answer = (rest[:at.end() - 3], rest[at.end():]) if at else (rest, "")
+        ask, answer = ask.strip(), answer.strip()
     date = re.search(r"\s*\((\d{4}-\d\d-\d\d)\)\s*$", answer)
     ask = re.sub(r"^\s*(?:D\d+\.\s*)+", "", ask)  # a line written by hand with its number twice ("D43. D43. …")
     who = re.search(r"\s*\(([^()]{1,8})\)\s*$", ask)
@@ -182,8 +190,15 @@ def decision(mark, num, rest):
     while who and re.search(r"\s*\(([^()]{1,8})\)\s*$", ask):  # … and its stage twice ("(Spec) (Spec)")
         ask = re.sub(r"\s*\(([^()]{1,8})\)\s*$", "", ask)
     ask, pick = (re.split(RECOMMENDED, ask, 1) + [""])[:2]
-    cut = re.search(r" — (?=①)", ask) or re.search(r" — ", ask)  # the dash before the options, not one inside the title
-    title, options = (ask[:cut.start()], ask[cut.end():]) if cut else (ask, "")
+    cut = re.search(r" — (?=①)", ask)  # the dash before the options, not one inside the title
+    first = option_marks(ask)  # … or, with no dash before them, where the options start
+    if cut:
+        title, options = ask[:cut.start()], ask[cut.end():]
+    elif len(first) > 1:
+        title, options = ask[:first[0][1]], ask[first[0][1]:]
+    else:
+        cut = re.search(r" — ", ask)
+        title, options = (ask[:cut.start()], ask[cut.end():]) if cut else (ask, "")
     pick = re.sub(r"\s*\([^()]*\)\s*$", "", pick)
     # [-] is a decision the user withdrew — nothing to answer, like an answered one
     return {"num": num, "done": mark in "x-", "proxy": mark == "~", "title": title.strip(), "options": options.strip(), "pick": pick.strip(),
@@ -929,6 +944,12 @@ def sheet_questions():
 def split_options(text):
     """`① Keep it — free ② Raise it — two clips` → [(①, Keep it — free), (②, Raise it — two clips)].
     A mark inside an option is part of its text — in brackets, right after a decision's number (`as D31 ② has it`), or out of order."""
+    out = option_marks(text)
+    return [(mark, text[start + 1:out[n + 1][1] if n + 1 < len(out) else len(text)].strip(" ·;,")) for n, (mark, start) in enumerate(out)]
+
+
+def option_marks(text):
+    """[(mark, where it stands)] — the marks that start an option (see split_options)."""
     out, want = [], None
     for m in re.finditer(rf"[{MARKS}]", text):
         mark, before = m.group(0), text[:m.start()]
@@ -936,9 +957,9 @@ def split_options(text):
         if inside or re.search(r"D\d+\s*(?:의\s*)?$", before):
             continue
         if want is None or mark == want:
-            out.append([mark, m.end()])
+            out.append((mark, m.start()))
             want = MARKS[MARKS.index(mark) + 1] if MARKS.index(mark) + 1 < len(MARKS) else ""
-    return [(mark, text[start:out[n + 1][1] - 1 if n + 1 < len(out) else len(text)].strip(" ·;,")) for n, (mark, start) in enumerate(out)]
+    return out
 
 
 def check_lines(path):

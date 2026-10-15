@@ -1211,6 +1211,29 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertNotIn("never settled", notice(), "put off is settled")
         self.assertIn("find what people count as success", run(CYCLE, root, "new", "next", "The next day").stdout, "the next cycle's start lists it")
 
+    def test_decision_line(self):
+        """A decision written loosely still reaches the review whole: options with arrows in them and no dash before them,
+        a bracket inside an option — the stage is the last bracket, and an open decision has no answer to cut off."""
+        root = tempfile.mkdtemp(prefix="kit-line-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "day", "One day")
+        doc = os.path.join(root, "docs/cycle/01-day.md")
+        text = open(doc, encoding="utf-8").read()
+        line = ("- [ ] D1. The 30 seconds to leave — which is it? ① always leaves at once (nothing to choose) → WINDOW 30 → 20 "
+                "② never makes it (tight) → 30 → 40 ③ something else (in the note) — to the playtest · recommended: what the note says (Play)\n")
+        done = ("- [x] D2. Arrows — ① stay (a while) → 5 s ② vanish · recommended: ① (Spec) → both, then decide (2026-01-01)\n")
+        open(doc, "w", encoding="utf-8").write(text.replace("## Decisions\n", "## Decisions\n\n" + line + done, 1))
+        run(BOARD, root)
+        d1 = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["key"] == "c01-D1")
+        self.assertEqual(d1["title"], "The 30 seconds to leave — which is it?")
+        self.assertEqual([o["mark"] for o in d1["options"]], ["①", "②", "③"], "each option is a button")
+        self.assertEqual(d1["options"][0]["text"], "always leaves at once (nothing to choose) → WINDOW 30 → 20")
+        self.assertEqual(d1["who"], "Play")
+        self.assertNotIn("c01-D2", [i["key"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]], "answered — off the review")
+
     def test_cycle_uncommitted(self):
         """`new` and `carry` say when there is uncommitted work — not because of the lines they write themselves."""
         root = tempfile.mkdtemp(prefix="kit-git-")
