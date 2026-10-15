@@ -13,7 +13,8 @@ You need:
 - [Python](https://www.python.org/downloads/) 3.9 or later
 - [Node.js](https://nodejs.org) — for the dashboard
 - The editor of the engine you make the game with (see below) — a plain web game needs none
-- Optional: API keys of the services that make models, sprites, sounds and clips — without them a cycle runs on placeholders, and any file you put in its place counts
+- Optional, to have assets made: API keys in `~/.config/gamedev-kit/asset.env` — OpenAI and Meshy (3D models), Ludo (sprites), ElevenLabs (sounds), Higgsfield (clips). The kit walks you through it the first time.
+  Without them a cycle runs on placeholders, and any file you put in its place counts.
 
 In your game's folder (an empty one is fine):
 
