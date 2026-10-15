@@ -70,15 +70,6 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 
 What tripped you becomes one of your rules, loaded into every game you make next. Once you say so, rules go to this repository as issues, and the ones that hold for anyone become the kit's rules for everybody.
 
-## Updating
-
-```bash
-claude plugin marketplace update claude-gamedev-kit
-claude plugin update gamedev-kit@claude-gamedev-kit --scope project
-```
-
-Run both in the game's folder, then restart the game's Claude session.
-
 ## License
 
 MIT
