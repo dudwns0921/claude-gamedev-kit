@@ -347,11 +347,13 @@ def cmd_carry(path, said):
         text = text.rstrip("\n") + f"\n\n## {CARRY}\n"
         span = section(text, CARRY)
     git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    rel = os.path.relpath(path, ROOT)
+    dirty = [l for l in git("status", "--porcelain").split("\n") if l.strip() and not l[3:].strip().strip('"').endswith(rel)]  # the line it is about to add is not "uncommitted work"
     body, rest = text[span[0]:span[1]].rstrip("\n"), text[span[1]:]
     stamp = f"{datetime.date.today()} · commit {git('rev-parse', '--short', 'HEAD') or 'none'}"
     write(path, text[:span[0]] + body + f"\n- [ ] {' '.join(said.split())} ({stamp})\n" + ("\n" + rest if rest else ""))
     print("carried over")
-    if git("status", "--porcelain"):
+    if dirty:
         print("there are uncommitted changes")
 
 
@@ -379,16 +381,17 @@ def cmd_new(name, goal):
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", name):
         sys.exit(f"the name is lowercase letters · digits · hyphens: {name!r}")
     before = docs()
+    git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    dirty = git("status", "--porcelain")  # before this writes anything — its own new document is not "uncommitted work"
     num = max([int(os.path.basename(p).split("-")[0]) for p in docs()] or [0]) + 1
     path = os.path.join(ROOT, DIR, f"{num:02d}-{name}.md")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    git = lambda *a: subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     write(path, TEMPLATE.format(num=f"{num:02d}", name=name, date=datetime.date.today(),
                                 commit=git("rev-parse", "--short", "HEAD") or "none", goal=goal.strip()))
     print(os.path.relpath(path, ROOT))
     if before:
         close(before[-1])
-    if git("status", "--porcelain"):
+    if dirty:
         print("there are uncommitted changes")
 
 

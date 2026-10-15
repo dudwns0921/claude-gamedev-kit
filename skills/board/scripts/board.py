@@ -419,7 +419,7 @@ def open_questions(st, cycles):
         for b in re.findall(r"^- (.+)$", text[m.end():m.end() + nxt.start() if nxt else len(text)], re.M):
             if b.startswith("~~"):
                 continue
-            t = re.match(r"\*\*(.+?)\*\*:?\s*(.*)", b) or re.match(r"(.+?)(?: — |: | \(|\. )(.*)", b)  # without a bold title, the first phrase
+            t = re.match(r"\*\*(.+?)\*\*(?:\s*[:—–-])?\s*(.*)", b) or re.match(r"(.+?)(?: — |: | \(|\. )(.*)", b)  # without a bold title, the first phrase
             out.append({"title": (t.group(1) if t else b).replace("**", ""), "text": (t.group(2) if t else "").replace("**", ""), "from": "GDD"})
     for c in cycles:
         out += [{"title": f'{d["num"]} {d["title"]}', "text": "decided for you — waiting for your confirmation" if d["proxy"] else "waiting for your answer", "from": f'Cycle {c["num"]}',
@@ -1282,7 +1282,6 @@ def draw(quiet):
     with open(os.path.join(folder, "board.json"), "w", encoding="utf-8") as f:  # the board as data — what a page elsewhere draws from
         json.dump(summary, f, ensure_ascii=False, indent=1)
     keep_review(review)
-    tidy_inbox({i["key"] for i in review})
     if not quiet:
         print(f"{os.path.relpath(out, ROOT)} — {line}")
         if CFG.get("gen_apart"):
@@ -1387,7 +1386,7 @@ def push(changed_only):
     if changed_only and (not os.path.exists(out) or os.path.exists(stamp_path) and os.path.getmtime(stamp_path) >= os.path.getmtime(out)):
         return  # nothing drawn since the last push (or no board drawn here at all — `serve` draws it)
     SHARED = {}
-    _pages, _review, summary, line = build(folder, "index.html")  # drawing the board names every picture and sound it points to
+    _pages, review, summary, line = build(folder, "index.html")  # drawing the board names every picture and sound it points to
     base = f"{url}/api/ingest/{game}"
     missing = json.loads(call(base, "/check", token, json.dumps({"files": sorted(SHARED)}).encode(), "application/json", "POST")).get("missing", [])
     for pub in missing:
@@ -1398,6 +1397,7 @@ def push(changed_only):
         # A dashboard on this machine puts the user's answers in this game's inbox — the only thing it writes here. Paths never leave the machine
         summary["local"] = {"root": ROOT, "board": board_folder()}
     call(base, "/summary", token, json.dumps(summary, ensure_ascii=False).encode("utf-8"), "application/json")
+    tidy_inbox({i["key"] for i in review})  # only now: the dashboard has a board that no longer asks them — before, the card would open again
     os.makedirs(folder, exist_ok=True)
     open(stamp_path, "w").write(summary["drawn"])
     if not changed_only:  # the hook says nothing
@@ -1544,7 +1544,8 @@ def serve(whole, mode):
 # ── From the dashboard to the session ─────────────────────────────────
 #
 # The dashboard writes each batch of answers as one file in <board>/inbox/. Whoever renames it to .taken first relays it — so the
-# monitor and the hook never both wake the session for the same batch. `answers --inbox` reads the taken batches and removes them.
+# monitor and the hook never both wake the session for the same batch. `answers --inbox` reads the taken batches and keeps them as .relayed,
+# and `push` removes those once the board it sent no longer asks them.
 
 INBOX_POLL = float(os.environ.get("KIT_INBOX_POLL", "2"))
 
@@ -1554,7 +1555,8 @@ def board_folder():
 
 
 def tidy_inbox(asked):
-    """A relayed batch leaves once the board no longer asks any of its questions (the session recorded them) — or after a day."""
+    """A relayed batch leaves once the board the dashboard holds no longer asks any of its questions (the session recorded them) — or after a day.
+    Run by `push` after the dashboard took the board: dropped at a redraw alone, a card would read open again until the board reached it."""
     box = os.path.join(board_folder(), "inbox")
     for name in os.listdir(box) if os.path.isdir(box) else []:
         p = os.path.join(box, name)

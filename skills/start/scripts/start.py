@@ -127,7 +127,7 @@ def cmd_status():
              ("sections that may stay empty", name(k for k in MAY if state[k] is False)),
              ("sections not checked for lack of the template's title", name(gone))]
     lines = [f"  [{mark('gdd')}] GDD ({rel}) — " + " · ".join(f"{label}: {' · '.join(names)}" for label, names in words if names),
-             f"  [{mark('concept')}] concept — " + (" · ".join(lack) if lack else f"the art direction is written and there are {len(pictures)} picture{plural(len(pictures))}"),
+             f"  [{mark('concept')}] concept — " + (" · ".join(lack) if lack else f"the art direction is written, with {len(pictures)} picture{plural(len(pictures))}"),
              f"  [{'done' if cycles else 'to do'}] first goal — " + (f"{len(cycles)} cycle document{plural(len(cycles))}" if cycles else "no cycle document yet")]
     print("\n".join(lines))
     if skip:

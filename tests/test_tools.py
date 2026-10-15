@@ -1820,7 +1820,37 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, root, "decide", "D1", "②")
         run(CYCLE, root, "drop", "D1", "no restarts now", "--doc", "docs/cycle/01-bow.md")
         run(BOARD, root)
-        self.assertEqual(os.listdir(box), [], "recorded — the board no longer asks them, and the batch leaves")
+        self.assertEqual(os.listdir(box), ["1.relayed"], "recorded and redrawn, but the dashboard still holds the board that asks them — still the session's, not open again")
+
+        class Service(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"missing": []}')
+
+            def do_PUT(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(500 if down else 204)
+                self.end_headers()
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Service)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        keys = os.path.join(root, "board.env")
+        open(keys, "w").write(f"GAMEDEV_BOARD_URL=http://127.0.0.1:{server.server_port}\nGAMEDEV_BOARD_TOKEN=t0k\n")
+        cfg = json.load(open(os.path.join(root, "kit.config.json")))
+        cfg["board"]["service_file"] = keys
+        json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+        down = True
+        run(BOARD, root, "push", "--if-changed")
+        self.assertEqual(os.listdir(box), ["1.relayed"], "the board did not reach the dashboard — the batch stays")
+        down = False
+        run(BOARD, root, "push", "--if-changed")
+        self.assertEqual(os.listdir(box), [], "the dashboard has a board that no longer asks them — the batch leaves")
         run(CYCLE, root, "ask", "Spec", "Colour — ① red ② blue")  # D2 of cycle 02, for what follows
         run(BOARD, root)
 
@@ -1890,6 +1920,28 @@ if sys.argv[1:3] == ["run", "start"]:
 
         json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertEqual(watch(timeout=10).returncode, 0, "a game without a dashboard: the monitor ends at once")
+
+    def test_cycle_uncommitted(self):
+        """`new` and `carry` say when there is uncommitted work — not because of the lines they write themselves."""
+        root = tempfile.mkdtemp(prefix="kit-git-")
+        self.addCleanup(shutil.rmtree, root, True)
+        git = lambda *a: subprocess.run(["git", "-C", root, *a], capture_output=True, text=True, check=True)
+        git("init", "-q")
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        git("add", "-A")
+        git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-qm", "start")
+        self.assertNotIn("uncommitted", run(CYCLE, root, "new", "one", "A goal").stdout, "its own new document is not uncommitted work")
+        git("add", "-A")
+        git("-c", "user.email=a@b", "-c", "user.name=a", "commit", "-qm", "doc")
+        self.assertNotIn("uncommitted", run(CYCLE, root, "carry", "a line").stdout)
+        open(os.path.join(root, "game.js"), "w").write("x")
+        self.assertIn("there are uncommitted changes", run(CYCLE, root, "carry", "another").stdout)
+        self.assertIn("there are uncommitted changes", run(CYCLE, root, "new", "two", "Next").stdout)
+        # a GDD question written **Title** — text: the text does not start with the dash
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN + "\n## 8. Open questions\n\n- **Ending** — one screen, or a cutscene?\n")
+        run(BOARD, root)
+        q = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "question")
+        self.assertEqual((q["title"], q["text"]), ("Ending", "one screen, or a cutscene?"))
 
     def test_decision_pictures(self):
         """A decision is asked with the pictures to look at — from any stage, in any cycle — and the review shows them with that cycle's decision only."""
