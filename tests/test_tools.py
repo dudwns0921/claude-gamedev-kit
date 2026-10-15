@@ -8,7 +8,6 @@ video against a fake Higgsfield server · a fake ffmpeg — nothing goes outside
 No engine is needed. It only checks that the tools read and edit a value file written in the engine's syntax.
 The documents the tools write are English; fixtures in Korean are documents from before that change, which must keep working.
 """
-import base64
 import http.server
 import json
 import os
@@ -27,39 +26,18 @@ import zipfile
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORT = os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py")
 TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
-ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
-SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
-SPRITE = os.path.join(KIT, "skills/asset/scripts/sprite.py")
-CLIP = os.path.join(KIT, "skills/video/scripts/clip.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 SHEET = os.path.join(KIT, "skills/cycle/scripts/sheet.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 INIT = os.path.join(KIT, "skills/init/scripts/init.py")
 START = os.path.join(KIT, "skills/start/scripts/start.py")
-CONCEPT = os.path.join(KIT, "skills/start/scripts/concept.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
 SEND = os.path.join(KIT, "skills/feedback/scripts/feedback.py")
 PRIVATE = os.path.join(KIT, "tools/private_check.py")
 HARVEST = os.path.join(KIT, "tools/harvest.py")
 
-
-def raw_glb():
-    """A mesh such as Meshy would give: two triangles, height 4, origin and size both off (x 0~2 · y 1~5 · z 0~1, a translation and a scale on the node)."""
-    b = b"".join(struct.pack("<3f", *p) for p in [(0, 1, 0), (2, 1, 0), (0, 5, 1), (2, 5, 1)]) + struct.pack("<6H", 0, 1, 2, 1, 3, 2)
-    g = {"asset": {"version": "2.0"}, "scene": 0, "scenes": [{"nodes": [0]}],
-         "nodes": [{"mesh": 0, "translation": [10, 0, 0], "scale": [3, 3, 3]}],
-         "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1}]}],
-         "buffers": [{"byteLength": len(b)}],
-         "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 48, "target": 34962},
-                         {"buffer": 0, "byteOffset": 48, "byteLength": 12, "target": 34963}],
-         "accessors": [{"bufferView": 0, "componentType": 5126, "count": 4, "type": "VEC3", "min": [0, 1, 0], "max": [2, 5, 1]},
-                       {"bufferView": 1, "componentType": 5123, "count": 6, "type": "SCALAR"}]}
-    j = json.dumps(g).encode()
-    j += b" " * (-len(j) % 4)
-    return (struct.pack("<4sII", b"glTF", 2, 28 + len(j) + len(b)) + struct.pack("<I4s", len(j), b"JSON") + j
-            + struct.pack("<I4s", len(b), b"BIN\0") + b)
 
 GDD = """# 게임
 
@@ -323,10 +301,10 @@ class Tools(unittest.TestCase):
                 self.addCleanup(shutil.rmtree, root, True)
                 out = run(init, root, engine).stdout
                 self.assertIn("new      kit.config.json", out)
-                for name in ("rules.md", f"rules-{engine}.md"):  # the rules home gets the files the block imports
+                for name in ("rules.md", f"rules-{engine}.md", "ways.md"):  # the rules home gets the files the block imports
                     self.assertTrue(os.path.exists(os.path.join(home, name)), name)
                 self.assertIn("new      " + os.path.join(home, f"rules-{engine}.md"), out)
-                for name in ("rules.md", f"rules-{engine}.md"):  # the feedback skill owns these files — the ones init makes are the ones it would make
+                for name in ("rules.md", f"rules-{engine}.md", "ways.md"):  # the feedback skill owns these files — the ones init makes are the ones it would make
                     by_init = open(os.path.join(home, name), encoding="utf-8").read()
                     os.remove(os.path.join(home, name))
                     run(SEND, root, "list")
@@ -352,7 +330,7 @@ class Tools(unittest.TestCase):
                     os.remove(os.path.join(root, moved))
                     whole = open(os.path.join(root, "kit.config.json"), encoding="utf-8").read()
                     cfg = json.loads(whole)
-                    cfg.pop("video")
+                    cfg.pop("gdd-sync")
                     cfg["balance-table"].pop("table")
                     json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
                     third = run(init, root, engine).stdout
@@ -360,7 +338,7 @@ class Tools(unittest.TestCase):
                     self.assertFalse(os.path.exists(os.path.join(root, moved)))
                     self.assertIn("sections missing from kit.config.json: ", third)
                     missing = third.split("sections missing from kit.config.json: ")[1]
-                    self.assertIn("video", missing)
+                    self.assertIn("gdd-sync", missing)
                     self.assertIn("balance-table.table", missing)
                     self.assertIn("new      " + moved, run(init, root, engine, "--files").stdout)
                     open(os.path.join(root, "kit.config.json"), "w", encoding="utf-8").write(whole)
@@ -378,14 +356,14 @@ class Tools(unittest.TestCase):
                         open(os.path.join(user, ".config/gamedev-kit/voice/VOICE.md"), "w").write("# Voice\n")
                     out = subprocess.run([sys.executable, init, "--root", game, engine], capture_output=True, text=True, env=env, check=True).stdout
                     made.append(open(os.path.join(game, "CLAUDE.md"), encoding="utf-8").read())
-                    self.assertEqual(sorted(os.listdir(os.path.join(user, ".config/gamedev-kit/rules"))), sorted(["rules.md", f"rules-{engine}.md"]))
+                    self.assertEqual(sorted(os.listdir(os.path.join(user, ".config/gamedev-kit/rules"))), sorted(["rules.md", f"rules-{engine}.md", "ways.md"]))
                 kept = open(os.path.join(user, ".config/gamedev-kit/rules/rules.md"), encoding="utf-8").read()
                 self.assertIn("- R4. an old rule (g) [issue #3]", kept)
                 self.assertIn("written by `feedback.py add`", kept)
                 self.assertIn("copied", out)
                 self.assertTrue(os.path.exists(os.path.join(user, ".config/gamedev-kit/voice/VOICE.md")), "the old folder is left as it was")
                 self.assertEqual(made[0], made[1])
-                self.assertIn(f"\n\n@~/.config/gamedev-kit/rules/rules.md\n@~/.config/gamedev-kit/rules/rules-{engine}.md\n<!-- gamedev-kit end -->", made[0])
+                self.assertIn(f"\n\n@~/.config/gamedev-kit/rules/rules.md\n@~/.config/gamedev-kit/rules/rules-{engine}.md\n@~/.config/gamedev-kit/rules/ways.md\n<!-- gamedev-kit end -->", made[0])
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("The table and the code match", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
                     self.assertIn("| synced | 3 |", run(REPORT, root).stdout, "the template's three example rows pair with the value file")
@@ -421,7 +399,7 @@ class Tools(unittest.TestCase):
         out = init("unity")
         self.assertIn("this folder is not a unity project yet (no ProjectSettings/ProjectVersion.txt) — create it before the first cycle", out)
         self.assertTrue(os.path.exists(os.path.join(root, "docs")), "what was there is untouched")
-        self.assertIn("added    .gitignore (unity — 10 lines: Temp/", out, "the two lines already there are not written again")
+        self.assertIn("added    .gitignore (unity — 9 lines: Temp/", out, "the two lines already there are not written again")
         self.assertIn("\n# what unity generates · what is kept out of the repository\nTemp/\n", open(os.path.join(root, ".gitignore"), encoding="utf-8").read())
         self.assertIn("the kit is already installed as unity", init("--detect"))
         self.assertIn("every line is already there", init("unity", "--gitignore"))
@@ -465,13 +443,13 @@ class Tools(unittest.TestCase):
         # the block ends with the lines that import the user's own rules — plain lines of their own, outside any code block, after the engine's rules
         home = os.environ["GAMEDEV_KIT_RULES"]
         body = fresh.split("<!-- gamedev-kit end -->")[0]
-        self.assertTrue(body.endswith(f"\n\n@{home}/rules.md\n@{home}/rules-{engine}.md\n"), body[-300:])
+        self.assertTrue(body.endswith(f"\n\n@{home}/rules.md\n@{home}/rules-{engine}.md\n@{home}/ways.md\n"), body[-300:])
         self.assertEqual(body.count("```") % 2, 0, "every code block is closed before the import lines")
         self.assertIn("kept outside this repository", body.split("\n## ")[-1])
-        for name in ("rules.md", f"rules-{engine}.md"):  # a missing file is made again — by the hook too, without a word, and the block still matches
+        for name in ("rules.md", f"rules-{engine}.md", "ways.md"):  # a missing file is made again — by the hook too, without a word, and the block still matches
             os.remove(os.path.join(home, name))
             self.assertEqual(check(), "")
-            self.assertRegex(open(os.path.join(home, name), encoding="utf-8").read(), r"\A# The user's rules.*\n\n.*Claude Code loads this file.*\n\n\Z")
+            self.assertRegex(open(os.path.join(home, name), encoding="utf-8").read(), r"\A# The user's (rules|ways of working).*\n\n.*Claude Code loads this file.*\n\n\Z")
         os.remove(os.path.join(home, "rules.md"))
         self.assertIn("match the current version", run(init, root, engine, "--rules").stdout)
         self.assertTrue(os.path.exists(os.path.join(home, "rules.md")))
@@ -542,253 +520,18 @@ class Tools(unittest.TestCase):
         self.assertIn("code_ext", run(REPORT, root, ok=False).stderr)
         self.assertIn("balance-table.code", run(TABLE, root, "check", ok=False).stderr)
 
-    def asset_project(self, blender):
-        """Fake OpenAI · Meshy server and a project pointed at it. (root, the function to call, the requests the server got)"""
-        seen = []
-
-        class Fake(http.server.BaseHTTPRequestHandler):
-            def reply(self, body, raw=None):
-                seen.append((self.command, self.path, body))
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write(raw if raw is not None else json.dumps(self.answer(body)).encode())
-
-            def answer(self, body):
-                if self.path.startswith("/images/"):
-                    return {"data": [{"b64_json": base64.b64encode(f"png{len(seen)}".encode()).decode()}]}
-                if self.command == "POST":
-                    return {"result": f"task{len(seen)}"}
-                polls = sum(1 for m, p, _b in seen if m == "GET" and p == self.path)
-                done = polls >= 2  # the first poll says not yet
-                return {"status": "SUCCEEDED" if done else "IN_PROGRESS", "progress": 100 if done else 40, "consumed_credits": 20,
-                        "model_urls": {"glb": f"http://127.0.0.1:{self.server.server_port}/file.glb"}}
-
-            def do_GET(self):
-                self.reply(None, raw_glb() if self.path == "/file.glb" else None)
-
-            def do_POST(self):
-                data = self.rfile.read(int(self.headers["Content-Length"]))
-                self.reply(json.loads(data) if self.headers["Content-Type"] == "application/json" else data)
-
-            def log_message(self, *a):
-                pass
-
-        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        root = tempfile.mkdtemp(prefix="kit-asset-")
-        self.addCleanup(shutil.rmtree, root, True)
-        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
-        cfg["asset"].update(blender=blender, env_file=os.path.join(root, "none.env"))
-        json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-        os.makedirs(os.path.join(root, "docs"))
-        base = f"http://127.0.0.1:{server.server_port}"
-        env = dict(os.environ, OPENAI_API_BASE=base, MESHY_API_BASE=base, ASSET_POLL_SEC="0",
-                   OPENAI_API_KEY="k1", MESHY_API_KEY="k2")
-
-        def asset(*args, ok=True, env=env):
-            p = subprocess.run([sys.executable, ASSET, "--root", root, *args], capture_output=True, text=True, env=env)
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        return root, asset, seen, env
-
-    def test_asset(self):
-        blender = os.path.join(tempfile.mkdtemp(prefix="kit-blender-"), "blender")
-        self.addCleanup(shutil.rmtree, os.path.dirname(blender), True)
-        open(blender, "w").write("""#!/bin/sh
-for a; do shift; [ "$a" = "--" ] && break; done
-cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
-""")
-        os.chmod(blender, 0o755)
-        root, asset, seen, env = self.asset_project(blender)
-        rec = lambda n: json.load(open(os.path.join(root, "assets/_gen", n, "asset.json"), encoding="utf-8"))
-        posts = lambda path: [b for m, p, b in seen if m == "POST" and p == path]
-
-        asset("new", "crate", "--size", "1.2", "A wooden crate with iron corners")
-        self.assertIn("already exists", asset("new", "crate", "--size", "1", "x", ok=False))
-        self.assertIn("lowercase", asset("new", "Big-Crate", "--size", "1", "x", ok=False))
-        self.assertIn("asset-style", asset("image", "crate", ok=False), "no art style, no drawing")
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("# Rules\n<!-- asset-style -->\nChunky low-poly,\nmuted palette.\n<!-- /asset-style -->\n")
-        self.assertIn("OPENAI_API_KEY is missing", asset("image", "crate", ok=False, env={k: v for k, v in env.items() if k != "OPENAI_API_KEY"}))
-        self.assertEqual(seen, [])
-
-        asset("image", "crate")
-        first = posts("/images/generations")[0]
-        self.assertIn("A wooden crate with iron corners. Front view", first["prompt"])
-        self.assertIn("Chunky low-poly, muted palette.", first["prompt"])
-        self.assertEqual((first["background"], first["model"]), ("transparent", "gpt-image-2.5-flare"))
-        back = posts("/images/edits")[0]
-        self.assertIn(b"back view", back)
-        self.assertIn(b'name="image[]"; filename="front.png"', back, "the back is drawn from the front")
-        self.assertIn("The object is: A wooden crate with iron corners. Draw what is really seen from this side — do not mirror".encode(), back,
-                      "drawn from the front image alone, it comes out as the front mirrored — say what it is and not to flip it")
-        self.assertIn("look, then approve", asset("status"))
-        os.makedirs(os.path.join(root, "assets/_gen/loose"))
-        open(os.path.join(root, "assets/_gen/loose/asset.json"), "w").write('{"name": "loose"}')
-        self.assertIn("loose", asset("status"), "a hand-written record with fields missing does not crash it")
-        shutil.rmtree(os.path.join(root, "assets/_gen/loose"))
-
-        self.assertIn("no approved images", asset("mesh", "crate", ok=False))
-        asset("approve", "crate")
-        self.assertIn("--note goes with --view", asset("image", "crate", "--note", "x", ok=False))
-        asset("image", "crate", "--view", "back", "--note", "The hinge  side faces the viewer")
-        self.assertIn(b"show the side this view faces. The hinge side faces the viewer. Chunky low-poly", posts("/images/edits")[-1], "text for that view only")
-        self.assertEqual(rec("crate")["notes"], {"back": "The hinge side faces the viewer"})
-        self.assertIn("no approved images", asset("mesh", "crate", ok=False), "a redrawn image needs approval again")
-        self.assertEqual(posts("/multi-image-to-3d"), [])
-        asset("approve", "crate")
-
-        out = asset("mesh", "crate")
-        self.assertIn("IN_PROGRESS 40%", out)
-        self.assertIn("assets/models/crate.glb — triangles 2 · 1 × 1.2 × 1 m", out)
-        made = posts("/multi-image-to-3d")
-        self.assertEqual(len(made), 1)
-        self.assertEqual(len(made[0]["image_urls"]), 2)
-        self.assertTrue(made[0]["image_urls"][0].startswith("data:image/png;base64,"))
-        self.assertEqual((made[0]["target_polycount"], made[0]["should_remesh"], made[0]["target_formats"]), (5000, True, ["glb"]))
-        self.assertEqual(open(os.path.join(root, "assets/models/crate.glb"), "rb").read(), raw_glb())
-        self.assertEqual((rec("crate")["meshy"]["credits"], rec("crate")["out"]), (20, "assets/models/crate.glb"))
-        self.assertNotIn("image_urls", json.dumps(rec("crate")), "the record does not hold whole images")
-        self.assertIn("done", asset("status"))
-
-        asset("mesh", "crate")
-        self.assertEqual(len(posts("/multi-image-to-3d")), 1, "a finished task is not bought again")
-        self.assertIn("× 2.0 ×", asset("finish", "crate", "--size", "2"))
-        self.assertEqual(len(posts("/multi-image-to-3d")), 1, "changing only the size does not call Meshy again")
-
-        # Interrupted after the task was made — rerunning keeps waiting on that task
-        asset("new", "barrel", "--size", "1", "--poly", "800", "A barrel")
-        asset("image", "barrel")
-        asset("approve", "barrel")
-        r = rec("barrel")
-        r["meshy"] = {"id": "old-task", "status": "IN_PROGRESS", "images": r["approved"]}
-        json.dump(r, open(os.path.join(root, "assets/_gen/barrel/asset.json"), "w"))
-        asset("mesh", "barrel")
-        self.assertEqual(len(posts("/multi-image-to-3d")), 1)
-        self.assertIn(("GET", "/multi-image-to-3d/old-task", None), seen)
-
-        # What is attached to every asset has three layers — Art style (fixed) · World · Learned. Words of a rejection go in the record, words that hold for all in Learned
-        design = os.path.join(root, "docs/DESIGN.md")
-        self.assertIn("asset-learned", asset("learn", "Metal is matte", ok=False), "with no place for it, it says to add one")
-        open(design, "a").write("<!-- asset-world -->\nBronze age,\nweathered wood.\n<!-- /asset-world -->\n<!-- asset-learned -->\n<!-- /asset-learned -->\n")
-        self.assertIn("rejection recorded (#1)", asset("reject", "barrel", "쇠가 너무 번쩍여. 다시"))
-        self.assertEqual(rec("barrel")["said"][0]["said"], "쇠가 너무 번쩍여. 다시")
-        self.assertIsNone(rec("barrel")["approved"], "a rejection lifts the approval")
-        self.assertIn("Learned 1 line(s)", asset("learn", "Metal is matte, never glossy."))
-        asset("learn", "Faces are simple")
-        self.assertIn("<!-- asset-learned -->\n- Metal is matte, never glossy\n- Faces are simple\n<!-- /asset-learned -->", open(design).read())
-        out = asset("look")
-        self.assertIn("World: Bronze age, weathered wood.", out)
-        self.assertIn("Learned: Metal is matte, never glossy / Faces are simple", out)
-        asset("new", "urn", "--size", "0.5", "A clay urn")
-        asset("image", "urn")
-        self.assertIn("A clay urn. Front view, straight on, camera at the object's mid height. Chunky low-poly, muted palette. "
-                      "Bronze age, weathered wood. Metal is matte, never glossy. Faces are simple. A single object", posts("/images/generations")[-1]["prompt"])
-        self.assertEqual(rec("urn")["image"]["style"], __import__("hashlib").sha1(b"Chunky low-poly, muted palette.").hexdigest()[:8])
-
-        # Reference photo — the photo is shown to draw from, not put into words
-        self.assertIn("reference not found", asset("new", "lamp", "--size", "0.3", "--ref", "ref/lamp.jpg", "An oil lamp", ok=False))
-        os.makedirs(os.path.join(root, "ref"))
-        open(os.path.join(root, "ref/lamp.jpg"), "wb").write(b"JPEG-lamp")
-        open(os.path.join(root, "ref/jar.png"), "wb").write(b"PNG-jar")
-        self.assertIn("reference ref/lamp.jpg", asset("new", "lamp", "--size", "0.3", "--ref", "ref/lamp.jpg", "An oil lamp"))
-        before = len(posts("/images/generations"))
-        asset("image", "lamp")
-        self.assertEqual(len(posts("/images/generations")), before, "with a reference, it is not drawn from words alone")
-        drew = posts("/images/edits")[-2]
-        self.assertIn(b'filename="lamp.jpg"\r\nContent-Type: image/jpeg\r\n\r\nJPEG-lamp', drew)
-        self.assertIn(b"The first attached image shows the subject: redraw this exact object", drew)
-        self.assertIn(b"An oil lamp. Front view", drew)
-        self.assertIn(b'filename="front.png"', posts("/images/edits")[-1], "the other views are drawn from the drawn front")
-        asset("image", "urn", "--ref", "ref/jar.png")
-        self.assertEqual(rec("urn")["ref"], "ref/jar.png", "a reference can also be given later")
-        self.assertIn("--as-is goes with", asset("new", "pot", "--size", "1", "--ref", "ref/lamp.jpg", "--as-is", "A pot", ok=False))
-        asset("new", "jar", "--size", "0.4", "--ref", "ref/jar.png", "--as-is", "A jar")
-        edits = len(posts("/images/edits"))
-        asset("image", "jar")
-        self.assertEqual(open(os.path.join(root, "assets/_gen/jar/front.png"), "rb").read(), b"PNG-jar", "used as is, it is not redrawn")
-        self.assertEqual(len(posts("/images/edits")), edits + 1, "only the back is drawn")
-
-        # Asset sheet — everything side by side on one screen. When the art style paragraph changes, what was drawn before gets marked
-        cfg_path = os.path.join(root, "kit.config.json")
-        cfg = json.load(open(cfg_path, encoding="utf-8"))
-        cfg["asset"]["refs"] = ["assets/_gen/crate/front.png"]
-        json.dump(cfg, open(cfg_path, "w"))
-        self.assertIn("docs/board/index.html", run(BOARD, root).stdout)
-        sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
-        index = open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read()
-        self.assertIn('<a class="tile go" href="assets.html"><span class="lab">models · images 5 · sounds 0</span><b>Asset sheet →</b></a>', index)
-        self.assertLess(index.index('href="assets.html"'), index.index('class="flow"'), "the way to the sheet sits above the stage cards, always in view")
-        os.makedirs(os.path.join(root, "data"), exist_ok=True)  # a game with a balance table: its tile stands next to the sheet's
-        open(os.path.join(root, "data/balance.xlsx"), "w").write("x")
-        run(BOARD, root)
-        self.assertIn('<b>Asset sheet →</b></a><a class="tile go" href="../../data/balance.xlsx"><span class="lab">',
-                      open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read())
-        os.remove(os.path.join(root, "data/balance.xlsx"))
-        run(BOARD, root)
-        self.assertIn("Chunky low-poly, muted palette.", sheet)
-        self.assertIn("Bronze age, weathered wood.", sheet)
-        self.assertIn("Faces are simple", sheet)
-        tile = lambda n: sheet.split(f"<span>{n}</span>")[1].split("</div></div>")[0]
-        self.assertIn("in the game", tile("crate"))
-        self.assertIn("sample", tile("crate"))
-        self.assertIn('title="쇠가 너무 번쩍여. 다시">rejected 1', tile("barrel"))
-        self.assertIn("reference", tile("lamp"))
-        self.assertNotIn("old style", sheet)
-        changed = open(design).read().replace("muted palette.", "bright palette.")
-        open(design, "w").write(changed)
-        run(BOARD, root, "--if-stale")
-        sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
-        self.assertIn("drawn in an old style 4", sheet, "a photo used as is has nothing to do with the art style")
-        # An old style is for the eye on the sheet — not a question on the review. `keep` clears the mark when the user says it is fine
-        board = lambda: json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
-        self.assertEqual(board()["counts"]["old_style"], 4)
-        self.assertNotIn("old", "".join(i["key"] for i in board()["board"]["review"] if i["kind"] == "asset" and i["state"] != "image only"))
-        self.assertEqual({i["kind"] for i in board()["board"]["review"]} - {"asset", "decision", "check"}, set(), "no other kind of card")
-        self.assertIn("kept under the current art style", asset("keep", "urn"))
-        self.assertEqual(rec("urn")["image"]["style"], __import__("hashlib").sha1(b"Chunky low-poly, bright palette.").hexdigest()[:8])
-        run(BOARD, root, "--if-stale")
-        self.assertEqual(board()["counts"]["old_style"], 3)
-        crate = next(m for m in board()["board"]["assets"]["models"] if m["name"] == "crate")
-        self.assertEqual((crate["state"], crate["old"], crate["img"]), ("in the game", True, "../../assets/_gen/crate/front.png"),
-                         "the board as data — paths as seen from the board's folder")
-
-        # What is in the game without a record also goes on the sheet. If the page is missing (after a kit upgrade) the hook redraws it
-        os.makedirs(os.path.join(root, "assets/ui"))
-        open(os.path.join(root, "assets/ui/icon.png"), "wb").write(b"PNG")
-        open(os.path.join(root, "assets/models/hand.glb"), "wb").write(b"glb")
-        open(os.path.join(root, "assets/models/hand_normal.png"), "wb").write(b"PNG")  # textures unpacked from a model are not placed
-        os.remove(os.path.join(root, "docs/board/assets.html"))
-        run(BOARD, root, "--if-stale")
-        sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
-        self.assertIn("In the game without a record<small>2</small>", sheet)
-        self.assertIn("<span>icon.png</span>", sheet)
-        self.assertIn("<span>hand.glb</span>", sheet)
-        self.assertNotIn("<span>crate.glb</span>", sheet, "a model with a record is not placed twice")
-        cfg["asset"]["work"] = "art/_gen"
-        json.dump(cfg, open(cfg_path, "w"))
-        os.rename(os.path.join(root, "assets/_gen"), os.path.join(root, "art_tmp"))
-        os.makedirs(os.path.join(root, "art"))
-        os.rename(os.path.join(root, "art_tmp"), os.path.join(root, "art/_gen"))
-        run(BOARD, root)
-        self.assertIn("<span>lamp</span>", open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read(), "move the asset records and the board follows")
-        cfg["board"] = {"gen": "art/_gen"}
-        cfg["asset"].pop("work")
-        json.dump(cfg, open(cfg_path, "w"))
-        self.assertIn("board.gen (art/_gen) is not where the asset scripts keep their records", run(BOARD, root).stdout,
-                      "the board reading one folder and the asset scripts another — said, so it is fixed in the config")
-        self.assertNotIn("old style", sheet.split("<span>jar</span>")[1].split("</div></div>")[0])
-
     def test_start(self):
-        """An empty game on its way to the first cycle — where it stands is read from files. Concept pictures are drawn by a fake API server."""
+        """An empty game on its way to the first cycle — where it stands is read from files."""
         none = tempfile.mkdtemp(prefix="kit-start-none-")
         self.addCleanup(shutil.rmtree, none, True)
         self.assertIn("/gamedev-kit:init", run(START, none, "status", ok=False).stderr)
         p = subprocess.run([sys.executable, START, "status"], cwd=none, capture_output=True, text=True)
         self.assertEqual((p.returncode, "/gamedev-kit:init" in p.stderr), (1, True))
 
-        root, _asset, seen, env = self.asset_project("blender")
+        root = tempfile.mkdtemp(prefix="kit-start-")
+        self.addCleanup(shutil.rmtree, root, True)
+        shutil.copy(os.path.join(KIT, "engines/godot/kit.config.json"), os.path.join(root, "kit.config.json"))
+        os.makedirs(os.path.join(root, "docs"))
         self.assertIn("the template appears", run(START, root, "status", ok=False).stderr)
         gdd = os.path.join(root, "docs/GDD.md")
         shutil.copy(os.path.join(KIT, "templates/GDD.md"), gdd)
@@ -820,37 +563,9 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("the Art direction section of docs/GDD.md is empty · no pictures in docs/concept/", out)
         self.assertTrue(out.strip().endswith(os.path.join("stages", "concept.md")))
 
-        def concept(*args, ok=True, env=env):
-            p = subprocess.run([sys.executable, CONCEPT, "--root", root, *args], capture_output=True, text=True, env=env)
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        posts = lambda path: [b for m, p, b in seen if m == "POST" and p == path]
-        self.assertIn("no pictures in docs/concept/", concept("list"))
-        self.assertIn("OPENAI_API_KEY is not set", concept("new", "look_a", "x", ok=False, env={k: v for k, v in env.items() if k != "OPENAI_API_KEY"}))
-        self.assertIn("lowercase", concept("new", "Look A", "x", ok=False))
-        self.assertEqual(seen, [])
-        self.assertIn("docs/concept/look_a.png — the user opens it", concept("new", "look_a", "A small room seen from above,\n soft light"))
-        first = posts("/images/generations")[0]
-        self.assertEqual((first["prompt"], first["size"], first["model"], first["quality"]),
-                         ("A small room seen from above, soft light", "1024x1536", "gpt-image-2.5-flare", "medium"))
-        self.assertNotIn("background", first, "a concept picture does not get an empty background")
-        self.assertEqual(open(os.path.join(root, "docs/concept/look_a.png"), "rb").read(), b"png1")
-        self.assertIn("already exists — not overwriting", concept("new", "look_a", "another", ok=False))
-        self.assertEqual(len(seen), 1, "an existing name is not drawn")
-        self.assertIn("reference not found", concept("new", "look_b", "--ref", "nothing", "x", ok=False))
-        concept("new", "look_b", "--size", "1536x1024", "--ref", "look_a", "warmer light")
-        edit = posts("/images/edits")[0]
-        self.assertIn(b'name="image[]"; filename="look_a.png"', edit, "the redraw is shown the picture the user liked")
-        self.assertIn(b"png1", edit)
-        self.assertIn(b"Change only what is asked below and leave everything else as it is. warmer light", edit)
-        self.assertIn(b"1536x1024", edit)
-        open(os.path.join(root, "docs/concept/photo.jpg"), "wb").write(b"jpg")
-        out = concept("list")
-        self.assertIn("docs/concept/look_a.png — 1024x1536 · A small room seen from above, soft light", out)
-        self.assertIn("docs/concept/look_b.png — 1536x1024 · redrawn from docs/concept/look_a.png · warmer light", out)
-        self.assertIn("docs/concept/photo.jpg — a picture the user put in", out)
-
+        os.makedirs(os.path.join(root, "docs/concept"))  # pictures the user put in, or had made their own way
+        for n in ("look_a.png", "look_b.png", "photo.jpg"):
+            open(os.path.join(root, "docs/concept", n), "wb").write(b"x")
         out = run(START, root, "status").stdout
         self.assertIn("[to do] concept — the Art direction section of docs/GDD.md is empty", out)
         self.assertNotIn("no pictures", out)
@@ -898,407 +613,6 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("empty sections: Rules · sections with text: 개요 · sections not checked", run(START, other, "status").stdout)
 
     @unittest.skipUnless(shutil.which("blender"), "blender not found")
-    def test_asset_blender(self):
-        root, asset, seen, _env = self.asset_project("blender")
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- asset-style -->\nLow-poly.\n<!-- /asset-style -->\n")
-        asset("new", "pillar", "--size", "1.5", "--poly", "800", "A stone pillar")
-        asset("image", "pillar")
-        asset("approve", "pillar")
-        self.assertIn("triangles 2 · 0.75 × 1.5 × 0.375 m", asset("mesh", "pillar"))
-        self.assertEqual([b["target_polycount"] for m, p, b in seen if p == "/multi-image-to-3d" and m == "POST"], [800])
-        d = open(os.path.join(root, "assets/models/pillar.glb"), "rb").read()
-        g = json.loads(d[20:20 + struct.unpack("<I", d[12:16])[0]])
-        box = next(a for a in g["accessors"] if "min" in a)
-        for got, want in zip(box["min"] + box["max"], [-0.375, 0, -0.1875, 0.375, 1.5, 0.1875]):
-            self.assertAlmostEqual(got, want, places=4, msg="longest side 1.5 m, base at 0, origin at the center")
-        self.assertNotIn("translation", g["nodes"][0])
-        self.assertNotIn("scale", g["nodes"][0])
-
-    def test_sprite(self):
-        """2D: picture → approval → animated sheet. Fake Ludo server — start a job, poll for the result, download the files from the addresses given."""
-        seen, jobs, webp = [], {}, []
-        png = lambda w, h: b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", w, h)
-
-        class Fake(http.server.BaseHTTPRequestHandler):
-            def reply(self, body, code=200):
-                self.send_response(code)
-                self.end_headers()
-                self.wfile.write(body if isinstance(body, bytes) else json.dumps(body).encode())
-
-            def read(self):
-                return self.rfile.read(int(self.headers.get("Content-Length") or 0))
-
-            def do_POST(self):
-                body, here = json.loads(self.read()), f"http://127.0.0.1:{self.server.server_port}"
-                seen.append(("POST", self.path, self.headers.get("Authorization"), body))
-                if self.path == "/assets/uploads":
-                    return self.reply({"upload_url": f"{here}/put/{len(seen)}", "file_url": f"{here}/up/{len(seen)}"})
-                if "it blows up" in body.get("prompt", ""):
-                    return self.reply({"message": "not allowed"}, 400)
-                jobs[f"job{len(seen)}"] = self.path
-                self.reply({"id": f"job{len(seen)}", "status": "queued"}, 202)
-
-            def do_PUT(self):
-                seen.append(("PUT", self.path, self.headers.get("Authorization"), self.read()))
-                self.reply(b"")
-
-            def do_GET(self):
-                here, path = f"http://127.0.0.1:{self.server.server_port}", self.path.split("?")[0]
-                seen.append(("GET", self.path, self.headers.get("Authorization"), None))
-                if path == "/assets/account":
-                    return self.reply({"credits": {"available": 87.5}})
-                if path.startswith("/file/") and webp:
-                    return self.reply(b"RIFF\x10\x00\x00\x00WEBPVP8 ")
-                if path.startswith("/file/"):
-                    return self.reply(png(512, 256) if "sheet" in path else png(1024, 1024) + path.encode())
-                job = path.rsplit("/", 1)[1]
-                if sum(1 for m, p, _a, _b in seen if m == "GET" and p == self.path) < 2:  # the first poll says not yet
-                    return self.reply({"id": job, "status": "running", "poll_after_ms": 1})
-                if jobs[job] == "/assets/sprite/animate":
-                    result = {"spritesheet_url": f"{here}/file/sheet-{job}.png", "gif_url": f"{here}/file/{job}.gif",
-                              "num_frames": 14, "num_cols": 4, "num_rows": 4, "duration": 2.8}
-                else:
-                    result = [{"url": f"{here}/file/{job}.png"}]
-                self.reply({"id": job, "status": "succeeded", "credits_charged": 9 if isinstance(result, dict) else 0.5, "result": result})
-
-            def log_message(self, *a):
-                pass
-
-        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        root = tempfile.mkdtemp(prefix="kit-sprite-")
-        self.addCleanup(shutil.rmtree, root, True)
-        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
-        cfg["asset"]["env_file"] = os.path.join(root, "none.env")
-
-        def write(**over):
-            cfg["asset"]["sprite"].update(over)
-            json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-
-        write(view="Seen from directly above")
-        os.makedirs(os.path.join(root, "docs"))
-        env = dict(os.environ, LUDO_API_BASE=f"http://127.0.0.1:{server.server_port}", LUDO_API_KEY="k4", ASSET_POLL_SEC="0")
-
-        def sprite(*args, ok=True, env=env):
-            p = subprocess.run([sys.executable, SPRITE, "--root", root, *args], capture_output=True, text=True, env=env)
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        rec = lambda n: json.load(open(os.path.join(root, "assets/_gen", n, "sprite.json"), encoding="utf-8"))
-        posts = lambda path: [b for m, p, _a, b in seen if m == "POST" and p == path]
-
-        sprite("new", "cook", "A cook in an apron")
-        self.assertIn("already exists", sprite("new", "cook", "x", ok=False))
-        self.assertIn("asset-style", sprite("image", "cook", ok=False), "no art style, no drawing")
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- asset-style -->\nFlat shapes,\nwarm palette.\n<!-- /asset-style -->\n")
-        self.assertIn("LUDO_API_KEY is missing", sprite("image", "cook", ok=False, env={k: v for k, v in env.items() if k != "LUDO_API_KEY"}))
-        self.assertEqual(seen, [])
-
-        out = sprite("image", "cook")
-        self.assertIn("assets/_gen/cook/still.png — 1024 × 1024 px · credits 0.5", out)
-        first = posts("/assets/image")[0]
-        self.assertEqual(first["image_type"], "sprite")
-        self.assertTrue(first["prompt"].startswith("A cook in an apron. Seen from directly above. Flat shapes, warm palette. A single subject"), first["prompt"])
-        self.assertEqual({a for m, p, a, _b in seen if not p.startswith("/file/")}, {"ApiKey k4"})
-        self.assertEqual({a for m, p, a, _b in seen if p.startswith("/file/")}, {None}, "no key is sent to the addresses given")
-        self.assertIn("look, then approve", sprite("status"))
-
-        # Only an approved picture is animated. Approving puts it in the game folder
-        self.assertIn("no approved picture", sprite("animate", "cook", "walk", "walking", ok=False))
-        self.assertIn("approved — assets/sprites/cook.png", sprite("approve", "cook"))
-        self.assertIn("--frames is one of", sprite("animate", "cook", "walk", "--frames", "12", "walking", ok=False))
-        out = sprite("animate", "cook", "walk", "--seconds", "4", "--frames", "16", "walking forward")
-        self.assertIn("assets/sprites/cook_walk.png — 14 frames · 4 cols × 4 rows · cell 128 × 64 px · credits 9", out)
-        self.assertIn("assets/_gen/cook/walk.gif", out)
-        ask = posts("/assets/sprite/animate")[0]
-        self.assertEqual((ask["motion_prompt"], ask["duration"], ask["frames"], ask["model"], ask["gif"]), ("walking forward", 4.0, 16, "hydra", True))
-        self.assertTrue(ask["initial_image"].endswith(f"/up/{len(seen) - [s[1] for s in seen[::-1]].index('/assets/uploads')}"), "the picture is uploaded and its address handed over")
-        put = [s for s in seen if s[0] == "PUT"][0]
-        self.assertEqual((put[2], put[3]), (None, open(os.path.join(root, "assets/_gen/cook/still.png"), "rb").read()))
-        self.assertEqual(rec("cook")["motions"]["walk"]["cell"], [128, 64])
-        self.assertIn("cook_walk.png — 14 frames", sprite("status"))
-        self.assertIn("87.5", sprite("credits"))
-
-        # An interrupted job continues with the same command — it is not bought anew
-        r = rec("cook")
-        r["motions"]["walk"]["job"] = {"id": "job-old", "status": "running"}
-        json.dump(r, open(os.path.join(root, "assets/_gen/cook/sprite.json"), "w"))
-        jobs["job-old"] = "/assets/sprite/animate"
-        sprite("animate", "cook", "walk", "walking forward")
-        self.assertEqual(len(posts("/assets/sprite/animate")), 1)
-        self.assertEqual(rec("cook")["motions"]["walk"]["made"], 2)
-
-        # A rejection lifts the approval. So does redrawing
-        self.assertIn("rejection recorded (#1)", sprite("reject", "cook", "앞치마가 너무 커"))
-        self.assertIn("no approved picture", sprite("animate", "cook", "idle", "breathing", ok=False))
-
-        # With an art style reference picture it matches that style; with a reference it redraws that. --as-is uses it as is
-        os.makedirs(os.path.join(root, "ref"))
-        open(os.path.join(root, "ref/hero.png"), "wb").write(png(300, 200))
-        write(style_ref="assets/_gen/cook/still.png")
-        sprite("new", "sink", "--type", "tile", "A steel sink")
-        sprite("image", "sink")
-        styled = posts("/assets/image/style")[0]
-        self.assertEqual(styled["image_type"], "tile")
-        self.assertIn("/up/", styled["style_image"])
-        sprite("new", "hero", "--ref", "ref/hero.png", "A hero")
-        sprite("image", "hero")
-        edit = posts("/assets/image/edit")[0]
-        self.assertTrue(edit["prompt"].startswith("The image shows the subject"))
-        self.assertTrue("/up/" in edit["image"] and "/up/" in edit["reference_image"] and edit["image"] != edit["reference_image"])
-        n = len(seen)
-        sprite("new", "ghost", "--ref", "ref/hero.png", "--as-is", "A ghost")
-        self.assertIn("300 × 200 px", sprite("image", "ghost"))
-        self.assertEqual(len(seen), n, "used as is, nothing is called")
-        sprite("new", "boom", "it blows up")
-        self.assertIn("400: not allowed", sprite("image", "boom", ok=False))
-
-        # A WebP that is .png in name only is converted to PNG with a tool on this machine. With no tool, it keeps what came and stops
-        webp.append(1)
-        tools = os.path.join(root, "bin")
-        os.makedirs(os.path.join(tools, "none"))
-        open(os.path.join(tools, "ffmpeg"), "w").write(f"#!{sys.executable}\nimport struct, sys\n"
-                                                       "open(sys.argv[-1], 'wb').write(b'\\x89PNG\\r\\n\\x1a\\n' + struct.pack('>I4sII', 13, b'IHDR', 640, 320))\n")
-        os.chmod(os.path.join(tools, "ffmpeg"), 0o755)
-        sprite("new", "owl", "An owl")
-        self.assertIn("assets/_gen/owl/still.png — 640 × 320 px", sprite("image", "owl", env=dict(env, PATH=tools + os.pathsep + env["PATH"])))
-        self.assertEqual(os.listdir(os.path.join(root, "assets/_gen/owl")).count("still.webp"), 0)
-        sprite("new", "bat", "A bat")
-        self.assertIn("still.webp: the downloaded picture is not a PNG (webp) and there is no tool to convert it", sprite("image", "bat", ok=False, env=dict(env, PATH=os.path.join(tools, "none"))))
-        self.assertEqual(sorted(n for n in os.listdir(os.path.join(root, "assets/_gen/bat")) if n.startswith("still")), ["still.webp"])
-        del webp[:]
-
-        # The board places sprites too
-        run(BOARD, root)
-        sheet = open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read()
-        self.assertIn("<span>cook</span>", sheet)
-
-    def test_sound(self):
-        seen = []
-
-        class Fake(http.server.BaseHTTPRequestHandler):
-            def do_POST(self):
-                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-                seen.append((self.path, self.headers["xi-api-key"], body))
-                bad = "it blows up" in body.get("text", "")
-                self.send_response(422 if bad else 200)
-                self.end_headers()
-                self.wfile.write(json.dumps({"detail": {"message": "not allowed"}}).encode() if bad else f"sound{len(seen)}".encode() * 4)
-
-            def log_message(self, *a):
-                pass
-
-        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        root = tempfile.mkdtemp(prefix="kit-sound-")
-        self.addCleanup(shutil.rmtree, root, True)
-        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
-        cfg["asset"]["env_file"] = os.path.join(root, "none.env")
-
-        def write(**over):
-            cfg["asset"]["sound"].update(over)
-            json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-
-        write()
-        env = dict(os.environ, ELEVENLABS_API_BASE=f"http://127.0.0.1:{server.server_port}", ELEVENLABS_API_KEY="k3")
-
-        def sound(*args, ok=True, env=env):
-            p = subprocess.run([sys.executable, SOUND, "--root", root, *args], capture_output=True, text=True, env=env)
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        self.assertIn("ELEVENLABS_API_KEY is missing", sound("sfx", "coin", "x", ok=False, env={k: v for k, v in env.items() if k != "ELEVENLABS_API_KEY"}))
-        self.assertIn("0.5~30 s", sound("sfx", "coin", "--seconds", "40", "x", ok=False))
-        self.assertIn("lowercase", sound("sfx", "Coin", "x", ok=False))
-        self.assertEqual(seen, [])
-
-        made = sound("sfx", "coin", "--seconds", "0.8", "A metal coin on stone, one bright ping.")
-        self.assertIn("assets/sounds/coin.mp3", made)
-        self.assertIn(f"  then: {cfg['asset']['sound']['after']}", made, "what the engine needs done with the file is said as it lands in its slot")
-        path, key, body = seen[0]
-        self.assertEqual((path, key), ("/sound-generation?output_format=mp3_44100_128", "k3"))
-        self.assertEqual(body, {"text": "A metal coin on stone, one bright ping", "prompt_influence": 0.3, "loop": False, "duration_seconds": 0.8})
-        first = open(os.path.join(root, "assets/sounds/coin.mp3"), "rb").read()
-
-        os.makedirs(os.path.join(root, "docs"))
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- sound-style -->\n8-bit,\ndry.\n<!-- /sound-style -->\n<!-- music-style -->\nChiptune,\nslow.\n<!-- /music-style -->\n")
-        self.assertIn("take 2", sound("again", "coin"))
-        self.assertEqual(seen[1][2]["text"], "A metal coin on stone, one bright ping. 8-bit, dry.", "the sound style follows the description")
-        self.assertNotEqual(open(os.path.join(root, "assets/sounds/coin.mp3"), "rb").read(), first)
-
-        self.assertIn("looping sound", sound("sfx", "wind", "--loop", "--influence", "0.6", "Wind over a ridge"))
-        self.assertEqual((seen[2][2]["loop"], seen[2][2]["prompt_influence"]), (True, 0.6))
-        self.assertNotIn("duration_seconds", seen[2][2], "with no length given, it is left to decide")
-
-        self.assertIn("must fit in 450", sound("sfx", "long", "a" * 445, ok=False), "measured after the sound style paragraph is attached")
-        self.assertEqual(len(seen), 3)
-        self.assertIn("3~600 s", sound("music", "theme", "--seconds", "1", "x", ok=False))
-        sound("music", "theme", "--seconds", "45", "Calm exploration theme")
-        self.assertEqual(seen[3][0].split("?")[0], "/music")
-        self.assertEqual(seen[3][2], {"prompt": "Calm exploration theme. Chiptune, slow.", "music_length_ms": 45000,  # the sound effect style is not attached to music
-                                      "model_id": "music_v1", "force_instrumental": True})
-
-        self.assertIn("422: not allowed", sound("sfx", "boom", "it blows up", ok=False))
-        self.assertFalse(os.path.exists(os.path.join(root, "assets/sounds/boom.mp3")))
-        out = sound("status")
-        self.assertEqual([line.split()[0] for line in out.strip().split("\n")], ["coin", "theme", "wind"])
-
-        write(format="pcm_22050")
-        sound("sfx", "step", "A footstep on gravel")
-        with __import__("wave").open(os.path.join(root, "assets/sounds/step.wav")) as w:
-            self.assertEqual((w.getframerate(), w.getnchannels(), w.getsampwidth()), (22050, 1, 2))
-        write(dir="")
-        self.assertIn("asset.sound.dir", sound("status", ok=False))
-
-    def test_clip(self):
-        """Footage that looks filmed (Higgsfield) — against a fake server: upload the picture, send, wait, download. The key goes to Higgsfield only."""
-        seen, polls = [], []
-
-        class Fake(http.server.BaseHTTPRequestHandler):
-            def reply(self, code, body=b"", ctype="application/json"):
-                self.send_response(code)
-                self.send_header("Content-Type", ctype)
-                self.end_headers()
-                self.wfile.write(body if isinstance(body, bytes) else json.dumps(body).encode())
-
-            def read(self):
-                return self.rfile.read(int(self.headers.get("Content-Length") or 0))
-
-            def do_POST(self):
-                body, here = json.loads(self.read()), f"http://127.0.0.1:{self.server.server_port}"
-                seen.append(("POST", self.path, self.headers.get("Authorization"), self.headers.get("Idempotency-Key"), body))
-                if self.path == "/files/generate-upload-url":
-                    return self.reply(200, {"public_url": f"{here}/cdn/in.png", "upload_url": f"{here}/store/in.png",
-                                            "upload_headers": {"Content-Type": body["content_type"], "x-amz-tagging": "retention=temporary"}})
-                if "it blows up" in body.get("prompt", ""):
-                    return self.reply(422, {"detail": "not allowed"})
-                rid = "bad" if "lewd" in body.get("prompt", "") else f"r{len(seen)}"
-                self.reply(200, {"status": "queued", "request_id": rid, "status_url": f"{here}/requests/{rid}/status"})
-
-            def do_PUT(self):
-                seen.append(("PUT", self.path, self.headers.get("Authorization"), self.headers.get("x-amz-tagging"), self.read()))
-                self.reply(200)
-
-            def do_GET(self):
-                if self.path.startswith("/cdn/"):
-                    seen.append(("GET", self.path, self.headers.get("Authorization"), None, None))
-                    return self.reply(200, f"video {self.path}".encode() * 9, "video/mp4")
-                rid = self.path.split("/")[2]
-                polls.append(rid)
-                if rid == "bad":
-                    return self.reply(200, {"status": "nsfw", "request_id": rid})
-                self.reply(200, {"status": "in_progress", "request_id": rid} if polls.count(rid) < 2 else
-                           {"status": "completed", "request_id": rid, "video": {"url": f"http://127.0.0.1:{self.server.server_port}/cdn/{rid}.mp4"}})
-
-            def log_message(self, *a):
-                pass
-
-        server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        root = tempfile.mkdtemp(prefix="kit-clip-")
-        self.addCleanup(shutil.rmtree, root, True)
-        ffmpeg = os.path.join(root, "ffmpeg")
-        open(ffmpeg, "w").write('#!/bin/sh\nfor a; do last=$a; done\necho "$@" > "$last"\n')
-        os.chmod(ffmpeg, 0o755)
-        cfg = json.load(open(os.path.join(KIT, "engines/godot/kit.config.json"), encoding="utf-8"))
-        cfg["video"].update(env_file=os.path.join(root, "none.env"), ffmpeg=ffmpeg)
-
-        def write(**clip):
-            cfg["video"]["clip"] = dict(cfg["video"].get("clip", {}), **clip)
-            json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
-
-        write()
-        env = dict(os.environ, HIGGSFIELD_API_BASE=f"http://127.0.0.1:{server.server_port}", VIDEO_POLL_SEC="0.01",
-                   HF_API_KEY_ID="kid", HF_API_KEY_SECRET="sec")
-
-        def clip(*args, ok=True, env=env):
-            p = subprocess.run([sys.executable, CLIP, "--root", root, *args], capture_output=True, text=True, env=env)
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        rec = lambda name: json.load(open(os.path.join(root, "video", name, "clip.json"), encoding="utf-8"))
-        nokey = {k: v for k, v in env.items() if not k.startswith("HF_")}
-        out = clip("check", ok=False, env=nokey)
-        self.assertIn("HF_API_KEY_ID is missing", out)
-        self.assertIn("HF_API_KEY_SECRET is missing", out)
-        out = clip("check")
-        self.assertIn("Model: higgsfield/cinema-studio/4.0", out)
-        self.assertIn("Ready to run", out)
-        self.assertIn("No clips", clip("status"))
-
-        self.assertIn("picture not found", clip("new", "gate", "--for", "game", "--image", "ref.png", "x", ok=False))
-        open(os.path.join(root, "ref.png"), "wb").write(b"\x89PNG pic")
-        os.makedirs(os.path.join(root, "docs"))
-        open(os.path.join(root, "docs/DESIGN.md"), "w").write("<!-- footage-style -->\nHand-painted,\nmuted.\n<!-- /footage-style -->\n")
-        out = clip("new", "gate", "--for", "game", "--seconds", "6", "--image", "ref.png", "A stone gate opens slowly.")
-        self.assertIn("waiting for approval — description · reference images", out)
-        self.assertIn("Prompt to send: A stone gate opens slowly. Hand-painted, muted.", out, "the footage style is appended to the description")
-        self.assertIn("not approved", clip("make", "gate", ok=False))
-        self.assertEqual(seen, [], "nothing goes out before approval")
-        clip("approve", "gate")
-        out = clip("make", "gate")
-        self.assertIn("video/gate/clip.mp4", out)
-        ask, put, send, got = seen
-        self.assertEqual(ask[:3] + ask[4:], ("POST", "/files/generate-upload-url", "Key kid:sec", {"content_type": "image/png"}))
-        self.assertEqual(put[:4], ("PUT", "/store/in.png", None, "retention=temporary"), "no key goes to the storage, and the headers it gave are sent as they are")
-        self.assertEqual(put[4], b"\x89PNG pic")
-        self.assertEqual(send[:3], ("POST", "/higgsfield/cinema-studio/4.0", "Key kid:sec"))
-        self.assertEqual(send[3], rec("gate")["request"]["key"])
-        self.assertEqual(send[4], {"resolution": "720p", "prompt": "A stone gate opens slowly. Hand-painted, muted.", "duration": 6,
-                                   "aspect_ratio": "16:9", "image_urls": [f"http://127.0.0.1:{server.server_port}/cdn/in.png"]})
-        self.assertEqual(got[:3], ("GET", "/cdn/r3.mp4", None))
-        self.assertEqual(polls, ["r3", "r3"])
-        self.assertIn("a human's turn to watch", clip("status"))
-        self.assertIn("already made", clip("make", "gate", ok=False))
-        self.assertEqual(len(seen), 4, "the same thing is not made twice")
-
-        # placed after a human has watched — what plays in the game goes in the format the engine reads
-        self.assertIn("assets/video/gate.ogv", clip("place", "gate"))
-        self.assertIn("libtheora", open(os.path.join(root, "assets/video/gate.ogv")).read())
-        self.assertIn("placed — assets/video/gate.ogv", clip("status"))
-
-        # what was sent and then cut off is waited on — not sent again
-        made = rec("gate")
-        made["request"]["mark"] = made["made"]["mark"]
-        del made["made"]
-        json.dump(made, open(os.path.join(root, "video/gate/clip.json"), "w"))
-        self.assertIn("in the making", clip("status"))
-        clip("make", "gate")
-        self.assertEqual([s[:2] for s in seen[4:]], [("GET", "/cdn/r3.mp4")])
-        clip("make", "gate", "--again")
-        self.assertEqual(seen[-2][1], "/higgsfield/cinema-studio/4.0")
-        self.assertNotEqual(seen[-2][3], send[3], "one more take is a new request")
-
-        # a changed description needs approval again
-        clip("new", "gate", "--for", "page", "--size", "portrait", "A stone gate closes.")
-        self.assertIn("not approved", clip("make", "gate", ok=False))
-        self.assertIn("no footage made from the current description", clip("place", "gate", ok=False))
-        clip("approve", "gate")
-        clip("make", "gate")
-        self.assertEqual(seen[-2][4], {"resolution": "720p", "prompt": "A stone gate closes. Hand-painted, muted.", "duration": 5, "aspect_ratio": "9:16"})
-        self.assertIn("docs/video/gate.mp4", clip("place", "gate"))
-
-        # input names differ per model — the config sets them
-        write(model="kling-video/v2.5-turbo/pro/image-to-video", params={"cfg_scale": 0.5},
-              fields={"aspect": "", "images": "", "image": "image_url"})
-        clip("new", "walk", "--for", "page", "--image", "ref.png", "She walks.")
-        clip("approve", "walk")
-        clip("make", "walk")
-        self.assertEqual(seen[-2][1], "/kling-video/v2.5-turbo/pro/image-to-video")
-        self.assertEqual(seen[-2][4], {"cfg_scale": 0.5, "prompt": "She walks. Hand-painted, muted.", "duration": 5,
-                                       "image_url": f"http://127.0.0.1:{server.server_port}/cdn/in.png"})
-
-        clip("new", "bad", "--for", "page", "something lewd")
-        clip("approve", "bad")
-        self.assertIn("blocked by the content check", clip("make", "bad", ok=False))
-        clip("new", "boom", "--for", "page", "it blows up")
-        clip("approve", "boom")
-        self.assertIn("422: not allowed", clip("make", "boom", ok=False))
-        self.assertFalse(os.path.exists(os.path.join(root, "video/boom/clip.mp4")))
-
     def test_board(self):
         """The GDD table and the cycle documents become one board — from the words the kit writes now and from the Korean ones
         older documents hold. The hook redraws only when the board exists and a source is newer."""
@@ -1450,10 +764,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.addCleanup(shutil.rmtree, root, True)
         os.makedirs(os.path.join(root, "docs/cycle"))
         open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
-        gen = os.path.join(root, "assets/_gen/knight")
-        os.makedirs(gen)
-        open(os.path.join(gen, "front.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 4, 4))
-        json.dump({"name": "knight", "subject": "a knight"}, open(os.path.join(gen, "asset.json"), "w"))
+        os.makedirs(os.path.join(root, "assets/sprites"))  # a picture in its slot — on the asset sheet
+        open(os.path.join(root, "assets/sprites/knight.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 4, 4))
         got, have, sent = [], set(), []
 
         class Service(http.server.BaseHTTPRequestHandler):
@@ -1510,7 +822,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(got, [])
         self.assertIsNone(summary, "push alone does not draw the local board")
         run(BOARD, root)
-        self.assertEqual(json.load(open(os.path.join(root, "docs/board/board.json")))["counts"]["review"], 1, "the board as data, beside the pages")
+        self.assertEqual(json.load(open(os.path.join(root, "docs/board/board.json")))["counts"]["review"], 0, "the board as data, beside the pages")
         got.clear()
         self.assertEqual(push("--if-changed").stdout, "", "the hook says nothing")
         self.assertEqual(got, [], "drawn here, but no document changed since the last push — the dashboard has it already")
@@ -1922,29 +1234,27 @@ if sys.argv[1:3] == ["run", "start"]:
         json.dump({"cycle": {"browser": "/nonexistent"}}, open(os.path.join(root, "kit.config.json"), "w"))  # no picture taken — only the kept questions matter here
         run(SHEET, root, os.path.join(root, "q.json"), "--name", "bow")
         self.assertTrue(os.path.exists(os.path.join(root, "docs/cycle/sheets/bow.json")), "the sheet keeps its questions for the review page")
-        gen = os.path.join(root, "assets/_gen/knight")
-        os.makedirs(gen)
-        open(os.path.join(gen, "front.png"), "wb").write(png + b"knight")
-        json.dump({"name": "knight", "subject": "a knight", "said": [{"said": "too dark"}]}, open(os.path.join(gen, "asset.json"), "w"))
+        os.makedirs(os.path.join(root, "assets/sprites"))  # a picture in its slot, whoever made it — on the asset sheet, never a card to approve
+        open(os.path.join(root, "assets/sprites/knight.png"), "wb").write(png + b"knight")
 
-        self.assertIn("review 3", run(BOARD, root).stdout)
+        self.assertIn("review 2", run(BOARD, root).stdout)
         review = open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read()
         self.assertIn('data-key="c01-D1"', review)
         self.assertIn('data-pick="ⓑ"><b>ⓑ</b><span>raise it</span><em>recommended</em>', review, "the sheet's options and its pick")
         self.assertIn('class="crop zoom"', review, "with the picture cropped as the sheet asked")
         self.assertIn("<span>Accept ②</span>", review, "a decision made for the user, with its pick")
         self.assertIn('data-pick="accept"', review, "a proxy decision can be accepted")
-        self.assertIn('data-pick="approve"', review)
-        self.assertIn("Turned down: too dark", review)
+        self.assertNotIn('data-pick="approve"', review, "the kit makes no assets — nothing to approve here")
+        self.assertIn("knight.png", open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read())
         self.assertNotIn("Check by playing", review, "no checks before the cycle reaches Play")
-        self.assertIn('href="review.html"><span class="lab">waiting on you</span><b>Review 3 →</b>', open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read())
+        self.assertIn('href="review.html"><span class="lab">waiting on you</span><b>Review 2 →</b>', open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read())
         doc = os.path.join(root, "docs/cycle/01-bow.md")
         text = open(doc, encoding="utf-8").read().replace("Stage: Goal", "Stage: Play").replace("## Design\n", "## Design\n\n### For a human to see\n- Is the string readable\n")
         open(doc, "w", encoding="utf-8").write(text)
-        self.assertIn("review 4", run(BOARD, root).stdout, "at Play, what to check by playing joins")
+        self.assertIn("review 3", run(BOARD, root).stdout, "at Play, what to check by playing joins")
 
         out = run(BOARD, root, "share").stdout
-        self.assertIn("files new 2", out, "the crop's picture and the asset image")
+        self.assertIn("files new 2", out, "the crop's picture and the picture on the asset sheet")
         self.assertIn("first publish", out)
         share = os.path.join(root, "docs/board/share")
         sent = json.load(open(os.path.join(share, "publish.json")))
@@ -1970,18 +1280,13 @@ if sys.argv[1:3] == ["run", "start"]:
         for key, pick, note in (("c01-D1", "ⓑ", "a little"), ("c01-D2", "accept", ""), ("c00-D9", "①", "")):
             json.dump({"key": key, "pick": pick, "note": note, "at": 1}, open(os.path.join(saved, key + ".json"), "w"))
         keys = [i["key"] for i in json.load(open(os.path.join(root, "docs/board/review.json")))]
-        knight, check = next(k for k in keys if k.startswith("asset-knight-")), next(k for k in keys if "-chk-" in k)
-        json.dump({"key": knight, "pick": "redo", "note": "armour too shiny", "at": 1}, open(os.path.join(saved, "a.json"), "w"))
+        check = next(k for k in keys if "-chk-" in k)
         json.dump({"key": check, "pick": "problem", "note": "lost in the fog", "at": 1}, open(os.path.join(saved, "c.json"), "w"))
         out = run(BOARD, root, "answers", os.path.join(share, "answers")).stdout
         self.assertIn("D1 → ⓑ — “a little”", out)
         self.assertIn("D2 (decided for you: ②) → accept", out)
-        self.assertIn("knight (3D model — asset.py) → redo — “armour too shiny”", out)
         self.assertIn("✗ Is the string readable — “lost in the fog”", out)
         self.assertIn("1 saved answer(s) are to questions no longer on the page", out, "an answer to an old question is not relayed")
-        json.dump({"key": knight, "pick": "drop", "note": "", "at": 2}, open(os.path.join(saved, "a.json"), "w"))
-        self.assertIn("knight (3D model — asset.py) → not needed (drop)", run(BOARD, root, "answers", saved).stdout,
-                      "\"not needed\" from the dashboard is an answer too — the session drops the attempt")
         data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))["board"]
         d1 = next(i for i in data["review"] if i["key"] == "c01-D1")
         self.assertEqual((d1["recommend"], d1["options"][1], d1["pictures"][0]["crop"], d1["pictures"][0]["size"]),
@@ -2376,6 +1681,16 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(sent.count("issue comment 7"), 1, "much the same as an open issue — a comment, not a new issue")
         self.assertIn("not sent", fb("list"), "the rules naming a game or a date stay")
         self.assertEqual(fb("push", "--quiet"), "", "nothing more to send — nothing said")
+        # a way of working is the user's alone: kept beside the rules, imported the same way, never sent — even with auto on
+        self.assertIn("W1 — ", fb("way", "Sprites are made with the Ludo MCP server — the still first, approved, then animated"))
+        self.assertIn("W2 — ", fb("way", "Sounds come from the ElevenLabs MCP server"))
+        self.assertIn("- W1. Sprites are made with the Ludo MCP server", rules("ways.md"))
+        self.assertTrue(rules("ways.md").startswith("# The user's ways of working"))
+        self.assertEqual(fb("push", "--quiet"), "", "ways are never sent")
+        self.assertNotIn("Ludo", open(log).read())
+        self.assertNotIn("W1", fb("list", "--all"), "a way is not a rule")
+        self.assertIn("dropped W1", fb("drop", "W1"))
+        self.assertEqual(fb("ways").strip(), "W2. Sounds come from the ElevenLabs MCP server")
         self.assertIn("nothing to send — 1 held back until reworded: R8", fb("push"))
         open(os.path.join(root, "kit.config.json"), "w").write("{broken")
         self.assertEqual(fb("push", "--quiet", cwd=root), "")
@@ -2696,11 +2011,6 @@ none
         git("reset", "-q", "--", "tools/harvest.py", ".claude-plugin/plugin.json")
         self.assertIn("version was not bumped", harvest("check").stderr)
 
-    def test_asset_no_config(self):
-        root = tempfile.mkdtemp(prefix="kit-none-")
-        self.addCleanup(shutil.rmtree, root, True)
-        open(os.path.join(root, "kit.config.json"), "w").write("{}")
-        self.assertIn("asset.dir", run(ASSET, root, "status", ok=False).stderr)
 
 
 if __name__ == "__main__":

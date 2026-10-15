@@ -12,23 +12,5 @@
     "line": "^(\\s*public static (?:int|float|double) )([A-Z][A-Z0-9_]*)( = )(-?\\d+(?:\\.\\d+)?)(f?;\\s*(?://.*)?)$",
     "doc_prefix": "///",
     "comment": "//"
-  },
-  "asset": {
-    "work": "art/_gen",
-    "dir": "Assets/Models",
-    "format": "fbx",
-    "after": "Check the first model's scale and rotation in a scene — FBX from Blender often arrives rotated or scaled by 100. 1 unit is 1 m.",
-    "views": ["front", "back"],
-    "refs": [],
-    "image": { "model": "gpt-image-2.5-flare", "size": "1024x1024", "quality": "medium" },
-    "meshy": { "ai_model": "latest", "target_polycount": 5000, "topology": "triangle", "enable_pbr": false },
-    "sound": { "dir": "Assets/Audio", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1", "after": "Looping is set on the AudioSource (loop = true), not on the file." },
-    "sprite": { "dir": "Assets/Sprites", "style_ref": "", "view": "", "image": { "image_type": "sprite" }, "animate": { "model": "hydra", "duration": 3 }, "after": "Texture Type Sprite (2D and UI); for a sheet, Sprite Mode Multiple sliced by the cell size printed above, Pixels Per Unit the game's pixels per metre. A side over 4096 px is scaled down on import and the cells no longer fit — slice from the texture's real size, or make the sheet smaller." }
-  },
-  "video": {
-    "size": "landscape",
-    "page": { "dir": "docs/video" },
-    "clip": { "model": "higgsfield/cinema-studio/4.0", "seconds": 5, "params": { "resolution": "720p" } },
-    "game": { "dir": "Assets/Video", "ext": "mp4", "convert": ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart"], "after": "Play it with a VideoPlayer. Playing and skipping it is game code." }
   }
 }

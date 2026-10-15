@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Status board — reads the GDD sync table · asset records · cycle · playtest documents and draws them as HTML. No model draws it.
+"""Status board — reads the GDD sync table · the asset folders · cycle · playtest documents and draws them as HTML. No model draws it.
 
   python3 board.py              rewrite <out> (default docs/board/index.html) and the pages beside it; print the path and a one-line summary
   python3 board.py --if-stale   rewrite only when the board exists and a source is newer. Prints nothing and always exits 0 (the hook calls it)
@@ -15,7 +15,7 @@ index.html is the chart — one card per stage of play, in play order: how far F
 When the game has a balance table, a tile on it opens the table and says so when it is in step with the value file (the two files carry the same time).
 stage-N.html is the inside of one stage. Every state is read as written (the code is not searched here).
 review.html is what waits on the user, with a button per answer: the newest cycle's open decisions (with their comparison pictures, from the
-question files the cycle's sheet script keeps), asset images not yet approved, and — once the cycle is at Play — what to check by playing.
+question files the cycle's sheet script keeps), the GDD's open questions, and — once the cycle is at Play — what to check by playing.
 
 Read-only towards the documents — it writes inside the folder of <out> (and, for `share --done`, the link into kit.config.json). Config is "board" in kit.config.json at the project root (optional).
 
@@ -43,7 +43,6 @@ import urllib.request
 import webbrowser
 
 CONFIG_NAME = "kit.config.json"
-ASSET_WORK = "assets/_gen"  # where the asset skill keeps its records when asset.work is not set
 SECTION = "board"
 DEFAULTS = {
     "out": "docs/board/index.html",
@@ -52,9 +51,9 @@ DEFAULTS = {
     "cycles": "docs/cycle",
     "reload_sec": 30,   # how often an open board reloads itself. 0 = never
     "playtests": "docs/playtest",
-    "gen": "assets/_gen",          # asset records (left by the asset skill)
+    "gen": "assets/_gen",          # a work folder inside the asset folder (older kits kept generated sources there) — not counted as the game's
     "assets": "assets",
-    "design": "docs/DESIGN.md",    # the document holding Art style · World · Learned — shown at the head of the asset sheet
+    "design": "docs/DESIGN.md",    # the design rules — a change to it redraws the board
     "notes": "docs/board-notes.md",  # what the user notes after playing: `- stage | lane | problem | text`
     "open_heading": "Open questions",  # words in the heading of the GDD section that lists what is not decided yet
     "common": "Unsorted",          # where things that fit no stage gather — not counted in the %
@@ -222,7 +221,7 @@ def cycle(path):
 # The first screen (index) holds only the stage cards. A card opens that stage's page (stage-N.html).
 # The stages come from board.flow in kit.config.json (without it, one per GDD section). Every state is read:
 #   function    — the rows of GDD appendix A (synced · missing · mismatch)
-#   art · sound — asset records (assets/_gen) and the "Assets needed" table of the cycle documents (none · placeholder)
+#   art · sound — the files in the asset folders and the "Assets needed" table of the cycle documents (none · placeholder)
 #   verified    — whether a cycle that touched the stage has passed Play, playtest tasks, the user's notes (board-notes)
 
 LANES = ["function", "art", "sound", "verified"]  # the keys used inside
@@ -346,36 +345,22 @@ def asset_items(st, where, cycles, tasks):
     picture = lambda p: p if p and p.lower().endswith(IMG_EXT) else ""
     sound = lambda p: p if p and p.lower().endswith(SOUND_EXT) else ""
     found = {}
-    for name in sorted(os.listdir(gdir)) if os.path.isdir(gdir) else []:
-        for fn, lane in (("asset.json", "art"), ("sprite.json", "art"), ("sound.json", "sound")):
-            rec = load_json(os.path.join(gdir, name, fn))
-            if not isinstance(rec, dict):
-                continue
-            out = os.path.join(ROOT, rec["out"]) if rec.get("out") else ""
-            out = out if out and os.path.exists(out) else files.get(name, "")
-            if not out:  # a record whose file never reached the game (a dropped attempt) is not counted
-                continue
-            front = os.path.join(gdir, name, "still.png" if fn == "sprite.json" else "front.png")
-            found[name] = dict(item("done", name, " · ".join(x for x in (rec.get("kind") or ("model" if lane == "art" else ""),
-                                                                         rec.get("made") or rec.get("created") or "") if x),
-                                    img=front if os.path.exists(front) else picture(out), audio=out if lane == "sound" else ""), lane=lane)
-    made = set(found)
     for c in cycles:
         for n in c["needs"]:
             lane = "sound" if re.search(SOUND_KIND, n["kind"], re.I) else "art"
             it = found.get(n["name"]) or dict(item("none", n["name"], n["kind"], img=picture(files.get(n["name"], ""))), lane=lane)
             have = n["have"].strip()
             cited = re.findall(r"`([^`]+\.[A-Za-z0-9]+)`", have)  # a file named in the Have cell — it must still exist to count as done
-            there = (n["name"] in made or n["name"] in files or (any(os.path.exists(os.path.join(ROOT, c)) for c in cited) if cited
+            there = (n["name"] in files or (any(os.path.exists(os.path.join(ROOT, c)) for c in cited) if cited
                                                                  else not (have.startswith(HAVE_NONE) or have in ("", "—"))))
             it["st"] = "temp" if re.search(HAVE_TEMP, have) else "done" if there else "none"
             it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — the file named is missing" if cited and not there else "")
             it["tags"] = [f'Cycle {c["num"]}']
             it["audio"] = it["audio"] or sound(files.get(n["name"], ""))
             found[n["name"]] = it
-    for name, path in files.items():  # sounds and models in the game without a record count too (put in by hand)
+    for name, path in files.items():  # sounds and models in the game that no cycle listed count too
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
-            found[name] = dict(item("done", name, "no record", audio=sound(path)), lane="sound" if sound(path) else "art")
+            found[name] = dict(item("done", name, "", audio=sound(path)), lane="sound" if sound(path) else "art")
     for name, it in found.items():
         if any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
             continue
@@ -771,7 +756,7 @@ def index_html(name, st, asks, now, stamp, sheet, review):
             '<span><i class="s-none"></i>Not made</span><span><i class="s-bad"></i>Problem · undecided</span></div>'
             + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">Undecided {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
             + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>{rest_html}'
-            f'<footer><span>Drawn {stamp} · every state is read as written in the GDD table · asset records · cycle · playtest documents</span>'
+            f'<footer><span>Drawn {stamp} · every state is read as written in the GDD table · the asset folders · cycle · playtest documents</span>'
             '</footer>')
     return (f"{name} — chart", body), total
 
@@ -805,68 +790,26 @@ def col_html(lane, items):
     return f'<section class="col">{head}{body}</section>'
 
 
-def design_block(tag):
-    """The text between `<!-- tag -->` and `<!-- /tag -->` in the design document."""
-    text = read(os.path.join(ROOT, CFG["design"]))
-    a, b = f"<!-- {tag} -->", f"<!-- /{tag} -->"
-    return text.split(a, 1)[1].split(b, 1)[0].strip() if a in text and b in text else ""
-
-
 def sheet_data():
-    """What goes on the asset sheet — one per asset record (asset.json · sprite.json · sound.json). The board only reads the records."""
-    gdir = os.path.join(ROOT, CFG["gen"])
-    style = " ".join(design_block("asset-style").split())
-    mark = hashlib.sha1(style.encode()).hexdigest()[:8]
-    refs = (load_json(os.path.join(ROOT, CONFIG_NAME)) or {}).get("asset", {}).get("refs", [])  # the art style sample images (config of the asset skill)
+    """What goes on the asset sheet — every picture, model and sound in the game's asset folders, side by side, whoever made it."""
+    gdir, adir = os.path.abspath(os.path.join(ROOT, CFG["gen"])), os.path.join(ROOT, CFG["assets"])
     models, sounds = [], []
-    for name in sorted(os.listdir(gdir)) if os.path.isdir(gdir) else []:
-        for fn, sides in (("asset.json", ("front", "left", "right", "back")), ("sprite.json", ("still",))):
-            rec = load_json(os.path.join(gdir, name, fn))
-            if not isinstance(rec, dict):
-                continue
-            views = [os.path.join(gdir, name, f"{v}.png") for v in sides]
-            front = next((p for p in views if os.path.exists(p)), "")
-            placed = bool(rec.get("out")) and os.path.exists(os.path.join(ROOT, rec["out"]))
-            drawn = (rec.get("image") or {}).get("style") or ""
-            first = next(iter((rec.get("prompts") or {}).values()), "")
-            # Was it drawn under a different art style than the current one — by the recorded mark; for older records, by whether that prompt holds the current paragraph
-            old = bool(style) and not rec.get("as_is") and not rec.get("dropped") and (drawn != mark if drawn else bool(first) and style not in first)
-            here = os.path.abspath(front) if front else ""
-            models.append({"name": name, "img": front, "tool": fn.split(".")[0], "views": [p for p in views if os.path.exists(p)],
-                           "st": "done" if placed else "temp" if rec.get("approved") else "none",
-                           "state": "in the game" if placed else "dropped" if rec.get("dropped") else "approved" if rec.get("approved") else "image only" if front else "no image",
-                           "old": old, "ref": bool(here) and any(os.path.abspath(os.path.join(ROOT, r)) == here for r in refs),
-                           "from": rec.get("ref") or "", "said": rec.get("said") or [], "what": rec.get("subject", "")})
-        rec = load_json(os.path.join(gdir, name, "sound.json"))
-        if isinstance(rec, dict) and rec.get("out") and os.path.exists(os.path.join(ROOT, rec["out"])):
-            sub = " · ".join(x for x in (rec.get("kind", ""), f'{rec["seconds"]:g}s' if rec.get("seconds") else "") if x)
-            sounds.append(item("done", name, sub, rec.get("subject", ""), audio=os.path.join(ROOT, rec["out"])))
-    # Things in the game without a record (pictures · models · sounds put in by hand) go on too — off the sheet, they are missed when judging consistency
-    adir, loose = os.path.join(ROOT, CFG["assets"]), []
-    recs = [r for n in (os.listdir(gdir) if os.path.isdir(gdir) else []) for fn in ("asset.json", "sprite.json", "sound.json")
-            for r in [load_json(os.path.join(gdir, n, fn))] if isinstance(r, dict)]
-    known = {os.path.abspath(os.path.join(ROOT, x["out"])) for r in recs  # a sprite has one more sheet per motion
-             for x in [r, *(r.get("motions") or {}).values()] if isinstance(x, dict) and x.get("out")}
-    names = {m["name"] for m in models}
     for base, _dirs, files in os.walk(adir):
-        if os.path.abspath(base).startswith(os.path.abspath(gdir)):
+        if os.path.abspath(base).startswith(gdir):
             continue
         beside = [f.split(".")[0] for f in files if f.lower().endswith(MODEL_EXT)]  # the models in this folder
         for fn in sorted(files):
             path, stem, low = os.path.join(base, fn), fn.split(".")[0], fn.lower()
-            if os.path.abspath(path) in known or fn.endswith(".import"):
+            if fn.endswith(".import"):
                 continue
             if low.endswith(IMG_EXT) and any(stem.startswith(m + "_") for m in beside):
                 continue  # a texture unpacked beside a model under its name — not an asset of its own
             if low.endswith(SOUND_EXT):
-                sounds.append(item("done", stem, "no record", os.path.relpath(path, ROOT), audio=path))
-            elif low.endswith(IMG_EXT + MODEL_EXT) and stem not in names:
-                loose.append({"name": fn, "img": path if low.endswith(IMG_EXT) else "", "tool": "", "views": [], "st": "done", "state": "no record", "old": False, "ref": False,
-                              "from": "", "said": [], "what": os.path.relpath(path, ROOT)})
-    return {"loose": loose, "style": style, "mark": mark, "world": " ".join(design_block("asset-world").split()),
-            "learned": [re.sub(r"^[-*]\s*", "", x.strip()) for x in design_block("asset-learned").split("\n") if x.strip()],
-            "sound": " ".join(design_block("sound-style").split()),
-            "refs": [os.path.join(ROOT, r) for r in refs if os.path.exists(os.path.join(ROOT, r))], "models": models, "sounds": sounds}
+                sounds.append(item("done", stem, "", os.path.relpath(path, ROOT), audio=path))
+            elif low.endswith(IMG_EXT + MODEL_EXT):
+                models.append({"name": fn, "img": path if low.endswith(IMG_EXT) else "", "tool": "", "views": [], "st": "done", "state": "in the game",
+                               "old": False, "ref": False, "from": "", "said": [], "what": os.path.relpath(path, ROOT)})
+    return {"loose": [], "style": "", "mark": "", "world": "", "learned": [], "sound": "", "refs": [], "models": models, "sounds": sounds}
 
 
 def sheet_tile(m):
@@ -883,30 +826,12 @@ def sheet_tile(m):
 
 def sheet_html(name, d):
     """Asset sheet — every asset side by side on one screen. Consistency only shows side by side."""
-    old = sum(1 for m in d["models"] if m["old"])
-    refs = "".join(f'<div class="thumb"><button class="im zoom" data-zoom="{rel(r)}" data-cap="sample" style="background-image:url({rel(r)})"></button>'
-                   f'<span>{e(os.path.basename(r))}</span></div>' for r in d["refs"])
-    learned = "".join(f'<li class="it"><div class="t">{e(x)}</div></li>' for x in d["learned"])
-    none = '<p class="sub" style="margin:0 0 6px">None.</p>'
-
-    def rule(title, text, empty):
-        return f'<h4>{title}</h4><p class="sub" style="margin:0 0 6px">{e(text) if text else empty}</p>'
-
     wide = 'style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))"'
-    grid = (f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["models"]))}</div>' if d["models"] else '<p class="sub">No asset records.</p>')
-    if d["loose"]:
-        grid += (f'<h3 style="margin-top:16px">In the game without a record<small>{len(d["loose"])}</small></h3>'
-                 f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["loose"]))}</div>')
+    grid = (f'<div class="thumbs" {wide}>{"".join(map(sheet_tile, d["models"]))}</div>' if d["models"] else '<p class="sub">No pictures or models in the asset folders yet.</p>')
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn rv" href="review.html">Review →</a></div>'
             f'<div class="banner"><div><div class="lab">Asset sheet · side by side</div><h1>{e(name)}</h1>'
-            f'<div class="sub">models · images {len(d["models"])} · sounds {len(d["sounds"])}'
-            + (f' · <b style="color:var(--red2)">drawn in an old style {old}</b>' if old else "") + "</div></div></div>"
-            '<div class="under"><section class="col"><details class="basis"><summary><h3>Basis<small>attached to every asset</small></h3></summary>'
-            + rule("Art style — fixed", d["style"], "Empty. Set it before making the first asset.") + rule("World — what exists", d["world"], "None.")
-            + f'<h4>Learned — said when rejecting {len(d["learned"])}</h4>' + (f"<ul>{learned}</ul>" if learned else none)
-            + rule("Sound style", d["sound"], "None.")
-            + (f'<h4>Samples {len(d["refs"])}</h4><div class="thumbs">{refs}</div>' if refs else "") + "</details></section>"
-            f'<section class="col"><h3>Models · images<small>{len(d["models"])}</small></h3>{grid}'
+            f'<div class="sub">models · images {len(d["models"])} · sounds {len(d["sounds"])}</div></div></div>'
+            f'<div class="under"><section class="col"><h3>Models · images<small>{len(d["models"])}</small></h3>{grid}'
             f'<h3 style="margin-top:16px">Sounds<small>{len(d["sounds"])}</small></h3>'
             + (f'<ul>{"".join(map(it_html, d["sounds"]))}</ul>' if d["sounds"] else '<p class="sub">None.</p>') + "</section></div>")
     return f"Asset sheet · {name}", body
@@ -915,9 +840,8 @@ def sheet_html(name, d):
 def sheet_link(d):
     if not d["models"] and not d["sounds"] and not d["loose"]:
         return ""
-    old = sum(1 for m in d["models"] if m["old"])
     return (f'<a class="tile go" href="assets.html"><span class="lab">models · images {len(d["models"])} · sounds {len(d["sounds"])}'
-            + (f" · old style {old}" if old else "") + (f' · no record {len(d["loose"])}' if d["loose"] else "") + "</span><b>Asset sheet →</b></a>")
+            "</span><b>Asset sheet →</b></a>")
 
 
 def table_files():
@@ -1035,12 +959,6 @@ def review_items(cycles, sheet, asks=()):
                           "asked": short(d["title"] + "|" + d["options"]),  # its wording — asked anew, an answer to the old one no longer holds the card
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
-    for m in sheet["models"]:
-        if m["state"] == "image only" and m["views"]:  # an old art style is the user's to judge by eye on the sheet — not asked here
-            stamp = short("".join(hashlib.sha1(open(p, "rb").read()).hexdigest() for p in m["views"]))
-            items.append({"key": f'{m["tool"]}-{m["name"]}-{stamp}', "kind": "asset",
-                          "ref": m["name"], "tool": m["tool"], "state": m["state"],
-                          "title": m["name"], "what": m["what"], "views": m["views"], "said": m["said"], "old": m["old"]})
     for q in asks:
         if q["from"] == "GDD":
             items.append({"key": "q-" + short(q["title"]), "kind": "question", "ref": q["title"], "title": q["title"], "text": q["text"]})
@@ -1094,16 +1012,6 @@ def card(i):
         return (head + (f'<span class="lab">{e(tag)}</span>' if tag else "")
                 + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>' + (f'<div class="figs">{figs}</div>' if figs else "")
                 + f'<div class="opts">{opts}</div>' + note.format("Note (optional)"))
-    if i["kind"] == "asset":
-        figs = "".join(f'<figure><figcaption>{e(os.path.splitext(os.path.basename(v))[0])}</figcaption>'
-                       f'<button class="im zoom" data-zoom="{rel(v)}" data-cap="{e(i["ref"])}" style="background-image:url({rel(v)})"></button></figure>'
-                       for v in i["views"])
-        said = " / ".join(x.get("said", "") for x in i["said"] if isinstance(x, dict))
-        buttons = '<button class="opt" data-pick="approve">Approve</button><button class="opt no" data-pick="redo">Redo</button>'
-        return (head + f'<span class="lab">{"3D model" if i["tool"] == "asset" else "sprite"} · {e(i["state"])}{" · old style" if i["old"] else ""}</span>'
-                f'<h3>{e(i["title"])}</h3>' + (f'<div class="sub clamp">{e(i["what"])}</div>' if i["what"] else "")
-                + (f'<div class="was clamp">Turned down: {e(said)}</div>' if said else "") + f'<div class="figs">{figs}</div>'
-                f'<div class="opts pair">{buttons}</div>' + note.format("What is off?"))
     if i["kind"] == "question":
         return (head + '<span class="lab">GDD · open question</span>' + f'<h3>{md(i["title"])}</h3>' + (f'<div class="sub">{md(i["text"])}</div>' if i["text"] else "")
                 + '<div class="opts pair"><button class="opt" data-pick="answer">Answer (in the note)</button><button class="opt no" data-pick="drop">Not needed</button></div>'
@@ -1115,7 +1023,7 @@ def card(i):
 
 def review_html(name, items, stamp):
     cyc = next((i["cycle"] for i in items if i["kind"] == "check"), "")
-    groups = [("decision", "Decisions"), ("question", "Open questions in the GDD"), ("asset", "Assets to approve"), ("check", f"Check by playing · cycle {cyc}")]
+    groups = [("decision", "Decisions"), ("question", "Open questions in the GDD"), ("check", f"Check by playing · cycle {cyc}")]
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
                     for kind, title in groups for its in [[i for i in items if i["kind"] == kind]] for n in [len(its)] if its)
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a></div>'
@@ -1153,9 +1061,6 @@ def review_data(i):
     if i["kind"] == "decision":
         out.update(cycle=i["cycle"], doc=i["doc"], latest=i["latest"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
-    elif i["kind"] == "asset":
-        out.update(tool=i["tool"], state=i["state"], what=i["what"], old=i["old"], views=[rel(v) for v in i["views"]],
-                   said=[x.get("said", "") for x in i["said"] if isinstance(x, dict)])
     elif i["kind"] == "question":
         out.update(text=i["text"])
     else:
@@ -1243,14 +1148,11 @@ def context_kept():
 
 
 def sources():
-    gen = os.path.join(ROOT, CFG["gen"])
     sheets = os.path.join(ROOT, CFG["sheets"])
-    return ([os.path.join(ROOT, CFG["gdd"]), os.path.join(ROOT, CONFIG_NAME), os.path.join(ROOT, CFG["notes"]), os.path.join(ROOT, CFG["design"]), gen, sheets]
+    return ([os.path.join(ROOT, CFG["gdd"]), os.path.join(ROOT, CONFIG_NAME), os.path.join(ROOT, CFG["notes"]), os.path.join(ROOT, CFG["design"]), sheets]
             + ([os.path.join(sheets, n) for n in os.listdir(sheets)] if os.path.isdir(sheets) else [])
             + [p for p in table_files() if p]
-            + cycle_docs() + playtest_docs() + ([os.path.join(gen, n) for n in os.listdir(gen)] if os.path.isdir(gen) else [])
-            # a record rewritten in place (approve · keep · reject) does not touch its folder's time — the records themselves are watched
-            + [os.path.join(gen, n, fn) for n in (os.listdir(gen) if os.path.isdir(gen) else []) for fn in ("asset.json", "sprite.json", "sound.json")]
+            + cycle_docs() + playtest_docs() + [os.path.join(ROOT, CFG["assets"])]
             + [context_kept()])
 
 
@@ -1267,9 +1169,7 @@ def setup(root):
     CFG = dict(DEFAULTS, **whole.get(SECTION, {}))
     work = whole.get("asset", {}).get("work") if isinstance(whole.get("asset"), dict) else None
     if "gen" not in whole.get(SECTION, {}) and work:
-        CFG["gen"] = work  # follow the asset skill if it moved the asset records
-    # The board reading records from one folder and the asset scripts keeping them in another: the board shows what the scripts cannot find
-    CFG["gen_apart"] = "gen" in whole.get(SECTION, {}) and os.path.normpath(CFG["gen"]) != os.path.normpath(work or ASSET_WORK)
+        CFG["gen"] = work  # a game set up by an older kit kept its work folder there
     return whole
 
 
@@ -1303,8 +1203,6 @@ def draw(quiet):
     keep_review(review)
     if not quiet:
         print(f"{os.path.relpath(out, ROOT)} — {line}")
-        if CFG.get("gen_apart"):
-            print(f"board.gen ({CFG['gen']}) is not where the asset scripts keep their records (asset.work) — set asset.work to the same folder")
 
 
 def load_name():
@@ -1788,7 +1686,7 @@ def answers(path):
         sys.exit(f"{path}: could not read — save the rows of the \"answers\" collection as JSON")
     seen_path = os.path.join(folder, "answered.json")
     seen = load_json(seen_path) or {}
-    groups, stale = {"decision": [], "question": [], "asset": [], "check": []}, 0
+    groups, stale = {"decision": [], "question": [], "check": []}, 0
     for r in rows_in(data):
         i = items.get(r["key"])
         mark = f'{r.get("pick", "")}|{r.get("note", "")}|{(i or {}).get("asked", "")}'  # the same answer to a question asked anew is a new answer
@@ -1812,10 +1710,6 @@ def answers(path):
     if groups["question"]:
         out.append("Open questions in the GDD — write an answer where it belongs in the GDD and strike the question (~~…~~); a not needed one is struck only:")
         out += [f'  “{i["ref"]}” → {"not needed" if pick == "drop" else "answer"}{note(n)}' for i, pick, n in groups["question"]]
-    if groups["asset"]:
-        out.append("Assets — the asset skill: approve, reject with the user's words, or drop the attempt when not needed (`drop <name>`):")
-        out += [f'  {i["ref"]} ({"3D model — asset.py" if i.get("tool") == "asset" else "sprite — sprite.py"}) → {"not needed (drop)" if pick == "drop" else pick or "?"}{note(n)}'
-                for i, pick, n in groups["asset"]]
     if groups["check"]:
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
         out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem' + (" (hand the problems to the playtest skill as one list):" if bad else ""))

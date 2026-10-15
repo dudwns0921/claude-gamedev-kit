@@ -16,7 +16,7 @@ The Godot executable lives in a different place on each machine (`godot` is ofte
 - `--import` **rewrites `project.godot`** (line order changes, and autoload lines added by editor plugins can be erased).
   After running it look at `git diff project.godot`, and revert if it changed unintentionally. Do not run it while the editor is open.
   Check whether the editor has the project open as a step of its own, before the import (`pgrep -fl -i godot`) — chained into one command with the import, you find out after it has run.
-- Put an empty `.gdignore` file in folders Godot must not import, like `docs/` · `assets/_gen/`.
+- Put an empty `.gdignore` file in folders Godot must not import, like `docs/`.
 
 ## Verification
 

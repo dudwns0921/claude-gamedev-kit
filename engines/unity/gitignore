@@ -9,4 +9,3 @@ build/
 *.slnx
 *.keystore
 *.jks
-art/_gen/*/raw.glb

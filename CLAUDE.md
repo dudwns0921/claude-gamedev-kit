@@ -10,7 +10,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
   Unity and web are being filled in while games are made with them — how far it has been run is recorded in `records.md`.
   `tests/test_structure.py` blocks an engine's name appearing as a string in a script.
 - **A skill is complete within its own folder.** Do not import another skill's scripts. Settings go in `kit.config.json` under a section named after the skill.
-- **Scripts use only the standard library** (Python 3.9 — a package missing on the installing side breaks only there. `tests/test_structure.py` blocks it). Only the script Blender runs (`blender_finish.py`) uses `bpy`. The game root is found by walking up from the current folder — never from the script's location.
+- **Scripts use only the standard library** (Python 3.9 — a package missing on the installing side breaks only there. `tests/test_structure.py` blocks it). The game root is found by walking up from the current folder — never from the script's location.
 - **Do not overwrite files in the game repository.** init creates only files that do not exist. There is one exception — the `<!-- gamedev-kit start -->` block (`<!-- gamedev-kit 시작 -->` in a game set up by an older kit) inside the game's CLAUDE.md belongs to the kit,
   so `init --rules` replaces it whole (it does not touch anything outside the block, and stops if the inside was edited by hand). A change to the rules installed into games goes out through this block.
 - **Files that skill documents and hooks point to must exist.** When moving or renaming a script, also fix the documents that call it (`${CLAUDE_SKILL_DIR}/…`) and
@@ -23,9 +23,9 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 - **Do not write a game's name.** This repository is installed into any game. When bringing over something learned in a game, drop that game's name · files · numbers and
   keep only the rule and its reason ("where it was learned" stays in the user's own rules — do not write a game's name in commit messages either). Use `<game>` in examples.
 - **The cycle owns an asset's slot, not how it is made.** Name, path and size belong to the workflow; a file in the slot counts whoever made it.
-  The asset and video skills are optional ways to fill slots — nothing in the cycle, the board or the other skills may require their services.
-  Without them (no key, or the user would rather not), the cycle still runs: the slot waits on a placeholder and the user makes the file and puts it there.
-- **The kit covers making a game and showing where it stands — nothing after.** What repeats while a game is made (cycles, GDD ↔ code, decisions, assets in slots) is the kit's;
+  The kit makes no assets and names no service: the cycle runs on placeholders, and how a user has models, sprites, sounds or clips made is their way of working —
+  kept in their `ways.md` (the feedback skill's `way`), never in the kit.
+- **The kit covers making a game and showing where it stands — nothing after.** What repeats while a game is made (cycles, GDD ↔ code, decisions, slots for assets) is the kit's;
   what happens now and then at the end (a store build, signing, uploading) is left to Claude Code itself, asked in plain words. Do not add a skill for it.
 - **Commit messages are written in English**, as `<version> — <summary>`.
 - After a change, bump `version` in `.claude-plugin/plugin.json` — without it the installed side does not receive the new version.
@@ -33,7 +33,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 ## Verification
 
 ```bash
-python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init recognises engine projects and lists the engines to choose from, feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
+python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init recognises engine projects and lists the engines to choose from, feedback against a fake gh · a fake GitHub server, the board's dashboard push against a fake service
 python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's name in scripts, is only the standard library used
 claude plugin validate .           # manifest
 ```
@@ -64,15 +64,14 @@ What comes out of making a game falls into these kinds. This repository is publi
 | What holds in this user's next game too — traps, ways to verify, ways of working tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in `~/.config/gamedev-kit/rules/` — on their machine; every game imports them, so they hold from the next session) |
 | What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules sent as issues |
 
-So the README and documents here state **only what the kit does** — the one exception is the README's lists of the engines and asset services games have been made with (names only). Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
+So the README and documents here state **only what the kit does** — the one exception is the README's list of the engines games have been made with (names only). Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
 
 Rules written down are not enough — `tools/private_check.py` enforces it: it searches the files git knows and commit messages for games' names (`private-words.txt` in the rules folder — the names themselves
 must not be here, so the list lives outside the repository) and for dates. The tests run it, and it is also installed as a commit-msg hook (how to install it is at the top of that file). When starting a new game, add its name as a line in `private-words.txt`.
 
 ## What games teach comes back here
 
-Traps that were hit and ways to verify are carried over to `engines/<engine>/CLAUDE.md` (what becomes the games' rules), and what the engine needs done with a file the kit
-puts in a slot to `engines/<engine>/kit.config.json` (the `after` lines the asset and video tools print), so the next game does not go through the same thing again.
+Traps that were hit and ways to verify are carried over to `engines/<engine>/CLAUDE.md` (what becomes the games' rules), so the next game does not go through the same thing again.
 
 A lesson is sorted where the game trips (when a task is blocked · after a playtest fix), into two tiers: only that game → its CLAUDE.md; would trip the same user in another game →
 one of their own rules (`feedback.py add` — on their machine, loaded into every game of theirs by the import lines at the end of the kit rules block, so it holds at once).

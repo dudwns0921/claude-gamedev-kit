@@ -24,15 +24,9 @@ These change how everything is built (and what the engine project is set to), an
 **Ask whether the user has reference images** — screenshots, photos, drawings they like. They go in `docs/concept/` (the user puts them there; any image format).
 For each, ask what in it they like (one thing) — a reference without that sentence gets copied whole.
 
-If the user would rather have images generated: **say how many you will generate now and that each one is billed** (OpenAI image API, the key in the asset env file), and wait for a yes. Start with two or three that differ in one clear way, not eight.
-
-```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/concept.py" new <name> [--size 1024x1536] [--ref <image or existing name>] "<prompt in English>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/concept.py" list
-```
-
-`--size`: portrait `1024x1536` · landscape `1536x1024` · square `1024x1024` — use the orientation decided above. An existing name is never overwritten; a redraw gets a new name.
-If the key is missing the script says where it goes — the user writes it; do not ask them to paste it in chat.
+If the user would rather have pictures generated, the kit draws none itself: follow the user's ways of working (`ways.md`) if they say how pictures are made,
+otherwise ask which tool or service they want and keep the answer as a way (the feedback skill's `way`). Say how many will be made and that each one may cost money, and wait for a yes.
+Start with two or three that differ in one clear way, not eight, in the orientation decided above, saved in `docs/concept/` under new names — never over an existing one.
 
 ## 3. You do not look
 
@@ -40,11 +34,11 @@ If the key is missing the script says where it goes — the user writes it; do n
 Give the paths, say plainly **"I have not looked at this picture"**, and ask what the user sees: what is right, what is wrong, one thing to change.
 (The same goes for references the user added — ask them to describe what they like in it rather than opening it.)
 
-## Prompt rules
+## Prompt rules (when pictures are generated)
 
 - **No studio, brand, film or game names, and no real person's likeness.** When the user says "like X", turn it into described traits — shape language (round · angular · chunky), palette, light, line, level of detail — and **tell the user you did** and show the traits, so they can correct the translation.
 - **One change per redraw.** Two changes at once and nobody knows which one fixed it or broke it.
-- **When the user likes an image, redraw from it with `--ref`**, asking only for the change — starting over from text loses what they liked.
+- **When the user likes an image, redraw from it as the reference**, asking only for the change — starting over from text loses what they liked.
 - A prompt describes what is on screen: the viewpoint and orientation decided above, what the player sees in a typical moment of the innermost loop, palette, light, how things are drawn.
 
 ## What a picture can and cannot fix
@@ -59,7 +53,7 @@ When the user agrees:
 - **GDD `Art direction`**: orientation · viewpoint · 2D/3D, the look in a few lines (per kind of thing, if they differ, with the reason), and the reference images by path (`docs/concept/<name>.png` — which one stands for what).
 - **`docs/DESIGN.md` → `Screen layout`**: orientation and reference resolution, viewpoint, where the play area and the HUD sit. Name the same reference images.
   Add the agreed palette to `Colors` if it was settled.
-- **Leave `<!-- asset-style -->` empty.** That paragraph is the asset skill's to fill with the user at the first asset. Under `Screen layout` (not inside the markers) note what was agreed — how things are drawn, palette, level of detail — in a line or two, so the paragraph can be drafted from it.
+- **`docs/DESIGN.md` → `Art style`**: how things are drawn, palette, level of detail — a few lines anyone making an asset can follow, whatever they make it with.
 
 ## End of the stage
 

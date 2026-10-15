@@ -13,7 +13,6 @@ You need:
 - [Python](https://www.python.org/downloads/) 3.9 or later
 - [Node.js](https://nodejs.org) — for the dashboard
 - The editor of the engine you make the game with (below) — a plain web game needs none
-- Optional, to have assets made: an API key of a service below, as a line in `~/.config/gamedev-kit/asset.env` — without one a cycle runs on placeholders, and any file you put in its place counts
 
 In your game's folder (an empty one is fine):
 
@@ -38,15 +37,6 @@ Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `
 - [Godot](https://godotengine.org/download)
 - [Unity](https://unity.com/download)
 - Web — plain HTML and JavaScript, no editor
-
-### Services assets have been made with
-
-| Makes | Service | Line in `asset.env` |
-|---|---|---|
-| 3D models | [OpenAI](https://platform.openai.com/api-keys) (the picture) + [Meshy](https://www.meshy.ai) (the mesh) | `OPENAI_API_KEY=…` · `MESHY_API_KEY=…` |
-| Sprites | [Ludo](https://ludo.ai) | `LUDO_API_KEY=…` |
-| Sounds and music | [ElevenLabs](https://elevenlabs.io) | `ELEVENLABS_API_KEY=…` |
-| Clips (trailers, cutscenes) | [Higgsfield](https://higgsfield.ai) | `HF_API_KEY_ID=…` · `HF_API_KEY_SECRET=…` |
 
 ## Why use it
 

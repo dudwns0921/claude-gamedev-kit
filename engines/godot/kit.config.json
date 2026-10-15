@@ -12,22 +12,5 @@
     "line": "^(static var )([A-Z][A-Z0-9_]*)( := )(-?\\d+(?:\\.\\d+)?)(\\s*(?:#.*)?)$",
     "doc_prefix": "##",
     "comment": "#"
-  },
-  "asset": {
-    "dir": "assets/models",
-    "format": "glb",
-    "after": "Godot reads glb as is (import as the engine rules' Running says). 1 unit is 1 m and the origin is the centre of the bottom — check it stands where it should.",
-    "views": ["front", "back"],
-    "refs": [],
-    "image": { "model": "gpt-image-2.5-flare", "size": "1024x1024", "quality": "medium" },
-    "meshy": { "ai_model": "latest", "target_polycount": 5000, "topology": "triangle", "enable_pbr": false },
-    "sound": { "dir": "assets/sounds", "format": "mp3_44100_128", "influence": 0.3, "music_model": "music_v1", "after": "For a looping sound or music turn on Loop in its import settings (Import dock → Loop → Reimport) — without it it plays once, even if made with --loop." },
-    "sprite": { "dir": "assets/sprites", "style_ref": "", "view": "", "image": { "image_type": "sprite" }, "animate": { "model": "hydra", "duration": 3 }, "after": "Cut a sheet with the grid printed above — Sprite2D hframes · vframes, or SpriteFrames from AtlasTexture regions for AnimatedSprite2D. The last row may be partly empty: play only the frame count given." }
-  },
-  "video": {
-    "size": "landscape",
-    "page": { "dir": "docs/video" },
-    "clip": { "model": "higgsfield/cinema-studio/4.0", "seconds": 5, "params": { "resolution": "720p" } },
-    "game": { "dir": "assets/video", "ext": "ogv", "convert": ["-c:v", "libtheora", "-q:v", "7", "-c:a", "libvorbis", "-q:a", "4"], "after": "Godot plays only Ogg Theora built in — VideoStreamPlayer with VideoStreamTheora. Playing and skipping it is game code." }
   }
 }

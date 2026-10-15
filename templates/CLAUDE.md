@@ -30,8 +30,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 | A new game with no cycle yet — the GDD, the look, the first goal | `/gamedev-kit:start` — it reads where the game stands from the files |
 | A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from Goal to Play |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
-| A 3D model, a 2D sprite or a sound | `/gamedev-kit:asset` — the style is the one paragraph in [docs/DESIGN.md](docs/DESIGN.md); do not write a style per asset |
-| A trailer shot or a cutscene clip | `/gamedev-kit:video` |
+| A 3D model, a sprite, a sound or a clip | Made the way the user's ways of working say (`ways.md`) — the kit makes none; the style is the one in [docs/DESIGN.md](docs/DESIGN.md); the file goes to its slot's path |
 | "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
 | Starting over light | `/clear`, then `/gamedev-kit:cycle next` — in the same window, so the dashboard stays connected; the cycle document holds the state, and work in hand that is not in it is left there first (the cycle skill's "Leaving a session") |
 
@@ -51,4 +50,5 @@ Do not read cycle · playtest documents whole — that skill's script extracts t
 ## What was learned, and what goes outside
 
 - A pitfall or a way to verify is sorted when it happens, not saved up: specific to this game → this file's "Pitfalls"; would trip this user again in another game → one of the user's own rules (`add` of the feedback skill — it holds from the next session, in every game of theirs). The feedback skill sends those rules on to the kit, as the user has said they should go.
+- How the user wants things made — the tools, services or MCP servers for models, sprites, sounds, clips — is not a rule but a way of working: `way` of the feedback skill keeps it, for every game of theirs, and it never goes to the kit. The kit makes no assets itself.
 - Before anything goes outside (a build uploaded to a store, an issue posted), say what goes where and get consent. Logins and API keys live outside the repository — do not write them in any file.

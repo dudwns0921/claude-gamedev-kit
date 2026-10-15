@@ -44,16 +44,21 @@ BLOCK_RE = re.compile("(?P<start>" + re.escape(START) + "|" + re.escape(OLD_STAR
 HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_RULES") or "~/.config/gamedev-kit/rules")
 OLD_HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")  # where the rules lived before
 # The last part of the block. Import lines are plain text on lines of their own — Claude Code does not expand one inside a code span or a fenced block.
-MINE = """## The user's own rules
+MINE = """## The user's own rules and ways
 
-These are the user's own rules from earlier games, kept outside this repository — they hold in this game too.
+The user's own rules from earlier games (what went wrong) and their ways of working (the tools and services they make things with),
+kept outside this repository — they hold in this game too.
 
 @{home}/rules.md
-@{home}/rules-{engine}.md"""
+@{home}/rules-{engine}.md
+@{home}/ways.md"""
 # The head of a rule file made here — the same words feedback.py writes (the feedback skill owns these files; the tests hold the two together).
 RULES_HEAD = ("# The user's rules{engine}\n\n"
               "What this user learned in earlier games that holds {scope} — one rule per line, written by `feedback.py add`. "
               "Claude Code loads this file into every game made with gamedev-kit.\n\n")
+WAYS_HEAD = ("# The user's ways of working\n\n"
+             "How this user makes things — the tools, services and MCP servers they chose, how their assets are made — one per line, written by `feedback.py way`. "
+             "Never sent anywhere. Claude Code loads this file into every game made with gamedev-kit.\n\n")
 OWN = """
 ## This game's rules
 
@@ -109,7 +114,7 @@ def rules(engine):
 
 
 def own_rules(engine, done=None):
-    """Make the two rule files the block imports when they are not there — an import must not point at a missing file.
+    """Make the files the block imports (the two rule files, the ways) when they are not there — an import must not point at a missing file.
     The first time, the rules the old voice home kept are copied over (that folder is left as it was)."""
     names = os.listdir(HOME) if os.path.isdir(HOME) else []
     if not any(n == "rules.md" or re.fullmatch(r"rules-.+\.md", n) for n in names) and os.path.isdir(OLD_HOME):
@@ -120,6 +125,12 @@ def own_rules(engine, done=None):
                 open(os.path.join(HOME, n), "w", encoding="utf-8").write(text)
                 if done is not None:
                     done.append(f"  copied   {os.path.join(HOME, n)} (from {OLD_HOME})")
+    ways = os.path.join(HOME, "ways.md")
+    if not os.path.exists(ways):
+        os.makedirs(HOME, exist_ok=True)
+        open(ways, "w", encoding="utf-8").write(WAYS_HEAD)
+        if done is not None:
+            done.append(f"  new      {ways}")
     for name, scope in (("", "whatever the engine"), (engine, f"in every {engine} game")):
         path = os.path.join(HOME, f"rules-{name}.md" if name else "rules.md")
         if not os.path.exists(path):

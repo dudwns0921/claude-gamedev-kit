@@ -13,7 +13,7 @@ import sys
 import unittest
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NOT_STDLIB = {"blender_finish.py": {"bpy"}}  # the script Blender runs
+NOT_STDLIB = {}  # a script that may import what is not in the standard library: {file name: {module}}
 
 
 def rel(path):

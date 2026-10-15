@@ -28,7 +28,7 @@ Each issue ends in exactly one lane.
 | `duplicate` | A rule already in the kit covers it | Nothing changes — name the existing rule |
 | `request` | A feature request, not a lesson | Nothing changes — the issue is labelled and stays open for the maintainer |
 | `wait` | It would make a good rule, but only one game has seen it | Nothing changes — the issue is labelled and stays open; it is read again when another game reports it |
-| `skip` | It depends on one game's structure, or is too specific to state as a rule that holds for any game | Nothing changes — the issue is labelled |
+| `skip` | It depends on one game's structure, is too specific to state as a rule that holds for any game, or is a way of working — a tool, a service, how someone makes assets (the kit names none) | Nothing changes — the issue is labelled |
 
 The issue's title names its engine (`feedback(<engine>): …`). A lesson that is not about the engine at all — it is about the cycle, the balance
 table, an asset — belongs to the skill or script it is about, not to an engine file. What is installed into every game regardless of engine lives in `templates/`.

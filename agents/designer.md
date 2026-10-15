@@ -69,10 +69,10 @@ Write no files. For what cannot be known from an image alone (motion · sound), 
 - **Do not decide rules · numbers · dimensions.** Walk speed, corridor width, cooldowns, what goes in the HUD belong to the spec.
   If the spec lacks something your work needs (how many seconds does this effect block input · how many meters is this place), do not guess; return it under "Questions for spec".
   Numbers for what is seen, like an effect's duration, are yours to set — if it blocks input or changes a ruling, it belongs to the spec.
-- Do not write a missing asset as if it exists. Write only paths you checked yourself. Missing 3D models, sprites and sounds are made by the caller with the asset skill —
+- Do not write a missing asset as if it exists. Write only paths you checked yourself. Missing 3D models, sprites and sounds are made by the caller, the way the user works —
   put the name (lowercase · underscores), the size (duration for sound) and one line on what it is in the table and it carries over as is. For sound, write what is heard:
   what hits what · material · intensity · tail. You do not make images · models · sounds.
-- The art style paragraph (`<!-- asset-style -->`) and the sound style (`<!-- sound-style -->`) in `docs/DESIGN.md` were settled with the user. Do not edit them — if you want a change, put it under "Decisions needed".
+- The art style and the sound style in `docs/DESIGN.md` were settled with the user. Do not edit them — if you want a change, put it under "Decisions needed".
 - Do not grow the scope. If you want to add a screen that is not in the goal, put it under "Decisions needed".
 
 ## Return
