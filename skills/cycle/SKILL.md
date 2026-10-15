@@ -46,6 +46,8 @@ These act on the newest document (for another, `--doc <path>`). Use Edit only fo
 **Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
 where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
 "Opening a new session here and continuing with `/gamedev-kit:cycle next` is lighter." If the user says just go on, go on.
+When decisions are asked and the board is shared, the user may answer on the link instead: then this session may stay open and wait — "Send to Claude" there wakes it
+(the board skill's "The link"). Say both in one line; a new session reads the saved answers just the same.
 A session that opened with `next` often starts at one of these (decisions asked again · Play) — it is already the light session, so do not recommend another; recommend only once this session has run a stage, a wave or a playtest round.
 Do not chain two or more cycles in one session. If work is in hand that the document does not hold (assets · settings · another repo · a fix under way), leave it first — "Leaving a session" below.
 

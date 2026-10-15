@@ -569,7 +569,8 @@ a.btn.rv{border-color:var(--red);color:var(--red2);background:rgba(255,90,106,.1
 .basis>summary{list-style:none;cursor:pointer;border:0;padding:0}.basis>summary::-webkit-details-marker{display:none}.basis>summary h3{margin:0;font-size:15px;color:var(--tx);font-family:inherit;display:flex;align-items:baseline;gap:8px}.basis>summary h3::before{content:"▸";color:var(--tx3);font-size:11px}.basis[open]>summary h3::before{content:"▾"}.basis>summary h3 small{margin-left:auto;font:11px var(--mono);color:var(--tx3)}.basis[open]>summary{margin-bottom:6px}
 .dock{position:sticky;bottom:0;z-index:5;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border:1px solid var(--line2);border-radius:16px;
 background:rgba(8,19,15,.94);backdrop-filter:blur(8px);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));font-size:12px;color:var(--tx2)}
-.dock b{font:800 18px var(--mono);color:var(--lime)}.dock .copy{margin-left:auto;cursor:pointer}.dock .out{flex:1 1 100%;min-height:60px}
+.dock b{font:800 18px var(--mono);color:var(--lime)}.dock .copy,.dock .send{margin-left:auto;cursor:pointer}.dock .send{font-size:13px;padding:8px 16px}.dock .send:disabled{opacity:.45;cursor:default}
+.dock .sent{flex:1 1 100%;font-size:11.5px;color:var(--sun)}.dock .sent:empty{display:none}.dock .out{flex:1 1 100%;min-height:60px}
 @media(max-width:760px){
 .page{padding:14px 16px 18px;gap:12px}h1{font-size:26px}.banner h1{font-size:28px}.banner{padding:16px;min-height:0;flex-wrap:wrap}.banner .pic{inset:0;opacity:.3}
 header .tiles,.banner .tiles{margin-left:0}.tile{min-width:0;flex:1 1 30%;padding:6px 10px}.tile b{font-size:18px}
@@ -593,10 +594,12 @@ const typing=()=>document.activeElement&&document.activeElement.classList.contai
 const every=RELOAD;if(every)setInterval(()=>{if(!document.hidden&&!a&&!box.classList.contains('on')&&!typing())location.reload()},every*1000);
 """
 # The review page's buttons. On a claude.ai link the page holds the `db` capability: a tap is saved to the "answers" collection at once,
-# and the session reads that collection back. Anywhere else (the local file, a copy) the answers stay in this browser and are copied out by hand.
+# and the session reads that collection back. "Send to Claude" (the `comments` capability) wakes the session watching the link — one send for
+# all the answers, since one answer can change what the next means. Anywhere else (the local file, a copy) the answers stay in this browser
+# and are copied out by hand.
 REVIEW_JS = """
 (()=>{const cards=[...document.querySelectorAll('.card[data-key]')],dock=document.getElementById('dock');if(!cards.length||!dock)return;
-let A={},DB=null;try{A=JSON.parse(localStorage.getItem('kit-review')||'{}')}catch(_){}
+let A={},DB=null,CM=null;try{A=JSON.parse(localStorage.getItem('kit-review')||'{}')}catch(_){}
 const keep=()=>{try{localStorage.setItem('kit-review',JSON.stringify(A))}catch(_){}};
 const here=k=>cards.some(c=>c.dataset.key===k);
 function paint(){cards.forEach(c=>{const v=A[c.dataset.key];c.classList.toggle('done',!!(v&&v.pick));
@@ -606,16 +609,27 @@ function paint(){cards.forEach(c=>{const v=A[c.dataset.key];c.classList.toggle('
  dock.querySelector('b').textContent=Object.keys(A).filter(k=>here(k)&&A[k].pick).length+' / '+cards.length;
  dock.querySelector('.how').textContent=DB?'Saved for Claude':'Copy, then paste in the chat';
  dock.querySelector('.copy').hidden=!!DB}
+const say=t=>dock.querySelector('.sent').textContent=t;
+async function door(){const b=dock.querySelector('.send');let st='off';if(CM){try{st=await CM.canSendToClaude()}catch(_){st='off'}}
+ b.hidden=!(st==='available'||st==='no_session');b.disabled=st!=='available';
+ if(st==='no_session')say('No session is watching the link — answers stay saved for the next one')}
 function text(){return cards.map(c=>{const v=A[c.dataset.key];return v&&(v.pick||v.note)?c.dataset.label+' → '+(v.pick||'')+(v.note?' — '+v.note:''):''}).filter(Boolean).join('\\n')}
 async function save(k){keep();paint();if(!DB)return;const v=A[k];
  try{await DB.doc('answers/'+k).set({key:k,pick:v.pick||'',note:v.note||'',at:Date.now()});v.saved=true;v.failed=''}catch(err){v.saved=false;v.failed=(err&&err.code)||'error'}paint()}
 cards.forEach(c=>{const k=c.dataset.key;
  c.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{A[k]=Object.assign(A[k]||{},{pick:b.dataset.pick,saved:false});save(k)});
  const n=c.querySelector('.note');if(n){let t=0;n.oninput=()=>{A[k]=Object.assign(A[k]||{pick:''},{note:n.value,saved:false});clearTimeout(t);t=setTimeout(()=>save(k),700)}}});
+dock.querySelector('.send').onclick=async ev=>{const t=text();if(!t){say('Pick an answer first');return}const b=ev.currentTarget;b.disabled=true;
+ try{await CM.sendToClaude({anchor:await CM.anchorFor(dock),text:('Answers from the review page — read them with board.py answers:\\n'+t).slice(0,3900)});
+  say('Sent to Claude ✓ — the reply comes in the comment thread')}
+ catch(err){const c=err&&err.code;say(c==='claude_unavailable'?'No session could take it — answers stay saved for the next one':c==='consent_required'?'Allow comments for this page, then send again':c==='rate_limited'?'Wait a moment, then send again':'Not sent — '+(c||'error'))}
+ door()};
 dock.querySelector('.copy').onclick=ev=>{const t=text(),b=ev.target;const show=()=>{let o=dock.querySelector('.out');if(!o){o=document.createElement('textarea');o.className='note out';o.readOnly=true;dock.appendChild(o)}o.value=t;o.focus();o.select()};
  try{navigator.clipboard.writeText(t).then(()=>b.textContent='Copied ✓',show)}catch(_){show()}};
 paint();
-(async()=>{const c=window.claude;if(!c||!c.use)return;const db=await c.use('db').catch(()=>null);if(!db)return;DB=db;paint();
+(async()=>{const c=window.claude;if(!c||!c.use)return;
+ c.use('comments').then(m=>{CM=m;door();addEventListener('visibilitychange',()=>{if(!document.hidden)door()})},()=>{});
+ const db=await c.use('db').catch(()=>null);if(!db)return;DB=db;paint();
  db.collection('answers').onSnapshot(s=>{s.docs.forEach(d=>{const v=d.data();if(v&&v.key&&here(v.key))A[v.key]={pick:v.pick,note:v.note,saved:true}});keep();paint()},()=>{})})();})();
 """
 # The bundle for a link holds every page in one document (a page's capabilities reach that page only). Links become #names that the page
@@ -1031,7 +1045,8 @@ def review_html(name, items, stamp):
             f'<div class="banner"><div><div class="lab">Review</div><h1>{e(name)}</h1>'
             f'<div class="sub">{len(items)} to answer</div></div></div>'
             + (parts or '<p class="sub">Nothing waits on you.</p>')
-            + ('<div class="dock" id="dock"><span class="lab">answered</span><b>0</b><span class="how"></span><button class="btn copy">Copy answers</button></div>' if items else "")
+            + ('<div class="dock" id="dock"><span class="lab">answered</span><b>0</b><span class="how"></span><button class="btn copy">Copy answers</button>'
+               '<button class="btn go send" hidden>Send to Claude</button><span class="sent"></span></div>' if items else "")
             + f'<footer><span>Drawn {stamp}</span></footer>')
     return f"Review · {name}", body
 
@@ -1179,7 +1194,7 @@ def share(whole, done):
     parts[-1].update({p: None for p in sorted(sent - set(SHARED))})  # no longer shown — dropped from the link
     total = sum(os.path.getsize(SHARED[p]) for p in new)
     rel_folder = os.path.relpath(folder, ROOT)
-    json.dump({"page": os.path.join(rel_folder, "index.html"), "root": rel_folder, "url": CFG["share"] or None,
+    json.dump({"page": os.path.join(rel_folder, "index.html"), "root": rel_folder, "url": CFG["share"] or None, "capabilities": {"db": {}, "comments": {}},
                "parts": [p for p in parts if p] or [{}], "all": sorted(SHARED), "new_bytes": total},
               open(os.path.join(folder, "publish.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"{os.path.relpath(os.path.join(folder, 'publish.json'), ROOT)} — {line} · files new {len(new)} ({total / 1048576:.1f} MB)"

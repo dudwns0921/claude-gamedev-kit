@@ -1620,6 +1620,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         sent = json.load(open(os.path.join(share, "publish.json")))
         self.assertEqual(sent["page"], os.path.join("docs", "board", "share", "index.html"))
         self.assertEqual(sorted(sent["parts"][0]), sent["all"])
+        self.assertEqual(sent["capabilities"], {"db": {}, "comments": {}}, "the link keeps the taps and can wake the session")
         for f in sent["all"]:
             self.assertTrue(os.path.exists(os.path.join(share, f)), "each new file is copied under the bundle's root")
         page = open(os.path.join(share, "index.html"), encoding="utf-8").read()
@@ -1627,6 +1628,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn('<div class="page" data-page="review.html">', page, "the review comes first when something waits")
         self.assertIn('href="#index.html"', page, "links between pages become #names")
         self.assertNotIn("@import", page)
+        self.assertIn('<button class="btn go send" hidden>Send to Claude</button>', page, "shown once the link says a session can take it")
         run(BOARD, root, "share", "--done", "https://claude.ai/artifact/abc")
         self.assertEqual(json.load(open(os.path.join(root, "kit.config.json")))["board"]["share"], "https://claude.ai/artifact/abc")
         out = run(BOARD, root, "share").stdout
