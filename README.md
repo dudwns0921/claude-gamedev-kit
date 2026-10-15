@@ -5,8 +5,6 @@
 **A [Claude Code](https://code.claude.com) plugin for making games.**
 Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.
 
-[Landing page](https://gamedev-kit-site.vercel.app)
-
 ## Quick start
 
 In Claude Code, in your game's folder (an empty one is fine):
