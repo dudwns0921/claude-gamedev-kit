@@ -4,8 +4,8 @@
   python3 tools/private_check.py                    every file git knows
   python3 tools/private_check.py --message <file>   a commit message (called by the commit-msg hook)
 
-The blocked words (games' names and the like) live outside the repository: private-words.txt in the voice folder
-(~/.config/gamedev-kit/voice, override with GAMEDEV_KIT_VOICE), one per line. Without that file only dates are checked.
+The blocked words (games' names and the like) live outside the repository: private-words.txt in the rules folder
+(~/.config/gamedev-kit/rules, override with GAMEDEV_KIT_RULES — the old voice folder is read too), one per line. Without that file only dates are checked.
 Dates (YYYY-MM-DD) are written nowhere outside tests/.
 
 Install the hook once per repository:
@@ -17,15 +17,18 @@ import subprocess
 import sys
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")
+HOMES = [os.path.expanduser(os.environ.get("GAMEDEV_KIT_RULES") or "~/.config/gamedev-kit/rules"),
+         os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")]
 DATE_RE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
 
 
 def words():
-    path = os.path.join(HOME, "private-words.txt")
-    if not os.path.exists(path):
-        return []
-    return [w.strip().lower() for w in open(path, encoding="utf-8") if w.strip() and not w.startswith("#")]
+    out = []
+    for home in HOMES:
+        path = os.path.join(home, "private-words.txt")
+        if os.path.exists(path):
+            out += [w.strip().lower() for w in open(path, encoding="utf-8") if w.strip() and not w.startswith("#")]
+    return sorted(set(out))
 
 
 def problems(name, text, block, dates):
@@ -52,7 +55,7 @@ def main():
     else:
         sys.exit(__doc__)
     if found:
-        sys.exit("\n".join(found) + "\nIndividual records do not belong in this repository — move them to records.md in the voice folder")
+        sys.exit("\n".join(found) + "\nIndividual records do not belong in this repository — move them to records.md in your private folder (~/.config/gamedev-kit/)")
     print("Nothing leaked" + ("" if block else " (no private-words.txt — only dates were checked)"))
 
 

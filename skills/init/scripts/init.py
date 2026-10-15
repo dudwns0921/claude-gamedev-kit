@@ -20,8 +20,9 @@ In CLAUDE.md, the kit's part is only what lies between `<!-- gamedev-kit start �
 A block written by an older kit carries the Korean markers (`gamedev-kit 시작` / `gamedev-kit 끝`): it is found too, and is rewritten with the new markers when it is brought up to date.
 When the kit bumps its version, --rules replaces just that span — the game's rules are outside the block and are not touched.
 If the inside of the block was edited by hand, it stops instead of overwriting (move the edits outside, or --force).
-The block ends with two import lines (`@<voice home>/rules.md` · `@<voice home>/rules-<engine>.md`) — the user's own rules from earlier games, which Claude Code
-reads in with the game's CLAUDE.md. They live in the voice home (~/.config/gamedev-kit/voice/, or GAMEDEV_KIT_VOICE), outside the game; if that folder exists, the two files are made when missing.
+The block ends with two import lines (`@<rules home>/rules.md` · `@<rules home>/rules-<engine>.md`) — the user's own rules from earlier games, which Claude Code
+reads in with the game's CLAUDE.md. They live in the rules home (~/.config/gamedev-kit/rules/, or GAMEDEV_KIT_RULES), outside the game; the two files are made when missing
+(and, the first time, the rules kept in the old voice home are copied over — the feedback skill owns these files).
 
 How to recognise an engine project · find the editor · create one is in engines/<engine>/project.json (not copied into the game):
   marker    if this file exists, it is that engine's project
@@ -48,7 +49,8 @@ OLD_START, OLD_END = "<!-- gamedev-kit 시작", "<!-- gamedev-kit 끝 -->"  # wr
 # The fingerprint in the start marker is taken over the text between the marker lines only, so it does not depend on which markers a block carries.
 BLOCK_RE = re.compile("(?P<start>" + re.escape(START) + "|" + re.escape(OLD_START) + r") · ([0-9a-f]+)[^\n]*-->\n(.*?)\n"
                       "(?P<end>" + re.escape(END) + "|" + re.escape(OLD_END) + ")", re.S)
-VOICE = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")
+HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_RULES") or "~/.config/gamedev-kit/rules")
+OLD_HOME = os.path.expanduser(os.environ.get("GAMEDEV_KIT_VOICE") or "~/.config/gamedev-kit/voice")  # where the rules lived before
 # The last part of the block. Import lines are plain text on lines of their own — Claude Code does not expand one inside a code span or a fenced block.
 MINE = """## The user's own rules
 
@@ -56,9 +58,9 @@ These are the user's own rules from earlier games, kept outside this repository 
 
 @{home}/rules.md
 @{home}/rules-{engine}.md"""
-# The head of a rule file made here — the same words voice.py writes (the voice skill owns these files; the tests hold the two together).
+# The head of a rule file made here — the same words feedback.py writes (the feedback skill owns these files; the tests hold the two together).
 RULES_HEAD = ("# The user's rules{engine}\n\n"
-              "What this user learned in earlier games that holds {scope} — one rule per line, written by `voice.py rule`. "
+              "What this user learned in earlier games that holds {scope} — one rule per line, written by `feedback.py add`. "
               "Claude Code loads this file into every game made with gamedev-kit.\n\n")
 OWN = """
 ## This game's rules
@@ -201,10 +203,10 @@ def add_ignore(engine, root, done):
                 + (f"{len(new)} line{'' if len(new) == 1 else 's'}: {' · '.join(new)}" if new else "every line is already there") + ")")
 
 
-def voice_home():
-    """The voice home as the block writes it: with `~` when it is under the home directory, so the block comes out the same on every machine."""
+def rules_home():
+    """The rules home as the block writes it: with `~` when it is under the home directory, so the block comes out the same on every machine."""
     home = os.path.expanduser("~")
-    path = "~" + VOICE[len(home):] if VOICE.startswith(home + os.sep) else VOICE
+    path = "~" + HOME[len(home):] if HOME.startswith(home + os.sep) else HOME
     return path.replace(os.sep, "/")
 
 
@@ -213,15 +215,26 @@ def rules(engine):
     head, body = open(os.path.join(KIT, "templates", "CLAUDE.md"), encoding="utf-8").read().split("\n## ", 1)
     extra = os.path.join(ENGINES, engine, "CLAUDE.md")  # rules that hold only for that engine (running · verifying · pitfalls)
     more = open(extra, encoding="utf-8").read().strip() if os.path.exists(extra) else ""
-    mine = MINE.format(home=voice_home(), engine=engine)
+    mine = MINE.format(home=rules_home(), engine=engine)
     return head.strip() + "\n", ("## " + body.strip() + ("\n\n" + more if more else "") + "\n\n" + mine).strip()
 
 
 def own_rules(engine, done=None):
-    """Make the two rule files the block imports, if the voice home is there and they are not — an import must not point at a missing file."""
+    """Make the two rule files the block imports when they are not there — an import must not point at a missing file.
+    The first time, the rules the old voice home kept are copied over (that folder is left as it was)."""
+    names = os.listdir(HOME) if os.path.isdir(HOME) else []
+    if not any(n == "rules.md" or re.fullmatch(r"rules-.+\.md", n) for n in names) and os.path.isdir(OLD_HOME):
+        for n in sorted(os.listdir(OLD_HOME)):
+            if n in ("rules.md", "rules.last", "private-words.txt") or re.fullmatch(r"rules-.+\.md", n):
+                os.makedirs(HOME, exist_ok=True)
+                text = open(os.path.join(OLD_HOME, n), encoding="utf-8").read().replace("written by `voice.py rule`", "written by `feedback.py add`")
+                open(os.path.join(HOME, n), "w", encoding="utf-8").write(text)
+                if done is not None:
+                    done.append(f"  copied   {os.path.join(HOME, n)} (from {OLD_HOME})")
     for name, scope in (("", "whatever the engine"), (engine, f"in every {engine} game")):
-        path = os.path.join(VOICE, f"rules-{name}.md" if name else "rules.md")
-        if os.path.isdir(VOICE) and not os.path.exists(path):
+        path = os.path.join(HOME, f"rules-{name}.md" if name else "rules.md")
+        if not os.path.exists(path):
+            os.makedirs(HOME, exist_ok=True)
             open(path, "w", encoding="utf-8").write(RULES_HEAD.format(engine=f" — {name}" if name else "", scope=scope))
             if done is not None:
                 done.append(f"  new      {path}")

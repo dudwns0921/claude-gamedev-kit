@@ -103,7 +103,7 @@ The hook brings the table up to the value file before it redraws the board.
 
 | Card | From | Buttons |
 |---|---|---|
-| Decision | the newest cycle's unanswered decisions (`[ ]`), and those decided for the user in auto mode (`[~]`) — with the comparison pictures of the cycle's sheet script when it made some (`docs/cycle/sheets/*.json`, by decision id) | one per option (the recommended one marked); Accept for a proxy decision |
+| Decision | every cycle's unanswered decisions (`[ ]`, the newest cycle first), and the newest cycle's decisions made for the user by the auto mode of older kits (`[~]`) — with the comparison pictures of the cycle's sheet script when it made some (`docs/cycle/sheets/*.json`, by decision id) | one per option (the recommended one marked); Accept for a proxy decision |
 | Asset | asset images not yet approved (3D model views, sprite stills) | Approve · Redo (the note is the reason) |
 | Check | once the newest cycle is at Play: the spec's "To see by playing" and the design's "For a human to see" | OK · Problem (the note is what was seen) |
 
@@ -143,7 +143,7 @@ When nothing is watching, the page says so and the answers stay saved for the ne
 
 1. ArtifactData `list`, `collection: "answers"`, the link as `url`, `out_dir: "docs/board/share/answers"`.
 2. `python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" answers docs/board/share/answers` — prints only answers not yet relayed, grouped:
-   decisions → record them through the cycle skill exactly as answers from the chat (its `decide` · `confirm`, the voice's Score and Learn); assets → the asset skill's approve, or reject with the note as the user's words;
+   decisions → record them through the cycle skill exactly as answers from the chat (its `decide` · `confirm` · `drop`); assets → the asset skill's approve, or reject with the note as the user's words;
    checks marked Problem → the playtest skill, as one problem list. OK checks need nothing.
 3. Republish, so the answered cards leave the page.
 4. If a comment brought them, reply in its thread in one line — what was recorded and what runs next — and resolve it (ArtifactComments `reply` · `resolve`). The user reads that on the phone.

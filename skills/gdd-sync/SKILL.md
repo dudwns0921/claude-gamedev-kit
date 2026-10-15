@@ -32,7 +32,7 @@ and 동기 · 불일치 · 미구현 · 폐기 for the states — the script rea
 | `/gamedev-kit:gdd-sync <ID>` or `/gamedev-kit:gdd-sync to-code BAL.CYCLE.*` | Specific items only |
 
 With no direction, produce the report and then **ask the user, for each mismatch, which side is right.** Whether the design intent changed or the value was
-changed for convenience during implementation cannot be known from the code alone. If called in auto mode with no direction, write a recommended direction for each mismatch alongside the report and stop.
+changed for convenience during implementation cannot be known from the code alone.
 
 ## Procedure
 

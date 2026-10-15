@@ -78,16 +78,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 8. **Fill in deploy · assets when you use them.** `deploy.target` in `kit.config.json` (the game on the platform in `deploy.platform`), the asset API key, and
    the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the deploy · asset skills guide how to fill them.
 
-9. **Go on to the voice — do not wait to be asked.** The voice (how this user decides — it grows across every game) lives outside the game, in a private repository of the user's.
-   Run `python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" sync` and continue by what it says:
-   - **The home is a repository** (it synced): the voice is already on this machine. If `voice.py collect new` prints decisions from this game, follow the voice skill's
-     "Writing · updating"; otherwise say in one line that the voice is connected and will be used when the cycle asks decisions.
-   - **The home is not a repository**: ask the user for the address of their private voice repository. If they have none yet, say what to do in one line —
-     make an empty **private** repository on GitHub (no README) and paste its address — and wait for it. With the address, follow the voice skill's "setup" to the end
-     (connect → sync → the one question about pushing → write the voice if this game has decisions). If the user says later, say that
-     `/gamedev-kit:voice setup <address>` picks it up, and finish.
-
-10. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
+9. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
     Run `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" serve --status` and `command -v node git`, then:
     - **Running already** (another game started it): ask "Show this game on the dashboard too?" — yes → run `serve` (it joins the game and sends its board in seconds).
     - **Not running, Node.js and git present**: ask "Start a dashboard that shows all your games on one page? (local, about a minute the first time)" — yes → run `serve`
@@ -101,8 +92,8 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 ## Aligning the kit rules (`/gamedev-kit:init rules`)
 
 In the game's CLAUDE.md, the kit's part is the single span between `<!-- gamedev-kit start … -->` and `<!-- gamedev-kit end -->` (a block written by an older kit has `gamedev-kit 시작` / `gamedev-kit 끝` there — it is found the same way, and gets the new markers when it is replaced) — it holds the common rules (GDD sync · balance table · cycle …) and
-that engine's rules (Running · Verification · Pitfalls), and ends with two import lines — `@~/.config/gamedev-kit/voice/rules.md` and `…/rules-<engine>.md` — that bring in the user's own rules
-from earlier games (the voice skill's "Rules"; the files live in the voice home, outside the game, and init makes them when that home exists and they are missing).
+that engine's rules (Running · Verification · Pitfalls), and ends with two import lines — `@~/.config/gamedev-kit/rules/rules.md` and `…/rules-<engine>.md` — that bring in the user's own rules
+from earlier games (the feedback skill's ledger; the files live outside the game, and init makes them when they are missing).
 The first time a session opens the game, Claude Code asks the user to allow an import from outside the project — say in one line that it is their own rules file.
 When the kit bumps its version, replace only that span wholesale. **Outside the block is the game's and is not touched.**
 At session start a hook looks at the block: **an old version it replaces by itself** (only the block, and only if nobody edited inside it) and says so in one line; a missing or hand-edited block it only reports. So after the kit is updated there is normally nothing to run.

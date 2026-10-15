@@ -6,12 +6,10 @@
   python3 playtest.py task T3                   The summary and one task only (what the developer agent reads)
   python3 playtest.py mark T1,T3 done           [x]. `blocked` is [!], `open` is [ ]
   python3 playtest.py mark T2 blocked "<reason>"  One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
-  python3 playtest.py lesson "<what tripped us → how to avoid it>"   One line in docs/kit-feedback.md for a lesson that is not this game's alone (to send up to the kit)
 
 The document is the newest one (last by name). For another, `--doc <path>`.
 Documents are written in English. Ones written before that use Korean words — both are read.
 """
-import datetime
 import json
 import os
 import re
@@ -19,13 +17,6 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "playtest")
-FEEDBACK = os.path.join("docs", "kit-feedback.md")
-FEEDBACK_HEAD = """# For the kit
-
-What making this game taught that is **not this game's alone** — a trap the next game on the same engine would also fall into, a way of checking that works, something the kit's tools lack.
-One line is added at the spot where we tripped (`cycle.py lesson` · `playtest.py lesson`). `/gamedev-kit:feedback` sends them to the kit repository as issues — a line that was sent becomes `[>]`, one we chose not to send becomes `[-]`.
-
-"""
 BOX = {"done": "x", "blocked": "!", "open": " "}
 NOTE = {"done": "Done", "blocked": "Blocked"}
 # The words of the document: written in English, read in English and in the Korean of older documents.
@@ -97,16 +88,6 @@ def summary(path):
             + (" · has questions for the user" if questions(text) else ""))
 
 
-def lesson(said):
-    engine = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("engine", "?")
-    out = os.path.join(ROOT, FEEDBACK)
-    old = open(out, encoding="utf-8").read() if os.path.exists(out) else FEEDBACK_HEAD
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    with open(out, "w", encoding="utf-8") as f:
-        f.write(old.rstrip("\n") + f"\n- [ ] ({engine} · playtest · {datetime.date.today()}) {' '.join(said.split())}\n")
-    print(f"added to {FEEDBACK}")
-
-
 def main():
     args = sys.argv[1:]
     opts = {}
@@ -116,15 +97,13 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"status": (0,), "next": (0,), "task": (1,), "mark": (2, 3), "lesson": (1,)}
+    need = {"status": (0,), "next": (0,), "task": (1,), "mark": (2, 3)}
     if cmd not in need or len(rest) not in need[cmd]:
         sys.exit(__doc__)
     global ROOT
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
     if cmd == "status":
         return print("\n".join(summary(p) for p in docs()) or f"no analysis document in {DIR}/")
-    if cmd == "lesson":
-        return lesson(rest[0])
     path = pick(opts.get("--doc"))
     text = open(path, encoding="utf-8").read()
     ts = tasks(text)

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
-  <title>Every game leaves the next one better off — voice and lessons carry over from game to game</title>
+  <title>Every game leaves the next one better off — your rules carry over from game to game</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07110e"/><stop offset="0.55" stop-color="#0b2a22"/><stop offset="1" stop-color="#1a1033"/>
@@ -75,58 +75,43 @@
 
     <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">Every game leaves the next one better off</text>
     <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="url(#title)">Every game leaves the next one better off</text>
-    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">What you decide and what tripped you carry into every game after it</text>
+    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">What tripped you carries into every game after it</text>
     <rect class="sweep" x="0" y="40" width="240" height="100" fill="url(#shine)" opacity="0.16" transform="skewX(-20)"/>
 
     <path d="M95,376 H365" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
-    <rect class="new" style="animation-delay:-0.0s" x="106" y="352" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
-    <rect x="106" y="352" width="118" height="20" rx="6" fill="#ff8ad1"/>
-    <rect x="116" y="360" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect class="new" style="animation-delay:-0.0s" x="236" y="352" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="236" y="352" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="246" y="360" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect class="new" style="animation-delay:-0.3s" x="236" y="325" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="236" y="325" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="246" y="333" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.0s" x="171" y="352" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="171" y="352" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="181" y="360" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.3s" x="171" y="325" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="171" y="325" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="181" y="333" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
     <rect x="155" y="390" width="150" height="50" rx="25" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
     <text x="230" y="423" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">Game 1</text>
     <path d="M465,376 H735" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
-    <rect x="476" y="352" width="118" height="20" rx="6" fill="#ff8ad1" opacity="0.38"/>
-    <rect class="new" style="animation-delay:-0.3s" x="476" y="325" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
-    <rect x="476" y="325" width="118" height="20" rx="6" fill="#ff8ad1"/>
-    <rect x="486" y="333" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect x="606" y="352" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
-    <rect x="606" y="325" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
-    <rect class="new" style="animation-delay:-0.6s" x="606" y="298" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="606" y="298" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="616" y="306" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect class="new" style="animation-delay:-0.9s" x="606" y="271" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="606" y="271" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="616" y="279" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="541" y="352" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="541" y="325" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect class="new" style="animation-delay:-0.6s" x="541" y="298" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="541" y="298" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="551" y="306" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-0.9s" x="541" y="271" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="541" y="271" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="551" y="279" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
     <rect x="525" y="390" width="150" height="50" rx="25" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
     <text x="600" y="423" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">Game 2</text>
     <path d="M835,376 H1105" stroke="#8ad8ff" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
-    <rect x="846" y="352" width="118" height="20" rx="6" fill="#ff8ad1" opacity="0.38"/>
-    <rect x="846" y="325" width="118" height="20" rx="6" fill="#ff8ad1" opacity="0.38"/>
-    <rect class="new" style="animation-delay:-0.6s" x="846" y="298" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
-    <rect x="846" y="298" width="118" height="20" rx="6" fill="#ff8ad1"/>
-    <rect x="856" y="306" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect class="new" style="animation-delay:-0.9s" x="846" y="271" width="118" height="20" rx="6" fill="#ff8ad1" filter="url(#glow)"/>
-    <rect x="846" y="271" width="118" height="20" rx="6" fill="#ff8ad1"/>
-    <rect x="856" y="279" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect x="976" y="352" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
-    <rect x="976" y="325" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
-    <rect x="976" y="298" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
-    <rect x="976" y="271" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
-    <rect class="new" style="animation-delay:-1.2s" x="976" y="244" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="976" y="244" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="986" y="252" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect class="new" style="animation-delay:-1.5s" x="976" y="217" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="976" y="217" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="986" y="225" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
-    <rect class="new" style="animation-delay:-1.8s" x="976" y="190" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
-    <rect x="976" y="190" width="118" height="20" rx="6" fill="#ffd24a"/>
-    <rect x="986" y="198" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect x="911" y="352" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="911" y="325" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="911" y="298" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect x="911" y="271" width="118" height="20" rx="6" fill="#ffd24a" opacity="0.38"/>
+    <rect class="new" style="animation-delay:-1.2s" x="911" y="244" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="911" y="244" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="921" y="252" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-1.5s" x="911" y="217" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="911" y="217" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="921" y="225" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
+    <rect class="new" style="animation-delay:-1.8s" x="911" y="190" width="118" height="20" rx="6" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="911" y="190" width="118" height="20" rx="6" fill="#ffd24a"/>
+    <rect x="921" y="198" width="72" height="4" rx="2" fill="#000000" opacity="0.28"/>
     <rect x="895" y="390" width="150" height="50" rx="25" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
     <text x="970" y="423" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">Game 3</text>
     <path d="M325,415 H505 M495,407 L506,415 L495,423" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
@@ -134,10 +119,8 @@
     <path d="M695,415 H875 M865,407 L876,415 L865,423" fill="none" stroke="#3dffb0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="785" y="405" font-size="16" font-weight="700" text-anchor="middle" fill="#5dffc0">carried over</text>
 
-    <rect x="80" y="454" width="22" height="16" rx="5" fill="#ff8ad1"/>
-    <text x="112" y="468" font-size="18" font-weight="700" fill="#ffc4e8">voice <tspan fill="#e6f3f8" font-weight="500">— how you decide, learned from your answers</tspan></text>
-    <rect x="600" y="454" width="22" height="16" rx="5" fill="#ffd24a"/>
-    <text x="632" y="468" font-size="18" font-weight="700" fill="#ffe08a">your rules <tspan fill="#e6f3f8" font-weight="500">— what tripped you, loaded into your next game</tspan></text>
+    <rect x="80" y="454" width="22" height="16" rx="5" fill="#ffd24a"/>
+    <text x="112" y="468" font-size="18" font-weight="700" fill="#ffe08a">your rules <tspan fill="#e6f3f8" font-weight="500">— what tripped you, loaded into your next game and sent on to the kit</tspan></text>
   </g>
   <rect x="6" y="6" width="1188" height="488" rx="28" fill="none" stroke="url(#title)" stroke-width="3"/>
 </svg>

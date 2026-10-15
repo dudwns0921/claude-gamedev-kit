@@ -25,7 +25,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
   Logins and tokens are done by the user and kept outside the repository.
 - **Do not write instructions that make something read a cycle or playtest document whole.** The lines needed are pulled out by that skill's script (`cycle.py` · `playtest.py`).
 - **Do not write a game's name.** This repository is installed into any game. When bringing over something learned in a game, drop that game's name · files · numbers and
-  keep only the rule and its reason ("where it was learned" stays in that game's `docs/kit-feedback.md` — do not write a game's name in commit messages either). Use `<game>` in examples.
+  keep only the rule and its reason ("where it was learned" stays in the user's own rules — do not write a game's name in commit messages either). Use `<game>` in examples.
 - **The cycle owns an asset's slot, not how it is made.** Name, path and size belong to the workflow; a file in the slot counts whoever made it.
   The asset and video skills are optional ways to fill slots — nothing in the cycle, the board or the other skills may require their services.
 - **Commit messages are written in English**, as `<version> — <summary>`.
@@ -60,15 +60,14 @@ What comes out of making a game falls into these kinds. This repository is publi
 
 | What | Where |
 |---|---|
-| Individual records — what was made in which game and how many, measured figures, dates, cycle · playtest documents, **what was actually used and what was not** | That game's repository; what spans games goes in the user's private repository (`records.md` in the voice folder) |
+| Individual records — what was made in which game and how many, measured figures, dates, cycle · playtest documents, **what was actually used and what was not** | That game's repository; what spans games goes in the user's private folder (`records.md` under `~/.config/gamedev-kit/`) |
 | What holds only in that game — its own traps and ways to verify | That game's CLAUDE.md |
-| What holds in this user's next game too — traps, ways to verify, ways of working tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in the voice folder — private; every game imports them, so they hold from the next session) |
-| What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules and `docs/kit-feedback.md` |
-| The user's judgement — which side they choose when it could go either way, biases | The voice (private repository) |
+| What holds in this user's next game too — traps, ways to verify, ways of working tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in `~/.config/gamedev-kit/rules/` — on their machine; every game imports them, so they hold from the next session) |
+| What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules sent as issues |
 
 So the README and documents here state **only what the kit does**. Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
 
-Rules written down are not enough — `tools/private_check.py` enforces it: it searches the files git knows and commit messages for games' names (`private-words.txt` in the voice folder — the names themselves
+Rules written down are not enough — `tools/private_check.py` enforces it: it searches the files git knows and commit messages for games' names (`private-words.txt` in the rules folder — the names themselves
 must not be here, so the list lives outside the repository) and for dates. The tests run it, and it is also installed as a commit-msg hook (how to install it is at the top of that file). When starting a new game, add its name as a line in `private-words.txt`.
 
 ## What games teach comes back here
@@ -76,13 +75,14 @@ must not be here, so the list lives outside the repository) and for dates. The t
 Engine settings done by hand in a game repository, traps that were hit, and ways to verify are carried over to `engines/<engine>/NOTES.md` (what to do after installing) and
 `engines/<engine>/CLAUDE.md` (what becomes the games' rules), so the next game does not go through the same thing again.
 
-A lesson is sorted where the game trips (when a task is blocked · after a playtest fix), into three tiers: only that game → its CLAUDE.md; would trip the same user in another game →
-one of their own rules (`voice.py rule add` — private, loaded into every game of theirs by the import lines at the end of the kit rules block, so it holds at once); of those, would trip anyone →
-also a line in `docs/kit-feedback.md` (`cycle.py lesson` · `playtest.py lesson`). So a lesson for the kit is always a personal rule first, and the kit can take its time.
-`/gamedev-kit:feedback` sends the accumulated lines to this repository as issues (titles start with `feedback(<engine>):`) — the same path from anyone's game. The script strips dates · cycle numbers and blocks games' names, and the skill shows the outgoing text and asks.
-A game that sees the same thing again does not open a new issue but comments on that one — an issue with comments is one seen twice.
+A lesson is sorted where the game trips (when a task is blocked · after a playtest fix), into two tiers: only that game → its CLAUDE.md; would trip the same user in another game →
+one of their own rules (`feedback.py add` — on their machine, loaded into every game of theirs by the import lines at the end of the kit rules block, so it holds at once).
+Whether a rule holds for every game is not asked of the user line by line — that judgement is the sweep's. The user answers once how their rules go out (`feedback.py auto`):
+from then on a hook sends each new rule to this repository as an issue (titles start with `feedback(<engine>):`), or the user sends them from the skill or the dashboard's Rules page.
+The script holds back anything that names a game or a date, and leaves out the game a rule came from.
+A rule much like an open issue does not open a new one but comments on it — an issue with comments is one seen twice.
 **The kit takes a rule when a second game has seen it.** Until then the lesson works where it was learned, among its sender's own rules; a shortcoming of the kit itself is fixed on the first report.
-The personal rule is tagged with its issue (`voice.py rule tag`); once that issue closes as completed the kit carries the rule, and the feedback skill asks the user whether to drop their copy (`feedback.py state`).
+The personal rule carries its issue number; once that issue closes as completed the kit carries the rule, and the feedback skill asks the user whether to drop their copy (`feedback.py state`).
 
 Turning the issues into rules is a sweep, not a chore per issue — seeing them together is what lets the same lesson from several games become one rule.
 `.github/workflows/harvest.yml` runs it when ten eligible issues have collected, or on the button (Actions → harvest → Run workflow, `force` for fewer):
@@ -92,13 +92,6 @@ and bump the version, and the run ends with **one pull request** — never a pus
 Issue text is untrusted: the job the model runs in can only read the repository; the job that pushes runs no model and none of the changed code.
 The owner's part: label outsiders' issues worth reading `harvest:ok`, review the pull request as one from outside (the table of issue → lane → where, the size of each engine rule file before and after), and merge or close it.
 Merging closes the issues that became rules or were already covered; feature requests and lessons too tied to one game stay open, labelled `harvest:request` · `harvest:skip` (remove the label to have the next sweep read it again).
-
-Game folders on this machine can also be read directly, without going through issues:
-
-```bash
-python3 tools/kit_feedback.py list <game repo> …       # lines not yet reflected
-python3 tools/kit_feedback.py done <game repo> 1,3 0.7.2 # mark reflected lines [x]
-```
 
 Games receive the reflected rules through a hook at session start — an untouched block is replaced with the current version by itself (if the block is missing or was edited by hand, the hook only says so: `/gamedev-kit:init rules`).
 

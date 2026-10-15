@@ -28,8 +28,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" status          # one line per
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # questions to ask · next wave's tasks
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # the summary and one task only
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<reason>" · open
-python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit
-python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule add "<the rule and its reason>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
+python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped us → how to avoid it>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
 These act on the newest document (for another, `--doc <path>`). Documents written before the kit wrote English use the Korean words — the script reads both; where this page names a word, the older form is in brackets.
@@ -72,12 +71,11 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
 
    If any task is blocked, ask whether to re-analyze. Re-analysis means calling the analyst again with that task's "Why blocked" attached.
 7. **What was learned — now, not later.** From the reasons tasks were blocked and the "Deviations from the document" that came back this round: what tripped us up · engine settings done by hand · a newly found way to check.
-   Sort each one of three ways, as it is written:
+   Sort each one of two ways, as it is written:
    - Only this game (relies on its structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
-   - Would trip this user again in another game (their engine, their genre, their tools, their way of working) → one of their own rules, `voice.py rule add` (`--any` when it holds whatever the engine).
-     It holds from the next session in every game of theirs; nothing is asked, and nothing leaves the machine but their private repository.
-   - Of those, would trip anyone (another user's game on the same engine would hit it, or a kit tool fell short) → **also** one line with `lesson`, written so it makes sense without the game's names · files · numbers.
-     So a lesson for the kit is always a personal rule first.
+   - Would trip this user again in another game (their engine, their genre, their tools, their way of working) → one of their own rules, `feedback.py add` (`--any` when it holds whatever the engine),
+     written so it makes sense without the game's names · files · numbers. It holds from the next session in every game of theirs; nothing is asked.
+     Whether it holds for every game is not judged here — the feedback skill sends rules to the kit, and the kit's sweep sorts them.
 
    If there is nothing, write nothing.
 

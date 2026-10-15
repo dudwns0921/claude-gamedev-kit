@@ -1,6 +1,6 @@
 # Web
 
-Whatever turns out different, write it in `docs/kit-feedback.md`.
+Whatever turns out different, add it to your rules (`/gamedev-kit:feedback` — "make this one of my rules").
 
 - **No editor.** `init.py web --create` writes `index.html` (a canvas and one module script), `game/main.js` and `game/version.js` if they are not there.
 - Value file: `game/balance.js` (`export const NAME = value; // GDD: <ID>`). Import it as `import * as Balance from "./balance.js"`.

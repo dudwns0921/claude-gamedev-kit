@@ -28,4 +28,4 @@
 - **Video (video skill)**: in-game videos land in `assets/video/<name>.ogv`. Godot plays only Ogg Theora built in (`VideoStreamPlayer` + `VideoStreamTheora`),
   so the skill converts with ffmpeg — the ffmpeg on PATH must have `libtheora` and `libvorbis` (`ffmpeg -encoders | grep theora`).
   The clip is downloaded as mp4 (Higgsfield) and converted to `.ogv` on `place`. Its keys go in `~/.config/gamedev-kit/asset.env`. Playing and skipping the video is game code.
-  Not yet checked in a real game with this kit — if playback stutters or seeking is off, write it in `docs/kit-feedback.md`.
+  Not yet checked in a real game with this kit — if playback stutters or seeking is off, add it to your rules (`/gamedev-kit:feedback`).

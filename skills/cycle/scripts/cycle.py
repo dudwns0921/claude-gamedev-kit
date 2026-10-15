@@ -9,14 +9,12 @@
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
   python3 cycle.py decide D2 "<the user's answer, as said>"
-  python3 cycle.py decide D2 "②" --proxy V3     Auto mode — decided in the user's place. Written as [~] (basis: the voice's principle number, or `recommended` if none)
-  python3 cycle.py confirm D2,D5                The user accepted the proxy decisions — they become [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
+  python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
   python3 cycle.py later "<in the user's own words>"   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
-  python3 cycle.py lesson "<what tripped us → how to avoid it>"   One line in docs/kit-feedback.md for a lesson that is not this game's alone (to send up to the kit)
 
 The document is the newest one (highest number). For another, `--doc <path>`.
 Documents are written in English. Ones written before that use Korean words — both are read, and a stage or section given in Korean is taken too.
@@ -31,13 +29,6 @@ import sys
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
 NOTES = os.path.join("docs", "handoff")  # notes of the skill that carried work across sessions before `carry` did
-FEEDBACK = os.path.join("docs", "kit-feedback.md")
-FEEDBACK_HEAD = """# For the kit
-
-What making this game taught that is **not this game's alone** — a trap the next game on the same engine would also fall into, a way of checking that works, something the kit's tools lack.
-One line is added at the spot where we tripped (`cycle.py lesson` · `playtest.py lesson`). `/gamedev-kit:feedback` sends them to the kit repository as issues — a line that was sent becomes `[>]`, one we chose not to send becomes `[-]`.
-
-"""
 TEMPLATE = """# Cycle {num} — {name}
 
 Started: {date} · Commit {commit} · Stage: Goal
@@ -251,19 +242,16 @@ def cmd_ask(path, who, question):
     print(num)
 
 
-def cmd_decide(path, num, answer, proxy):
-    """The user's answer is [x]. What auto mode decided in their place is [~] — unconfirmed until the user accepts (confirm) or overturns (decide) it."""
+def cmd_decide(path, num, answer):
+    """The user's answer is [x]. A decision made in their place by the auto mode of older kits ([~]) is overturned the same way."""
     text = read(path)
     ds = decisions(text)
     if num not in ds:
         sys.exit(f"{num}: no such decision — " + " · ".join(ds))
     mark, old = ds[num]
-    if proxy and mark == "x":
-        sys.exit(f"{num}: the user already answered — not decided in their place")
     ask = PROXY_RE.match(old).group(1) if mark == "~" else old
-    tail = f" · proxy {proxy}" if proxy else ""
-    write(path, text.replace(old, f"- [{'~' if proxy else 'x'}]{ask[5:]} → {answer.strip()}{tail} ({datetime.date.today()})", 1))
-    print(f"{num}: " + ("decided in the user's place (unconfirmed)" if proxy else "answer recorded"))
+    write(path, text.replace(old, f"- [x]{ask[5:]} → {answer.strip()} ({datetime.date.today()})", 1))
+    print(f"{num}: answer recorded")
 
 
 def cmd_confirm(path, names):
@@ -295,16 +283,6 @@ def cmd_drop(path, names, why):
         text = text.replace(old, f"- [-]{ask[5:]} → not needed: {' '.join(why.split())} ({datetime.date.today()})", 1)
     write(path, text)
     print(f"not needed: {' · '.join(names.split(','))}")
-
-
-def cmd_lesson(path, text):
-    engine = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("engine", "?")
-    num = re.match(r"\d+", os.path.basename(path))
-    out = os.path.join(ROOT, FEEDBACK)
-    old = read(out) if os.path.exists(out) else FEEDBACK_HEAD
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    write(out, old.rstrip("\n") + f"\n- [ ] ({engine} · cycle {num.group(0) if num else '?'} · {datetime.date.today()}) {' '.join(text.split())}\n")
-    print(f"added to {FEEDBACK}")
 
 
 def cmd_later(path, said):
@@ -375,13 +353,13 @@ def cmd_new(name, goal):
 def main():
     args = sys.argv[1:]
     opts = {}
-    for flag in ("--root", "--doc", "--proxy"):
+    for flag in ("--root", "--doc"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "lesson": 1}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -402,7 +380,7 @@ def main():
     elif cmd == "ask":
         cmd_ask(path, *rest)
     elif cmd == "decide":
-        cmd_decide(path, *rest, opts.get("--proxy", ""))
+        cmd_decide(path, *rest)
     elif cmd == "confirm":
         cmd_confirm(path, rest[0])
     elif cmd == "drop":
@@ -411,8 +389,6 @@ def main():
         cmd_later(path, rest[0])
     elif cmd == "carry":
         cmd_carry(path, rest[0])
-    elif cmd == "lesson":
-        cmd_lesson(path, rest[0])
     else:
         text = read(path)
         if not STAGE_RE.search(text):

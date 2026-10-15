@@ -36,13 +36,11 @@ BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 SHEET = os.path.join(KIT, "skills/cycle/scripts/sheet.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
-VOICE = os.path.join(KIT, "skills/voice/scripts/voice.py")
 INIT = os.path.join(KIT, "skills/init/scripts/init.py")
 START = os.path.join(KIT, "skills/start/scripts/start.py")
 CONCEPT = os.path.join(KIT, "skills/start/scripts/concept.py")
 WATCH = os.path.join(KIT, "hooks/context_watch.py")
 USAGE = os.path.join(KIT, "tools/session_usage.py")
-FEEDBACK = os.path.join(KIT, "tools/kit_feedback.py")
 SEND = os.path.join(KIT, "skills/feedback/scripts/feedback.py")
 PRIVATE = os.path.join(KIT, "tools/private_check.py")
 HARVEST = os.path.join(KIT, "tools/harvest.py")
@@ -168,6 +166,15 @@ def run(script, root, *args, ok=True):
     if ok and p.returncode != 0:
         raise AssertionError(f"{os.path.basename(script)} {' '.join(args)} → {p.returncode}\n{p.stdout}\n{p.stderr}")
     return p
+
+
+def proxy(root, num, pick, basis, doc=None):
+    """A decision made in the user's place, as the auto mode of older kits wrote it ([~]) — documents still carry them."""
+    d = os.path.join(root, "docs/cycle")
+    path = os.path.join(root, doc) if doc else max((os.path.join(d, n) for n in os.listdir(d) if re.match(r"\d+-.*\.md$", n)))
+    text = open(path, encoding="utf-8").read()
+    m = re.search(rf"^- \[ \] ({num}\..*)$", text, re.M)
+    open(path, "w", encoding="utf-8").write(text[:m.start()] + f"- [~] {m.group(1)} → {pick} · proxy {basis} (2026-01-01)" + text[m.end():])
 
 
 def excel_save(path, values, header=("이름", "값")):
@@ -308,9 +315,11 @@ class Tools(unittest.TestCase):
 
     def test_init(self):
         init = os.path.join(KIT, "skills/init/scripts/init.py")
-        home = tempfile.mkdtemp(prefix="kit-init-voice-")  # the voice home: the user's own rules are imported from it
+        home = tempfile.mkdtemp(prefix="kit-init-rules-")  # the rules home: the user's own rules are imported from it
         self.addCleanup(shutil.rmtree, home, True)
-        os.environ["GAMEDEV_KIT_VOICE"] = home
+        os.environ["GAMEDEV_KIT_RULES"] = home
+        self.addCleanup(os.environ.pop, "GAMEDEV_KIT_RULES")
+        os.environ["GAMEDEV_KIT_VOICE"] = os.path.join(home, "no-voice")  # no old home to copy from
         self.addCleanup(os.environ.pop, "GAMEDEV_KIT_VOICE")
         for engine in CODE:
             with self.subTest(engine=engine):
@@ -318,13 +327,13 @@ class Tools(unittest.TestCase):
                 self.addCleanup(shutil.rmtree, root, True)
                 out = run(init, root, engine).stdout
                 self.assertIn("new      kit.config.json", out)
-                for name in ("rules.md", f"rules-{engine}.md"):  # a voice home that exists gets the files the block imports
+                for name in ("rules.md", f"rules-{engine}.md"):  # the rules home gets the files the block imports
                     self.assertTrue(os.path.exists(os.path.join(home, name)), name)
                 self.assertIn("new      " + os.path.join(home, f"rules-{engine}.md"), out)
-                for name in ("rules.md", f"rules-{engine}.md"):  # the voice skill owns these files — the ones init makes are the ones it would make
+                for name in ("rules.md", f"rules-{engine}.md"):  # the feedback skill owns these files — the ones init makes are the ones it would make
                     by_init = open(os.path.join(home, name), encoding="utf-8").read()
                     os.remove(os.path.join(home, name))
-                    run(VOICE, root, "collect")
+                    run(SEND, root, "list")
                     self.assertEqual(open(os.path.join(home, name), encoding="utf-8").read(), by_init)
                 claude = open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read()
                 self.assertIn("/gamedev-kit:gdd-sync", claude)
@@ -357,18 +366,28 @@ class Tools(unittest.TestCase):
                     self.assertIn("deploy · balance-table.table", third.split("sections missing from kit.config.json: ")[1])
                     self.assertIn("new      " + moved, run(init, root, engine, "--files").stdout)
                     open(os.path.join(root, "kit.config.json"), "w", encoding="utf-8").write(whole)
-                # with the voice home where it is by default, the block is written with `~` — the same text on every machine, and no home is made for it
+                # with the rules home where it is by default, the block is written with `~` — the same text on every machine
                 made = []
                 for n in ("a", "b"):
                     user, game = os.path.join(root, f"user-{n}"), os.path.join(root, f"game-{n}")
                     os.makedirs(user)
                     os.makedirs(game)
-                    env = dict({k: v for k, v in os.environ.items() if k != "GAMEDEV_KIT_VOICE"}, HOME=user)
-                    subprocess.run([sys.executable, init, "--root", game, engine], capture_output=True, text=True, env=env, check=True)
+                    env = dict({k: v for k, v in os.environ.items() if k not in ("GAMEDEV_KIT_RULES", "GAMEDEV_KIT_VOICE")}, HOME=user)
+                    if n == "b":  # rules kept where the voice used to keep them are copied over once, and that folder is left as it was
+                        os.makedirs(os.path.join(user, ".config/gamedev-kit/voice"))
+                        open(os.path.join(user, ".config/gamedev-kit/voice/rules.md"), "w", encoding="utf-8").write(
+                            "# The user's rules\n\nwritten by `voice.py rule`.\n\n- R4. an old rule (g) [issue #3]\n")
+                        open(os.path.join(user, ".config/gamedev-kit/voice/VOICE.md"), "w").write("# Voice\n")
+                    out = subprocess.run([sys.executable, init, "--root", game, engine], capture_output=True, text=True, env=env, check=True).stdout
                     made.append(open(os.path.join(game, "CLAUDE.md"), encoding="utf-8").read())
-                    self.assertEqual(os.listdir(user), [], "no voice home, so nothing is made in it")
+                    self.assertEqual(sorted(os.listdir(os.path.join(user, ".config/gamedev-kit/rules"))), sorted(["rules.md", f"rules-{engine}.md"]))
+                kept = open(os.path.join(user, ".config/gamedev-kit/rules/rules.md"), encoding="utf-8").read()
+                self.assertIn("- R4. an old rule (g) [issue #3]", kept)
+                self.assertIn("written by `feedback.py add`", kept)
+                self.assertIn("copied", out)
+                self.assertTrue(os.path.exists(os.path.join(user, ".config/gamedev-kit/voice/VOICE.md")), "the old folder is left as it was")
                 self.assertEqual(made[0], made[1])
-                self.assertIn(f"\n\n@~/.config/gamedev-kit/voice/rules.md\n@~/.config/gamedev-kit/voice/rules-{engine}.md\n<!-- gamedev-kit end -->", made[0])
+                self.assertIn(f"\n\n@~/.config/gamedev-kit/rules/rules.md\n@~/.config/gamedev-kit/rules/rules-{engine}.md\n<!-- gamedev-kit end -->", made[0])
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("The table and the code match", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
                     self.assertIn("| synced | 3 |", run(REPORT, root).stdout, "the template's three example rows pair with the value file")
@@ -400,7 +419,7 @@ exit 0
         def init(*args, ok=True, **env):
             p = subprocess.run([sys.executable, INIT, "--root", root, *args], capture_output=True, text=True,
                                env=dict({k: v for k, v in os.environ.items() if k not in ("UNITY", "GODOT")},
-                                        GAMEDEV_KIT_VOICE=os.path.join(top, "voice"), **env))
+                                        GAMEDEV_KIT_RULES=os.path.join(top, "rules"), GAMEDEV_KIT_VOICE=os.path.join(top, "voice"), **env))
             self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
             return p.stdout + p.stderr
 
@@ -481,7 +500,7 @@ exit 0
         self.assertEqual(check(), "", "silent when they match")
 
         # the block ends with the lines that import the user's own rules — plain lines of their own, outside any code block, after the engine's rules
-        home = os.environ["GAMEDEV_KIT_VOICE"]
+        home = os.environ["GAMEDEV_KIT_RULES"]
         body = fresh.split("<!-- gamedev-kit end -->")[0]
         self.assertTrue(body.endswith(f"\n\n@{home}/rules.md\n@{home}/rules-{engine}.md\n"), body[-300:])
         self.assertEqual(body.count("```") % 2, 0, "every code block is closed before the import lines")
@@ -1759,7 +1778,7 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, root, "new", "bow", "Draw the bow")
         run(CYCLE, root, "ask", "Spec", "Restart — ① every time ② once · recommended: ①")
         run(CYCLE, root, "ask", "Spec", "Arrows — ① stay ② vanish")
-        run(CYCLE, root, "decide", "D2", "①", "--proxy", "recommended")  # decided for the user — the cycle after moves on standing on it
+        proxy(root, "D2", "①", "recommended")  # decided for the user — the cycle after moves on standing on it
         run(CYCLE, root, "new", "shop", "A shop")
         run(CYCLE, root, "ask", "Spec", "Price — ① fixed ② floating")
         run(BOARD, root)
@@ -1875,7 +1894,7 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, root, "new", "bow", "Draw the bow")
         run(CYCLE, root, "ask", "Design", "Where the hand sits — ① as it is ② raise it · recommended: ②")
         run(CYCLE, root, "ask", "Spec", "Restart — ① every time ② once · recommended: ①")
-        run(CYCLE, root, "decide", "D2", "②", "--proxy", "V1")
+        proxy(root, "D2", "②", "V1")
         json.dump([{"id": "D1", "question": "Where the hand sits", "options": [{"mark": "ⓐ", "text": "as it is"}, {"mark": "ⓑ", "text": "raise it", "recommend": True}],
                     "images": [{"label": "Now", "path": "shots/now.png", "crop": [10, 20, 100, 50]}]}], open(os.path.join(root, "q.json"), "w"))
         json.dump({"cycle": {"browser": "/nonexistent"}}, open(os.path.join(root, "kit.config.json"), "w"))  # no picture taken — only the kept questions matter here
@@ -2011,24 +2030,6 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("stage: Goal", run(CYCLE, root, "next", "--doc", "docs/cycle/01-dash.md").stdout)
         self.assertIn("T9: no such task", run(CYCLE, root, "task", "T9", ok=False).stderr)
 
-        # the way a lesson goes back to the kit
-        open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
-        run(CYCLE, root, "lesson", "headless does not  compile shaders → run it once in a window")
-        run(CYCLE, root, "lesson", "the second line")
-        fb = lambda *a, ok=True: subprocess.run([sys.executable, FEEDBACK, *a], capture_output=True, text=True)
-        out = fb("list", root, os.path.join(root, "nowhere")).stdout
-        self.assertRegex(out, r"1\. \(godot · cycle 02 · \d{4}-\d\d-\d\d\) headless does not compile shaders → run it once in a window\n  2\. ")
-        self.assertIn("kit-feedback.md not found", out)
-        self.assertIn("1 lines: [x]", fb("done", root, "1", "0.7.2").stdout)
-        out = fb("list", root).stdout
-        self.assertIn("1 lines", out)
-        self.assertIn("1. (godot · cycle 02", out)
-        self.assertIn("the second line", out)
-        lessons = open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read()
-        self.assertTrue(lessons.startswith("# For the kit\n\n"), "a new lessons file gets the English head")
-        self.assertIn("run it once in a window — kit 0.7.2", lessons)
-        self.assertNotEqual(fb("done", root, "5", "x").returncode, 0)
-
         # work crosses sessions through the document: what is in hand outside the tasks is carried in it, shown by `next`, and shown once
         run(CYCLE, root, "carry", "sign sprite approved,  animation not run")
         self.assertRegex(text(), r"\n\n## Carried over\n- \[ \] sign sprite approved, animation not run \(\d{4}-\d\d-\d\d · commit \w+\)\n$")
@@ -2057,17 +2058,16 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("carried over, not picked up: deploy target still to fill in (", out)
         self.assertIn("Stage: Closed", text())
 
-        # auto mode — what was decided in the user's place is [~]. Tasks depending on it run, and it stays unconfirmed until the user accepts or overturns it
+        # a document from the time of auto mode holds decisions made in the user's place ([~]). Tasks depending on them run, and they stay unconfirmed until the user accepts or overturns them
         auto = os.path.join(root, "docs/cycle/03-auto.md")
         atext = lambda: open(auto, encoding="utf-8").read()
         for q in ("Door — ① open ② shut · recommended: ①", "Colour — ① red ② blue · recommended: ①", "Price — ① cheap ② dear", "Road — ① short ② long · recommended: ②"):
             run(CYCLE, root, "ask", "Spec", q)
         planned = atext().replace("## Tasks\n", "## Tasks\n\n### [ ] T1. Door\n- **Waiting**: D1\n\n### [ ] T2. Price\n- **Waiting**: D3\n")
         open(auto, "w", encoding="utf-8").write(planned.replace("## Order\n", "## Order\n- Wave 1: T1, T2\n"))
-        self.assertIn("D1: decided in the user's place (unconfirmed)", run(CYCLE, root, "decide", "D1", "②", "--proxy", "V3, V5").stdout)
-        run(CYCLE, root, "decide", "D2", "①", "--proxy", "recommended")
-        run(CYCLE, root, "decide", "D4", "②", "--proxy", "V7")
-        self.assertRegex(atext(), r"- \[~\] D1\. Door — ① open ② shut · recommended: ① \(Spec\) → ② · proxy V3, V5 \(\d{4}-\d\d-\d\d\)")
+        for num, pick, basis in (("D1", "②", "V3, V5"), ("D2", "①", "recommended"), ("D4", "②", "V7")):
+            proxy(root, num, pick, basis)
+        self.assertNotIn("--proxy", run(CYCLE, root, ok=False).stderr, "nothing decides in the user's place any more")
         out = run(CYCLE, root, "next").stdout
         self.assertIn("open decisions 1 · proxy decisions 3 (unconfirmed)", out)
         self.assertIn("proxy decision (unconfirmed): D1.", out)
@@ -2079,18 +2079,13 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertRegex(atext(), r"- \[x\] D1\. Door — ① open ② shut · recommended: ① \(Spec\) → ② — accepted proxy \(V3, V5\) \(\d{4}")
         run(CYCLE, root, "decide", "D2", "파랑으로 하자")
         self.assertRegex(atext(), r"- \[x\] D2\. Colour — ① red ② blue · recommended: ① \(Spec\) → 파랑으로 하자 \(\d{4}")
-        self.assertIn("D2: the user already answered", run(CYCLE, root, "decide", "D2", "①", "--proxy", "V1", ok=False).stderr)
         self.assertIn("accepted: D4", run(CYCLE, root, "confirm", "all").stdout)
         self.assertIn("open decisions 1\n", run(CYCLE, root, "status").stdout.split("03-auto")[1] + "\n")
-        out = subprocess.run([sys.executable, VOICE, "--root", root, "collect"], capture_output=True, text=True,
-                             env=dict(os.environ, GAMEDEV_KIT_VOICE=os.path.join(root, "voice-home"))).stdout
-        self.assertIn("03 D1 [accepted]", out, "an accepted proxy decision is counted apart from one the user picked")
-        self.assertIn("accepted 2", out)
 
         # a decision the user no longer needs is withdrawn — [-] with their words; nothing waits on it, and it is not counted open
         run(CYCLE, root, "ask", "Spec", "Sign — ① wood ② stone")
         run(CYCLE, root, "ask", "Design", "Bell — ① yes ② no")
-        run(CYCLE, root, "decide", "D6", "①", "--proxy", "V2")
+        proxy(root, "D6", "①", "V2")
         self.assertIn("not needed: D5 · D6", run(CYCLE, root, "drop", "D5,D6", "the shop has no front any more").stdout)
         self.assertRegex(atext(), r"- \[-\] D5\. Sign — ① wood ② stone \(Spec\) → not needed: the shop has no front any more \(\d{4}")
         self.assertRegex(atext(), r"- \[-\] D6\. Bell — ① yes ② no \(Design\) → not needed: ", "a proxy decision withdrawn drops the proxy's pick")
@@ -2152,8 +2147,6 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("- 다음에: 간판에 불을 켠다\n- Next: 문도 단다\n", otext())
         self.assertEqual(run(CYCLE, old, "stage", "Play").stdout.strip(), "stage: Play")
         self.assertIn("단계: Play\n", otext(), "the head keeps its own label; the stage written is English")
-        run(CYCLE, old, "lesson", "둘째 게임에서도 본 것")
-        self.assertRegex(open(os.path.join(old, "docs/kit-feedback.md"), encoding="utf-8").read(), r"- \[ \] \(godot · cycle 01 · \d{4}-\d\d-\d\d\) 둘째 게임에서도 본 것\n")
         at = "Play"
         for stage in ("플레이", "배포", "회고", "끝"):  # 배포 · 회고 are from documents written when those were stages
             moved = otext().replace("단계: " + at, "단계: " + stage)
@@ -2170,315 +2163,6 @@ if sys.argv[1:3] == ["run", "start"]:
                 self.assertIn("단계: Closed\n", otext())
             at = "Closed"
 
-    def test_voice(self):
-        top = tempfile.mkdtemp(prefix="kit-voice-")
-        self.addCleanup(shutil.rmtree, top, True)
-        root, other, home = (os.path.join(top, n) for n in ("first game", "second", "home"))
-        for game, cfg in ((root, '{"engine": "toy"}'), (other, '{"engine": "zed", "voice": {"name": "둘째"}}')):
-            os.makedirs(game)
-            open(os.path.join(game, "kit.config.json"), "w", encoding="utf-8").write(cfg)
-        os.environ["GAMEDEV_KIT_VOICE"] = home  # the voice lives outside the game
-        self.addCleanup(os.environ.pop, "GAMEDEV_KIT_VOICE")
-        self.assertIn("no voice yet", run(VOICE, root, "path", ok=False).stderr)
-        self.assertIn("no answered decisions", run(VOICE, root, "collect").stdout)
-        run(CYCLE, root, "new", "dash", "대시를\n넣자")
-        run(CYCLE, root, "ask", "Spec", "대시 뒤 — ① 무적 ② 그대로 · recommended: ①")
-        run(CYCLE, root, "ask", "Design", "잔상 — ① 있다 ② 없다 · recommended: ①")
-        run(CYCLE, root, "ask", "Plan", "범위 — ① 전부 ② 반만 · recommended: ②")
-        run(CYCLE, root, "ask", "Plan", "순서 — ① 화면 먼저 ② 값 먼저")
-        log = lambda: open(os.path.join(home, "log.md"), encoding="utf-8").read()
-
-        # a prediction needs its principle to be in the voice
-        self.assertIn("principle not in", run(VOICE, root, "predict", "D1", "②", "V1", ok=False).stderr)
-        os.makedirs(home)
-        open(os.path.join(home, "VOICE.md"), "w", encoding="utf-8").write(
-            "# Voice\n\nUpdated: 1999-01-01 · 2 decisions · from 1 games\n\n## Principles\n- V1. 봐주는 규칙은 넣지 않는다\n- V2. 작게 자른다\n")
-        self.assertEqual(run(VOICE, root, "path").stdout.strip(), os.path.join(home, "VOICE.md"))
-        self.assertIn("first-game 01 D1 (Spec) → ② · V1", run(VOICE, root, "predict", "D1", "2", "V1").stdout)
-        self.assertTrue(log().startswith("# Voice prediction ledger\n"), "a new ledger is headed in English")
-        run(VOICE, root, "predict", "D2", "②", "V1,V2")
-        run(VOICE, root, "predict", "D3", "②", "V2")
-        self.assertIn("not an option in the question", run(VOICE, root, "predict", "D4", "③", "V1", ok=False).stderr)
-        self.assertIn("→ unknown", run(VOICE, root, "predict", "D4", "-").stdout)
-        self.assertIn("prediction already written", run(VOICE, root, "predict", "D1", "①", "V1", ok=False).stderr)
-        self.assertIn("no prediction to score", run(VOICE, root, "score").stdout)
-
-        run(CYCLE, root, "decide", "D1", "②. 봐주지 말자")
-        run(CYCLE, root, "decide", "D2", "1번으로")
-        run(CYCLE, root, "decide", "D3", "일단 반만 하자")
-        run(CYCLE, root, "decide", "D4", "① 화면부터")
-        self.assertIn("already answered", run(VOICE, root, "predict", "D4", "①", "V1", ok=False).stderr)
-        out = run(VOICE, root, "score").stdout
-        self.assertIn("01 D1: hit — predicted ② (V1)", out)
-        self.assertIn("01 D2: miss — predicted ② (V1, V2) · answer: 1번으로", out)
-        self.assertIn("cannot tell: 01 D3 predicted ② · answer: 일단 반만 하자", out)
-        self.assertIn("no prediction to score", run(VOICE, root, "score", "01", "D1", "hit", ok=False).stderr)
-        self.assertIn("01 D3: hit", run(VOICE, root, "score", "01", "D3", "hit").stdout)
-        self.assertRegex(log(), r"- \[o\] first-game 01 D1 \(Spec\) → ② · V1 \(\d{4}-\d\d-\d\d\)\n- \[x\] first-game 01 D2 .*\n"
-                                r"- \[o\] first-game 01 D3 .*\n- \[-\] first-game 01 D4 \(Plan\) → unknown")
-        out = run(VOICE, root, "stats").stdout
-        self.assertIn("hits 2/3 (66%) · unknown 1 · unscored 0 · predictions 4", out)
-        self.assertIn("Plan: 1/1 (100%) · unknown 1", out)
-        self.assertIn("V1: 1/2 (50%)", out)
-        self.assertIn("V2: 1/2 (50%)", out)
-        self.assertNotIn("first-game:", out, "with one game there are no per-game lines")
-
-        out = run(VOICE, root, "collect").stdout
-        self.assertIn("game: first-game\n\nCycle 01 — dash\ngoal: 대시를 넣자\n", out)
-        self.assertIn("first-game 01 D1 [differed] (Spec) 대시 뒤 — ① 무적 ② 그대로 · recommended: ① → ②. 봐주지 말자 (", out)
-        self.assertIn("01 D2 [same]", out)
-        self.assertIn("01 D3 [?]", out)
-        self.assertIn("decisions 4 · differed 1 · same 1 · to read 2", out)
-
-        # a decision the voice has read does not come up again at the next update
-        self.assertIn("decisions 4", run(VOICE, root, "collect", "new").stdout)
-        self.assertIn("recorded 4 as read", run(VOICE, root, "collect", "done").stdout)
-        self.assertIn("no answered decisions (among those not read yet)", run(VOICE, root, "collect", "new").stdout)
-        run(CYCLE, root, "ask", "Spec", "문 — ① 연다 ② 닫는다 · recommended: ①")
-        run(CYCLE, root, "decide", "D5", "1")  # an answer that is only the number names that option
-        out = run(VOICE, root, "collect", "new").stdout
-        self.assertIn("01 D5 [same]", out)
-        self.assertIn("decisions 1 ·", out)
-        self.assertIn("decisions 5 ·", run(VOICE, root, "collect").stdout)
-
-        # a decision whose answer changed — both answers come out together, and it comes up again even after being read. The picked option is told from the last answer
-        run(VOICE, root, "collect", "done")
-        self.assertIn("no answered decisions", run(VOICE, root, "collect", "new").stdout)
-        run(CYCLE, root, "decide", "D5", "해 보니 좁다. ② 로 바꾸자")
-        out = run(VOICE, root, "collect", "new").stdout
-        self.assertRegex(out, r"01 D5 \[changed\] \(Spec\) 문 — ① 연다 ② 닫는다 · recommended: ① → 1 \(\d{4}-\d\d-\d\d\) → 해 보니 좁다. ② 로 바꾸자 \(")
-        self.assertIn("decisions 1 · differed 0 · same 0 · to read 0 · changed 1", out)
-        run(VOICE, root, "collect", "done")
-        self.assertIn("first-game 01 D5 #2\n", open(os.path.join(home, "seen.txt"), encoding="utf-8").read())
-        self.assertIn("no answered decisions", run(VOICE, root, "collect", "new").stdout)
-        run(CYCLE, root, "ask", "Spec", "창 — ① 연다 ② 닫는다 · recommended: ①")
-        run(VOICE, root, "predict", "D6", "②", "V1")
-        run(CYCLE, root, "decide", "D6", "①")
-        run(CYCLE, root, "decide", "D6", "아니 ②")
-        self.assertIn("01 D6: hit", run(VOICE, root, "score").stdout, "scored against the changed answer")
-
-        # another game's decisions pile up in the same voice — every line says which game it is from
-        run(CYCLE, other, "new", "shop", "상점")
-        run(CYCLE, other, "ask", "Plan", "범위 — ① 전부 ② 반만 · recommended: ①")
-        self.assertIn("둘째 01 D1 (Plan) → ② · V2", run(VOICE, other, "predict", "D1", "②", "V2").stdout)
-        run(CYCLE, other, "decide", "D1", "②")
-        self.assertIn("no prediction to score", run(VOICE, root, "score").stdout, "another game's predictions are not scored")
-        self.assertIn("01 D1: hit", run(VOICE, other, "score").stdout)
-        self.assertIn("decisions 1 · differed 1", run(VOICE, other, "collect", "new").stdout)
-        out = run(VOICE, other, "stats").stdout
-        self.assertIn("hits 4/5 (80%) · unknown 1 · unscored 0 · predictions 6", out)
-        self.assertIn("first-game: 3/4 (75%) · unknown 1", out)
-        self.assertIn("둘째: 1/1 (100%) · unknown 0", out)
-        self.assertIn("V2: 2/3 (66%)", out)
-        self.assertFalse(os.path.exists(os.path.join(root, "docs/VOICE.md")), "the voice is not kept in the game repository")
-
-        # a proxy decision the user accepted is tagged apart — it is weaker evidence than a pick of their own
-        run(CYCLE, other, "ask", "Spec", "값 — ① 싸게 ② 비싸게 · recommended: ①")
-        run(CYCLE, other, "decide", "D2", "①", "--proxy", "V1")
-        self.assertIn("decisions 1 ·", run(VOICE, other, "collect").stdout, "an unconfirmed proxy decision is not an answer")
-        run(CYCLE, other, "confirm", "D2")
-        out = run(VOICE, other, "collect").stdout
-        self.assertIn("01 D2 [accepted] (Spec)", out)
-        self.assertIn("decisions 2 · differed 1 · same 0 · to read 0 · accepted 1", out)
-
-        # the user's own rules sit beside the voice: one file whatever the engine, one per engine — the engine is the one in the game's kit.config.json
-        rules = lambda name: open(os.path.join(home, name), encoding="utf-8").read()
-        rule = lambda game, *a, ok=True: (lambda p: p.stdout + p.stderr)(run(VOICE, game, "rule", *a, ok=ok))
-        self.assertEqual(sorted(n for n in os.listdir(home) if n.startswith("rules")), ["rules-toy.md", "rules-zed.md", "rules.md"],
-                         "a home that is there has the rule files of the games that used it")
-        self.assertRegex(rules("rules-toy.md"), r"\A# The user's rules — toy\n\n.*in every toy game.*Claude Code loads this file into every game made with gamedev-kit\.\n\n\Z")
-        self.assertEqual(rule(root, "list"), f"rules.md — {len(rules('rules.md').encode())} bytes\nrules-toy.md — {len(rules('rules-toy.md').encode())} bytes\n")
-        self.assertIn("a rule needs its text", rule(root, "add", "  \n ", ok=False))
-        self.assertEqual(rule(root, "add", "헤드리스  테스트에는\n시간 제한을 건다 — 구문 오류는 멈춘다"), f"R1 — {os.path.join(home, 'rules-toy.md')}\n")
-        self.assertEqual(rule(root, "add", "--any", "숫자는 표에서 고친다"), f"R2 — {os.path.join(home, 'rules.md')}\n")
-        self.assertEqual(rule(other, "add", "다른 엔진의 규칙"), f"R3 — {os.path.join(home, 'rules-zed.md')}\n", "numbers are unique across the files")
-        self.assertTrue(rules("rules-toy.md").endswith("gamedev-kit.\n\n- R1. 헤드리스 테스트에는 시간 제한을 건다 — 구문 오류는 멈춘다 (first-game)\n"))
-        self.assertTrue(rules("rules-zed.md").endswith("\n\n- R3. 다른 엔진의 규칙 (둘째)\n"))
-        self.assertEqual(rule(root, "tag", "R1", "12"), f"R1 [issue #12] — {os.path.join(home, 'rules-toy.md')}\n")
-        rule(root, "tag", "r1", "#14")
-        self.assertTrue(rules("rules-toy.md").endswith("멈춘다 (first-game) [issue #14]\n"), "a second tag replaces the first")
-        self.assertIn("an issue number", rule(root, "tag", "R2", "soon", ok=False))
-        out = rule(root, "list")
-        self.assertIn("\n  R2. 숫자는 표에서 고친다 (first-game)\n", out)
-        self.assertIn(f"rules-toy.md — {os.path.getsize(os.path.join(home, 'rules-toy.md'))} bytes\n  R1. 헤드리스 테스트에는 시간 제한을 건다 — 구문 오류는 멈춘다 (first-game) [issue #14]\n", out)
-        self.assertNotIn("R3", out, "another engine's rules do not apply to this game")
-        out = rule(root, "list", "--tagged")
-        self.assertIn("R1.", out)
-        self.assertNotIn("R2.", out)
-        self.assertIn("rules.md — ", out, "the sizes are shown either way")
-        self.assertIn("R3. 다른 엔진의 규칙", rule(other, "list"))
-        self.assertIn("dropped R3", rule(root, "drop", "R3"), "a rule is dropped by its number, from whichever game")
-        self.assertNotIn("R3", rules("rules-zed.md"))
-        self.assertIn("R3: no such rule", rule(root, "drop", "R3", ok=False))
-        self.assertIn("R4 — ", rule(other, "add", "다시 적은 규칙"), "a dropped rule's number is not given out again")
-        rule(root, "add", "--any", "하나 더")
-        rule(root, "drop", "R2")
-        self.assertEqual(rules("rules.md").split("\n\n")[-1], "- R5. 하나 더 (first-game)\n")
-        self.assertIn("rule add", rule(root, "add", ok=False), "a wrong call prints the usage")
-
-        # documents written before the words became English — a Korean voice, ledger and cycle document work as they are
-        old, old_home = os.path.join(top, "old"), os.path.join(top, "old-home")
-        os.makedirs(os.path.join(old, "docs", "cycle"))
-        os.makedirs(old_home)
-        os.environ["GAMEDEV_KIT_VOICE"] = old_home
-        put = lambda path, text: open(path, "w", encoding="utf-8").write(text)
-        put(os.path.join(old, "kit.config.json"), "{}")
-        put(os.path.join(old, "docs", "cycle", "01-shop.md"),
-            "# 사이클 01 — shop\n\n시작: 1999-01-01\n단계: 기획\n\n## 목표\n상점을\n넣자\n\n## 결정\n"
-            "- [x] D1. 값 — ① 싸게 ② 비싸게 · 권함: ① (기획) → 2번으로 (1999-01-02)\n"
-            "- [x] D2. 줄 — ① 한 줄 ② 두 줄 · 권함: ① (디자인) → ① — 대리(V1)를 받아들임 (1999-01-03)\n"
-            "- [~] D3. 색 — ① 밝게 ② 어둡게 · 권함: ① (디자인) → ① · 대리 V1 (1999-01-03)\n"
-            "- [ ] D4. 범위 — ① 전부 ② 반만 · 권함: ② (계획)\n"
-            "- [ ] D5. 순서 — ① 화면 먼저 ② 값 먼저 (계획)\n\n## 기획\n")
-        put(os.path.join(old_home, "VOICE.md"),
-            "# 보이스\n\n갱신: 1999-01-01 · 결정 2개 · 게임 1개에서\n\n## 원칙\n- V1. 봐주는 규칙은 넣지 않는다 — 근거: old 00 D1 · 한 게임\n- V2. 작게 자른다\n\n## 모르는 것\n")
-        put(os.path.join(old_home, "log.md"),
-            "# 보이스 예측 장부\n\n`[ ]` 채점 전 · `[o]` 맞음 · `[x]` 빗나감 · `[-]` 모름\n\n"
-            "- [x] old 00 D9 (계획) → ① · V2 (1999-01-01)\n"
-            "- [ ] old 01 D1 (기획) → ② · V1 (1999-01-02)\n"
-            "- [-] old 01 D2 (디자인) → 모름 (1999-01-02)\n")
-        out = run(VOICE, old, "collect").stdout
-        self.assertIn("game: old\n\n사이클 01 — shop\ngoal: 상점을 넣자\n", out)
-        self.assertIn("old 01 D1 [differed] (Spec) 값 — ① 싸게 ② 비싸게 · 권함: ① → 2번으로 (1999-01-02)", out)
-        self.assertIn("old 01 D2 [accepted] (Design)", out)
-        self.assertIn("decisions 2 · differed 1 · same 0 · to read 0 · accepted 1", out)
-        self.assertIn("01 D1: hit — predicted ② (V1) · answer: 2번으로", run(VOICE, old, "score").stdout)
-        self.assertIn("old 01 D4 (Plan) → ② · V2", run(VOICE, old, "predict", "D4", "2", "V2").stdout)
-        self.assertIn("→ unknown", run(VOICE, old, "predict", "D5", "-").stdout)
-        text = open(os.path.join(old_home, "log.md"), encoding="utf-8").read()
-        self.assertTrue(text.startswith("# 보이스 예측 장부\n"), "an existing ledger keeps its head")
-        self.assertRegex(text, r"- \[-\] old 01 D2 \(디자인\) → 모름 \(1999-01-02\)\n- \[ \] old 01 D4 \(Plan\) → ② · V2 \(.*\)\n- \[-\] old 01 D5 \(Plan\) → unknown")
-        out = run(VOICE, old, "stats").stdout  # rows in the old words and the new ones are counted together
-        self.assertIn("hits 1/2 (50%) · unknown 2 · unscored 1 · predictions 5", out)
-        self.assertIn("  Plan: 0/1 (0%) · unknown 1", out)
-        self.assertIn("  Spec: 1/1 (100%) · unknown 0", out)
-        self.assertIn("  Design: 0/0 · unknown 1", out)
-        self.assertNotIn("계획:", out)
-        self.assertIn("V1: 1/1 (100%)", out)
-        self.assertIn("V2: 0/1 (0%)", out)
-        self.assertIn("names no engine", run(VOICE, old, "rule", "add", "엔진을 모르는 게임", ok=False).stderr)
-        self.assertIn("R1 — ", run(VOICE, old, "rule", "add", "--any", "엔진을 모르는 게임").stdout)
-        self.assertEqual(sorted(n for n in os.listdir(old_home) if n.startswith("rules")), ["rules.last", "rules.md"])
-
-    def test_voice_sync(self):
-        """The voice folder is a clone of a private repository — two machines line up through the same repository. Only the git that reads without a login is fake."""
-        top = tempfile.mkdtemp(prefix="kit-voice-sync-")
-        self.addCleanup(shutil.rmtree, top, True)
-        remote, a, b, bin_dir = (os.path.join(top, n) for n in ("remote.git", "a", "b", "bin"))
-        subprocess.run(["git", "init", "-q", "--bare", remote], check=True)
-        os.makedirs(bin_dir)
-        anon = os.path.join(bin_dir, "anon-git")  # readable without a login (0) means public
-        open(anon, "w").write('#!/bin/sh\n[ "$FAKE_PUBLIC" = 1 ]\n')
-        os.chmod(anon, 0o755)
-        base = dict(os.environ, VOICE_ANON_GIT=anon, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
-                    GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
-
-        def voice(home, *args, public=False, ok=True):
-            p = subprocess.run([sys.executable, VOICE, *args], capture_output=True, text=True,
-                               env=dict(base, GAMEDEV_KIT_VOICE=home, FAKE_PUBLIC="1" if public else "0"))
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        put = lambda home, text: open(os.path.join(home, "VOICE.md"), "w", encoding="utf-8").write(text)
-        self.assertIn("is not a repository", voice(a, "sync"))
-        self.assertIn("public repository", voice(a, "setup", remote, public=True, ok=False))
-        self.assertFalse(os.path.exists(a))
-
-        # a machine that already has a voice — that folder becomes the repository
-        os.makedirs(a)
-        put(a, "# Voice\n- V1. 하나\n")
-        self.assertIn("made the existing voice a repository", voice(a, "setup", remote))
-        out = voice(a, "sync", "voice: 첫 판")
-        self.assertIn("committed", out)
-        self.assertIn("unpushed commits 1 — ask the user", out)
-        self.assertIn("not a repository confirmed private", voice(a, "autopush", "on", public=True, ok=False))
-        self.assertIn("pushes without asking", voice(a, "autopush", "on"))
-        self.assertIn("pushed — commits 1", voice(a, "sync"))
-        self.assertIn("same as the repository", voice(a, "sync"))
-
-        # the repository gets a README saying what each file is — it rode along with the first commit
-        readme = lambda home: open(os.path.join(home, "README.md"), encoding="utf-8").read()
-        self.assertTrue(readme(a).startswith("# Voice\n\n<!-- gamedev-kit start -->"))
-        self.assertIn("| `rules-<engine>.md` |", readme(a))
-        # a README the owner wrote is kept: the kit's part goes between its markers, once, and is only rewritten when it differs
-        open(os.path.join(a, "README.md"), "w", encoding="utf-8").write("# Mine\n\nmy own notes\n")
-        self.assertIn("pushed — commits 1", voice(a, "sync"))
-        self.assertTrue(readme(a).startswith("# Mine\n\nmy own notes\n\n<!-- gamedev-kit start -->"))
-        self.assertEqual(readme(a).count("<!-- gamedev-kit start -->"), 1)
-        stale = readme(a).replace("It is private on purpose", "It is old") + "after\n"
-        open(os.path.join(a, "README.md"), "w", encoding="utf-8").write(stale)
-        voice(a, "sync")
-        self.assertIn("It is private on purpose", readme(a))
-        self.assertTrue(readme(a).endswith("<!-- gamedev-kit end -->\nafter\n"))
-        self.assertIn("same as the repository", voice(a, "sync"))
-
-        # a rule is synced as it is written: committed, and pushed where pushing is permitted
-        game = os.path.join(top, "game")
-        os.makedirs(game)
-        open(os.path.join(game, "kit.config.json"), "w").write('{"engine": "toy"}')
-        self.assertTrue(os.path.exists(os.path.join(a, "rules.md")), "setup makes the rule file with the home")
-        out = voice(a, "rule", "add", "--root", game, "규칙 하나")
-        self.assertIn(f"R1 — {os.path.join(a, 'rules-toy.md')}\ncommitted\npushed — commits 1\n", out)
-        self.assertNotIn("same as the repository", out)
-        self.assertEqual(subprocess.run(["git", "-C", a, "log", "-1", "--format=%s"], capture_output=True, text=True).stdout, "rules: R1\n")
-        self.assertEqual(subprocess.run(["git", "-C", a, "status", "--porcelain"], capture_output=True, text=True).stdout, "")
-
-        # another machine — cloning is all it takes to have the same voice. The permission is per machine
-        self.assertIn("clone failed", voice(b, "setup", os.path.join(top, "없는곳.git"), ok=False))
-        self.assertFalse(os.path.exists(b))
-        self.assertIn("— cloned", voice(b, "setup", remote))
-        self.assertIn("V1. 하나", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
-        open(os.path.join(b, "log.md"), "w", encoding="utf-8").write("- [o] 둘째 01 D1 (Plan) → ② · V1\n")
-        self.assertIn("unpushed commits 1", voice(b, "sync"))
-        self.assertIn("pushed — commits 1", voice(b, "sync", "--push"))
-        self.assertIn("- R1. 규칙 하나 (game)\n", open(os.path.join(b, "rules-toy.md"), encoding="utf-8").read(), "the other machine has the rule")
-        out = voice(b, "rule", "tag", "R1", "12")  # this machine was not told it may push
-        self.assertIn("committed\nunpushed commits 1 — ask the user", out)
-        put(a, "# Voice\n- V1. 하나\n- V2. 둘\n")
-        out = voice(a, "sync")
-        self.assertIn("pulled — commits 1", out)
-        self.assertIn("pushed — commits 1", out)
-        self.assertTrue(os.path.exists(os.path.join(a, "log.md")))
-
-        # two machines edited the same line differently — stop and hand it to a person. This machine's copy is untouched
-        put(b, "# Voice\n- V1. 다르게\n")
-        self.assertIn("merge by hand", voice(b, "sync", ok=False))
-        self.assertIn("V1. 다르게", open(os.path.join(b, "VOICE.md"), encoding="utf-8").read())
-
-        # a voice both in the repository and on this machine — it does not choose
-        c = os.path.join(top, "c")
-        os.makedirs(c)
-        put(c, "# Voice\n")
-        self.assertIn("the user decides which one to keep", voice(c, "setup", remote, ok=False))
-        self.assertFalse(os.path.exists(os.path.join(c, ".git")))
-
-        # an SSH address (an alias in ~/.ssh/config) lets the key log in — without a login it asks the https address of the same repository. A fake ssh serves the repository above
-        ssh, asked = os.path.join(bin_dir, "ssh"), os.path.join(top, "asked.txt")
-        open(ssh, "w").write(f'#!/bin/sh\nexec git upload-pack "{remote}"\n')
-        os.chmod(ssh, 0o755)
-        open(anon, "w").write(f'#!/bin/sh\necho "$@" >> "{asked}"\n[ "$FAKE_PUBLIC" = 1 ]\n')
-        base.update(GIT_SSH_COMMAND=ssh, GIT_SSH_VARIANT="simple")
-        alias = "git@github.com-someone:owner/repo.git"
-        d, e2 = os.path.join(top, "d"), os.path.join(top, "e")
-        self.assertIn("public repository", voice(d, "setup", alias, public=True, ok=False))
-        self.assertIn("private repository", voice(d, "setup", alias))
-        self.assertIn("V1. 하나", open(os.path.join(d, "VOICE.md"), encoding="utf-8").read())
-        self.assertIn("pushes without asking", voice(d, "autopush", "on"))
-        lines = open(asked, encoding="utf-8").read().strip().split("\n")
-        self.assertTrue(all(line.endswith("ls-remote https://github.com/owner/repo.git") for line in lines), lines)
-        os.remove(asked)
-        out = voice(e2, "setup", "git@git.example.com:owner/repo.git")  # a host that cannot be converted — says neither public nor private
-        self.assertIn("— cloned", out)
-        self.assertIn("could not confirm it is private", out)
-        self.assertIn("not a repository confirmed private", voice(e2, "autopush", "on", ok=False))
-        self.assertFalse(os.path.exists(asked), "an address that carries a key is not asked")
-
-        # a rule command takes what another machine pushed before it writes — so a number is not given out twice
-        self.assertIn("R2 — ", voice(a, "rule", "add", "--root", game, "규칙 둘"))
-        out = voice(d, "rule", "add", "--root", game, "규칙 셋")
-        self.assertIn("pulled — commits 1", out)
-        self.assertIn("R3 — ", out)
-
     def test_private(self):
         """No individual records (games' names · dates) in the public repository — the blocked words are read from a file outside the repository."""
         check = lambda *a, **env: subprocess.run([sys.executable, PRIVATE, *a], capture_output=True, text=True, env=dict(os.environ, **env))
@@ -2487,32 +2171,33 @@ if sys.argv[1:3] == ["run", "start"]:
         home = tempfile.mkdtemp(prefix="kit-private-")
         self.addCleanup(shutil.rmtree, home, True)
         open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# names of games\nHiggsfield\n")
-        p = check(GAMEDEV_KIT_VOICE=home)
+        p = check(GAMEDEV_KIT_RULES=home)
         self.assertEqual(p.returncode, 1)
         self.assertIn("README.md:", p.stderr)
         msg = os.path.join(home, "msg")
         open(msg, "w", encoding="utf-8").write("0.1.0 — fixed\n# 2026-01-01 is a comment git added\n")
-        self.assertEqual(check("--message", msg, GAMEDEV_KIT_VOICE=home).returncode, 0)
+        self.assertEqual(check("--message", msg, GAMEDEV_KIT_RULES=home).returncode, 0)
         open(msg, "w", encoding="utf-8").write("0.1.0 — learned from higgsfield\n")
-        self.assertIn("commit message:1: blocked word", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
+        self.assertIn("commit message:1: blocked word", check("--message", msg, GAMEDEV_KIT_RULES=home).stderr)
         open(msg, "w", encoding="utf-8").write("0.1.0 — measured on 2026-01-01\n")
-        self.assertIn("commit message:1: date", check("--message", msg, GAMEDEV_KIT_VOICE=home).stderr)
+        self.assertIn("commit message:1: date", check("--message", msg, GAMEDEV_KIT_RULES=home).stderr)
 
     def test_feedback(self):
-        """Piled-up lines go out as issues on the kit — against a fake gh and a fake GitHub server. A line with a name in it does not go out."""
+        """The user's own rules pile up on this machine and go to the kit as issues — against a fake gh and a fake GitHub server.
+        What names a game or a date never goes out; a rule whose issue closed as completed is one the kit now carries, and its copy can be dropped."""
         class Fake(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
                 one = re.search(r"/repos/me/kit/issues/(\d+)$", self.path)
-                states = {"7": ("open", None), "12": ("closed", "completed"), "15": ("closed", "not_planned")}
+                states = {"7": ("open", None), "12": ("closed", "completed"), "13": ("closed", "not_planned")}
                 self.send_response(200 if not one or one.group(1) in states else 404)
                 self.end_headers()
                 if one:
                     state, why = states.get(one.group(1), ("", None))
-                    return self.wfile.write(json.dumps({"number": int(one.group(1)), "title": "feedback(godot): 줄", "state": state, "state_reason": why}).encode())
+                    return self.wfile.write(json.dumps({"number": int(one.group(1)), "title": "feedback(godot): x", "state": state, "state_reason": why}).encode())
                 self.wfile.write(json.dumps([
-                    {"number": 7, "title": "feedback(godot): 헤드리스는 셰이더를 컴파일하지 않는다", "body": "창으로 한 번 돌린다"},
-                    {"number": 8, "title": "feedback(unity): 헤드리스는 셰이더를 컴파일하지 않는다", "body": ""},
-                    {"number": 9, "title": "다른 이슈", "body": "헤드리스는 셰이더를 컴파일하지 않는다"}]).encode())
+                    {"number": 7, "title": "feedback(godot): headless does not compile shaders", "body": "run it once in a window"},
+                    {"number": 8, "title": "feedback(unity): headless does not compile shaders", "body": ""},
+                    {"number": 9, "title": "another issue", "body": "headless does not compile shaders"}]).encode())
 
             def log_message(self, *a):
                 pass
@@ -2520,116 +2205,156 @@ if sys.argv[1:3] == ["run", "start"]:
         server = http.server.HTTPServer(("127.0.0.1", 0), Fake)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.shutdown)
-        home = tempfile.mkdtemp(prefix="kit-send-")
-        self.addCleanup(shutil.rmtree, home, True)
-        root = os.path.join(home, "moongame")
-        os.makedirs(os.path.join(root, "docs"))
-        gh, log = os.path.join(home, "gh"), os.path.join(home, "gh.log")
-        open(gh, "w").write(f"#!/bin/sh\necho \"$1 $2 $3 $4 $5\" >> '{log}'\n[ \"$2\" = create ] && echo https://github.com/me/kit/issues/12\nexit 0\n")
+        top = tempfile.mkdtemp(prefix="kit-rules-")
+        self.addCleanup(shutil.rmtree, top, True)
+        home, old_home = os.path.join(top, "rules"), os.path.join(top, "voice")
+        root, other = os.path.join(top, "moongame"), os.path.join(top, "sungame")
+        for g in (root, other):
+            os.makedirs(os.path.join(g, "docs"))
+        gh, log, count = os.path.join(top, "gh"), os.path.join(top, "gh.log"), os.path.join(top, "n")
+        open(count, "w").write("11")
+        open(gh, "w").write(f"#!/bin/sh\necho \"$1 $2 $3 $4 $5\" >> '{log}'\n"
+                            f"if [ \"$2\" = create ]; then n=$(($(cat '{count}') + 1)); echo $n > '{count}'; echo https://github.com/me/kit/issues/$n; fi\nexit 0\n")
         os.chmod(gh, 0o755)
 
-        def write(**over):
-            json.dump({"engine": "godot", "feedback": dict({"repo": "me/kit", "gh": gh}, **over)}, open(os.path.join(root, "kit.config.json"), "w"))
+        def config(game, **over):
+            json.dump({"engine": "godot", "feedback": dict({"repo": "me/kit", "gh": gh}, **over)}, open(os.path.join(game, "kit.config.json"), "w"))
 
-        env = dict(os.environ, GAMEDEV_KIT_GITHUB_API=f"http://127.0.0.1:{server.server_port}", GAMEDEV_KIT_VOICE=os.path.join(home, "voice"))
+        env = dict(os.environ, GAMEDEV_KIT_GITHUB_API=f"http://127.0.0.1:{server.server_port}", GAMEDEV_KIT_RULES=home, GAMEDEV_KIT_VOICE=old_home)
 
-        def send(*args, ok=True, cwd=None):
-            p = subprocess.run([sys.executable, SEND] + ([] if cwd else ["--root", root]) + list(args), capture_output=True, text=True, env=env, cwd=cwd)
+        def fb(*args, ok=True, game=None, cwd=None):
+            p = subprocess.run([sys.executable, SEND] + ([] if cwd else ["--root", game or root]) + list(args), capture_output=True, text=True, env=env, cwd=cwd)
             self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
             return p.stdout + p.stderr
 
-        write()
-        self.assertIn("kit-feedback.md not found", send("list"))
-        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write("# 달의 게임 — 게임 디자인 문서\n")
-        run(PLAYTEST, root, "lesson", "헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다")
-        run(PLAYTEST, root, "lesson", "달의 게임의 문은 씬을 다시 열어야 보인다 → 씬을 다시 연다")
-        run(PLAYTEST, root, "lesson", "웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다")
-        fb = os.path.join(root, "docs/kit-feedback.md")
-        open(fb, "a", encoding="utf-8").write("- [ ] 손으로 적은 줄\n")
-        self.assertTrue(open(fb, encoding="utf-8").read().startswith("# For the kit\n"))
+        rules = lambda name="rules-godot.md": open(os.path.join(home, name), encoding="utf-8").read()
+        config(root)
+        config(other)
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write("# Moon Quest — Game design document\n")
 
-        out = send("list")
-        self.assertIn("— 4 unsent lines", out)
-        self.assertIn("  1. (godot) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n", out, "the date and the cycle number do not go out")
-        self.assertIn("  4. (godot) 손으로 적은 줄", out)
-        self.assertIn("! words that seem to be this game's: ‘달의 게임’", out)
-        out = send("preview", "all")
+        # the rules the voice folder kept are copied over once; that folder is left as it was
+        os.makedirs(old_home)
+        open(os.path.join(old_home, "rules.md"), "w", encoding="utf-8").write(
+            "# The user's rules\n\nwritten by `voice.py rule`.\n\n- R2. an old rule from before (oldgame) [issue #3]\n")
+        open(os.path.join(old_home, "rules.last"), "w").write("4\n")
+        open(os.path.join(old_home, "private-words.txt"), "w").write("# names\nSecretName\n")
+        open(os.path.join(old_home, "VOICE.md"), "w").write("# Voice\n")
+        out = fb("list")
+        self.assertIn("copied rules.md from", out)
+        self.assertIn("written by `feedback.py add`", rules("rules.md"))
+        self.assertIn("R2. an old rule from before (oldgame) — issue #3", out)
+        self.assertTrue(os.path.exists(os.path.join(old_home, "VOICE.md")))
+        self.assertNotIn("copied", fb("list"), "once")
+
+        # rules are added without asking; numbers run across every file and are never reused
+        self.assertIn("R5 — " + os.path.join(home, "rules-godot.md"), fb("add", "headless does not  compile shaders → run it once in a window"))
+        self.assertIn("R6 — " + os.path.join(home, "rules.md"), fb("add", "--any", "web export does not make the folder → make it first"))
+        fb("add", "Moon Quest's door shows only after the scene is reopened → reopen the scene")
+        fb("add", "measured on 2026-01-02 → measure again", game=other)
+        self.assertIn("- R5. headless does not compile shaders → run it once in a window (moongame)\n", rules())
+        self.assertIn("R8. measured on 2026-01-02 → measure again (sungame)", rules())
+        self.assertIn("names no engine", fb("add", "x", ok=False, game=os.path.join(top, "noengine")) if os.makedirs(os.path.join(top, "noengine")) or
+                      json.dump({}, open(os.path.join(top, "noengine/kit.config.json"), "w")) is None else "")
+        fb("add", "a rule to drop")
+        self.assertIn("dropped R9", fb("drop", "R9"))
+        self.assertIn("R10 — ", fb("add", "the next one"), "a dropped number is not given out again")
+        fb("drop", "R10")
+
+        out = fb("list")
+        self.assertIn("rules.md — ", out)
+        self.assertIn("  R5. headless does not compile shaders → run it once in a window (moongame) — not sent\n", out)
+        self.assertIn("! would not go out as written: ‘moon quest’", out)
+        self.assertIn("! would not go out as written: a date", out)
+        listed = json.loads(fb("list", "--all", "--json"))
+        self.assertEqual([r["id"] for r in listed], ["R5", "R7", "R8", "R2", "R6"])
+        self.assertEqual(listed[3]["state"], "issue #3")
+
+        # a game's lessons from before the rules held them are taken in once — one much like a rule is marked as that rule
+        open(os.path.join(root, "docs/kit-feedback.md"), "w", encoding="utf-8").write(
+            "# For the kit\n\n- [>] (godot · cycle 1 · 2026-01-01) sent long ago — issue #3\n"
+            "- [ ] (godot · cycle 2 · 2026-01-02) headless does not compile shaders → run it once in a window first\n"
+            "- [ ] (godot · 플레이테스트 · 2026-01-03) 씬 이름은 영어로 → 내보내기가 깨진다\n")
+        out = fb("list")
+        self.assertIn("→ the same as R5", out)
+        self.assertIn("→ now R11", out)
+        old = open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read()
+        self.assertIn("- [>] (godot · cycle 2 · 2026-01-02) headless does not compile shaders → run it once in a window first — the same as rule R5\n", old)
+        self.assertIn("- [>] (godot · 플레이테스트 · 2026-01-03) 씬 이름은 영어로 → 내보내기가 깨진다 — now rule R11", old)
+        self.assertIn("- R11. 씬 이름은 영어로 → 내보내기가 깨진다 (moongame)", rules())
+        self.assertNotIn("now R", fb("list"), "taken in once")
+
+        # preview: what goes out, without the game it came from; a similar open issue of the same engine
+        out = fb("preview", "R5,R6")
         self.assertIn("Goes to: https://github.com/me/kit/issues\n", out)
-        self.assertRegex(out, r"\[1\] feedback\(godot\): 헤드리스는 셰이더를 컴파일하지 않는다\n.*→ 창으로 한 번 돌린다\n\nengine: godot · kit: \d+\.\d+\.\d+\n~ similar issue #7")
+        self.assertRegex(out, r"\[R5\] feedback\(godot\): headless does not compile shaders\nheadless does not compile shaders → run it once in a window\n\nengine: godot · kit: \d+\.\d+\.\d+\n~ similar issue #7")
+        self.assertIn("[R6] feedback(any): web export does not make the folder", out)
+        self.assertNotIn("moongame", out)
         self.assertNotIn("#8", out, "another engine's issue does not count as similar")
-        self.assertNotIn("#9", out)
         self.assertFalse(os.path.exists(log), "a preview sends nothing")
 
-        self.assertIn("line 2 has words that seem to be this game's", send("send", "1,2", ok=False))
+        # sending by hand: anything caught stops everything; the issue number is written on the rule
+        self.assertIn("R7 has words that seem to be a game's (‘moon quest’)", fb("send", "R6,R7", ok=False))
+        self.assertIn("‘secretname’", fb("preview", "R12") if fb("add", "SecretName crashes → avoid it") else "", "private-words.txt holds back too")
+        fb("drop", "R12")
         self.assertFalse(os.path.exists(log), "if any one is caught, nothing is sent")
-        self.assertIn("opened issue #12: https://github.com/me/kit/issues/12", send("send", "3"))
-        self.assertIn("commented on issue #7", send("send", "1", "--to", "#7"))
-        self.assertEqual(open(log).read().split("\n")[:2], ["issue create --repo me/kit --title", "issue comment 7 --repo me/kit"])
-        text = open(fb, encoding="utf-8").read()
-        self.assertRegex(text, r"- \[>\] \(godot · playtest · [\d-]+\) 헤드리스는 .* — issue #7\n")
-        self.assertRegex(text, r"- \[>\] \(godot · playtest · [\d-]+\) 웹 내보내기는 .* — issue #12\n")
-        self.assertIn("--to takes one line only", send("send", "all", "--to", "7", ok=False))
-        send("skip", "1", "this game's  only")
-        self.assertIn("씬을 다시 연다 — not sent: this game's only\n", open(fb, encoding="utf-8").read())
-        self.assertIn("no such number — there are 1 unsent lines", send("send", "2", ok=False))
+        self.assertIn("opened issue #12: https://github.com/me/kit/issues/12", fb("send", "R6"))
+        self.assertIn("commented on issue #7", fb("send", "R5", "--to", "#7"))
+        self.assertIn("- R6. web export does not make the folder → make it first (moongame) [issue #12]", rules("rules.md"))
+        self.assertIn("(moongame) [issue #7]", rules())
+        self.assertIn("already went out as issue #12", fb("send", "R6", ok=False))
+        self.assertIn("--to takes one rule only", fb("send", "R5,R6", "--to", "7", ok=False))
+        fb("keep", "R7", "this game's  only")
+        self.assertIn("R7. Moon Quest's door shows only after the scene is reopened → reopen the scene (moongame) [not for the kit: this game's only]", rules())
 
-        # where the sent issues stand — a personal rule whose issue closed as completed is one the kit now carries
-        self.assertEqual(send("state", "7,#12, 15,99"), "#7 open — feedback(godot): 줄\n#12 closed (completed) — feedback(godot): 줄\n"
-                                                        "#15 closed (not planned) — feedback(godot): 줄\n#99 could not be read\n")
+        # without gh it gives a pre-filled address, and the number is written after the user posts it
+        config(root, gh=os.path.join(top, "no-gh"))
+        self.assertIn("gh not found — the user posts it by hand: https://github.com/me/kit/issues/new?title=feedback%28godot%29%3A%20", fb("send", "R11"))
+        fb("sent", "R11", "#13")
+        self.assertIn("[issue #13]", rules())
+        config(root)
 
-        # without gh it gives a pre-filled address, and the number is recorded after the user posts it
-        write(gh=os.path.join(home, "no-gh"))
-        out = send("send", "1")
-        self.assertIn("gh not found — the user posts it by hand: https://github.com/me/kit/issues/new?title=feedback%28godot%29%3A%20", out)
-        self.assertIn("- [ ] 손으로 적은 줄", open(fb, encoding="utf-8").read())
-        send("sent", "1", "#15")
-        self.assertIn("- [>] 손으로 적은 줄 — issue #15", open(fb, encoding="utf-8").read())
-        self.assertIn("— 0 unsent lines", send("list"))
-        kit = lambda *a: subprocess.run([sys.executable, FEEDBACK, *a], capture_output=True, text=True).stdout
-        self.assertIn("— 0 lines", kit("list", root), "sent lines drop out of the kit-side list too")
+        # where the sent rules stand — completed means the kit carries it now; not planned stays the user's
+        out = fb("state")
+        self.assertIn("R2 · #3 could not be read", out)
+        self.assertIn("R6 · #12 closed (completed) — the kit carries it now: ask the user whether to drop their copy", out)
+        self.assertIn("R5 · #7 open\n", out)
+        self.assertIn("R11 · #13 closed (not planned)\n", out)
+        carried = [s["id"] for s in json.loads(fb("state", "--json")) if s["carried"]]
+        self.assertEqual(carried, ["R6"])
+        fb("drop", "R6")
+        self.assertNotIn("R6.", rules("rules.md"), "the copy is gone once the user says so")
+        self.assertEqual([s["id"] for s in json.loads(fb("state", "--json")) if s["carried"]], [])
 
-        # a file from before the words became English: Korean head and tails. It lists, sends and is marked the same — new tails are English
-        legacy = ("# 키트로 올릴 것\n\n이 게임을 만들며 배운 것 가운데 **이 게임만의 것이 아닌 것**.\n\n"
-                  "- [>] (godot · 사이클 1 · 2026-01-02) 보낸 줄 — 이슈 #3\n"
-                  "- [-] (godot · 플레이테스트 · 2026-01-02) 안 보낸 줄 — 안 보냄: 이 게임만의 것\n"
-                  "- [x] (godot · 사이클 1 · 2026-01-02) 반영한 줄 — 키트 0.7.2\n"
-                  "- [ ] (godot · 사이클 2 · 2026-01-03) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n"
-                  "- [ ] (godot · 플레이테스트 · 2026-01-03) 웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다\n"
-                  "- [ ] (godot · 사이클 2 · 2026-01-04) 이 게임만의 줄\n"
-                  "- [ ] (godot · 사이클 3 · 2026-01-04) 옛 꼴로 닫을 줄\n")
-        open(fb, "w", encoding="utf-8").write(legacy)
-        write()
-        os.remove(log)
-        out = send("list")
-        self.assertIn("— 4 unsent lines", out)
-        self.assertIn("  1. (godot) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다\n", out, "the Korean cycle number and the date do not go out either")
-        self.assertNotIn("!", out)
-        self.assertRegex(send("preview", "1"), r"→ 창으로 한 번 돌린다\n\nengine: godot · kit: \d+\.\d+\.\d+\n~ similar issue #7")
-        self.assertIn("opened issue #12", send("send", "2"))
-        self.assertIn("commented on issue #7", send("send", "1", "--to", "7"))
-        self.assertEqual(kit("list", root).split("\n")[:3],
-                         [f"{root} — 2 lines", "  1. (godot · 사이클 2 · 2026-01-04) 이 게임만의 줄", "  2. (godot · 사이클 3 · 2026-01-04) 옛 꼴로 닫을 줄"])
-        self.assertIn("1 lines: [x]", kit("done", root, "1", "0.9.1"))
-        self.assertIn("1 lines: [x]", kit("done", root, "1", "안 올림: 이 게임만의 것"))
-        text = open(fb, encoding="utf-8").read()
-        self.assertTrue(text.startswith(legacy.split("- [ ]")[0]), "the head and the lines closed before are left as they were")
-        self.assertIn("- [>] (godot · 사이클 2 · 2026-01-03) 헤드리스는 셰이더를 컴파일하지 않는다 → 창으로 한 번 돌린다 — issue #7\n", text)
-        self.assertIn("- [>] (godot · 플레이테스트 · 2026-01-03) 웹 내보내기는 폴더를 만들지 않는다 → 먼저 만든다 — issue #12\n", text)
-        self.assertIn("- [x] (godot · 사이클 2 · 2026-01-04) 이 게임만의 줄 — kit 0.9.1\n", text)
-        self.assertIn("- [x] (godot · 사이클 3 · 2026-01-04) 옛 꼴로 닫을 줄 — not raised: 이 게임만의 것\n", text)
-        self.assertIn("— 0 unsent lines", send("list"))
-        open(fb, "w", encoding="utf-8").write(legacy.split("- [ ]")[0])
+        # session start: asks once how rules go; with auto off it speaks when this game's unsent rules pile up; never fails, never looks outside
+        self.assertIn("they have not been asked how rules go", fb("--notice", cwd=root))
+        self.assertIn("auto is off", fb("push"))
+        fb("auto", "off")
+        self.assertEqual(fb("--notice", cwd=root), "")
+        for n in range(5):
+            fb("add", f"line {n} → do {n}")
+        os.makedirs(os.path.join(root, "scenes"))
+        self.assertIn("have not been offered to the kit", fb("--notice", cwd=os.path.join(root, "scenes")))
+        config(root, notice=False)
+        self.assertEqual(fb("--notice", cwd=root), "")
+        config(root)
 
-        # at session start: one line only when lines have piled up, no looking outside, and always exit 0
-        self.assertEqual(send("--notice", cwd=root), "")
-        open(fb, "a", encoding="utf-8").write("".join(f"- [ ] line {n}\n" for n in range(5)))
-        os.makedirs(os.path.join(root, "game"))
-        self.assertIn("5 lessons for the kit have piled up", send("--notice", cwd=os.path.join(root, "game")))
-        write(notice=False)
-        self.assertEqual(send("--notice", cwd=root), "")
+        # auto on: the hook after a turn sends every rule that can go — a new issue, or a comment on one that says much the same; what names a game waits
+        open(log, "w").close()
+        fb("auto", "on")
+        fb("add", "headless does not compile shaders → run it once in a window")
+        self.assertIn("held back", fb("--notice", cwd=root), "auto on, and a rule waits to be reworded")
+        out = fb("push", "--quiet")
+        self.assertRegex(out, r"^\[gamedev-kit\] sent 6 of the user's rules to the kit: R13 → #\d+ · ")
+        sent = open(log).read()
+        self.assertEqual(sent.count("issue create"), 5)
+        self.assertEqual(sent.count("issue comment 7"), 1, "much the same as an open issue — a comment, not a new issue")
+        self.assertIn("not sent", fb("list"), "the rules naming a game or a date stay")
+        self.assertEqual(fb("push", "--quiet"), "", "nothing more to send — nothing said")
+        self.assertIn("nothing to send — 1 held back until reworded: R8", fb("push"))
         open(os.path.join(root, "kit.config.json"), "w").write("{broken")
-        self.assertEqual(send("--notice", cwd=root), "")
-        self.assertEqual(send("--notice", cwd=home), "")
+        self.assertEqual(fb("push", "--quiet", cwd=root), "")
+        self.assertEqual(fb("--notice", cwd=root), "")
+        self.assertEqual(fb("--notice", cwd=top), "")
 
     def test_sheet(self):
         """The sheet for decisions chosen by eye — one page per question, shot as a picture when there is a browser (a fake browser)."""
@@ -2715,10 +2440,7 @@ none
         self.assertIn("### [x] T1. Lower the walking speed\n- **Kind**: balance\n- **Done**: set to 4.5\n\n### [!] T2.", text)
         self.assertIn("### [!] T2. Fix the door\n- **Kind**: bug\n- **Blocked**: there is no door\n\n## Order", text)
         self.assertIn("tasks [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
-        open(os.path.join(root, "kit.config.json"), "w").write('{"engine": "godot"}')
-        run(PLAYTEST, root, "lesson", "a door shows only after the scene  is reopened → reopen the scene")
-        self.assertRegex(open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read(),
-                         r"^# For the kit\n\n(.+\n)+- \[ \] \(godot · playtest · \d{4}-\d\d-\d\d\) a door shows only after the scene is reopened → reopen the scene\n$")
+        self.assertIn("python3 playtest.py status", run(PLAYTEST, root, "lesson", "x", ok=False).stderr, "a lesson is one of the user's rules now — the feedback skill's `add`")
 
         # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English
         old = os.path.join(root, "docs/playtest/2026-10-09-b.md")
@@ -2757,8 +2479,6 @@ none
         answered = open(old, encoding="utf-8").read().replace("- 문은 안으로 열리나 밖으로 열리나 (T2)", "없음")
         open(old, "w", encoding="utf-8").write(answered)
         self.assertNotIn("for the user", run(PLAYTEST, root, "status").stdout, "`없음` is read as no questions")
-        run(PLAYTEST, root, "lesson", "둘째 줄")
-        self.assertRegex(open(os.path.join(root, "docs/kit-feedback.md"), encoding="utf-8").read(), r"reopen the scene\n- \[ \] \(godot · playtest · \d{4}-\d\d-\d\d\) 둘째 줄\n$")
 
     def test_session_tools(self):
         root = tempfile.mkdtemp(prefix="kit-session-")

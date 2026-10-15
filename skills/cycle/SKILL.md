@@ -2,11 +2,9 @@
 name: cycle
 description: >-
   Drives one game-dev cycle — Goal → Spec → Design → Plan → Build → Play — through a single document (docs/cycle/).
-  Systems designer, designer and developer agents work stage by stage; every decision goes back to the user — or, in auto mode,
-  is made by the user's voice up to the point of playing. Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자",
+  Systems designer, designer and developer agents work stage by stage; every decision goes back to the user. Use when the user states a bundle of goals ("이번 사이클", "다음 버전 만들자",
   "이번엔 ○○ 를 넣자" — "this cycle", "let's make the next version", "this time let's add ○○"); says "사이클 이어서", "다음 단계", "어디까지 했지"
-  ("continue the cycle", "next stage", "where were we"); answers a decision ("D2 는 ①로", "D2 is ①"); or wants it run without them
-  ("자동으로 돌려줘", "알아서 만들어 놔", "나 없는 동안 진행해줘" — "run it automatically", "build it on your own", "go on while I'm away", "auto").
+  ("continue the cycle", "next stage", "where were we"); answers a decision ("D2 는 ①로", "D2 is ①").
   Also how work crosses sessions — the document holds the state, so there is no separate handoff note: use when the user says "세션 바꾸자",
   "새 세션에서 이어가자", "인계 메모 남겨줘", "여기까지 정리해줘" ("let's switch sessions", "let's continue in a new session", "leave a handoff note",
   "wrap up where we are"), or in a new session "이어서 하자", "아까 하던 거" ("let's continue", "what we were doing"). Not for one-line fixes.
@@ -31,15 +29,13 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # one task and on
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<reason>" · open
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <stage> "<question — ① … ② … · recommended: ①>"   # any stage — Build · Play too
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # auto mode: decided in the user's place — written [~]
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # a document from the time of auto mode: the user accepts what was decided in their place (`all`). To overturn: decide
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" drop D4,D12 "<why>"         # the user says a decision is not needed any more — [-], nothing waits on it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry "<what the next session must know>"       # work in hand that the document does not hold — `next` shows it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry done                                      # picked up — not shown again
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" lesson "<what tripped us → how to avoid it>"   # to send up to the kit (when it happens)
-python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" rule add "<the rule and its reason>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
+python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped us → how to avoid it>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
 These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
@@ -56,13 +52,11 @@ Do not chain two or more cycles in one session. If work is in hand that the docu
 
 **The user decides.** No agent decides for them. Agents return "Decisions needed" as options plus one recommendation,
 this skill collects and asks them, and writes the answers in the document's "Decisions" section in the user's own words (verbatim). Do not do work that hangs on an unanswered decision.
-The one exception is **auto mode** (below): the user has asked, for this run, that their voice decide in their place — and even then every such decision is marked and waits for them.
 
 | Call | Meaning |
 |---|---|
 | `/gamedev-kit:cycle <goal>` | New cycle. Runs through spec · design · plan, then asks the decisions |
 | `/gamedev-kit:cycle next` | Next stage of the newest cycle |
-| `/gamedev-kit:cycle auto <goal>` · `auto next` | Auto mode — run to the point of playing without asking; the user's voice decides |
 | `/gamedev-kit:cycle status` | Per cycle: current stage · remaining tasks · unanswered decisions |
 
 ## Stages
@@ -82,7 +76,6 @@ Create the document with `new` — pass the goal in the user's words as-is, unpo
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
 **`new` also closes the previous cycle** — there is no closing stage. A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
-Then the voice skill's "Review" — the one place the voice is shown unasked: the lines it picked up that the user has not seen, if any. Show them in the same message and go on to Spec without waiting.
 
 ### 2. Spec · 3. Design · 4. Plan
 
@@ -126,11 +119,6 @@ The decision is still written with `ask` and answered with `decide` — the shee
 **If the board is shared** (`board.share` in `kit.config.json`), republish it once the decisions are written — the board skill's "The link" — and give the link with the questions:
 the user can answer on the phone, or in the chat as before.
 
-**The voice works behind this, unseen.** If the user has a voice (`python3 "${CLAUDE_SKILL_DIR}/../voice/scripts/voice.py" path` prints its path — it lives outside the game),
-between `ask` and asking the user, follow the voice skill's "Predict": `voice.py sync`, read that document and record one prediction per decision
-(`voice.py predict D2 ② V3`, or `predict D2 -` when no principle applies). After the answers are recorded, follow its "Score" and "Learn".
-**Say nothing about any of it** — no predictions, no hits or misses, no "updated the voice". The user just answers questions.
-
 When answers come, record them with `decide D1 "<the user's words verbatim>"`. If an answer changes the spec · design · plan (scope cut · a different option chosen),
 call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
 If an answer puts work off ("○○ first, then △△"), the put-off part is in no task list and `next` will say nothing is left — write it down while recording the answer:
@@ -163,7 +151,7 @@ and the user looks once, not every few tasks.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.
 4. Write each path in the table's "Have" cell, run the verification again, and only then tell the user what to play.
 
-If the user would rather play on placeholders first and make assets after that round, do it in that order — say the choice in one line when the build ends. In auto mode this step does not run.
+If the user would rather play on placeholders first and make assets after that round, do it in that order — say the choice in one line when the build ends.
 
 ### 6. Play
 
@@ -179,15 +167,14 @@ When the user puts something off ("나중에", "다음에 하자" — "later", "
 ## What was learned — when it happens
 
 There is no end-of-cycle step to save this for. Look at two moments: when a Build wave returns a blocked task or "Deviations from the document", and when a playtest round's build returns
-(the playtest skill does this itself for its own tasks — do not repeat it). What counts: what tripped us up · engine settings done by hand · a newly found way to check. **Sort each one of three ways, as it is written:**
+(the playtest skill does this itself for its own tasks — do not repeat it). What counts: what tripped us up · engine settings done by hand · a newly found way to check. **Sort each one of two ways, as it is written:**
 
 1. **Only this game** (relies on this game's structure · rules · names) → ask whether to write it in the project's CLAUDE.md "Pitfalls".
-2. **Would trip this user again in another game** (their engine, their genre, their tools, their way of working) → one of their own rules: `voice.py rule add "<the rule and its reason>"`
-   (`--any` when it holds whatever the engine). It holds from the next session, in every game of theirs; nothing is asked, and nothing leaves the machine but their private repository.
-3. **Of those, would trip anyone** (another user's game on the same engine would hit it, or a kit tool fell short) → **also** one line in `docs/kit-feedback.md` with `lesson`, so it can be sent to the kit.
-   Write it so it makes sense without the game's names · files · numbers: "what tripped us → how to avoid (check) it".
+2. **Would trip this user again in another game** (their engine, their genre, their tools, their way of working) → one of their own rules: `feedback.py add "<what tripped us → how to avoid it>"`
+   (`--any` when it holds whatever the engine). It holds from the next session, in every game of theirs; nothing is asked. Write it so it makes sense without the game's names · files · numbers.
+   Whether it holds for every game is not judged here — the feedback skill sends rules to the kit, and the kit's sweep sorts them.
 
-A lesson for the kit is therefore always a personal rule first — the rule works now, the kit catches up later. If the project's CLAUDE.md needs it too, write it there as well.
+If the project's CLAUDE.md needs it too, write it there as well.
 If the sorting is hard, ask: "Would you need to know this when making another game next time?" If there is nothing, write nothing — do not force-fill.
 
 ## Cycle document
@@ -217,12 +204,6 @@ Update the header's `Stage:` with `stage` every time the stage changes (Goal · 
 
 Documents written before the kit wrote English use the Korean words (`# 사이클`, `단계:`, `## 목표` · `## 결정` · `## 기획` · `## 디자인` · `## 작업` · `## 순서` · `## 플레이`, `· 권함:`, `- 1차:`, `**대기**`). The script reads both, and what it adds to such a document is English — leave the old lines as they are.
 
-## Auto mode
-
-`/gamedev-kit:cycle auto <goal>` starts a cycle and `/gamedev-kit:cycle auto next` continues the newest one **without asking** — the user's voice decides, and it stops where the user has to play.
-It holds for that run only. **When called with `auto`, read `${CLAUDE_SKILL_DIR}/auto.md` first and follow it** — it changes how decisions, missing assets and blocked tasks are handled.
-Without `auto`, do not read it.
-
 ## Leaving a session
 
 The cycle document is the one thing a new session picks up from — there is no separate note. Stage, decisions and tasks are already in it. What is not — work outside the tasks,
@@ -246,7 +227,7 @@ If their commit differs from the current one, say so — the lines are a snapsho
 ask the questions among them, and start from them — **do not scan the project to find out what the lines do not say**; open only the files that work needs.
 A "handoff note not resumed" line is a note from before `carry` existed: read that one file and treat it the same way. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
 Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`; not needed any more → `drop D2 "<their words>"` (the dashboard does this itself when the user presses "Not needed" there). An overturned decision is an answer that changes the plan: call the agent whose section it touches,
-then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## Spec` section (made before this stage existed) stands before Design or Plan,
+then rework the tasks that hung on it. If a document without a `## Spec` section (made before this stage existed) stands before Design or Plan,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.
 A document standing at 배포 or 회고 (shipping and retrospective — made when those were stages) is in Play — treat it so, and write nothing in those sections.
 

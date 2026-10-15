@@ -1,6 +1,6 @@
 # Unity
 
-Whatever turns out different, write it in `docs/kit-feedback.md`.
+Whatever turns out different, add it to your rules (`/gamedev-kit:feedback` — "make this one of my rules").
 
 - Value file: `Assets/Scripts/Config/Balance.cs` (`public static float NAME = 4.0f; // GDD: <ID>`). Write floats with a decimal point and `f`.
   The game runs on this file — after `bake`, Unity recompiles and the game runs on the new values.
