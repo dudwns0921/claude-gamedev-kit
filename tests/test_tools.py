@@ -1869,6 +1869,27 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(os.listdir(box), [], "the dashboard has a board that no longer asks them — the batch leaves")
         run(CYCLE, root, "ask", "Spec", "Colour — ① red ② blue")  # D2 of cycle 02, for what follows
         run(BOARD, root)
+        # an answer that asks back: the session asks the decision again, worded anew — the relayed answer leaves the card, and it is open again
+        send("9", [{"key": "c02-D2", "pick": "", "note": "can it be both?"}])
+        run(BOARD, root, "watch", "--notice")
+        run(BOARD, root, "answers", "--inbox")
+        held = lambda: [r["key"] for n in os.listdir(box) if n.endswith(".relayed") for r in json.load(open(os.path.join(box, n)))]
+        self.assertIn("c02-D2", held())
+        self.assertIn("asked again", run(CYCLE, root, "reask", "D2", "D2. Colour — ① red ② blue ③ both, one per team · recommended: ③ (Spec)").stdout)
+        line = next(l for l in open(os.path.join(root, "docs/cycle/02-shop.md"), encoding="utf-8").read().split("\n") if "D2." in l)
+        self.assertEqual(line, "- [ ] D2. Colour — ① red ② blue ③ both, one per team · recommended: ③ (Spec)", "no number or stage twice")
+        run(BOARD, root)
+        self.assertIn("c02-D2", held(), "until the dashboard has the new wording (push), the old answer still holds the card")
+        # what push does once the dashboard took the board: tidy the inbox against the questions as now worded
+        tidy = ("import json, sys; sys.path.insert(0, sys.argv[1]); import board; board.setup(sys.argv[2]); "
+                "board.tidy_inbox({i['key']: i.get('asked', '') for i in json.load(open(sys.argv[3]))})")
+        subprocess.run([sys.executable, "-c", tidy, os.path.dirname(BOARD), root, os.path.join(root, "docs/board/review.json")], check=True)
+        self.assertNotIn("c02-D2", held(), "asked anew — the card is open again on the dashboard")
+        send("10", [{"key": "c02-D2", "pick": "", "note": "can it be both?"}])
+        run(BOARD, root, "watch", "--notice")
+        self.assertIn("D2 → (no option) — “can it be both?”", run(BOARD, root, "answers", "--inbox").stdout, "the same words to the new question are a new answer")
+        for n in os.listdir(box):
+            os.remove(os.path.join(box, n))
 
         # the hook after a turn: waits, and wakes the session (exit 2, the message on stderr) when a batch arrives
         p = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
@@ -1993,7 +2014,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual([p["label"] for p in review["c02-D1"]["pictures"]], ["Now"], "the same id in the next cycle has its own")
         self.assertEqual(review["c01-D1"]["who"], "Build")
         self.assertEqual([o["mark"] for o in review["c01-D1"]["options"]], ["①", "②"], "options still come from the question")
-        self.assertIn("--image goes with ask or attach", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
+        self.assertIn("--image goes with ask, attach or reask", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
         # pictures made after the question was asked are attached to it — they replace what was there
         self.assertIn("D1: 1 picture(s)", run(CYCLE, root, "attach", "D1", "--image", "After=shots/logo-b.png", "--doc", "docs/cycle/01-logo.md").stdout)
         self.assertIn("D9: no such decision", run(CYCLE, root, "attach", "D9", "--image", "shots/now.png", ok=False).stderr)

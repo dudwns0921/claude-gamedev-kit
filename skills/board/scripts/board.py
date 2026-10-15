@@ -168,8 +168,11 @@ def decision(mark, num, rest):
     proxy = PROXY_LINE.match(rest.strip()) if mark == "~" else None
     ask, _, answer = (proxy.group(1), "", proxy.group(2)) if proxy else rest.strip().partition(" → ")
     date = re.search(r"\s*\((\d{4}-\d\d-\d\d)\)\s*$", answer)
+    ask = re.sub(r"^\s*(?:D\d+\.\s*)+", "", ask)  # a line written by hand with its number twice ("D43. D43. …")
     who = re.search(r"\s*\(([^()]{1,8})\)\s*$", ask)
     ask = ask[:who.start()] if who else ask
+    while who and re.search(r"\s*\(([^()]{1,8})\)\s*$", ask):  # … and its stage twice ("(Spec) (Spec)")
+        ask = re.sub(r"\s*\(([^()]{1,8})\)\s*$", "", ask)
     ask, pick = (re.split(RECOMMENDED, ask, 1) + [""])[:2]
     cut = re.search(r" — (?=①)", ask) or re.search(r" — ", ask)  # the dash before the options, not one inside the title
     title, options = (ask[:cut.start()], ask[cut.end():]) if cut else (ask, "")
@@ -1029,6 +1032,7 @@ def review_items(cycles, sheet, asks=()):
             opts = [(str(o.get("mark", "")), str(o.get("text", ""))) for o in q.get("options", []) if isinstance(o, dict)] or split_options(d["options"])
             rec = next((str(o.get("mark")) for o in q.get("options", []) if isinstance(o, dict) and o.get("recommend")), d["pick"])
             items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "doc": c["file"], "latest": latest, "title": d["title"],
+                          "asked": short(d["title"] + "|" + d["options"]),  # its wording — asked anew, an answer to the old one no longer holds the card
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
     for m in sheet["models"]:
@@ -1271,7 +1275,7 @@ def keep_review(review):
     folder = os.path.dirname(os.path.join(ROOT, CFG["out"]))
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "review.json"), "w", encoding="utf-8") as f:
-        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "doc", "latest", "tool", "state", "proxy", "title")} for i in review], f, ensure_ascii=False, indent=1)
+        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "doc", "latest", "tool", "state", "proxy", "title", "asked")} for i in review], f, ensure_ascii=False, indent=1)
 
 
 def draw(quiet):
@@ -1409,7 +1413,7 @@ def push(changed_only):
         # A dashboard on this machine puts the user's answers in this game's inbox — the only thing it writes here. Paths never leave the machine
         summary["local"] = {"root": ROOT, "board": board_folder()}
     call(base, "/summary", token, json.dumps(summary, ensure_ascii=False).encode("utf-8"), "application/json")
-    tidy_inbox({i["key"] for i in review})  # only now: the dashboard has a board that no longer asks them — before, the card would open again
+    tidy_inbox({i["key"]: i.get("asked", "") for i in review})  # only now: the dashboard has a board that no longer asks them — before, the card would open again
     os.makedirs(folder, exist_ok=True)
     open(stamp_path, "w").write(summary["drawn"])
     if not changed_only:  # the hook says nothing
@@ -1572,8 +1576,15 @@ def tidy_inbox(asked):
     box = os.path.join(board_folder(), "inbox")
     for name in os.listdir(box) if os.path.isdir(box) else []:
         p = os.path.join(box, name)
-        if name.endswith(".relayed") and (not {r["key"] for r in rows_in(load_json(p) or [])} & asked or time.time() - os.path.getmtime(p) > 86400):
+        if not name.endswith(".relayed"):
+            continue
+        rows = rows_in(load_json(p) or [])
+        # a row stays while the board asks its question in the words it was answered in — asked anew (`cycle.py reask`), the card is open again
+        keep = [r for r in rows if r.get("key") in asked and r.get("asked", asked[r["key"]]) == asked[r["key"]]]
+        if not keep or time.time() - os.path.getmtime(p) > 86400:
             os.remove(p)
+        elif len(keep) != len(rows):
+            json.dump(keep, open(p, "w", encoding="utf-8"), ensure_ascii=False)
 
 
 def claim(stranded=False):
@@ -1712,7 +1723,8 @@ def answers(path):
     seen = load_json(seen_path) or {}
     groups, stale = {"decision": [], "question": [], "asset": [], "check": []}, 0
     for r in rows_in(data):
-        i, mark = items.get(r["key"]), f'{r.get("pick", "")}|{r.get("note", "")}'
+        i = items.get(r["key"])
+        mark = f'{r.get("pick", "")}|{r.get("note", "")}|{(i or {}).get("asked", "")}'  # the same answer to a question asked anew is a new answer
         if not i:
             stale += 1
             continue
@@ -1744,7 +1756,13 @@ def answers(path):
     if stale:
         out.append(f"{stale} saved answer(s) are to questions no longer on the page (answered, or the question changed) — ignored")
     json.dump(seen, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    for p in taken:  # relayed — kept as .relayed, so the dashboard shows "the session is on it" until the board no longer asks it
+    for p in taken:  # relayed — kept as .relayed, so the dashboard shows "the session is on it" until the board no longer asks it (in these words)
+        rows = load_json(p)
+        if isinstance(rows, list):
+            for r in rows:
+                if isinstance(r, dict) and r.get("key") in items:
+                    r["asked"] = items[r["key"]].get("asked", "")
+            json.dump(rows, open(p, "w", encoding="utf-8"), ensure_ascii=False)
         os.replace(p, os.path.splitext(p)[0] + ".relayed")
     if any(groups.values()):
         out.append(f'Leaving one open (unclear, mistyped, not to act on now)? python3 "{os.path.abspath(__file__)}" reopen <key> — its card can be answered again')

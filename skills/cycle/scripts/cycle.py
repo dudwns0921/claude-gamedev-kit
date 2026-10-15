@@ -10,6 +10,7 @@
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
         [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard
   python3 cycle.py attach D3 --image "<label>=<path>" …   Pictures for a decision already asked (they replace any attached before)
+  python3 cycle.py reask D3 "<question — ① … ② … · recommended: ①>" [--image …]   Ask it again, worded anew (the answer was a question back, the options changed): same number, open again
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
@@ -260,7 +261,17 @@ def keep_pictures(path, num, question, pics):
         json.dump(kept, f, ensure_ascii=False, indent=1)
 
 
+WHO_TAIL = re.compile(r"(?:\s*\((?:Spec|Design|Plan|Build|Play|Playtest|Asset|기획|디자인|계획|구현|플레이)\))+\s*$")
+
+
+def clean(question, num=""):
+    """The question as the line holds it: without a decision number in front ("D45. …", which the line writes itself) or a stage behind."""
+    q = re.sub(r"^\s*(?:D\d+\.\s*)+", "", question.strip())
+    return WHO_TAIL.sub("", q).strip()
+
+
 def cmd_ask(path, who, question, images=()):
+    question = clean(question)
     text = read(path)
     span = section(text, "Decisions") or sys.exit("the document has no `## Decisions` section")
     pics = pictures(images)
@@ -270,6 +281,23 @@ def cmd_ask(path, who, question, images=()):
     if pics:
         keep_pictures(path, num, question.strip(), pics)
     print(num)
+
+
+def cmd_reask(path, num, question, images=()):
+    """Ask a decision again, worded anew — when the user's answer was a question back, or the options changed. Same number, open again,
+    who asked it kept; an answer it had is dropped. The board gives it a new card, and an answer sent to the old wording is not relayed."""
+    text = read(path)
+    ds = decisions(text)
+    if num not in ds:
+        sys.exit(f"{num}: no such decision — " + " · ".join(ds))
+    old = ds[num][1]
+    who = re.search(r"\((Spec|Design|Plan|Build|Play|Playtest|Asset|기획|디자인|계획|구현|플레이)\)", old)
+    pics = pictures(images)
+    q = clean(question)
+    write(path, text.replace(old, f"- [ ] {num}. {q} ({EN.get(who.group(1), who.group(1)) if who else 'Spec'})", 1))
+    if pics:
+        keep_pictures(path, num, q, pics)
+    print(f"{num}: asked again — answer it on the dashboard or in the chat")
 
 
 def cmd_attach(path, num, images):
@@ -410,9 +438,9 @@ def main():
         images.append(args[i + 1])
         del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    if images and cmd not in ("ask", "attach"):
-        sys.exit("--image goes with ask or attach")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1}
+    if images and cmd not in ("ask", "attach", "reask"):
+        sys.exit("--image goes with ask, attach or reask")
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -434,6 +462,8 @@ def main():
         cmd_ask(path, *rest, images)
     elif cmd == "attach":
         cmd_attach(path, rest[0], images)
+    elif cmd == "reask":
+        cmd_reask(path, rest[0], rest[1], images)
     elif cmd == "decide":
         cmd_decide(path, *rest)
     elif cmd == "confirm":

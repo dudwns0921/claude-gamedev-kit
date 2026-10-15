@@ -124,7 +124,10 @@ The decision is still written with `ask` and answered with `decide` — the shee
 **If the board is shared** (`board.share` in `kit.config.json`), republish it once the decisions are written — the board skill's "The link" — and give the link with the questions:
 the user can answer on the phone, or in the chat as before.
 
-When answers come, record them with `decide D1 "<the user's words verbatim>"`. If an answer changes the spec · design · plan (scope cut · a different option chosen),
+When answers come, record them with `decide D1 "<the user's words verbatim>"`.
+**An answer that is a question back, or that changes what is being asked** ("can it be both?", "is that possible without a server?"): answer what they asked in a line or two,
+then ask the decision again with `reask D1 "<question — ① … ② … · recommended: ①>"` — same number, open again, on the dashboard as a new card. Never re-ask only in the chat,
+and never edit the decision line by hand. If an answer changes the spec · design · plan (scope cut · a different option chosen),
 call that agent again to fix its section, and realign the sections of the stages after it. The same goes when the user asks to change the plan directly.
 If an answer puts work off ("○○ first, then △△"), the put-off part is in no task list and `next` will say nothing is left — write it down while recording the answer:
 a task if it belongs to this cycle (call `plan`), `later` if it does not.
