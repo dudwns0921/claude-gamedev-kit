@@ -852,7 +852,7 @@ class Tools(unittest.TestCase):
         os.makedirs(bin_dir)
         fake = {
             "git": f"""import os, sys
-open({calls!r}, "a").write("git " + " ".join(sys.argv[1:3]) + "\\n")
+open({calls!r}, "a").write("git " + " ".join(sys.argv[1:]) + "\\n")
 if sys.argv[1] == "clone":
     os.makedirs(os.path.join(sys.argv[-1], ".git"))
 if sys.argv[1] == "rev-parse":
@@ -860,6 +860,8 @@ if sys.argv[1] == "rev-parse":
     print(open(remote).read().strip() if sys.argv[2] == "FETCH_HEAD" and os.path.exists(remote) else "c0ffee")
 if sys.argv[1] == "status" and os.path.exists(os.path.join({root!r}, "dirty")):
     print(" M app/page.tsx")
+if sys.argv[1] == "pull" and os.path.exists(os.path.join({root!r}, "nopull")):
+    sys.exit("fatal: Not possible to fast-forward, aborting.")
 """,
             "node": "",
             "npm": f"""import http.server, json, os, sys
@@ -922,8 +924,15 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertNotIn("a newer dashboard", serve().stdout, "a copy changed by hand is left as it is")
         self.assertNotIn("npm", open(calls).read())
         os.remove(os.path.join(root, "dirty"))
+        open(os.path.join(root, "nopull"), "w").close()
         out = serve()
-        self.assertIn("a newer dashboard is out — stopping it, updating and starting it again", out.stdout, out.stderr)
+        self.assertIn("could not be updated — the running one is kept", out.stdout, out.stderr)
+        self.assertIn("running", serve("--status").stdout, "an update that fails never leaves the dashboard down")
+        os.remove(os.path.join(root, "nopull"))
+        open(calls, "w").close()
+        out = serve()
+        self.assertIn("a newer dashboard is out — stopping it, building and starting it again", out.stdout, out.stderr)
+        self.assertNotIn("--depth", "\n".join(l for l in open(calls).read().split("\n") if l.startswith("git fetch")), "asking does not cut the copy's history")
         log = open(calls).read()
         self.assertIn("git pull", log)
         self.assertIn("npm run start", log)

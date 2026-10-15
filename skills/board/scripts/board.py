@@ -1430,7 +1430,7 @@ def newer(app):
     try:
         if git("status", "--porcelain", "--untracked-files=no").stdout.strip():
             return False
-        if git("fetch", "--quiet", "--depth", "1", "origin", t=30).returncode != 0:
+        if git("fetch", "--quiet", "origin", t=30).returncode != 0:  # not --depth 1: that cuts the copy's history and the pull can no longer fast-forward
             return False
         here, there = git("rev-parse", "HEAD").stdout.strip(), git("rev-parse", "FETCH_HEAD").stdout.strip()
         return bool(there) and here != there
@@ -1455,10 +1455,18 @@ def serve(whole, mode):
         print("the dashboard was not answering — starting it again", flush=True)
         pid = 0
     if pid and not mode and newer(app):
-        # a dashboard left running keeps the version it was started with — fixed in its repository, it would never reach this machine otherwise
-        print("a newer dashboard is out — stopping it, updating and starting it again (a minute or two)", flush=True)
-        halt(pid, pid_path)
-        pid = 0
+        # a dashboard left running keeps the version it was started with — fixed in its repository, it would never reach this machine otherwise.
+        # Updated first, while it still runs (the server reads its build, not these files); stopped only once the update is in — never left down
+        with open(log, "a", encoding="utf-8") as f:
+            f.write("\n$ git pull --ff-only\n")
+            f.flush()
+            pulled = subprocess.run(["git", "pull", "--ff-only"], cwd=app, stdout=f, stderr=subprocess.STDOUT).returncode == 0
+        if pulled:
+            print("a newer dashboard is out — stopping it, building and starting it again (a minute or two)", flush=True)
+            halt(pid, pid_path)
+            pid = 0
+        else:
+            print(f"a newer dashboard is out, but this copy could not be updated — the running one is kept (see {log})")
     if mode == "--status":
         print(f"running — {url} (pid {pid})" if pid else f"not running — board.py serve starts it ({app})")
         return
