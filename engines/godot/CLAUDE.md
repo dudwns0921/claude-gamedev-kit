@@ -65,3 +65,5 @@ Everything that can be verified without a screen becomes a headless test. Run th
 15. **Soften the edge of a thresholded noise with `fwidth`, not a fixed-width `smoothstep`** — a fixed width smears where the noise is gentle.
 16. **`cast_motion` misses a small ball grazing a wide thin box, and once it misses it never sees a body the shape leaves while overlapping** (projectiles pass through floors and walls).
     Split the step into pieces shorter than the thinnest collider, check the overlap at each piece's end with `get_rest_info`, and narrow down the first overlapping position. Keep a test that fires hundreds of shots into the real room and counts the ones that get through.
+17. **Exporting** (when the user asks for a build): the export does not create its target folder — make it first. Add `build/*` to the preset's exclude filter
+    (a build folder inside the project is packed into the next `.pck`), and `*.txt` to its include filter if a licence text must ship — plain text is not packed by default.

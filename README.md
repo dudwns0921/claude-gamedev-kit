@@ -7,14 +7,22 @@ Agents make your game one cycle at a time — spec, design, build. You decide, f
 
 ## Quick start
 
-In Claude Code, in your game's folder (an empty one is fine):
+You need:
 
-```
-/plugin marketplace add dudwns0921/claude-gamedev-kit
-/plugin install gamedev-kit@claude-gamedev-kit
+- [Claude Code](https://code.claude.com)
+- [Python](https://www.python.org/downloads/) 3.9 or later
+- [Node.js](https://nodejs.org) — for the dashboard
+- The editor of the engine you make the game with ([Godot](https://godotengine.org/download) · [Unity](https://unity.com/download)) — a plain web game needs none
+
+In your game's folder (an empty one is fine):
+
+```bash
+claude plugin marketplace add dudwns0921/claude-gamedev-kit
+claude plugin install gamedev-kit@claude-gamedev-kit --scope project
 ```
 
-Restart Claude Code, and that's it — there is nothing to learn. Say what you want, and the kit's skills step in:
+Installed for the project, the kit stays with the game: anyone who opens the game's folder in Claude Code gets the same kit.
+Then start Claude Code there and say what you want — there is nothing to learn:
 
 ```
 I want to make a cozy farming game      → asks where it will be played, picks the engine, sets it up, then writes the GDD with you
@@ -22,12 +30,11 @@ this time, let's add a shop             → one cycle: spec, design, build; what
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
 
-You need Claude Code and Python 3.9 or later; the dashboard needs Node.js; Godot and Unity need their editor.
+### Made with it so far
 
-### Engines
-
-**Godot**, **Unity** and plain **web** (HTML and JavaScript, no editor). The kit asks where your game will be played — a phone, a computer, the browser — and picks the engine with you.
-The engine decides how the kit reads your code, where assets go, and which traps it warns the agents about; the cycle and the dashboard are the same for all three.
+- **Godot** — a 3D action adventure for computers · a 3D defense game for computers and the browser · a 3D bow fight in the browser
+- **Unity** — a 2D top-down phone game, played upright (Android)
+- **Web** (plain HTML and JavaScript) — a small dodge game in the browser
 
 ## Why use it
 
@@ -60,7 +67,7 @@ The kit covers making the game; when it is ready to ship, ask Claude Code to bui
 
 ```bash
 claude plugin marketplace update claude-gamedev-kit
-claude plugin update gamedev-kit@claude-gamedev-kit
+claude plugin update gamedev-kit@claude-gamedev-kit --scope project
 ```
 
 Run both in the game's folder, then restart the game's Claude session.

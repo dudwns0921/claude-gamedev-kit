@@ -30,4 +30,4 @@ Everything that can be verified without a screen becomes a test. Run them before
 
 ## Pitfalls (web)
 
-None yet — they are added as games hit them.
+1. **A build to put online** (when the user asks) is `index.html`, `game/` and `assets/` copied into one folder, plus any other folder the game loads from — a module loaded from a folder left out fails only online.

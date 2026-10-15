@@ -161,6 +161,8 @@ def make(rec):
         f.write("\n")
     print(f"{name}: {rec['out']} — {len(data) / 1e3:.0f} KB" + (" · looping sound" if rec.get("loop") else "")
           + (f" · take {rec['takes']}" if rec["takes"] > 1 else ""))
+    if CFG["sound"].get("after"):  # what the engine needs done with the file now in its slot
+        print(f"  then: {CFG['sound']['after']}")
 
 
 def records():

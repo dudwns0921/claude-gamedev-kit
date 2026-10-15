@@ -38,7 +38,7 @@ RULE_FILES = "engines/*/CLAUDE.md"  # read on every turn in every game — their
 TRUSTED = ("OWNER", "MEMBER", "COLLABORATOR")
 OK, REQUEST, SKIP, WAIT = "harvest:ok", "harvest:request", "harvest:skip", "harvest:wait"
 BRANCH = "harvest/"
-EDITS = ("rule", "notes", "script", "skill")  # lanes that change a file
+EDITS = ("rule", "script", "skill")  # lanes that change a file
 CLOSES = EDITS + ("duplicate",)  # lanes that close the issue when the pull request merges
 ASIDE = {"request": (REQUEST, "a feature request rather than a lesson"),
          "skip": (SKIP, "too tied to one game to state as a rule for every game"),

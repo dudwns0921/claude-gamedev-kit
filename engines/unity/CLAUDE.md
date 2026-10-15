@@ -37,3 +37,7 @@ Everything that can be verified without a screen becomes an EditMode test. Run t
 5. **The editor is not the device.** Touch, screen sizes with notches, the back button and performance are checked only on a phone (the user: Build and Run with it plugged in). Say so when reporting a change as verified.
 6. **In batch mode `AssetDatabase.ImportPackage` does nothing** — the import is queued and the process quits before it runs (TMP Essential Resources never arrive this way).
    A `.unitypackage` is a gzipped tar: one folder per asset, named by its GUID, holding `asset`, `asset.meta` and `pathname`. Unpack it and put each file at its path with its `.meta`.
+7. **A store build** (when the user asks): the package name (Player Settings → Identification, `com.<name>.<game>`) cannot change after the first upload,
+   and the upload keystore stays outside the repository, with a backup — without it no update can be uploaded. Say both before the first one.
+8. **Unity's own plugin for Claude Code, if used**, is installed for this project (`claude plugin install unity@claude-plugins-official --scope project`, in the game root) —
+   it is written in the committed `.claude/settings.json`, so every machine that builds the game has the skills a task names.

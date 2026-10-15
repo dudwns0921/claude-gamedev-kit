@@ -19,7 +19,8 @@ What is attached to every prompt sits in asset.style_file (default docs/DESIGN.m
   `<!-- asset-style -->`    Art style — how it is drawn. Fixed (changing it sets new assets against the ones already made)
   `<!-- asset-world -->`    World — what exists in this world (era · materials · motifs that recur). Optional
   `<!-- asset-learned -->`  Learned — lines from what the user said when turning assets down. `learn` adds them. Optional
-Config is "asset" in kit.config.json at the project root.
+Config is "asset" in kit.config.json at the project root. Its `after` (and `sprite.after` · `sound.after`) is what the engine needs done once a file is in its slot —
+printed each time one lands there, so it is said when it is needed.
 
 --ref is that asset's reference photo (path relative to the root) — the photo itself is shown to draw from, not put into words.
 --as-is uses the photo as the first view without redrawing (must be png. The look is then the photo's).
@@ -428,6 +429,13 @@ def finish(name, size):
     f = rec["finished"]
     print(f"{name}: {rec['out']} — triangles {f['tris']} · {' × '.join(str(x) for x in f['size'])} m · "
           f"{os.path.getsize(out) / 1e6:.1f} MB")
+    after(CFG)
+
+
+def after(section):
+    """What the engine needs done with a file that just landed in its slot — the engine's own words, from kit.config.json."""
+    if section.get("after"):
+        print(f"  then: {section['after']}")
 
 
 def status():

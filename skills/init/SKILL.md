@@ -47,7 +47,6 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    ```
 
    Installed: `kit.config.json` · `docs/GDD.md` · `docs/DESIGN.md` · `CLAUDE.md` · the engine's template files (the value file and what else the engine brings) · `.gitignore` lines (the Excel lock file and what the engine generates — lines already present are not repeated; `--gitignore` adds only those).
-   At the end it prints what to finish by hand on that engine (project settings, export presets, etc.) — **go on and do those.**
 
    Then let the engine read what was installed once (compile · import — the engine rules' "Running" says how), so the files it creates beside them (`.meta`, import caches) appear; fix any error before going on.
 
@@ -99,7 +98,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --rules
 
 ## Adding an engine (plugin-side work)
 
-In `engines/<name>/` put `kit.config.json` (code extension · value-line regex · asset formats and folders), `NOTES.md` (where the kit's files and assets go in that engine), `CLAUDE.md` (the engine rules appended to the game's
+In `engines/<name>/` put `kit.config.json` (code extension · value-line regex · asset formats and folders), `CLAUDE.md` (the engine rules appended to the game's
 CLAUDE.md), `files/` (files copied as-is into the game repo), `project.json` (how to recognise a project and when to pick the engine — read by `init.py`, not copied into the game;
 its keys are listed at the top of `init.py`) and `gitignore` (lines appended to the game's `.gitignore`). `init.py` has no branch per engine — everything it needs is in those files.
 Add a value file in that engine's syntax to `CODE` in `tests/test_tools.py` to check that the tools read and edit it.

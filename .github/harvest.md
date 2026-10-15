@@ -23,7 +23,6 @@ Each issue ends in exactly one lane.
 | Lane | When | Where the change goes |
 |---|---|---|
 | `rule` | A trap that will recur, or a way to verify | `engines/<engine>/CLAUDE.md` — these become the rules of every game on that engine |
-| `notes` | Something done once, when the kit is installed or the project set up | `engines/<engine>/NOTES.md` |
 | `script` | A tool can prevent it or catch it | The script under `skills/<name>/scripts/`, and its test in `tests/` |
 | `skill` | It concerns how one skill works | That skill's document under `skills/<name>/` (or the agent it calls, under `agents/`) |
 | `duplicate` | A rule already in the kit covers it | Nothing changes — name the existing rule |
@@ -87,8 +86,8 @@ Finish by writing `harvest-result.json` at the root — one entry for every issu
 ]
 ```
 
-- `lane` is one of `rule` · `notes` · `script` · `skill` · `duplicate` · `request` · `skip`.
-- `where`: for `rule` · `notes` · `script` · `skill`, the path of a file you changed, exactly as it is in the repository. For `duplicate`, the existing rule.
+- `lane` is one of `rule` · `script` · `skill` · `duplicate` · `request` · `skip`.
+- `where`: for `rule` · `script` · `skill`, the path of a file you changed, exactly as it is in the repository. For `duplicate`, the existing rule.
   For `request` and `skip` it may be empty.
 - `note`: one line for the maintainer — what you did with the lesson, or why nothing. For `request` and `skip` it is also posted on the issue, so write it to the person who sent the lesson.
 

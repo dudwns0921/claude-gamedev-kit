@@ -64,15 +64,15 @@ What comes out of making a game falls into these kinds. This repository is publi
 | What holds in this user's next game too — traps, ways to verify, ways of working tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in `~/.config/gamedev-kit/rules/` — on their machine; every game imports them, so they hold from the next session) |
 | What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules sent as issues |
 
-So the README and documents here state **only what the kit does**. Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
+So the README and documents here state **only what the kit does** — the one exception is the README's "Made with it so far", the kinds of games made per engine (no names, numbers or dates). Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
 
 Rules written down are not enough — `tools/private_check.py` enforces it: it searches the files git knows and commit messages for games' names (`private-words.txt` in the rules folder — the names themselves
 must not be here, so the list lives outside the repository) and for dates. The tests run it, and it is also installed as a commit-msg hook (how to install it is at the top of that file). When starting a new game, add its name as a line in `private-words.txt`.
 
 ## What games teach comes back here
 
-Engine settings done by hand in a game repository, traps that were hit, and ways to verify are carried over to `engines/<engine>/NOTES.md` (what to do after installing) and
-`engines/<engine>/CLAUDE.md` (what becomes the games' rules), so the next game does not go through the same thing again.
+Traps that were hit and ways to verify are carried over to `engines/<engine>/CLAUDE.md` (what becomes the games' rules), and what the engine needs done with a file the kit
+puts in a slot to `engines/<engine>/kit.config.json` (the `after` lines the asset and video tools print), so the next game does not go through the same thing again.
 
 A lesson is sorted where the game trips (when a task is blocked · after a playtest fix), into two tiers: only that game → its CLAUDE.md; would trip the same user in another game →
 one of their own rules (`feedback.py add` — on their machine, loaded into every game of theirs by the import lines at the end of the kit rules block, so it holds at once).
@@ -94,5 +94,5 @@ Merging closes the issues that became rules or were already covered; feature req
 
 Games receive the reflected rules through a hook at session start — an untouched block is replaced with the current version by itself (if the block is missing or was edited by hand, the hook only says so: `/gamedev-kit:init rules`).
 
-Choose the right place for each line (the sweep is told the same in `.github/harvest.md`) — recurring traps and ways to verify go in the engine's CLAUDE.md, one-time setup goes in NOTES.md, what a tool can prevent goes in a script (better than writing it down),
+Choose the right place for each line (the sweep is told the same in `.github/harvest.md`) — recurring traps and ways to verify go in the engine's CLAUDE.md, what a tool can prevent goes in a script (better than writing it down),
 and what concerns one skill goes in that skill's document. Something seen in only one game is noted as such — it is made firm when it shows up again in a second game.

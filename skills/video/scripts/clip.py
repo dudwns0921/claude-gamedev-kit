@@ -260,10 +260,12 @@ def place(name):
         shutil.copyfile(mp4, out)
     elif subprocess.run(shlex.split(CFG["ffmpeg"]) + ["-y", "-i", mp4, *where["convert"], out], cwd=ROOT).returncode != 0 \
             or not os.path.exists(out):
-        sys.exit(f"{name}: could not convert to {ext} — check {SECTION}.game.convert")
+        sys.exit(f"{name}: could not convert to {ext} — check {SECTION}.game.convert; the ffmpeg on PATH must have the encoders it names (`ffmpeg -encoders`)")
     rec["out"] = os.path.relpath(out, ROOT)
     save(rec)
     print(f"{name}: {rec['out']} — {os.path.getsize(out) / 1e6:.1f} MB")
+    if where.get("after"):  # what the engine needs done with the file now in its slot
+        print(f"  then: {where['after']}")
 
 
 def check():

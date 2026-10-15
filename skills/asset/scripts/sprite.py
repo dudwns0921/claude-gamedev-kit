@@ -258,6 +258,7 @@ def approve(name):
     rec["approved"], rec["out"] = asset.sha(still_path(name)), rel(out)
     save(rec)
     print(f"{name}: approved — {rec['out']}")
+    asset.after(CFG)
 
 
 def keep(name):
@@ -316,6 +317,7 @@ def animate(name, motion, prompt, seconds, frames):
     save(rec)
     print(f"{name} {motion}: {m['out']} — {grid(m)}" + (f" · credits {credits}" if credits is not None else "")
           + (f"\npreview (for the user to watch): {rel(gif)}" if gif else ""))
+    asset.after(CFG)
 
 
 def grid(m):

@@ -1114,7 +1114,9 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn("lowercase", sound("sfx", "Coin", "x", ok=False))
         self.assertEqual(seen, [])
 
-        self.assertIn("assets/sounds/coin.mp3", sound("sfx", "coin", "--seconds", "0.8", "A metal coin on stone, one bright ping."))
+        made = sound("sfx", "coin", "--seconds", "0.8", "A metal coin on stone, one bright ping.")
+        self.assertIn("assets/sounds/coin.mp3", made)
+        self.assertIn(f"  then: {cfg['asset']['sound']['after']}", made, "what the engine needs done with the file is said as it lands in its slot")
         path, key, body = seen[0]
         self.assertEqual((path, key), ("/sound-generation?output_format=mp3_44100_128", "k3"))
         self.assertEqual(body, {"text": "A metal coin on stone, one bright ping", "prompt_influence": 0.3, "loop": False, "duration_seconds": 0.8})

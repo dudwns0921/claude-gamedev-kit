@@ -315,9 +315,6 @@ def main():
     marker = project(engine).get("marker")
     if marker and not os.path.exists(os.path.join(root, marker)):
         print(f"\nthis folder is not a {engine} project yet (no {marker}) — create it before the first cycle (the engine's own tools; the user installs the editor)")
-    notes = os.path.join(src, "NOTES.md")
-    if os.path.exists(notes):
-        print("\n" + open(notes, encoding="utf-8").read().strip())
 
 
 if __name__ == "__main__":
