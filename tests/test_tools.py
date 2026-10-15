@@ -1907,7 +1907,14 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual([p["label"] for p in review["c02-D1"]["pictures"]], ["Now"], "the same id in the next cycle has its own")
         self.assertEqual(review["c01-D1"]["who"], "Build")
         self.assertEqual([o["mark"] for o in review["c01-D1"]["options"]], ["①", "②"], "options still come from the question")
-        self.assertIn("--image goes with ask", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
+        self.assertIn("--image goes with ask or attach", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
+        # pictures made after the question was asked are attached to it — they replace what was there
+        self.assertIn("D1: 1 picture(s)", run(CYCLE, root, "attach", "D1", "--image", "After=shots/logo-b.png", "--doc", "docs/cycle/01-logo.md").stdout)
+        self.assertIn("D9: no such decision", run(CYCLE, root, "attach", "D9", "--image", "shots/now.png", ok=False).stderr)
+        run(BOARD, root)
+        review = {i["key"]: i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]}
+        self.assertEqual([p["label"] for p in review["c01-D1"]["pictures"]], ["After"])
+        self.assertEqual([p["label"] for p in review["c02-D1"]["pictures"]], ["Now"])
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,

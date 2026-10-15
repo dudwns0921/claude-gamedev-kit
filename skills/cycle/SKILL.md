@@ -105,6 +105,7 @@ cannot be answered from the dashboard, and is lost when the session changes.
 
 **Whatever the user should look at to decide goes with the decision.** `ask … --image "<label>=<path>"` (repeat it; paths from the game root) keeps the pictures beside the question,
 and the board's review and the dashboard show them on its card — a capture of how it is now, a measurement, a reference, the candidates. Ask the agent that raised it for the paths.
+Pictures made after the question was asked go on with `attach D3 --image "<label>=<path>" …`.
 
 **A decision chosen by eye is asked with a picture, one per question.** Candidates the user picks from (logo drafts, two looks of one screen) are the options of one decision, each with its picture —
 not a page of their own. A screen, a pose, a grip, a colour: text plus a wide comparison image handed over separately cannot be chosen from (least of all on a phone),
