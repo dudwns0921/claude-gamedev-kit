@@ -6,7 +6,8 @@
   python3 board.py share        bundle the board and the review page into one page for a private claude.ai link — writes <share_dir>/ and its publish.json
   python3 board.py share --done <url>   after the publish went through: remember the link (board.share in kit.config.json) and what was sent
   python3 board.py push [--if-changed]   send the board to your own board service (board.service.game in kit.config.json; address and token in board.service_file)
-  python3 board.py serve [--stop | --status]   run the dashboard on this machine (cloned, built and started once; every game sends to it)
+  python3 board.py serve [--stop | --status]   run the dashboard on this machine (cloned, built and started once; every game sends to it).
+                                       Run while it is running, it brings a newer dashboard in (stop · update · build · start) — or just joins this game
   python3 board.py watch [--rewake | --notice]   wake the session when answers arrive from the dashboard (the plugin's monitor · hooks run it)
   python3 board.py reopen <key> …                 an answer from the dashboard the session leaves open (unclear, mistyped): its card can be answered again
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
@@ -1423,6 +1424,20 @@ def step(what, args, cwd, log):
         sys.exit(f"{what} failed — the last lines of {log}:\n" + "".join(open(log, encoding="utf-8").readlines()[-15:]))
 
 
+def newer(app):
+    """The dashboard's repository has moved on since this copy was built — asked quietly. Offline, or a copy changed by hand: False, it is left as it is."""
+    git = lambda *a, t=10: subprocess.run(["git", *a], cwd=app, capture_output=True, text=True, timeout=t)
+    try:
+        if git("status", "--porcelain", "--untracked-files=no").stdout.strip():
+            return False
+        if git("fetch", "--quiet", "--depth", "1", "origin", t=30).returncode != 0:
+            return False
+        here, there = git("rev-parse", "HEAD").stdout.strip(), git("rev-parse", "FETCH_HEAD").stdout.strip()
+        return bool(there) and here != there
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def serve(whole, mode):
     app, port = os.path.expanduser(str(CFG["app_dir"])), int(CFG["app_port"])
     pid_path, log = os.path.join(app, ".kit-server.pid"), os.path.join(os.path.dirname(app), "board-app.log")
@@ -1438,6 +1453,11 @@ def serve(whole, mode):
         # alive but not answering: a server stopped while a page held its live connection closes its port and waits for that page for good
         halt(pid, pid_path)
         print("the dashboard was not answering — starting it again", flush=True)
+        pid = 0
+    if pid and not mode and newer(app):
+        # a dashboard left running keeps the version it was started with — fixed in its repository, it would never reach this machine otherwise
+        print("a newer dashboard is out — stopping it, updating and starting it again (a minute or two)", flush=True)
+        halt(pid, pid_path)
         pid = 0
     if mode == "--status":
         print(f"running — {url} (pid {pid})" if pid else f"not running — board.py serve starts it ({app})")

@@ -856,7 +856,10 @@ open({calls!r}, "a").write("git " + " ".join(sys.argv[1:3]) + "\\n")
 if sys.argv[1] == "clone":
     os.makedirs(os.path.join(sys.argv[-1], ".git"))
 if sys.argv[1] == "rev-parse":
-    print("c0ffee")
+    remote = os.path.join({root!r}, "remote")
+    print(open(remote).read().strip() if sys.argv[2] == "FETCH_HEAD" and os.path.exists(remote) else "c0ffee")
+if sys.argv[1] == "status" and os.path.exists(os.path.join({root!r}, "dirty")):
+    print(" M app/page.tsx")
 """,
             "node": "",
             "npm": f"""import http.server, json, os, sys
@@ -910,7 +913,21 @@ if sys.argv[1:3] == ["run", "start"]:
         open(calls, "w").close()
         out = serve()
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertNotIn("npm", open(calls).read(), "running already — nothing is built or started again")
+        self.assertNotIn("npm", open(calls).read(), "running already, nothing newer — nothing is built or started again")
+        self.assertIn("git fetch", open(calls).read(), "whether the dashboard moved on is asked")
+        # the dashboard's repository moved on: serve brings it in — stopped, updated, built, started again
+        open(os.path.join(root, "remote"), "w").write("beef")
+        open(os.path.join(root, "dirty"), "w").close()
+        open(calls, "w").close()
+        self.assertNotIn("a newer dashboard", serve().stdout, "a copy changed by hand is left as it is")
+        self.assertNotIn("npm", open(calls).read())
+        os.remove(os.path.join(root, "dirty"))
+        out = serve()
+        self.assertIn("a newer dashboard is out — stopping it, updating and starting it again", out.stdout, out.stderr)
+        log = open(calls).read()
+        self.assertIn("git pull", log)
+        self.assertIn("npm run start", log)
+        os.remove(os.path.join(root, "remote"))
         self.assertEqual(dict(line.split("=", 1) for line in open(keys).read().split("\n") if "=" in line), kept, "the keys are made once")
         self.assertIn("stopped", serve("--stop").stdout)
         open(calls, "w").close()

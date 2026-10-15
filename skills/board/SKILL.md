@@ -166,7 +166,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve --stop
 It needs git and Node.js; without them it says so and the pages in `docs/board/` go on working. The app is cloned to `~/.config/gamedev-kit/board-app` (`board.app_dir`),
 outside every game. There is no sign-in — it listens on this machine only, and the token games send with is made on the first run and kept in `~/.config/gamedev-kit/board.env`.
 From a phone or another computer: `tailscale serve --bg <port>` (only the user's own devices); never `tailscale funnel`, which opens it to anyone. The game joins under an id made from its folder name (`board.service.game` in `kit.config.json`, written when missing).
-Run `serve` once in each game that should appear (init offers it at the end); it also draws the game's own board and adds `docs/board/` to `.gitignore`. After a restart of the machine, `serve` starts it again.
+Run `serve` once in each game that should appear (init offers it at the end); it also draws the game's own board and adds `docs/board/` to `.gitignore`. After a restart of the machine, `serve` starts it again. Run while it is running, `serve` also brings a newer dashboard in — it stops it, updates, builds and starts it again (a copy changed by hand, or no network, is left as it is). When the dashboard looks out of step with the kit (a state it does not show, a card that behaves the old way), run `serve`.
 
 From then on a hook runs `board.py push --if-changed` in the background at the end of every turn: when the board was redrawn since the last push, it asks the dashboard
 which pictures it lacks, sends only those, then the board as data (`docs/board/board.json` — the counts, and under `board` every stage with its items,
