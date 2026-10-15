@@ -1621,7 +1621,9 @@ def told(n):
 
 def watch(mode):
     """The monitor (no mode): runs the whole session and says a line when answers arrive. --rewake: a hook waiting after a turn, for where
-    monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start.
+    monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start, and on every
+    prompt the user sends — so any message reconnects a session whose watcher is gone (an idle hour, an update) and picks up what waits.
+    The hook leaves why it ended in .rewake.log and takes its .rewake away — the dashboard reads those to say whether a session is listening.
     Across a change of sessions: the newest session's watcher takes the batches (an older session left open stands aside), a watcher whose
     session has ended stops, and a new session is told at its start of whatever is waiting — sent while none was open, or taken and never read."""
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
@@ -1640,18 +1642,33 @@ def watch(mode):
         me = os.path.join(folder, ".rewake")
         os.makedirs(folder, exist_ok=True)
         open(me, "w").write(str(os.getpid()))
+
+        def ended(why, code=0):
+            """One line on why this hook stopped waiting; its .rewake goes with it, unless a newer hook's is there."""
+            try:
+                open(os.path.join(folder, ".rewake.log"), "w").write(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} · pid {os.getpid()} · {why}\n")
+                if read(me).strip() == str(os.getpid()):
+                    os.remove(me)
+            except OSError:
+                pass
+            sys.exit(code)
+
+        for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):  # stopped from outside (the session closed, the plugin updated) — say so
+            signal.signal(sig, lambda n, _f: ended(f"stopped by {signal.Signals(n).name}"))
         end = time.time() + 3300
         while time.time() < end:
-            if gone() or read(me).strip() != str(os.getpid()):
-                return  # a newer turn's hook took over
+            if gone():
+                ended("the session that started it has ended")
+            if read(me).strip() != str(os.getpid()):
+                ended("a newer turn's hook took over")
             if os.path.exists(beat) and time.time() - os.path.getmtime(beat) < 4 * INBOX_POLL + 2:
-                return  # a monitor is watching
+                ended("a monitor is watching")
             n = claim()
             if n:
                 print(told(n), file=sys.stderr)
-                sys.exit(2)  # wakes the session (asyncRewake)
+                ended("woke the session for the answers", 2)  # exit 2 wakes the session (asyncRewake)
             time.sleep(INBOX_POLL)
-        return
+        ended("waited the hour a hook may — any message in the session reconnects it")
     os.makedirs(folder, exist_ok=True)
     open(beat, "w").write(str(os.getpid()))  # the newest monitor watches; one already running stands aside while this one beats
     while not gone():

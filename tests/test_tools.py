@@ -1882,6 +1882,17 @@ if sys.argv[1:3] == ["run", "start"]:
         time.sleep(0.5)
         second = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         self.assertEqual(first.wait(timeout=10), 0, "the older one stands down")
+        self.assertIn("a newer turn's hook took over", open(os.path.join(root, "docs/board/.rewake.log")).read(), "and says why — the dashboard reads it")
+        # stopped from outside (the session closed, the plugin updated): it says so and takes its .rewake away, so no one counts it as listening
+        stopped = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        time.sleep(0.5)
+        self.assertEqual(open(os.path.join(root, "docs/board/.rewake")).read(), str(stopped.pid))
+        stopped.terminate()
+        self.assertEqual(stopped.wait(timeout=10), 0)
+        self.assertIn("stopped by SIGTERM", open(os.path.join(root, "docs/board/.rewake.log")).read())
+        self.assertFalse(os.path.exists(os.path.join(root, "docs/board/.rewake")))
+        second = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        time.sleep(0.5)
         # with the monitor running, it relays and the hook stands aside
         mon = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
         self.addCleanup(mon.kill)

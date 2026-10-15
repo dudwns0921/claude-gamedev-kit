@@ -180,6 +180,9 @@ The plugin wakes the open session for it — a monitor (`board.py watch`) where 
 the session by exiting 2); a session opened later is told at its start (`watch --notice`). Whichever takes the batch first relays it; none relays it twice.
 Across a change of sessions nothing is lost: the newest session's watcher takes the batches (an older one left open stands aside), a watcher whose session ended stops,
 and a batch taken but never read is told again to the next session at its start.
+**Any message reconnects.** Every prompt the user sends also picks up what waits (`watch --notice` runs on each one), and the turn it starts ends with the
+after-turn hook waiting again — so a session whose watcher is gone (idle past the hook's hour, the plugin updated, the app restarted) is back with one message.
+The hook leaves why it stopped in `docs/board/.rewake.log`; the dashboard reads that and the watcher files to say whether a session is listening.
 **The dashboard only signals.** It never runs anything in the game: an answer, a "Not needed", an approval is a line in the inbox, and the session does the work
 (recording the decision, dropping the asset attempt) — the board it redraws is how the dashboard learns it happened. With no session open, the batch waits for the next one.
 When woken with "answer(s) from the board", run
