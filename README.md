@@ -3,7 +3,7 @@
 </p>
 
 **Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.**
-A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** and plain **web** games — for phones, computers or the browser. It asks where your game will be played and picks the engine with you.
+A [Claude Code](https://code.claude.com) plugin for making games.
 
 [Landing page](https://gamedev-kit-site.vercel.app)
 
@@ -19,12 +19,17 @@ In Claude Code, in your game's folder (an empty one is fine):
 Restart Claude Code, and that's it — there is nothing to learn. Say what you want, and the kit's skills step in:
 
 ```
-let's make a game — a Godot one         → sets up the project, then writes the GDD with you, one question at a time
+I want to make a cozy farming game      → asks where it will be played, picks the engine, sets it up, then writes the GDD with you
 this time, let's add a shop             → one cycle: spec, design, build; what is yours to decide waits on the dashboard
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
 
 You need Claude Code and Python 3.9 or later; the dashboard needs Node.js; Godot and Unity need their editor.
+
+### Engines
+
+**Godot**, **Unity** and plain **web** (HTML and JavaScript, no editor). The kit asks where your game will be played — a phone, a computer, the browser — and picks the engine with you.
+The engine decides how the kit reads your code, where assets go, and which traps it warns the agents about; the cycle and the dashboard are the same for all three.
 
 ## Why use it
 
