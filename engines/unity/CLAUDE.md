@@ -1,7 +1,7 @@
 
 ## Roles (Unity)
 
-- **User**: makes assets and plays the game. Installs the editor and its modules, signs in, and keeps the signing keystore — nothing else in the editor.
+- **User**: makes assets and plays the game. Installs the editor and its build modules and signs in — nothing else in the editor.
 - **Claude**: all code · scenes · settings · documents. Do not ask the user to click through the Unity editor — do editor work with editor scripts run by
   `-executeMethod`, and verify with batch-mode tests.
 
@@ -34,6 +34,6 @@ Everything that can be verified without a screen becomes an EditMode test. Run t
 3. **On Android, `StreamingAssets` is inside the app package** — `File.ReadAllText` cannot open it. Read it with `UnityWebRequest`, and write only under `Application.persistentDataPath`.
 4. **IL2CPP strips code that is reached only by reflection** (JSON deserialization into a type, `Type.GetType` by name). It works in the editor and fails on the device —
    keep such types with `[Preserve]` or a `link.xml`.
-5. **The editor is not the device.** Touch, screen sizes with notches, the back button and performance are checked only on a phone. Say so when reporting a change as verified.
+5. **The editor is not the device.** Touch, screen sizes with notches, the back button and performance are checked only on a phone (the user: Build and Run with it plugged in). Say so when reporting a change as verified.
 6. **In batch mode `AssetDatabase.ImportPackage` does nothing** — the import is queued and the process quits before it runs (TMP Essential Resources never arrive this way).
    A `.unitypackage` is a gzipped tar: one folder per asset, named by its GUID, holding `asset`, `asset.meta` and `pathname`. Unpack it and put each file at its path with its `.meta`.

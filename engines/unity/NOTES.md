@@ -4,20 +4,9 @@ Whatever turns out different, add it to your rules (`/gamedev-kit:feedback` — 
 
 - Value file: `Assets/Scripts/Config/Balance.cs` (`public static float NAME = 4.0f; // GDD: <ID>`). Write floats with a decimal point and `f`.
   The game runs on this file — after `bake`, Unity recompiles and the game runs on the new values.
-- **Editor and modules (`init.py unity --editor`)**: macOS — the editor is `/Applications/Unity/Hub/Editor/<version>/Unity.app/Contents/MacOS/Unity` (the newest version is picked when several are installed;
-  `UNITY` overrides). The Android module is there when `/Applications/Unity/Hub/Editor/<version>/PlaybackEngines/AndroidPlayer` exists and holds `SDK`, `NDK` and `OpenJDK`.
-- **Adding the Android module**: close the editor, then Unity Hub → Installs → the gear on that version → Add modules → **Android Build Support with OpenJDK and Android SDK & NDK Tools**. From a shell:
-  `"/Applications/Unity Hub.app/Contents/MacOS/Unity Hub" -- --headless install-modules --version <version> -m android android-sdk-ndk-tools android-open-jdk`.
-  It downloads several GB — the user decides when; do not run it unasked.
-- **Creating the project (`init.py unity --create`)**: `<Unity> -batchmode -quit -createProject <game root> -logFile <file>` — works in a folder that already has `.git`, `docs/` and the like.
-  After installing, `init.py unity --import` runs `<Unity> -batchmode -quit -projectPath <game root> -logFile -` once: it compiles and creates the `.meta` files for what init installed, and stops on `error CS` lines.
-  Commit the `.meta` files. Both need the editor closed on this project. (Run on macOS; not on Windows or Linux.)
 - `.gitignore`: init appends the lines in `engines/unity/gitignore` (`Library/`, `Temp/`, `Logs/`, `obj/`, `UserSettings/`, `build/`, `*.csproj`, `*.sln`, `*.slnx`, `*.keystore`, `*.jks`, `assets/_gen/*/raw.glb`).
-- Write the Unity executable path of this machine and the installed modules in the game's CLAUDE.md **under the existing `## This game's rules` heading** (`--editor` prints the line; do not add a second heading).
 - **Unity's own plugin for Claude Code, if used**: install it for this project, not for the user (`claude plugin install unity@claude-plugins-official --scope project`, run in the game root) —
   it is then written in `.claude/settings.json`, which is committed, so every machine that builds this game has the skills the plan names on a task's "Skills" line.
-- **What the user does once (Claude cannot):** install Unity Hub and the editor, and sign in to activate the license.
-- **On a phone**: the editor is not the device — play it there with File → Build Profiles → Build and Run, the phone plugged in (Android: USB debugging on; iPhone: a Mac with Xcode).
 - **A store build** (when the user asks — the kit has no step for it): the package name (Player Settings → Identification, `com.<name>.<game>`) cannot change after the first upload,
   and the upload keystore (Player Settings → Publishing Settings → Keystore Manager) stays **outside the repo, with a backup** — without it no update can be uploaded.
 - **Assets (asset skill)**: finished models land in `Assets/Models/<name>.fbx` — Unity does not read glb without an extra package. 1 unit is 1 m.

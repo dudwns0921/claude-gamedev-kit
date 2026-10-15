@@ -6,12 +6,5 @@
     "suits": "small 2D games written all in code, no editor to install; physics, tilemaps and the like are written or brought in as libraries; reaching a store needs a wrapper the kit does not set up",
     "pick_when": "it is played in a browser only, is 2D and small (minutes a session, a jam game, something to share by link)"
   },
-  "marker": "index.html",
-  "create": {
-    "files": {
-      "index.html": "<!doctype html>\n<html lang=\"en\">\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title></title>\n<style>html,body{margin:0;height:100%;background:#111}canvas{display:block;margin:auto;max-width:100%;max-height:100%}</style>\n<canvas id=\"game\" width=\"480\" height=\"640\"></canvas>\n<script type=\"module\" src=\"game/main.js\"></script>\n</html>\n",
-      "game/main.js": "// The entry point — index.html loads this as a module.\n",
-      "game/version.js": "export const VERSION = \"0.1.0\";\n"
-    }
-  }
+  "marker": "index.html"
 }

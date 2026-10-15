@@ -3,11 +3,7 @@
 
   python3 init.py              list the engines that can be installed
   python3 init.py --detect     which engine's project this folder already is (or the engines to choose from: where each one's games are played, what it suits, when to pick it)
-  python3 init.py <engine> --editor [--for Android,iPhone]     the editor executable on this machine and the modules a build needs — only those for the places named
-                                       with --for (modules with no `for` always). If missing, says what to install and exits 1
-  python3 init.py <engine> --create     create the engine project in this folder if there is none (.git · docs/ may already be there)
   python3 init.py <engine>       install the config · GDD template · engine templates. Also adds the engine's .gitignore lines
-  python3 init.py <engine> --import     have the engine read the installed files once (compile · import). Exits 1 if there are error lines
   python3 init.py <engine> --gitignore  add only the engine's .gitignore lines (lines already there are not written again)
   python3 init.py <engine> --files   in an already installed project, also reinstall the engine templates (the value file and what else the engine brings) that are missing
   python3 init.py <engine> --rules   bring the kit rules block in CLAUDE.md to the current version (appended at the end if absent). Nothing outside the block is touched
@@ -25,23 +21,17 @@ The block ends with two import lines (`@<rules home>/rules.md` · `@<rules home>
 reads in with the game's CLAUDE.md. They live in the rules home (~/.config/gamedev-kit/rules/, or GAMEDEV_KIT_RULES), outside the game; the two files are made when missing
 (and, the first time, the rules kept in the old voice home are copied over — the feedback skill owns these files).
 
-How to recognise an engine project · find the editor · create one is in engines/<engine>/project.json (not copied into the game):
+How to recognise an engine project and how the engine is chosen is in engines/<engine>/project.json (not copied into the game):
   marker    if this file exists, it is that engine's project
-  editor    env (environment variable pointing at the executable) · path (names to look for on PATH) · <sys.platform>.glob (where it installs — if several, the newest by the version regex) ·
-            <sys.platform>.modules (from the executable's folder to the modules folder) · missing (what to tell the user when it is not there)
-  modules   for each module a build needs: name · dir · must (what has to be inside) · for (the place it builds for — a word of choose.plays_on) · install (what to say when missing. {version} is filled in)
-  choose    how the engine is chosen: plays_on (where its games can be played) · suits · pick_when (the user's game that makes it the one to recommend)
-  create · import   files (files written if absent) · run (commands — {editor} · {root} · {log}) · error (regex for error lines to look for in the output)
+  choose    plays_on (where its games can be played) · suits · pick_when (the user's game that makes it the one to recommend)
+Finding the editor and creating the engine project are not the kit's — Claude does them with the engine's own tools, and the user installs the editor.
 """
-import glob
 import hashlib
 import json
 import os
 import re
 import shutil
-import subprocess
 import sys
-import tempfile
 
 KIT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
 ENGINES = os.environ.get("GAMEDEV_KIT_ENGINES") or os.path.join(KIT, "engines")  # the tests change this
@@ -76,7 +66,7 @@ def engines():
 
 
 def project(engine):
-    """How to recognise that engine's project · find the editor · create one. Unlike the game's config (kit.config.json), it is not copied into the game."""
+    """How to recognise that engine's project and how it is chosen. Unlike the game's config (kit.config.json), it is not copied into the game."""
     path = os.path.join(ENGINES, engine, "project.json")
     return json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
 
@@ -84,114 +74,6 @@ def project(engine):
 def detect(root):
     """The engines this folder is already a project of — usually one or none."""
     return [e for e in engines() if project(e).get("marker") and os.path.exists(os.path.join(root, project(e)["marker"]))]
-
-
-def find_editor(engine):
-    """(executable, version, every installed version). Environment variable → PATH → install location, in that order. (None, "", []) if not found."""
-    ed = project(engine).get("editor", {})
-
-    def version(path):
-        m = re.search(ed["version"], path.replace(os.sep, "/")) if ed.get("version") else None
-        return m.group(1) if m else ""
-
-    named = os.environ.get(ed.get("env") or "", "")
-    if named:
-        if not os.path.exists(named):
-            sys.exit(f"the file the environment variable {ed['env']} points to does not exist: {named}")
-        return named, version(named), []
-    for name in ed.get("path", []):
-        if shutil.which(name):
-            return shutil.which(name), "", []
-    found = [p for pattern in ed.get(sys.platform, {}).get("glob", []) for p in glob.glob(os.path.expanduser(pattern))]
-    if not found:
-        return None, "", []
-    found.sort(key=lambda p: [int(n) for n in re.findall(r"\d+", version(p))])  # versions compare number by number (10 is newer than 9)
-    return found[-1], version(found[-1]), [version(p) for p in found if version(p)]
-
-
-def need_editor(engine):
-    exe, version, _all = find_editor(engine)
-    if not exe:
-        ed = project(engine).get("editor", {})
-        sys.exit(f"{ed.get('name', engine)} editor not found — the user installs it:\n" + "\n".join(f"  {line}" for line in ed.get("missing", [])))
-    return exe, version
-
-
-def cmd_editor(engine, places=None):
-    spec = project(engine)
-    ed = spec.get("editor", {})
-    if not ed:
-        return print(f"{engine}: no editor to find — nothing to install")
-    exe, version = need_editor(engine)
-    versions = find_editor(engine)[2]
-    print(f"{ed.get('name', engine)} {version} — {exe}".replace("  ", " ")
-          + (f"\n  installed versions {' · '.join(versions)} — picked the newest (for another, set the environment variable {ed['env']})" if len(versions) > 1 else ""))
-    base, have, lack = ed.get(sys.platform, {}).get("modules"), [], []
-    wanted = [w.lower() for w in places or []]
-    for mod in spec.get("modules", []):
-        if wanted and mod.get("for") and mod["for"].lower() not in wanted:
-            print(f"  skipped  {mod['name']} — for {mod['for']}, not where this game is played")
-            continue
-        if base is None:
-            print(f"  unknown  {mod['name']} — where it installs on this machine is not known. Check in the editor")
-            continue
-        folder = os.path.normpath(os.path.join(os.path.dirname(exe), base, mod["dir"]))
-        gone = [m for m in mod.get("must", []) if not os.path.exists(os.path.join(folder, m))]
-        if os.path.isdir(folder) and not gone:
-            have.append(mod["name"])
-            print(f"  found    {mod['name']}" + (f" ({' · '.join(mod['must'])})" if mod.get("must") else ""))
-        else:
-            lack.append(mod["name"])
-            print(f"  missing  {mod['name']} — " + (f"{' · '.join(gone)} not found in it" if os.path.isdir(folder) else f"{folder} does not exist"))
-            print("\n".join(f"           {line.replace('{version}', version)}" for line in mod.get("install", [])))
-    print("\nWrite under `## This game's rules` in CLAUDE.md (that heading already exists — do not create a new one): "
-          f"editor executable `{exe}`" + (f" · installed modules {' · '.join(have)}" if have else "")
-          + (f" · played on {' · '.join(places)}" if places else ""))
-    if lack:
-        sys.exit(f"\nmodules the build needs are missing: {' · '.join(lack)} — installing them is the user's call (the download is large). Run this again after installing")
-
-
-def run_step(engine, step, root):
-    """Run create · import from project.json: write the missing files, run the editor commands, look for error lines in the output."""
-    spec = project(engine).get(step)
-    if not spec:
-        return print(f"{engine}: nothing to do for {step}")
-    for rel, text in spec.get("files", {}).items():
-        path = os.path.join(root, rel)
-        if not os.path.exists(path):
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            open(path, "w", encoding="utf-8").write(text)
-            print(f"  new      {rel}")
-    if not spec.get("run"):
-        return None
-    exe = need_editor(engine)[0]
-    for argv in spec["run"]:
-        log = os.path.join(tempfile.mkdtemp(prefix="kit-init-"), "editor.log")
-        cmd = [a.replace("{editor}", exe).replace("{root}", root).replace("{log}", log) for a in argv]
-        print("  run      " + " ".join(cmd) + "  (may take a few minutes)", flush=True)
-        p = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
-        out = p.stdout + p.stderr + (open(log, encoding="utf-8", errors="replace").read() if os.path.exists(log) else "")
-        shutil.rmtree(os.path.dirname(log), True)
-        bad = [line for line in out.split("\n") if spec.get("error") and re.search(spec["error"], line)]
-        if p.returncode or bad:
-            tail = bad[:20] or out.strip().split("\n")[-20:]
-            sys.exit(f"{step} failed (exit code {p.returncode}" + (f" · error lines {len(bad)}" if bad else "") + ") — if the editor has this project open, close it:\n"
-                     + "\n".join(tail))
-
-
-def cmd_create(engine, root):
-    marker = project(engine).get("marker")
-    if not marker:
-        sys.exit(f"{engine}: engines/{engine}/project.json does not say how to create one")
-    here = detect(root)
-    if engine in here:
-        return print(f"already a {engine} project ({marker}) — not creating one")
-    if here:
-        sys.exit(f"this folder is already a {' · '.join(here)} project — not creating a {engine} project on top of it")
-    run_step(engine, "create", root)
-    if not os.path.exists(os.path.join(root, marker)):
-        sys.exit(f"it was reported created but {marker} is missing — check the editor's log")
-    print(f"created the {engine} project ({marker}). Next, install the kit files: `init.py {engine}` → `init.py {engine} --import`")
 
 
 def add_ignore(engine, root, done):
@@ -359,13 +241,8 @@ def main():
               or "not an engine project — engines to choose from, by where the game is played:\n" + "\n".join(choice(e) for e in engines()))
         return print(f"the kit is already installed as {has} (kit.config.json)" if has else "the kit is not installed yet (no kit.config.json)")
     again_files, only_rules, force = "--files" in args, "--rules" in args, "--force" in args
-    places = None
-    if "--for" in args:  # where the game is played — only those places' build modules are checked
-        i = args.index("--for")
-        places = [w.strip() for w in (args[i + 1] if i + 1 < len(args) else "").split(",") if w.strip()]
-        del args[i:i + 2]
-    steps = [a for a in args if a in ("--editor", "--create", "--import", "--gitignore")]
-    args = [a for a in args if a not in ("--files", "--rules", "--force", *steps)]
+    only_ignore = "--gitignore" in args
+    args = [a for a in args if a not in ("--files", "--rules", "--force", "--gitignore")]
     if not args:
         sys.exit("pick an engine: " + " · ".join(engines()))
     engine = args[0]
@@ -375,13 +252,10 @@ def main():
     done = []
     if only_rules:
         return sync_rules(root, engine, force)
-    if steps:  # the engine project's side — each is called on its own
-        if steps[0] == "--editor":
-            return cmd_editor(engine, places)
-        if steps[0] == "--create":
-            return cmd_create(engine, root)
-        if steps[0] == "--import":
-            return run_step(engine, "import", root)
+    other = [e for e in detect(root) if e != engine]
+    if other:
+        sys.exit(f"this folder is already a {' · '.join(other)} project — not installing the {engine} kit files on top of it")
+    if only_ignore:
         add_ignore(engine, root, done)
         return print("\n".join(done) or f"{engine}: no .gitignore lines to add")
 
@@ -440,7 +314,7 @@ def main():
                                              "edited": "the block was edited by hand — move the edits outside it, then `--rules`"}[state])
     marker = project(engine).get("marker")
     if marker and not os.path.exists(os.path.join(root, marker)):
-        print(f"\nthis folder is not a {engine} project yet (no {marker}) — `init.py {engine} --create` makes one")
+        print(f"\nthis folder is not a {engine} project yet (no {marker}) — create it before the first cycle (the engine's own tools; the user installs the editor)")
     notes = os.path.join(src, "NOTES.md")
     if os.path.exists(notes):
         print("\n" + open(notes, encoding="utf-8").read().strip())

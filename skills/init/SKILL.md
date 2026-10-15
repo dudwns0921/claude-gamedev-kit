@@ -1,8 +1,8 @@
 ---
 name: init
 description: >-
-  Sets a game repo up for gamedev-kit, from an empty folder if need be: asks where the game will be played (a phone · a computer · a browser — one or several) and so which engine, finds the editor on this machine and the build modules it needs,
-  creates the engine project when there is none, then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
+  Sets a game repo up for gamedev-kit, from an empty folder if need be: asks where the game will be played (a phone · a computer · a browser — one or several) and so which engine (the editor and the engine project are made with the engine's own tools),
+  then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
   the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by offering the dashboard of all games (one question, only where Node.js is) and goes on into the GDD with what the user said about the game.
   Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game — "이런 게임 만들고 싶어" ("I want to make a game like …"), "게임 만들자" ("let's make a game") in a folder without kit.config.json — on "gamedev-kit 깔아줘" ("install gamedev-kit"),
   "엔진 프로젝트 만들어줘" ("create the engine project"), "키트 규칙 맞춰줘" ("align the kit rules"), "init rules", "GDD 동기화 세팅" ("set up GDD sync"),
@@ -34,29 +34,13 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    Say the costs of the places picked once: an iPhone build needs a Mac with Xcode, and each store has its own developer account and fee — uploading is not the kit's (the user asks Claude Code when the game is ready).
    If the user already said where it is played or which engine ("a Godot one", "for Android"), do not ask — say in one line which engine that means and go on.
    If the repo belongs to any other engine, do not install and say so.
-   **Keep what the user said about the game** — it is the first answer of the GDD interview that follows (step 11), not to be asked again.
+   **Keep what the user said about the game** — it is the first answer of the GDD interview that follows (step 9), not to be asked again.
 
-2. **The editor on this machine.**
+2. **The engine project — only if step 1 found none.** Finding the editor and creating the project are not the kit's: do them with the engine's own tools
+   (its command line, or its MCP server if one is connected). Installing the editor, its build modules for the places picked and signing in to its hub are the user's —
+   a download of several GB, so say what to install and wait; do not run an install unasked. Where the editor lives on this machine goes under `## This game's rules` in CLAUDE.md (step 4).
 
-   ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --editor --for <places>
-   ```
-
-   `<places>` is where the game is played, as the words the modules name (`Android,iPhone`) — only those places' build modules are checked.
-   It prints the editor executable it found (the newest when several versions are installed) and whether the modules a build needs are there.
-   When something is missing it prints exactly what to install and exits 1: **relay that to the user and wait.** Installing an editor or a module is a download of several GB
-   and signing in to the engine's hub (license) is the user's — do not run an install command unasked, even though one is printed. After they say it is done, run `--editor` again.
-   A missing build module does not block the next steps (it blocks building) — if the user wants to add it later, go on and say it is still to do.
-
-3. **Create the engine project — only if step 1 found none.**
-
-   ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --create
-   ```
-
-   It works in a folder that already has `.git`, `docs/` and the like, and does nothing if the project is already there. It can take minutes; the editor must not have this folder open.
-
-4. **Install.**
+3. **Install.**
 
    ```bash
    python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine>
@@ -65,28 +49,22 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    Installed: `kit.config.json` · `docs/GDD.md` · `docs/DESIGN.md` · `CLAUDE.md` · the engine's template files (the value file and what else the engine brings) · `.gitignore` lines (the Excel lock file and what the engine generates — lines already present are not repeated; `--gitignore` adds only those).
    At the end it prints what to finish by hand on that engine (project settings, export presets, etc.) — **go on and do those.**
 
-   Then let the engine read what was installed once — it compiles and imports, and the files the engine creates beside them (`.meta`, import caches) appear:
+   Then let the engine read what was installed once (compile · import — the engine rules' "Running" says how), so the files it creates beside them (`.meta`, import caches) appear; fix any error before going on.
 
-   ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --import
-   ```
-
-   It exits 1 and prints the lines if the engine reports errors — fix those before going on.
-
-5. **If CLAUDE.md was newly created**, fill in `<game name>` (and the title of `docs/GDD.md` — a CLAUDE.md or GDD made by an older kit has `<게임 이름>` there), and under the existing `## This game's rules` heading at its end write the line `--editor` printed
-   (the editor executable on this machine and the installed modules) — do not add a second heading. If CLAUDE.md already existed, do not touch it —
+4. **If CLAUDE.md was newly created**, fill in `<game name>` (and the title of `docs/GDD.md` — a CLAUDE.md or GDD made by an older kit has `<게임 이름>` there), and under the existing `## This game's rules` heading at its end write where the editor lives on this machine
+   and where the game is played — do not add a second heading. If CLAUDE.md already existed, do not touch it —
    if it reports no kit rules block, ask the user whether to do "Aligning the kit rules" below.
 
-6. **If the project structure differs from the template, align it.** To keep the value file elsewhere, move the file and edit `balance-table.code` in
+5. **If the project structure differs from the template, align it.** To keep the value file elsewhere, move the file and edit `balance-table.code` in
    `kit.config.json`. Replace the three example value lines in the value file with the game's values.
 
-7. **Create the table and check.** Create `data/balance.xlsx` with the balance-table skill's `export`, and check with the gdd-sync skill that
+6. **Create the table and check.** Create `data/balance.xlsx` with the balance-table skill's `export`, and check with the gdd-sync skill that
    a report comes out. It works if the GDD template's example row (BAL.PLAYER.HP) pairs with the value file's example value and shows as `synced`.
 
-8. **Fill in assets when you use them.** The asset API keys and the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the asset skill guides how to fill them —
+7. **Fill in assets when you use them.** The asset API keys and the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the asset skill guides how to fill them —
    and without them the cycle runs on placeholders, with the user putting their own files in the slots.
 
-9. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
+8. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
     Run `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" serve --status` and `command -v node git`, then:
     - **Running already** (another game started it): ask "Show this game on the dashboard too?" — yes → run `serve` (it joins the game and sends its board in seconds).
     - **Not running, Node.js and git present**: ask "Start a dashboard that shows all your games on one page? (local, about a minute the first time)" — yes → run `serve`
@@ -94,7 +72,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
     - **Node.js or git missing**: do not ask. Say in one line that a dashboard of all games exists for later (`/gamedev-kit:board`, needs Node.js).
     A no is final for this init; nothing else in the kit depends on it.
 
-11. **Go on to the game.** The kit is installed and the game is still empty. If the user came in with a game in mind ("I want to make a game where …"),
+9. **Go on to the game.** The kit is installed and the game is still empty. If the user came in with a game in mind ("I want to make a game where …"),
     go straight on to the start skill — what they said is its first answer: say it back as the loop it describes and ask only what it leaves open.
     If they only asked to install, say in one line that saying what game they want (or `/gamedev-kit:start`) takes it from here — GDD → concept → the first cycle's goal.
 
@@ -121,7 +99,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --rules
 
 ## Adding an engine (plugin-side work)
 
-In `engines/<name>/` put `kit.config.json` (code extension · value-line regex · build command), `NOTES.md` (what to finish after installing), `CLAUDE.md` (the engine rules appended to the game's
-CLAUDE.md), `files/` (files copied as-is into the game repo), `project.json` (how to recognise a project, find the editor and its build modules, create and import — read by `init.py`, not copied into the game;
+In `engines/<name>/` put `kit.config.json` (code extension · value-line regex · asset formats and folders), `NOTES.md` (where the kit's files and assets go in that engine), `CLAUDE.md` (the engine rules appended to the game's
+CLAUDE.md), `files/` (files copied as-is into the game repo), `project.json` (how to recognise a project and when to pick the engine — read by `init.py`, not copied into the game;
 its keys are listed at the top of `init.py`) and `gitignore` (lines appended to the game's `.gitignore`). `init.py` has no branch per engine — everything it needs is in those files.
 Add a value file in that engine's syntax to `CODE` in `tests/test_tools.py` to check that the tools read and edit it.

@@ -33,7 +33,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 ## Verification
 
 ```bash
-python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init's engine project creation runs against a fake editor, feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
+python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init recognises engine projects and lists the engines to choose from, feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
 python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's name in scripts, is only the standard library used
 claude plugin validate .           # manifest
 ```

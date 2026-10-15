@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tool checks — for every engine config in engines/, makes a temporary project and runs gdd-sync and balance-table end to end.
-init's engine-project creation runs against a fake editor, asset and start's concept images against a fake API server,
+asset and start's concept images against a fake API server,
 video against a fake Higgsfield server · a fake ffmpeg — nothing goes outside.
 
   python3 tests/test_tools.py
@@ -391,33 +391,17 @@ class Tools(unittest.TestCase):
                     self.assertIn("| synced | 3 |", run(REPORT, root).stdout, "the template's three example rows pair with the value file")
 
     def test_init_project(self):
-        """Recognises an engine project · finds the editor and modules · creates one. The editor is fake — what differs per engine comes only from engines/<engine>/project.json."""
+        """Recognises an engine project and lists the engines to choose from — what differs per engine comes only from engines/<engine>/project.json.
+        Finding the editor and creating the project are not the kit's (the engine's own tools do them)."""
         top = tempfile.mkdtemp(prefix="kit-init-project-")
         self.addCleanup(shutil.rmtree, top, True)
-        home = os.path.join(top, "Hub", "Editor", "6000.1.2f1")
-        unity = os.path.join(home, "Unity.app", "Contents", "MacOS", "Unity")
-        os.makedirs(os.path.dirname(unity))
-        open(unity, "w").write("""#!/bin/sh
-while [ $# -gt 0 ]; do
-  case "$1" in
-    -createProject) mkdir -p "$2/ProjectSettings" && echo "m_EditorVersion: 6000.1.2f1" > "$2/ProjectSettings/ProjectVersion.txt"; shift;;
-    -projectPath|--path) [ -f "$2/BROKEN" ] && echo "Assets/A.cs(1,1): error CS1002: ; expected"; shift;;
-  esac
-  shift
-done
-exit 0
-""")
-        os.chmod(unity, 0o755)
-        spec = json.load(open(os.path.join(KIT, "engines/unity/project.json"), encoding="utf-8"))
-        modules = os.path.normpath(os.path.join(os.path.dirname(unity), spec["editor"].get(sys.platform, {}).get("modules", "x")))
         root = os.path.join(top, "game")
         os.makedirs(os.path.join(root, "docs"))
         open(os.path.join(root, ".gitignore"), "w").write("Library/\n*.keystore")
 
         def init(*args, ok=True, **env):
             p = subprocess.run([sys.executable, INIT, "--root", root, *args], capture_output=True, text=True,
-                               env=dict({k: v for k, v in os.environ.items() if k not in ("UNITY", "GODOT")},
-                                        GAMEDEV_KIT_RULES=os.path.join(top, "rules"), GAMEDEV_KIT_VOICE=os.path.join(top, "voice"), **env))
+                               env=dict(os.environ, GAMEDEV_KIT_RULES=os.path.join(top, "rules"), GAMEDEV_KIT_VOICE=os.path.join(top, "voice"), **env))
             self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
             return p.stdout + p.stderr
 
@@ -425,73 +409,43 @@ exit 0
         self.assertIn("not an engine project — engines to choose from, by where the game is played:", out)
         self.assertIn("  unity\n    plays on:     Android phones", out, "each engine says where its games are played — the question init asks is about the player")
         for engine in CODE:
-            choose = json.load(open(os.path.join(KIT, "engines", engine, "project.json"), encoding="utf-8"))["choose"]
+            spec = json.load(open(os.path.join(KIT, "engines", engine, "project.json"), encoding="utf-8"))
+            self.assertEqual(sorted(spec), ["choose", "marker"], "the engine folder holds no setup machinery")
+            choose = spec["choose"]
             self.assertTrue(choose["plays_on"] and choose["suits"] and choose["pick_when"], engine)
             self.assertIn(f"    pick it when: {choose['pick_when']}", out)
         self.assertIn("the kit is not installed yet", out)
-        self.assertIn("points to does not exist", init("unity", "--editor", ok=False, UNITY=os.path.join(top, "missing")))
-        if "modules" in spec["editor"].get(sys.platform, {}):
-            out = init("unity", "--editor", ok=False, UNITY=unity)
-            self.assertIn("missing  iOS Build Support", out, "with no places named, every module is needed")
-            out = init("unity", "--editor", "--for", "Android", ok=False, UNITY=unity)
-            self.assertIn(f"Unity 6000.1.2f1 — {unity}", out)
-            self.assertIn("skipped  iOS Build Support — for iPhone, not where this game is played", out)
-            self.assertIn("missing  Android Build Support", out)
-            self.assertIn("install-modules --version 6000.1.2f1 -m android android-sdk-ndk-tools android-open-jdk", out)
-            for part in ("SDK", "NDK"):
-                os.makedirs(os.path.join(modules, "AndroidPlayer", part))
-            self.assertIn("OpenJDK not found in it", init("unity", "--editor", "--for", "Android", ok=False, UNITY=unity))
-            os.makedirs(os.path.join(modules, "AndroidPlayer", "OpenJDK"))
-            out = init("unity", "--editor", "--for", "Android", UNITY=unity)
-            self.assertIn("found    Android Build Support (SDK · NDK · OpenJDK)", out)
-            self.assertIn(f"Write under `## This game's rules` in CLAUDE.md (that heading already exists — do not create a new one): editor executable `{unity}` · installed modules Android Build Support · played on Android", out)
-            self.assertIn("missing  iOS Build Support", init("unity", "--editor", "--for", "android,iphone", ok=False, UNITY=unity))
-            os.makedirs(os.path.join(modules, "iOSSupport"))
-            self.assertIn("found    iOS Build Support", init("unity", "--editor", "--for", "Android,iPhone", UNITY=unity))
+        for gone in ("--editor", "--create", "--import"):
+            self.assertIn(f"unknown engine {gone}", init(gone, ok=False), "the setup steps are gone — an unknown word is taken for an engine")
 
-        self.assertIn("created the unity project", init("unity", "--create", UNITY=unity))
-        self.assertTrue(os.path.exists(os.path.join(root, "docs")), "what was there is untouched")
-        self.assertIn("unity — ProjectSettings/ProjectVersion.txt exists", init("--detect"))
-        self.assertIn("already a unity project", init("unity", "--create", UNITY=unity))
-        self.assertIn("already a unity project — not creating a godot project on top of it", init("godot", "--create", ok=False))
         out = init("unity")
+        self.assertIn("this folder is not a unity project yet (no ProjectSettings/ProjectVersion.txt) — create it before the first cycle", out)
+        self.assertTrue(os.path.exists(os.path.join(root, "docs")), "what was there is untouched")
         self.assertIn("added    .gitignore (unity — 10 lines: Temp/", out, "the two lines already there are not written again")
         self.assertIn("\n# what unity generates · what is kept out of the repository\nTemp/\n", open(os.path.join(root, ".gitignore"), encoding="utf-8").read())
-        self.assertNotIn("not a unity project yet", out)
         self.assertIn("the kit is already installed as unity", init("--detect"))
         self.assertIn("every line is already there", init("unity", "--gitignore"))
         ignore = open(os.path.join(root, ".gitignore"), encoding="utf-8").read().split("\n")
         for line in open(os.path.join(KIT, "engines/unity/gitignore"), encoding="utf-8").read().split():
             self.assertEqual(ignore.count(line), 1, line)
-        self.assertNotIn("error", init("unity", "--import", UNITY=unity))
-        open(os.path.join(root, "BROKEN"), "w").close()
-        self.assertIn("error CS1002", init("unity", "--import", ok=False, UNITY=unity))
+        os.makedirs(os.path.join(root, "ProjectSettings"))
+        open(os.path.join(root, "ProjectSettings", "ProjectVersion.txt"), "w").write("m_EditorVersion: 6000.1.2f1")
+        self.assertIn("unity — ProjectSettings/ProjectVersion.txt exists", init("--detect"))
+        self.assertNotIn("not a unity project yet", init("unity"))
+        self.assertIn("already a unity project — not installing the godot kit files on top of it", init("godot", ok=False))
 
-        # Godot has no create command — one file is the project. It is created even without the editor
-        root = os.path.join(top, "game2")
-        os.makedirs(root)
-        self.assertIn("not a godot project yet", init("godot"))
-        self.assertIn("created the godot project", init("godot", "--create"))
-        self.assertIn('config/version="0.1.0"', open(os.path.join(root, "project.godot"), encoding="utf-8").read())
-        self.assertIn("godot — project.godot exists", init("--detect"))
-        self.assertIn("--headless --path", init("godot", "--import", GODOT=unity))
-
-        # with several versions, the newest — compared as numbers. The script knows no engine's name: one folder is one engine
+        # the script knows no engine's name: one folder is one engine
         engines = os.path.join(top, "engines")
         os.makedirs(os.path.join(engines, "toy"))
         json.dump({"engine": "toy"}, open(os.path.join(engines, "toy", "kit.config.json"), "w"))
-        toy = {"marker": "toy.project", "create": {"files": {"toy.project": ""}}, "modules": [{"name": "Module", "dir": "m"}],
-               "editor": {"name": "Toy", "env": "TOY", "version": "/ed/([^/]+)/", "missing": ["Install Toy"],
-                          sys.platform: {"glob": [os.path.join(top, "ed", "*", "toy")], "modules": "mods"}}}
-        json.dump(toy, open(os.path.join(engines, "toy", "project.json"), "w"))
-        self.assertIn("Toy editor not found — the user installs it:\n  Install Toy", init("toy", "--editor", ok=False, GAMEDEV_KIT_ENGINES=engines))
-        for version in ("9.2", "10.1"):
-            os.makedirs(os.path.join(top, "ed", version, "mods", "m"))
-            open(os.path.join(top, "ed", version, "toy"), "w").close()
-        out = init("toy", "--editor", GAMEDEV_KIT_ENGINES=engines)
-        self.assertIn(f"Toy 10.1 — {os.path.join(top, 'ed', '10.1', 'toy')}", out)
-        self.assertIn("installed versions 9.2 · 10.1 — picked the newest", out)
-        self.assertIn("found    Module", out)
+        json.dump({"marker": "toy.project", "choose": {"plays_on": ["toy boxes"], "suits": "toys", "pick_when": "it is a toy"}},
+                  open(os.path.join(engines, "toy", "project.json"), "w"))
+        root = os.path.join(top, "game2")
+        os.makedirs(root)
+        out = init("--detect", GAMEDEV_KIT_ENGINES=engines)
+        self.assertIn("  toy\n    plays on:     toy boxes\n    suits:        toys\n    pick it when: it is a toy", out)
+        open(os.path.join(root, "toy.project"), "w").close()
+        self.assertIn("toy — toy.project exists", init("--detect", GAMEDEV_KIT_ENGINES=engines))
 
     def rules_block(self, init, root, engine, fresh):
         """In CLAUDE.md the kit's part is one block — when the version goes up only that span changes and the outside stays."""
