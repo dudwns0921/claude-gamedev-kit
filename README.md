@@ -13,6 +13,7 @@ You need:
 - [Python](https://www.python.org/downloads/) 3.9 or later
 - [Node.js](https://nodejs.org) — for the dashboard
 - The editor of the engine you make the game with (see below) — a plain web game needs none
+- Optional: API keys of the services that make models, sprites, sounds and clips — without them a cycle runs on placeholders, and any file you put in its place counts
 
 In your game's folder (an empty one is fine):
 
@@ -29,6 +30,8 @@ I want to make a cozy farming game      → asks where it will be played, picks 
 this time, let's add a shop             → one cycle: spec, design, build; what is yours to decide waits on the dashboard
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
+
+Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, … — if you would rather type one.
 
 ### Made with it so far
 
@@ -57,11 +60,6 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 <p align="center"><img src="assets/compounds.svg" alt="Three games in a row; the stack of your own rules under each one grows, with what came before carried over" width="860"></p>
 
 What tripped you becomes one of your rules, loaded into every game you make next. Once you say so, rules go to this repository as issues, and the ones that hold for anyone become the kit's rules for everybody.
-
-Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, `gdd-sync`, `asset`, … — if you would rather type one.
-
-Models, sprites, sounds and clips can be made through outside services with your own API keys — or not at all: a cycle runs on placeholders, and any file you make and put in its place counts.
-The kit covers making the game; when it is ready to ship, ask Claude Code to build and upload it.
 
 ## Updating
 
