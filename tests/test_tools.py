@@ -1898,6 +1898,11 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual((d1["recommend"], d1["options"][1], d1["pictures"][0]["crop"], d1["pictures"][0]["size"]),
                          ("ⓑ", {"mark": "ⓑ", "text": "raise it"}, [10.0, 20.0, 100.0, 50.0], [400, 300]), "a decision as data, with its cropped picture")
         self.assertEqual(data["cycles"][0]["decisions"], {"open": 2, "all": 2})
+        run(CYCLE, root, "ask", "Design", "Logo — ① save the title as it is (D31 ② shape, strokes fixed) ② draw one as D31 ② has it ③ none · recommended: ②")
+        run(BOARD, root)
+        logo = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["title"] == "Logo")
+        self.assertEqual([o["mark"] for o in logo["options"]], ["①", "②", "③"], "a mark inside an option — in brackets, after a decision number — is its text")
+        self.assertEqual(logo["options"][1]["text"], "draw one as D31 ② has it")
         self.assertIn("No new answers.", run(BOARD, root, "answers", os.path.join(share, "answers")).stdout, "an answer is relayed once")
 
     def test_cycle(self):

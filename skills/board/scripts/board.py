@@ -987,8 +987,18 @@ def sheet_questions():
 
 
 def split_options(text):
-    """`① Keep it — free ② Raise it — two clips` → [(①, Keep it — free), (②, Raise it — two clips)]."""
-    return [(m, t.strip(" ·;,")) for m, t in re.findall(rf"([{MARKS}])\s*([^{MARKS}]*)", text)]
+    """`① Keep it — free ② Raise it — two clips` → [(①, Keep it — free), (②, Raise it — two clips)].
+    A mark inside an option is part of its text — in brackets, right after a decision's number (`as D31 ② has it`), or out of order."""
+    out, want = [], None
+    for m in re.finditer(rf"[{MARKS}]", text):
+        mark, before = m.group(0), text[:m.start()]
+        inside = before.count("(") + before.count("（") > before.count(")") + before.count("）")
+        if inside or re.search(r"D\d+\s*(?:의\s*)?$", before):
+            continue
+        if want is None or mark == want:
+            out.append([mark, m.end()])
+            want = MARKS[MARKS.index(mark) + 1] if MARKS.index(mark) + 1 < len(MARKS) else ""
+    return [(mark, text[start:out[n + 1][1] - 1 if n + 1 < len(out) else len(text)].strip(" ·;,")) for n, (mark, start) in enumerate(out)]
 
 
 def check_lines(path):
