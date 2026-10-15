@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import zipfile
 
@@ -1657,6 +1658,12 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIsNone(summary, "push alone does not draw the local board")
         run(BOARD, root)
         self.assertEqual(json.load(open(os.path.join(root, "docs/board/board.json")))["counts"]["review"], 1, "the board as data, beside the pages")
+        got.clear()
+        self.assertEqual(push("--if-changed").stdout, "", "the hook says nothing")
+        self.assertIn(("PUT", "/api/ingest/sample/summary"), [g[:2] for g in got], "a board drawn since the last push is sent by the hook")
+        got.clear()
+        push("--if-changed")
+        self.assertEqual(got, [], "and only once")
 
     def test_board_serve(self):
         """`serve` runs the dashboard on this machine: cloned and built once per version, started on localhost, its password and token made once
@@ -1739,6 +1746,66 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(serve().returncode, 0)
         self.assertNotIn("npm install", open(calls).read(), "the same version is not built twice")
         self.assertIn("git pull", open(calls).read(), "a stopped dashboard is brought up to date before it starts")
+
+    def test_board_inbox(self):
+        """Answers sent from the dashboard land as one file per batch in <board>/inbox/. The first watcher to rename it to .taken relays it —
+        at session start, from the monitor, or from the hook waiting after a turn (which wakes the session by exiting 2) — and
+        `answers --inbox` says what each asks for and removes the batch."""
+        root = tempfile.mkdtemp(prefix="kit-inbox-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        json.dump({"board": {"service": {"game": "g"}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "bow", "Draw the bow")
+        run(CYCLE, root, "ask", "Spec", "Restart — ① every time ② once · recommended: ①")
+        run(CYCLE, root, "new", "shop", "A shop")
+        run(CYCLE, root, "ask", "Spec", "Price — ① fixed ② floating")
+        run(BOARD, root)
+        review = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
+        self.assertEqual([(i["key"], i["latest"]) for i in review if i["kind"] == "decision"], [("c02-D1", True), ("c01-D1", False)],
+                         "every open decision is on the review, the newest cycle first")
+        box = os.path.join(root, "docs/board/inbox")
+        os.makedirs(box)
+        def send(name, rows):  # written whole, then renamed in — as the dashboard does, so a watcher never reads half a file
+            with open(os.path.join(box, name + ".part"), "w") as f:
+                json.dump(rows, f)
+            os.rename(os.path.join(box, name + ".part"), os.path.join(box, name + ".json"))
+        env = dict(os.environ, KIT_INBOX_POLL="0.1")
+        watch = lambda *a, **k: subprocess.run([sys.executable, BOARD, "--root", root, "watch", *a], capture_output=True, text=True, env=env, **k)
+
+        self.assertEqual(watch("--notice").stdout, "", "nothing sent — nothing said")
+        send("1", [{"key": "c02-D1", "pick": "②", "note": ""}, {"key": "c01-D1", "pick": "drop", "note": "no restarts now"}])
+        self.assertIn("2 answer(s) from the board", watch("--notice").stdout)
+        self.assertEqual(os.listdir(box), ["1.taken"], "taken once — no other watcher relays it again")
+        self.assertEqual(watch("--notice").stdout, "")
+        out = run(BOARD, root, "answers", "--inbox").stdout
+        self.assertIn("  D1 → ②\n", out)
+        self.assertIn("  D1 → not needed (drop) — “no restarts now” [cycle 01 — --doc docs/cycle/01-bow.md]", out, "an older cycle's decision names its document")
+        self.assertEqual(os.listdir(box), [], "relayed — off the inbox")
+
+        # the hook after a turn: waits, and wakes the session (exit 2, the message on stderr) when a batch arrives
+        p = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        time.sleep(0.5)
+        send("2", [{"key": "c02-D1", "pick": "①", "note": ""}])
+        _out, err = p.communicate(timeout=20)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("1 answer(s) from the board", err)
+        # a newer turn's hook replaces the waiting one
+        first = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        time.sleep(0.5)
+        second = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        self.assertEqual(first.wait(timeout=10), 0, "the older one stands down")
+        # with the monitor running, it relays and the hook stands aside
+        mon = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(mon.kill)
+        self.assertEqual(second.wait(timeout=10), 0, "a monitor is watching — the hook does not wake the session too")
+        os.remove(os.path.join(box, "2.taken"))
+        send("3", [{"key": "c01-D1", "pick": "①", "note": ""}])
+        self.assertIn("1 answer(s) from the board", mon.stdout.readline())
+        mon.kill()
+
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        self.assertEqual(watch(timeout=10).returncode, 0, "a game without a dashboard: the monitor ends at once")
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,

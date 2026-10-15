@@ -23,6 +23,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/feedback/scripts/feedback.py\" --notice",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" watch --notice",
+            "timeout": 5
           }
         ]
       }
@@ -45,6 +50,12 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" push --if-changed",
             "timeout": 120,
             "async": true
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" watch --rewake",
+            "asyncRewake": true,
+            "timeout": 3600
           }
         ]
       }

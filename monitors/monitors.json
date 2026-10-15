@@ -1,0 +1,7 @@
+[
+  {
+    "name": "board-inbox",
+    "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" watch",
+    "description": "Answers sent from the dashboard"
+  }
+]

@@ -7,6 +7,7 @@
   python3 board.py share --done <url>   after the publish went through: remember the link (board.share in kit.config.json) and what was sent
   python3 board.py push [--if-changed]   send the board to your own board service (board.service.game in kit.config.json; address and token in board.service_file)
   python3 board.py serve [--stop | --status]   run the dashboard on this machine (cloned, built and started once; every game sends to it)
+  python3 board.py watch [--rewake | --notice]   wake the session when answers arrive from the dashboard (the plugin's monitor · hooks run it)
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
 
 index.html is the chart — one card per stage of play, in play order: how far Function · Art · Sound · Verified have come.
@@ -1002,18 +1003,18 @@ def check_lines(path):
     return out
 
 
-def review_items(cycles, sheet):
+def review_items(cycles, sheet, asks=()):
     items = []
-    c = cycles[-1] if cycles else None
-    if c:
-        pics = sheet_questions()
+    pics = sheet_questions()
+    for c in reversed(cycles):  # every decision still open, the newest cycle first — what waits on the user is all on one page
+        latest = c is cycles[-1]
         for d in c["decisions"]:
             if d["done"]:
                 continue
-            q = pics.get(d["num"], {})
+            q = pics.get(d["num"], {}) if latest else {}  # the sheet's pictures are by decision id — the newest cycle's
             opts = [(str(o.get("mark", "")), str(o.get("text", ""))) for o in q.get("options", []) if isinstance(o, dict)] or split_options(d["options"])
             rec = next((str(o.get("mark")) for o in q.get("options", []) if isinstance(o, dict) and o.get("recommend")), d["pick"])
-            items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "doc": c["file"], "title": d["title"],
+            items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "doc": c["file"], "latest": latest, "title": d["title"],
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
     for m in sheet["models"]:
@@ -1022,6 +1023,10 @@ def review_items(cycles, sheet):
             items.append({"key": f'{m["tool"]}-{m["name"]}-{stamp}', "kind": "asset",
                           "ref": m["name"], "tool": m["tool"], "state": m["state"],
                           "title": m["name"], "what": m["what"], "views": m["views"], "said": m["said"], "old": m["old"]})
+    for q in asks:
+        if q["from"] == "GDD":
+            items.append({"key": "q-" + short(q["title"]), "kind": "question", "ref": q["title"], "title": q["title"], "text": q["text"]})
+    c = cycles[-1] if cycles else None
     if c and re.match(STAGE_PLAY, c["stage"]):
         for line in check_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
             items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "title": line})
@@ -1049,7 +1054,8 @@ def picture(img):
 
 def card(i):
     """One question, kept short — it is read on a phone."""
-    label = {"decision": lambda: f'{i["ref"]}', "asset": lambda: f'asset {i["ref"]}', "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
+    label = {"decision": lambda: f'{i["ref"]}' + ("" if i["latest"] else f' (cycle {i["cycle"]})'), "asset": lambda: f'asset {i["ref"]}',
+             "question": lambda: f'GDD “{i["ref"][:40]}”', "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
     head = f'<div class="card" data-key="{e(i["key"])}" data-label="{e(label)}">'
     note = '<textarea class="note" rows="1" placeholder="{}"></textarea><div class="state"></div></div>'
     if i["kind"] == "decision":
@@ -1059,8 +1065,9 @@ def card(i):
                        for m, t in i["options"])
         if i["proxy"]:
             opts = f'<button class="opt" data-pick="accept"><b>✓</b><span>Accept {e(chose or i["proxy"])}</span></button>' + opts
+        opts += '<button class="opt no" data-pick="drop"><b>✕</b><span>Not needed</span></button>'
         figs = "".join(picture(p) for p in i["pictures"])
-        tag = " · ".join(x for x in (i["who"], "decided for you" if i["proxy"] else "") if x)
+        tag = " · ".join(x for x in ("" if i["latest"] else f'cycle {i["cycle"]}', i["who"], "decided for you" if i["proxy"] else "") if x)
         return (head + (f'<span class="lab">{e(tag)}</span>' if tag else "")
                 + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>' + (f'<div class="figs">{figs}</div>' if figs else "")
                 + f'<div class="opts">{opts}</div>' + note.format("Note (optional)"))
@@ -1074,14 +1081,18 @@ def card(i):
                 f'<h3>{e(i["title"])}</h3>' + (f'<div class="sub clamp">{e(i["what"])}</div>' if i["what"] else "")
                 + (f'<div class="was clamp">Turned down: {e(said)}</div>' if said else "") + f'<div class="figs">{figs}</div>'
                 f'<div class="opts pair">{buttons}</div>' + note.format("What is off?"))
+    if i["kind"] == "question":
+        return (head + '<span class="lab">GDD · open question</span>' + f'<h3>{md(i["title"])}</h3>' + (f'<div class="sub">{md(i["text"])}</div>' if i["text"] else "")
+                + '<div class="opts pair"><button class="opt" data-pick="answer">Answer (in the note)</button><button class="opt no" data-pick="drop">Not needed</button></div>'
+                + note.format("Your answer"))
     return (head + f'<h3>{md(i["title"])}</h3>'
             '<div class="opts pair"><button class="opt" data-pick="ok">OK</button><button class="opt no" data-pick="problem">Problem</button></div>'
             + note.format("What did you see?"))
 
 
 def review_html(name, items, stamp):
-    cyc = next((i["cycle"] for i in items if i.get("cycle")), "")
-    groups = [("decision", f"Decisions · cycle {cyc}"), ("asset", "Assets to approve"), ("check", f"Check by playing · cycle {cyc}")]
+    cyc = next((i["cycle"] for i in items if i["kind"] == "check"), "")
+    groups = [("decision", "Decisions"), ("question", "Open questions in the GDD"), ("asset", "Assets to approve"), ("check", f"Check by playing · cycle {cyc}")]
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
                     for kind, title in groups for its in [[i for i in items if i["kind"] == kind]] for n in [len(its)] if its)
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a></div>'
@@ -1117,11 +1128,13 @@ def picture_data(img):
 def review_data(i):
     out = {k: i[k] for k in ("key", "kind", "ref", "title")}
     if i["kind"] == "decision":
-        out.update(cycle=i["cycle"], doc=i["doc"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
+        out.update(cycle=i["cycle"], doc=i["doc"], latest=i["latest"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
     elif i["kind"] == "asset":
         out.update(tool=i["tool"], state=i["state"], what=i["what"], old=i["old"], views=[rel(v) for v in i["views"]],
                    said=[x.get("said", "") for x in i["said"] if isinstance(x, dict)])
+    elif i["kind"] == "question":
+        out.update(text=i["text"])
     else:
         out.update(cycle=i["cycle"])
     return out
@@ -1179,7 +1192,7 @@ def build(outdir, index_name):
     asks = open_questions(st, cycles)
     stamp = f"{datetime.datetime.now():%Y-%m-%d %H:%M}"
     sheet = sheet_data()
-    review = review_items(cycles, sheet)
+    review = review_items(cycles, sheet, asks)
     index, total = index_html(name, st, asks, cycles[-1] if cycles else None, stamp, sheet, review)
     pages = {index_name: index, "assets.html": sheet_html(name, sheet), "review.html": review_html(name, review, stamp)}
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
@@ -1231,7 +1244,7 @@ def keep_review(review):
     folder = os.path.dirname(os.path.join(ROOT, CFG["out"]))
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "review.json"), "w", encoding="utf-8") as f:
-        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "tool", "state", "proxy", "title")} for i in review], f, ensure_ascii=False, indent=1)
+        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "doc", "latest", "tool", "state", "proxy", "title")} for i in review], f, ensure_ascii=False, indent=1)
 
 
 def draw(quiet):
@@ -1355,8 +1368,8 @@ def push(changed_only):
     folder = os.path.join(ROOT, CFG["share_dir"])
     stamp_path = os.path.join(folder, "pushed")
     out = os.path.join(ROOT, CFG["out"])
-    if changed_only and os.path.exists(stamp_path) and os.path.exists(out) and os.path.getmtime(stamp_path) >= os.path.getmtime(out):
-        return  # nothing drawn since the last push
+    if changed_only and (not os.path.exists(out) or os.path.exists(stamp_path) and os.path.getmtime(stamp_path) >= os.path.getmtime(out)):
+        return  # nothing drawn since the last push (or no board drawn here at all — `serve` draws it)
     SHARED = {}
     pages, review, summary, line = build(folder, "index.html")
     page = bundle(pages, "review.html" if review else "index.html", f"{summary['name']} board")
@@ -1370,12 +1383,13 @@ def push(changed_only):
         # A dashboard on this machine may act on the game itself (withdraw a decision, drop an asset attempt) by running the kit's scripts here.
         # Paths never leave the machine: a service elsewhere is not told them
         summary["local"] = {"root": ROOT, "kit": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-                            "python": sys.executable}
+                            "python": sys.executable, "board": board_folder()}
     call(base, "/page", token, page.encode("utf-8"), "text/html; charset=utf-8")
     call(base, "/summary", token, json.dumps(summary, ensure_ascii=False).encode("utf-8"), "application/json")
     os.makedirs(folder, exist_ok=True)
     open(stamp_path, "w").write(summary["drawn"])
-    print(f"pushed to {url}/g/{game} — {line} · files sent {len(missing)}")
+    if not changed_only:  # the hook says nothing
+        print(f"pushed to {url}/g/{game} — {line} · files sent {len(missing)}")
 
 
 # ── The dashboard on this machine ─────────────────────────────────────
@@ -1514,6 +1528,73 @@ def serve(whole, mode):
           f"from another device: forward the port (ssh -L {port}:127.0.0.1:{port} <this machine>) or `tailscale serve --bg {port}`")
 
 
+# ── From the dashboard to the session ─────────────────────────────────
+#
+# The dashboard writes each batch of answers as one file in <board>/inbox/. Whoever renames it to .taken first relays it — so the
+# monitor and the hook never both wake the session for the same batch. `answers --inbox` reads the taken batches and removes them.
+
+INBOX_POLL = float(os.environ.get("KIT_INBOX_POLL", "2"))
+
+
+def board_folder():
+    return os.path.dirname(os.path.join(ROOT, CFG["out"]))
+
+
+def claim():
+    box, n = os.path.join(board_folder(), "inbox"), 0
+    for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
+        if name.endswith(".json"):
+            try:
+                os.rename(os.path.join(box, name), os.path.join(box, name[:-5] + ".taken"))
+            except OSError:
+                continue  # another watcher took it
+            n += len(rows_in(load_json(os.path.join(box, name[:-5] + ".taken")) or []))
+    return n
+
+
+def told(n):
+    return (f"{n} answer(s) from the board — the user sent them from the dashboard. Run "
+            f"python3 \"{os.path.abspath(__file__)}\" answers --inbox and act on each as it says, then go on.")
+
+
+def watch(mode):
+    """The monitor (no mode): runs the whole session and says a line when answers arrive. --rewake: a hook waiting after a turn, for where
+    monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start."""
+    svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
+    if not svc.get("game"):
+        return  # no dashboard for this game
+    folder = board_folder()
+    beat = os.path.join(folder, ".watching")
+    if mode == "--notice":
+        n = claim()
+        if n:
+            print(told(n))
+        return
+    if mode == "--rewake":
+        me = os.path.join(folder, ".rewake")
+        os.makedirs(folder, exist_ok=True)
+        open(me, "w").write(str(os.getpid()))
+        end = time.time() + 3300
+        while time.time() < end:
+            if read(me).strip() != str(os.getpid()):
+                return  # a newer turn's hook took over
+            if os.path.exists(beat) and time.time() - os.path.getmtime(beat) < 4 * INBOX_POLL + 2:
+                return  # a monitor is watching
+            n = claim()
+            if n:
+                print(told(n), file=sys.stderr)
+                sys.exit(2)  # wakes the session (asyncRewake)
+            time.sleep(INBOX_POLL)
+        return
+    while True:
+        os.makedirs(folder, exist_ok=True)
+        open(beat, "w").write(str(os.getpid()))
+        n = claim()
+        if n:
+            print(told(n), flush=True)
+        time.sleep(INBOX_POLL)
+
+
 def rows_in(data):
     """The saved answers wherever they sit in what was read back — a list of rows, rows with a data field, or a map by id."""
     if isinstance(data, dict):
@@ -1529,7 +1610,12 @@ def answers(path):
     """Prints what each tapped answer asks for — and nothing for answers already relayed or to questions that have since changed."""
     folder = os.path.dirname(os.path.join(ROOT, CFG["out"]))
     items = {i["key"]: i for i in load_json(os.path.join(folder, "review.json")) or []}
-    if os.path.isdir(path):  # the folder a read of the collection saved its documents into, one JSON file each
+    taken = []
+    if path == "--inbox":  # what the dashboard sent: the batches a watch took, and any not yet taken
+        box = os.path.join(folder, "inbox")
+        taken = sorted(os.path.join(box, n) for n in (os.listdir(box) if os.path.isdir(box) else []) if n.endswith((".taken", ".json")))
+        data = [load_json(p) for p in taken]
+    elif os.path.isdir(path):  # the folder a read of the collection saved its documents into, one JSON file each
         data = [load_json(os.path.join(d, n)) for d, _dirs, names in os.walk(path) for n in sorted(names) if n.endswith(".json")]
     else:
         data = load_json(path)
@@ -1537,7 +1623,7 @@ def answers(path):
         sys.exit(f"{path}: could not read — save the rows of the \"answers\" collection as JSON")
     seen_path = os.path.join(folder, "answered.json")
     seen = load_json(seen_path) or {}
-    groups, stale = {"decision": [], "asset": [], "check": []}, 0
+    groups, stale = {"decision": [], "question": [], "asset": [], "check": []}, 0
     for r in rows_in(data):
         i, mark = items.get(r["key"]), f'{r.get("pick", "")}|{r.get("note", "")}'
         if not i:
@@ -1550,11 +1636,16 @@ def answers(path):
     note = lambda n: f" — “{n}”" if n else ""
     out = []
     if groups["decision"]:
-        out.append(f'Decisions (cycle {groups["decision"][0][0]["cycle"]}) — record each with the cycle skill (decide · confirm), as it does with answers from the chat:')
+        out.append("Decisions — record each with the cycle skill (decide · confirm · drop for not needed), as it does with answers from the chat:")
         for i, pick, n in groups["decision"]:
             was = f' (decided for you: {i["proxy"]})' if i.get("proxy") else ""
-            what = "accept" if pick == "accept" else (f"overturn → {pick}" if i.get("proxy") and pick else pick or "(no option)")
-            out.append(f'  {i["ref"]}{was} → {what}{note(n)}')
+            what = ("accept" if pick == "accept" else "not needed (drop)" if pick == "drop"
+                    else f"overturn → {pick}" if i.get("proxy") and pick else pick or "(no option)")
+            where = "" if i.get("latest", True) else f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]'
+            out.append(f'  {i["ref"]}{was} → {what}{note(n)}{where}')
+    if groups["question"]:
+        out.append("Open questions in the GDD — write an answer where it belongs in the GDD and strike the question (~~…~~); a not needed one is struck only:")
+        out += [f'  “{i["ref"]}” → {"not needed" if pick == "drop" else "answer"}{note(n)}' for i, pick, n in groups["question"]]
     if groups["asset"]:
         out.append("Assets — the asset skill: approve, or reject with the user's words:")
         out += [f'  {i["ref"]} ({"3D model — asset.py" if i.get("tool") == "asset" else "sprite — sprite.py"}) → {pick or "?"}{note(n)}' for i, pick, n in groups["asset"]]
@@ -1565,6 +1656,8 @@ def answers(path):
     if stale:
         out.append(f"{stale} saved answer(s) are to questions no longer on the page (answered, or the question changed) — ignored")
     json.dump(seen, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    for p in taken:  # relayed — off the inbox; the dashboard shows the answer as done once the board no longer asks it
+        os.remove(p)
     print("\n".join(out) if any(groups.values()) else "No new answers." + (f" ({out[-1]})" if stale else ""))
 
 
@@ -1575,9 +1668,9 @@ def main():
         i = args.index("--root")
         root = args[i + 1]
         del args[i:i + 2]
-    quiet = args in (["--if-stale"], ["push", "--if-changed"])  # what the hooks run: never a word, never a failed turn
+    quiet = args in (["--if-stale"], ["push", "--if-changed"], ["watch"], ["watch", "--rewake"], ["watch", "--notice"])  # what hooks and the monitor run: never a failed turn
     try:
-        if not args or quiet:
+        if not args or args == ["--if-stale"]:
             setup(root)
             draw(quiet)
         elif args[0] == "share" and (len(args) == 1 or (len(args) == 3 and args[1] == "--done")):
@@ -1590,6 +1683,9 @@ def main():
             if args[1:]:
                 draw(True)
             push(bool(args[1:]))
+        elif args[0] == "watch" and args[1:] in ([], ["--rewake"], ["--notice"]):
+            setup(root)
+            watch(args[1] if args[1:] else "")
         elif args[0] == "serve" and args[1:] in ([], ["--stop"], ["--status"]):
             serve(setup(root), args[1] if args[1:] else "")
         elif args[0] == "answers" and len(args) == 2:
