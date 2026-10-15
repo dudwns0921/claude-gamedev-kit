@@ -975,14 +975,16 @@ def png_size(path):
 
 
 def sheet_questions():
-    """Decision id → the latest question file entry the cycle's sheet script kept (its options and the pictures to compare)."""
+    """(cycle number, decision id) → the latest question file entry kept for it — by the cycle's sheet script (its options and the pictures to compare)
+    or by `cycle.py ask --image` (pictures to look at). An entry written before entries named their cycle is keyed (None, id): the newest cycle's."""
     d = os.path.join(ROOT, CFG["sheets"])
     files = sorted((os.path.join(d, n) for n in os.listdir(d) if n.endswith(".json")), key=os.path.getmtime) if os.path.isdir(d) else []
     out = {}
     for path in files:
         for q in load_json(path) if isinstance(load_json(path), list) else []:
             if isinstance(q, dict) and q.get("id"):
-                out[str(q["id"])] = q
+                cyc = q.get("cycle")
+                out[(int(cyc) if str(cyc).isdigit() else None, str(q["id"]))] = q
     return out
 
 
@@ -1021,7 +1023,7 @@ def review_items(cycles, sheet, asks=()):
         for d in c["decisions"]:
             if d["done"] or (d["proxy"] and not latest):  # decided for the user in a cycle that has moved on: the work stands on it — to change it is a new goal
                 continue
-            q = pics.get(d["num"], {}) if latest else {}  # the sheet's pictures are by decision id — the newest cycle's
+            q = pics.get((int(c["num"]) if str(c["num"]).isdigit() else None, d["num"])) or (pics.get((None, d["num"]), {}) if latest else {})
             opts = [(str(o.get("mark", "")), str(o.get("text", ""))) for o in q.get("options", []) if isinstance(o, dict)] or split_options(d["options"])
             rec = next((str(o.get("mark")) for o in q.get("options", []) if isinstance(o, dict) and o.get("recommend")), d["pick"])
             items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "doc": c["file"], "latest": latest, "title": d["title"],
@@ -1406,8 +1408,9 @@ def push(changed_only):
 # ── The dashboard on this machine ─────────────────────────────────────
 #
 # `serve` clones the dashboard app beside the kit's other keys, builds it and runs it on localhost — one for every game on this machine.
-# Its password and the token games send with are made once and kept in the service file; the service file then points every game here.
-# Seen from elsewhere through a tunnel the user sets up (an SSH forward, Tailscale) — the server itself listens on this machine only.
+# The token games send with is made once and kept in the service file; the service file then points every game here. There is no sign-in:
+# the server listens on this machine only, is seen from elsewhere through a tunnel the user sets up (tailscale serve — only their devices — or an SSH forward),
+# and the app itself refuses a request that names another host or comes from another site's page.
 
 def env_lines(path):
     out = {}
@@ -1496,8 +1499,7 @@ def serve(whole, mode):
         step("build", ["npm", "run", "build"], app, log)
         open(built, "w").write(head)
     have = env_lines(keys)
-    made = {k: secrets.token_hex(16 if k == "GAMEDEV_BOARD_PASSWORD" else 32)
-            for k in ("GAMEDEV_BOARD_TOKEN", "GAMEDEV_BOARD_PASSWORD", "GAMEDEV_BOARD_SECRET") if not have.get(k)}
+    made = {k: secrets.token_hex(32) for k in ("GAMEDEV_BOARD_TOKEN",) if not have.get(k)}
     if have.get("GAMEDEV_BOARD_URL") != url or made:
         env_write(keys, dict(made, GAMEDEV_BOARD_URL=url))
         if have.get("GAMEDEV_BOARD_URL") and have["GAMEDEV_BOARD_URL"] != url:
@@ -1505,8 +1507,7 @@ def serve(whole, mode):
     have = env_lines(keys)
     started = not pid
     if not pid:
-        env = dict(os.environ, APP_PASSWORD=have["GAMEDEV_BOARD_PASSWORD"], SESSION_SECRET=have["GAMEDEV_BOARD_SECRET"],
-                   INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1")
+        env = dict(os.environ, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1")
         with open(log, "a", encoding="utf-8") as f:
             proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(port), "-H", "127.0.0.1"], cwd=app, env=env,
                                     stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -1535,8 +1536,9 @@ def serve(whole, mode):
         print(f"the board was not sent yet ({err}) — the next turn sends it")
     if started and not os.environ.get("KIT_NO_BROWSER"):
         webbrowser.open(url)  # a dashboard just started is opened once; joining a running one opens nothing
-    print(f"dashboard: {url} — password: GAMEDEV_BOARD_PASSWORD in {keys}\n"
-          f"from another device: forward the port (ssh -L {port}:127.0.0.1:{port} <this machine>) or `tailscale serve --bg {port}`")
+    print(f"dashboard: {url}\n"
+          f"from another device: `tailscale serve --bg {port}` (only your own devices — never `tailscale funnel`, which opens it to everyone) "
+          f"or forward the port (ssh -L {port}:127.0.0.1:{port} <this machine>)")
 
 
 # ── From the dashboard to the session ─────────────────────────────────

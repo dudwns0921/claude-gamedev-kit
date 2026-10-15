@@ -8,6 +8,7 @@
   python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
+        [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
@@ -28,6 +29,7 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
+SHEETS = os.path.join(DIR, "sheets")  # where the sheet script keeps its questions — the board reads a decision's pictures from there
 NOTES = os.path.join("docs", "handoff")  # notes of the skill that carried work across sessions before `carry` did
 TEMPLATE = """# Cycle {num} — {name}
 
@@ -233,12 +235,28 @@ def cmd_mark(path, names, state, note):
     write(path, text)
 
 
-def cmd_ask(path, who, question):
+def cmd_ask(path, who, question, images=()):
     text = read(path)
     span = section(text, "Decisions") or sys.exit("the document has no `## Decisions` section")
+    pics = []
+    for given in images:  # checked before anything is written
+        label, sep, rel = given.partition("=")
+        rel = rel if sep else label
+        label = label.strip() if sep else os.path.splitext(os.path.basename(rel))[0]
+        if not os.path.isfile(os.path.join(ROOT, rel)):
+            sys.exit(f"{rel}: no such file (paths are relative to the game root) — nothing was written")
+        pics.append({"label": label, "path": rel.replace(os.sep, "/")})
     num = "D%d" % (max([int(d[1:]) for d in decisions(text)] or [0]) + 1)
     body = text[span[0]:span[1]].rstrip("\n")
     write(path, text[:span[0]] + body + f"\n- [ ] {num}. {question.strip()} ({EN.get(who, who)})\n\n" + text[span[1]:])
+    if pics:  # kept beside the sheets, where the board looks for a decision's pictures — by cycle and decision
+        cyc = int(re.match(r"\d+", os.path.basename(path)).group(0))
+        out = os.path.join(ROOT, SHEETS, f"asks-{cyc:02d}.json")
+        kept = json.load(open(out, encoding="utf-8")) if os.path.exists(out) else []
+        kept = [q for q in kept if q.get("id") != num] + [{"id": num, "cycle": cyc, "question": question.strip(), "images": pics}]
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(kept, f, ensure_ascii=False, indent=1)
     print(num)
 
 
@@ -352,13 +370,21 @@ def cmd_new(name, goal):
 
 def main():
     args = sys.argv[1:]
-    opts = {}
+    opts, images = {}, []
     for flag in ("--root", "--doc"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
             del args[i:i + 2]
+    while "--image" in args:
+        i = args.index("--image")
+        if i + 1 >= len(args):
+            sys.exit(__doc__)
+        images.append(args[i + 1])
+        del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
+    if images and cmd != "ask":
+        sys.exit("--image goes with ask")
     need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
@@ -378,7 +404,7 @@ def main():
             sys.exit("the state is done · blocked · open")
         cmd_mark(path, rest[0], rest[1], rest[2] if len(rest) > 2 else "")
     elif cmd == "ask":
-        cmd_ask(path, *rest)
+        cmd_ask(path, *rest, images)
     elif cmd == "decide":
         cmd_decide(path, *rest)
     elif cmd == "confirm":

@@ -40,7 +40,8 @@ This session directs; the skills and their agents do the work. Each skill's own 
 
 Claude does not decide scope · taste · numbers · whether to ship. Offer options with one recommendation, ask, and write the answer in the cycle document's "Decisions" in the user's own words.
 **Every question for the user is a decision**, whatever stage or skill it comes up in (build, play, a playtest fix, an asset, a logo): write it with `cycle.py ask <stage> "…"` in the newest cycle document before asking —
-the board's review and the dashboard show only what is written there, and a question asked only in the chat is lost when the session changes. One chosen by eye (candidates to pick from) gets a sheet with its pictures (the cycle skill's "chosen by eye"), not a separate page.
+the board's review and the dashboard show only what is written there, and a question asked only in the chat is lost when the session changes. **Anything to look at while deciding goes with it**: a capture of now, the candidates, a measurement, a reference — `--image "<label>=<path>"` on the `ask`
+(or a sheet, for options compared side by side — the cycle skill's "chosen by eye"). Not a separate page, not only a path in the chat.
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
 ## Keep sessions short

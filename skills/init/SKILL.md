@@ -82,7 +82,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
     Run `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" serve --status` and `command -v node git`, then:
     - **Running already** (another game started it): ask "Show this game on the dashboard too?" — yes → run `serve` (it joins the game and sends its board in seconds).
     - **Not running, Node.js and git present**: ask "Start a dashboard that shows all your games on one page? (local, about a minute the first time)" — yes → run `serve`
-      and relay its last lines (where the password is, how to reach it from another device). Do not print the password.
+      and relay its last lines (where it is, how to reach it from another device).
     - **Node.js or git missing**: do not ask. Say in one line that a dashboard of all games exists for later (`/gamedev-kit:board`, needs Node.js).
     A no is final for this init; nothing else in the kit depends on it.
 

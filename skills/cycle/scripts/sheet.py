@@ -13,7 +13,7 @@ questions.json (paths are relative to the game root):
                 {"mark": "ⓑ", "text": "Raise the wrist — two clips to re-time", "recommend": true}],
     "images": [{"label": "Now", "path": "shots/now.png", "crop": [420, 180, 600, 600]},
                {"label": "ⓑ changed", "path": "shots/b.png", "crop": [420, 180, 600, 600]}]}]
-  Without an id they are 1, 2, … in order. crop is [x, y, width, height] in pixels — the whole image if absent. An image to crop must be a png.
+  Without an id they are 1, 2, … in order. A question with an id is kept with the newest cycle's number ("cycle"), unless it names its own. crop is [x, y, width, height] in pixels — the whole image if absent. An image to crop must be a png.
 
 Writes <folder>/<name>-<number>.html (the images are embedded, so it opens as one file) and keeps the questions as <folder>/<name>.json —
 the board's review page reads that file to show the same pictures beside its answer buttons. If this machine has a Chrome-family browser,
@@ -164,6 +164,11 @@ def main():
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", name):
         sys.exit(f"the name is letters · digits · hyphens · underscores: {name!r}")
     pages = [page(n, q) for n, q in enumerate(asked, 1)]  # if any one is wrong, nothing is written
+    cycles = os.path.join(ROOT, "docs", "cycle")
+    nums = [int(m.group(0)) for n in (os.listdir(cycles) if os.path.isdir(cycles) else []) for m in [re.match(r"\d+(?=-.*\.md$)", n)] if m]
+    for q in asked:  # whose decision it is — the board shows the pictures with that cycle's decision, not a later one's of the same id
+        if isinstance(q, dict) and q.get("id") and "cycle" not in q and nums:
+            q["cycle"] = max(nums)
     folder = os.path.join(ROOT, opts.get("--out", OUT))
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, f"{name}.json"), "w", encoding="utf-8") as f:  # kept — the board's review page shows the same pictures beside its buttons

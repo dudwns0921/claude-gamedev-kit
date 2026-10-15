@@ -103,7 +103,7 @@ The hook brings the table up to the value file before it redraws the board.
 
 | Card | From | Buttons |
 |---|---|---|
-| Decision | every cycle's unanswered decisions (`[ ]`, the newest cycle first), and the newest cycle's decisions made for the user by the auto mode of older kits (`[~]`) — with the comparison pictures of the cycle's sheet script when it made some (`docs/cycle/sheets/*.json`, by decision id) | one per option (the recommended one marked); Accept for a proxy decision |
+| Decision | every cycle's unanswered decisions (`[ ]`, the newest cycle first), and the newest cycle's decisions made for the user by the auto mode of older kits (`[~]`) — with the pictures kept for it: the cycle's sheet script, or `cycle.py ask --image` (`docs/cycle/sheets/*.json`, by cycle and decision) | one per option (the recommended one marked); Accept for a proxy decision |
 | Asset | asset images not yet approved (3D model views, sprite stills) | Approve · Redo (the note is the reason) |
 | Check | once the newest cycle is at Play: the spec's "To see by playing" and the design's "For a human to see" | OK · Problem (the note is what was seen) |
 
@@ -166,8 +166,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve --stop
 ```
 
 It needs git and Node.js; without them it says so and the pages in `docs/board/` go on working. The app is cloned to `~/.config/gamedev-kit/board-app` (`board.app_dir`),
-outside every game. Its sign-in password and the token games send with are made on the first run and kept in `~/.config/gamedev-kit/board.env` — tell the user where
-the password is; do not print it into the conversation. The game joins under an id made from its folder name (`board.service.game` in `kit.config.json`, written when missing).
+outside every game. There is no sign-in — it listens on this machine only, and the token games send with is made on the first run and kept in `~/.config/gamedev-kit/board.env`.
+From a phone or another computer: `tailscale serve --bg <port>` (only the user's own devices); never `tailscale funnel`, which opens it to anyone. The game joins under an id made from its folder name (`board.service.game` in `kit.config.json`, written when missing).
 Run `serve` once in each game that should appear (init offers it at the end); it also draws the game's own board and adds `docs/board/` to `.gitignore`. After a restart of the machine, `serve` starts it again.
 
 From then on a hook runs `board.py push --if-changed` in the background at the end of every turn: when the board was redrawn since the last push, it asks the dashboard

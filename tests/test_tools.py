@@ -1685,7 +1685,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertEqual(got, [], "and only once")
 
     def test_board_serve(self):
-        """`serve` runs the dashboard on this machine: cloned and built once per version, started on localhost, its password and token made once
+        """`serve` runs the dashboard on this machine: cloned and built once per version, started on localhost, its token made once (no password — it listens on this machine only)
         in the service file, and this game joined and sent. git · npm here are fakes; `npm run start` runs a small server that takes the board."""
         root = tempfile.mkdtemp(prefix="kit-serve-")
         self.addCleanup(shutil.rmtree, root, True)
@@ -1711,7 +1711,7 @@ if sys.argv[1] == "rev-parse":
             "npm": f"""import http.server, json, os, sys
 open({calls!r}, "a").write("npm " + " ".join(sys.argv[1:3]) + "\\n")
 if sys.argv[1:3] == ["run", "start"]:
-    open({calls!r}, "a").write("password " + os.environ["APP_PASSWORD"] + " token " + os.environ["INGEST_TOKEN"] + "\\n")
+    open({calls!r}, "a").write("password " + os.environ.get("APP_PASSWORD", "none") + " token " + os.environ["INGEST_TOKEN"] + "\\n")
     class S(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a): pass
         def reply(self, body=b""):
@@ -1751,7 +1751,8 @@ if sys.argv[1:3] == ["run", "start"]:
         log = open(calls).read()
         self.assertIn("git clone --depth", log)
         self.assertIn("npm install --no-audit\nnpm run build\n", log)
-        self.assertIn(f'password {kept["GAMEDEV_BOARD_PASSWORD"]} token {kept["GAMEDEV_BOARD_TOKEN"]}', log, "the server runs with the keys the file holds")
+        self.assertIn(f'password none token {kept["GAMEDEV_BOARD_TOKEN"]}', log, "the server runs with the token the file holds, and no password")
+        self.assertNotIn("GAMEDEV_BOARD_PASSWORD", kept)
         self.assertIn(f'put /api/ingest/my-game/summary Bearer {kept["GAMEDEV_BOARD_TOKEN"]}', log, "and this game's board is sent at once")
         self.assertIn("running", serve("--status").stdout)
 
@@ -1878,6 +1879,31 @@ if sys.argv[1:3] == ["run", "start"]:
 
         json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertEqual(watch(timeout=10).returncode, 0, "a game without a dashboard: the monitor ends at once")
+
+    def test_decision_pictures(self):
+        """A decision is asked with the pictures to look at — from any stage, in any cycle — and the review shows them with that cycle's decision only."""
+        root = tempfile.mkdtemp(prefix="kit-pics-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        os.makedirs(os.path.join(root, "shots"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        for name in ("now.png", "logo-a.png", "logo-b.png"):
+            open(os.path.join(root, "shots", name), "wb").write(b"\x89PNG\r\n\x1a\n" + bytes(32))
+        run(CYCLE, root, "new", "logo", "A logo")
+        self.assertIn("shots/none.png: no such file", run(CYCLE, root, "ask", "Build", "Which logo — ① a ② b", "--image", "shots/none.png", ok=False).stderr)
+        self.assertNotIn("D1.", open(os.path.join(root, "docs/cycle/01-logo.md"), encoding="utf-8").read(), "nothing written when a picture is missing")
+        self.assertEqual(run(CYCLE, root, "ask", "Build", "Which logo — ① a ② b · recommended: ①", "--image", "① a=shots/logo-a.png", "--image", "shots/logo-b.png").stdout.strip(), "D1")
+        run(CYCLE, root, "new", "outline", "Text outline")
+        run(CYCLE, root, "ask", "Play", "Outline — ① measure and fix ② look on the phone", "--image", "Now=shots/now.png")
+        run(BOARD, root)
+        review = {i["key"]: i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]}
+        self.assertEqual([(p["label"], p["src"].split("/")[-1]) for p in review["c01-D1"]["pictures"]], [("① a", "logo-a.png"), ("logo-b", "logo-b.png")],
+                         "an earlier cycle's decision keeps its own pictures")
+        self.assertEqual([p["label"] for p in review["c02-D1"]["pictures"]], ["Now"], "the same id in the next cycle has its own")
+        self.assertEqual(review["c01-D1"]["who"], "Build")
+        self.assertEqual([o["mark"] for o in review["c01-D1"]["options"]], ["①", "②"], "options still come from the question")
+        self.assertIn("--image goes with ask", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,
