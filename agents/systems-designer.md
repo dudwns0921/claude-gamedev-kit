@@ -57,7 +57,11 @@ A cycle document path and the mode `spec`.
 What the player must be able to tell from the screen to follow this rule. What · when. Do not write what it looks like (the designer decides). GDD: <ID from A.5>
 
 ### To see by playing
-What to try to tell whether these values are right. Which value to move in the table.
+One thing the player can try in the game per line, as a short question in plain words ("Does the second jump feel too late?").
+The review card shows these lines as they are, so no numbers, variable names, decision numbers or tuning hints in them.
+
+### Tuning notes
+Which value to move in the table if a question above is answered "no". The review card does not show this section.
 ```
 
 ## Rules
