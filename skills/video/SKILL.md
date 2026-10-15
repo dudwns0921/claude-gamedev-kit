@@ -18,6 +18,10 @@ what happens (+ reference images) ─▶ [human looks] ─▶ generate ─▶ [h
 new                                   approve          make        place
 ```
 
+**Making footage here is optional.** A cutscene the cycle lists is a slot like any asset — its path and length are the workflow's, and a file there counts whoever made it.
+Without Higgsfield (no key, or the user would rather not), the game runs without the clip, and the user makes it elsewhere and puts it at that path in the format the engine reads (`video.game` in `kit.config.json`) —
+then run the engine's import and say what to watch. Say both ways once and take the one they pick.
+
 **The human looks twice: at what will be sent, and at what came back.** Generating costs credits and takes minutes, so only an approved description is sent,
 and the result is placed only after the user has watched it — **you cannot see motion.**
 

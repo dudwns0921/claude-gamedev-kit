@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Tool checks — for every engine config in engines/, makes a temporary project and runs gdd-sync and balance-table end to end.
-init's engine-project creation runs against a fake editor, deploy against a fake butler (named by the environment, as the platform file says), asset and start's concept images against a fake API server,
+init's engine-project creation runs against a fake editor, asset and start's concept images against a fake API server,
 video against a fake Higgsfield server · a fake ffmpeg — nothing goes outside.
 
   python3 tests/test_tools.py
@@ -27,7 +27,6 @@ import zipfile
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPORT = os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py")
 TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
-DEPLOY = os.path.join(KIT, "skills/deploy/scripts/deploy.py")
 ASSET = os.path.join(KIT, "skills/asset/scripts/asset.py")
 SOUND = os.path.join(KIT, "skills/asset/scripts/sound.py")
 SPRITE = os.path.join(KIT, "skills/asset/scripts/sprite.py")
@@ -61,9 +60,6 @@ def raw_glb():
     j += b" " * (-len(j) % 4)
     return (struct.pack("<4sII", b"glTF", 2, 28 + len(j) + len(b)) + struct.pack("<I4s", len(j), b"JSON") + j
             + struct.pack("<I4s", len(b), b"BIN\0") + b)
-
-# one line of the file where the engine keeps the version (deploy.version must pick this up)
-VERSION_LINE = {"godot": 'config/version="1.2.3"', "unity": "  bundleVersion: 1.2.3", "web": 'export const VERSION = "1.2.3";'}
 
 GDD = """# 게임
 
@@ -356,14 +352,16 @@ class Tools(unittest.TestCase):
                     os.remove(os.path.join(root, moved))
                     whole = open(os.path.join(root, "kit.config.json"), encoding="utf-8").read()
                     cfg = json.loads(whole)
-                    cfg.pop("deploy")
+                    cfg.pop("video")
                     cfg["balance-table"].pop("table")
                     json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
                     third = run(init, root, engine).stdout
                     self.assertIn("skipped  engine templates: 1", third)
                     self.assertFalse(os.path.exists(os.path.join(root, moved)))
                     self.assertIn("sections missing from kit.config.json: ", third)
-                    self.assertIn("deploy · balance-table.table", third.split("sections missing from kit.config.json: ")[1])
+                    missing = third.split("sections missing from kit.config.json: ")[1]
+                    self.assertIn("video", missing)
+                    self.assertIn("balance-table.table", missing)
                     self.assertIn("new      " + moved, run(init, root, engine, "--files").stdout)
                     open(os.path.join(root, "kit.config.json"), "w", encoding="utf-8").write(whole)
                 # with the rules home where it is by default, the block is written with `~` — the same text on every machine
@@ -425,21 +423,31 @@ exit 0
 
         out = init("--detect")
         self.assertIn("not an engine project — engines to choose from, by where the game is played:", out)
-        self.assertIn("  unity — plays on phones", out, "each engine says where its games are played — the question init asks is about the player")
+        self.assertIn("  unity\n    plays on:     Android phones", out, "each engine says where its games are played — the question init asks is about the player")
+        for engine in CODE:
+            choose = json.load(open(os.path.join(KIT, "engines", engine, "project.json"), encoding="utf-8"))["choose"]
+            self.assertTrue(choose["plays_on"] and choose["suits"] and choose["pick_when"], engine)
+            self.assertIn(f"    pick it when: {choose['pick_when']}", out)
         self.assertIn("the kit is not installed yet", out)
         self.assertIn("points to does not exist", init("unity", "--editor", ok=False, UNITY=os.path.join(top, "missing")))
         if "modules" in spec["editor"].get(sys.platform, {}):
             out = init("unity", "--editor", ok=False, UNITY=unity)
+            self.assertIn("missing  iOS Build Support", out, "with no places named, every module is needed")
+            out = init("unity", "--editor", "--for", "Android", ok=False, UNITY=unity)
             self.assertIn(f"Unity 6000.1.2f1 — {unity}", out)
+            self.assertIn("skipped  iOS Build Support — for iPhone, not where this game is played", out)
             self.assertIn("missing  Android Build Support", out)
             self.assertIn("install-modules --version 6000.1.2f1 -m android android-sdk-ndk-tools android-open-jdk", out)
             for part in ("SDK", "NDK"):
                 os.makedirs(os.path.join(modules, "AndroidPlayer", part))
-            self.assertIn("OpenJDK not found in it", init("unity", "--editor", ok=False, UNITY=unity))
+            self.assertIn("OpenJDK not found in it", init("unity", "--editor", "--for", "Android", ok=False, UNITY=unity))
             os.makedirs(os.path.join(modules, "AndroidPlayer", "OpenJDK"))
-            out = init("unity", "--editor", UNITY=unity)
+            out = init("unity", "--editor", "--for", "Android", UNITY=unity)
             self.assertIn("found    Android Build Support (SDK · NDK · OpenJDK)", out)
-            self.assertIn(f"Write under `## This game's rules` in CLAUDE.md (that heading already exists — do not create a new one): editor executable `{unity}` · installed modules Android Build Support", out)
+            self.assertIn(f"Write under `## This game's rules` in CLAUDE.md (that heading already exists — do not create a new one): editor executable `{unity}` · installed modules Android Build Support · played on Android", out)
+            self.assertIn("missing  iOS Build Support", init("unity", "--editor", "--for", "android,iphone", ok=False, UNITY=unity))
+            os.makedirs(os.path.join(modules, "iOSSupport"))
+            self.assertIn("found    iOS Build Support", init("unity", "--editor", "--for", "Android,iPhone", UNITY=unity))
 
         self.assertIn("created the unity project", init("unity", "--create", UNITY=unity))
         self.assertTrue(os.path.exists(os.path.join(root, "docs")), "what was there is untouched")
@@ -579,137 +587,6 @@ exit 0
         open(os.path.join(root, "kit.config.json"), "w").write("{}")
         self.assertIn("code_ext", run(REPORT, root, ok=False).stderr)
         self.assertIn("balance-table.code", run(TABLE, root, "check", ok=False).stderr)
-
-    def test_deploy(self):
-        root = tempfile.mkdtemp(prefix="kit-deploy-")
-        self.addCleanup(shutil.rmtree, root, True)
-        butler, log = os.path.join(root, "butler"), os.path.join(root, "butler.log")
-        open(butler, "w").write(f"#!/bin/sh\necho \"$@\" >> '{log}'\n")
-        os.chmod(butler, 0o755)
-        cfg = {"platform": "itch", "target": "me/game", "version": {"file": "VERSION", "regex": "v=(\\S+)"},
-               "pre": ["true"], "channels": {"html5": {"build": "mkdir -p out && echo hi > out/index.html",
-                                                        "dir": "out", "must": "index.html"}}}
-        home = os.path.join(root, "home")  # no login of this machine is seen
-        os.makedirs(home)
-
-        def write(*drop, **over):
-            json.dump({"deploy": {k: v for k, v in dict(cfg, **over).items() if k not in drop}}, open(os.path.join(root, "kit.config.json"), "w"))
-
-        def deploy(*args, ok=True, **env):
-            env = dict({"HOME": home, "BUTLER": butler, "BUTLER_API_KEY": "key"}, **env)
-            p = subprocess.run([sys.executable, DEPLOY, "--root", root, *args], capture_output=True, text=True,
-                               env={k: v for k, v in dict(os.environ, **env).items() if v})
-            self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
-            return p.stdout + p.stderr
-
-        def calls():
-            return open(log).read().strip().split("\n") if os.path.exists(log) else []
-
-        # the upload command, the tool and the login are read from platforms/itch/platform.json
-        write()
-        open(os.path.join(root, "VERSION"), "w").write("v=0.3.0\n")
-        self.assertIn("OK to upload — itch.io · me/game · version 0.3.0 · channels html5\n", deploy("check"))
-        self.assertIn("no build in", deploy("push", "--dry-run", ok=False))
-        self.assertIn("1 file(s)", deploy("build"))
-        self.assertIn("→ itch.io me/game:html5 · version 0.3.0 · not uploaded", deploy("push", "html5", "--dry-run"))
-        pushed = deploy("push")
-        self.assertIn("out (1 file(s) · 0.0 MB) → itch.io me/game:html5 · version 0.3.0\n", pushed)
-        self.assertIn("https://me.itch.io/game", pushed, "what to look at once it is up")
-        out = os.path.join(os.path.realpath(root), "out")
-        self.assertEqual([line.replace(os.path.join(root, "out"), out) for line in calls()],
-                         [f"push {out} me/game:html5 --userversion 0.3.0 --dry-run",
-                          f"push {out} me/game:html5 --userversion 0.3.0"])
-        self.assertIn("unknown channel", deploy("build", "win", ok=False))
-        deploy("status")
-        self.assertEqual(calls()[-1], "status me/game")
-        self.assertIn("itch.io — target `user/game` · uploaded by this script\n\n# itch.io", deploy("notes"))
-
-        # nothing is uploaded when a check fails — and a failure on the platform's side comes with the platform's notes
-        write(pre=["false"])
-        failed = deploy("push", ok=False)
-        self.assertIn("pre-check failed", failed)
-        self.assertNotIn("what the user does once", failed, "a failure on the game's side does not bring the platform's notes")
-        write(target="game")
-        self.assertIn("deploy.target is not in the form `user/game`: 'game'", deploy("check", ok=False))
-        write(target="")
-        empty = deploy("push", ok=False)
-        self.assertIn("deploy.target is empty — the user creates the game's page on itch.io first", empty)
-        self.assertIn("itch.io — what the user does once:\n# itch.io", empty)
-        write()
-        self.assertIn("butler not found — the user installs it", deploy("check", ok=False, BUTLER=os.path.join(root, "no-butler")))
-        self.assertIn("butler is not logged in — the user runs `butler login`", deploy("push", ok=False, BUTLER_API_KEY=""))
-        os.makedirs(os.path.join(home, ".config/itch"))
-        open(os.path.join(home, ".config/itch/butler_creds"), "w").write("x")
-        self.assertIn("OK to upload", deploy("check", BUTLER_API_KEY=""), "a login butler saved counts as well as the key")
-        self.assertEqual(len(calls()), 3, "the tool is not called when a check fails")
-
-        # a config from before platforms — the target under the platform's own key, no `platform` — is read as that platform
-        write("platform", "target", itch="old/game")
-        self.assertIn("OK to upload — itch.io · old/game · version 0.3.0", deploy("check"))
-        deploy("push")
-        self.assertEqual(calls()[-1].replace(os.path.join(root, "out"), out), f"push {out} old/game:html5 --userversion 0.3.0")
-        write("platform", "target", itch="")
-        self.assertIn("deploy.target is empty", deploy("check", ok=False), "an old config that never named its target")
-
-        # no platform named, or one that is no folder of platforms/ — refused, with the ones there are. Building does not need one
-        write("platform", "target")
-        self.assertIn("deploy.platform in kit.config.json is empty — where the build goes: google-play · itch", deploy("check", ok=False))
-        self.assertIn("1 file(s)", deploy("build"))
-        write(platform="nowhere")
-        for cmd in ("check", "push", "status", "notes"):
-            self.assertIn("unknown platform nowhere — google-play · itch", deploy(cmd, ok=False))
-
-        # a platform with no upload command: checked and built the same way, then the user is told what to upload where
-        write(platform="google-play", target="com.me.game", channels={"android": {"build": "mkdir -p apk && echo hi > apk/game.aab", "dir": "apk", "must": "game.aab"}})
-        self.assertIn("OK to upload — Google Play · com.me.game · version 0.3.0 · channels android · uploaded by the user", deploy("check", BUTLER=""))
-        deploy("build")
-        before = len(calls())
-        for args in (("push", "--dry-run"), ("push",)):
-            said = deploy(*args)
-            self.assertIn("android: apk (1 file(s) · 0.0 MB) → Google Play com.me.game · version 0.3.0 · not uploaded\n", said)
-            self.assertIn("The user uploads apk/game.aab in Play Console", said)
-            self.assertIn("the app com.me.game", said)
-        self.assertIn("Google Play has no status command", deploy("status"))
-        self.assertEqual(len(calls()), before, "no tool is called")
-        write(platform="google-play", target="game")
-        self.assertIn("deploy.target is not in the form `com.name.game`", deploy("push", ok=False))
-        write(platform="google-play", target="")
-        self.assertIn("deploy.target is empty — the target is the app's package name", deploy("check", ok=False))
-
-        # the script knows no platform's name: one folder is one platform
-        platforms = os.path.join(root, "platforms")
-        os.makedirs(os.path.join(platforms, "toy"))
-        json.dump({"label": "Toy Store", "legacy_key": "toybox", "tool": {"name": "toyup", "env": "TOYUP", "missing": "install toyup"},
-                   "where": "{target}/{channel}", "upload": ["{tool}", "send", "{file}", "to", "{target}", "{channel}", "{version}"]},
-                  open(os.path.join(platforms, "toy", "platform.json"), "w"))
-        write("platform", "target", toybox="shelf")
-        self.assertIn("toyup not found — install toyup", deploy("check", ok=False, GAMEDEV_KIT_PLATFORMS=platforms))
-        said = deploy("push", "--dry-run", GAMEDEV_KIT_PLATFORMS=platforms, TOYUP=butler)
-        self.assertIn("→ Toy Store shelf/html5 · version 0.3.0 · not uploaded", said)
-        before = len(calls())
-        deploy("push", GAMEDEV_KIT_PLATFORMS=platforms, TOYUP=butler)
-        self.assertEqual([line.replace(os.path.join(root, "out"), out) for line in calls()[before:]], [f"send {out}/index.html to shelf html5 0.3.0"],
-                         "with no preview arguments --dry-run runs nothing; the upload is the platform's command")
-        self.assertIn("Toy Store has no status command", deploy("status", GAMEDEV_KIT_PLATFORMS=platforms))
-
-    def test_deploy_engine_config(self):
-        platforms = sorted(os.listdir(os.path.join(KIT, "platforms")))
-        for engine in CODE:
-            with self.subTest(engine=engine):
-                root = tempfile.mkdtemp(prefix=f"kit-deploy-{engine}-")
-                self.addCleanup(shutil.rmtree, root, True)
-                shutil.copy(os.path.join(KIT, "engines", engine, "kit.config.json"), os.path.join(root, "kit.config.json"))
-                cfg = json.load(open(os.path.join(root, "kit.config.json"), encoding="utf-8"))
-                self.assertNotIn("promo", cfg)
-                self.assertIn(cfg["deploy"]["platform"], platforms, "the engine's build names the platform it is for")
-                self.assertIn("deploy.target is empty", run(DEPLOY, root, "check", "--dirty", ok=False).stderr, "right after install the target is empty")
-                if engine in VERSION_LINE:
-                    path = os.path.join(root, cfg["deploy"]["version"]["file"])
-                    os.makedirs(os.path.dirname(path), exist_ok=True)
-                    open(path, "w").write("first line\n" + VERSION_LINE[engine] + "\n")
-                    self.assertEqual(run(DEPLOY, root, "version").stdout.strip(), "1.2.3")
-                if not cfg["deploy"]["channels"]:
-                    self.assertIn("channels in kit.config.json is empty", run(DEPLOY, root, "build", ok=False).stderr)
 
     def asset_project(self, blender):
         """Fake OpenAI · Meshy server and a project pointed at it. (root, the function to call, the requests the server got)"""
@@ -2211,7 +2088,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("open decisions 1 · carried over 2\ncarried over: sign sprite approved, animation not run (", out)
         self.assertIn("picked up: 2", run(CYCLE, root, "carry", "done").stdout)
         self.assertNotIn("carried over", run(CYCLE, root, "next").stdout)
-        run(CYCLE, root, "carry", "deploy target still to fill in")
+        run(CYCLE, root, "carry", "art style still to fill in")
         self.assertEqual(text().count("- [x] "), 3, "picked-up lines stay, checked — only the section's own")
         os.makedirs(os.path.join(root, "docs/handoff"))
         open(os.path.join(root, "docs/handoff/a.md"), "w").write("# Handoff — a\n\nResumed: then\n")
@@ -2228,7 +2105,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("closed: docs/cycle/02-shop.md", out)
         self.assertIn("left in the previous cycle: open decisions 1", out)
         self.assertIn("deferred: 간판에 불을 켜는 건 다음에", out)
-        self.assertIn("carried over, not picked up: deploy target still to fill in (", out)
+        self.assertIn("carried over, not picked up: art style still to fill in (", out)
         self.assertIn("Stage: Closed", text())
 
         # a document from the time of auto mode holds decisions made in the user's place ([~]). Tasks depending on them run, and they stay unconfirmed until the user accepts or overturns them

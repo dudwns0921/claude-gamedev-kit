@@ -13,19 +13,13 @@ Whatever turns out different, add it to your rules (`/gamedev-kit:feedback` — 
   After installing, `init.py unity --import` runs `<Unity> -batchmode -quit -projectPath <game root> -logFile -` once: it compiles and creates the `.meta` files for what init installed, and stops on `error CS` lines.
   Commit the `.meta` files. Both need the editor closed on this project. (Run on macOS; not on Windows or Linux.)
 - `.gitignore`: init appends the lines in `engines/unity/gitignore` (`Library/`, `Temp/`, `Logs/`, `obj/`, `UserSettings/`, `build/`, `*.csproj`, `*.sln`, `*.slnx`, `*.keystore`, `*.jks`, `assets/_gen/*/raw.glb`).
-- Write the Unity executable path of this machine and the installed modules in the game's CLAUDE.md **under the existing `## This game's rules` heading** (`--editor` prints the line; do not add a second heading),
-  and export the path as `UNITY` for the build command.
+- Write the Unity executable path of this machine and the installed modules in the game's CLAUDE.md **under the existing `## This game's rules` heading** (`--editor` prints the line; do not add a second heading).
 - **Unity's own plugin for Claude Code, if used**: install it for this project, not for the user (`claude plugin install unity@claude-plugins-official --scope project`, run in the game root) —
   it is then written in `.claude/settings.json`, which is committed, so every machine that builds this game has the skills the plan names on a task's "Skills" line.
-- **What the user does once (Claude cannot):** install Unity Hub and the editor, and sign in to activate the license; set the package name (Player Settings → Android → Identification, `com.<name>.<game>`) — it cannot change after the first upload;
-  create the upload keystore (Player Settings → Publishing Settings → Keystore Manager) and **keep it and its passwords outside the repo, with a backup**.
-- **Build (Android App Bundle)**: `deploy.py build android` runs `Assets/Editor/KitBuild.cs` in batch mode and leaves `build/android/game.aab` (IL2CPP · ARM64 · app bundle).
-  Close the editor first — batch mode cannot open a project the editor has open. Signing comes from the environment:
-  `KIT_KEYSTORE` (path) · `KIT_KEYSTORE_PASS` · `KIT_KEY_ALIAS` · `KIT_KEY_PASS`, and `KIT_VERSION_CODE` (an integer that must grow with every upload).
-  Without `KIT_KEYSTORE` the bundle is debug-signed and Play rejects it. The build writes its settings into `ProjectSettings/ProjectSettings.asset` — look at `git diff` afterwards.
-  The version is read from `bundleVersion` in that file (Player Settings → Version).
-- **Upload**: the bundle goes to the platform in `deploy.platform` in `kit.config.json`; write the package name set above in `deploy.target`.
-  `deploy.py notes` says what the user does once there, and `deploy.py push` says which file the user uploads and where.
+- **What the user does once (Claude cannot):** install Unity Hub and the editor, and sign in to activate the license.
+- **On a phone**: the editor is not the device — play it there with File → Build Profiles → Build and Run, the phone plugged in (Android: USB debugging on; iPhone: a Mac with Xcode).
+- **A store build** (when the user asks — the kit has no step for it): the package name (Player Settings → Identification, `com.<name>.<game>`) cannot change after the first upload,
+  and the upload keystore (Player Settings → Publishing Settings → Keystore Manager) stays **outside the repo, with a backup** — without it no update can be uploaded.
 - **Assets (asset skill)**: finished models land in `Assets/Models/<name>.fbx` — Unity does not read glb without an extra package. 1 unit is 1 m.
   Check the first model's scale and rotation in a scene (FBX from Blender often arrives rotated or scaled by 100). (`art/_gen/*/raw.glb` is in the `.gitignore` lines init appends.)
   The asset skill's work folder is `art/_gen/` here, not `assets/_gen/` — on a disk that ignores case (macOS · Windows) `assets/` is `Assets/`, and Unity would import the source pictures and gifs.

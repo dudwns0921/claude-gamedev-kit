@@ -26,22 +26,6 @@
     "doc_prefix": "///",
     "comment": "//"
   },
-  "deploy": {
-    "platform": "itch",
-    "target": "",
-    "version": {
-      "file": "game/version.js",
-      "regex": "VERSION = \"([^\"]+)\""
-    },
-    "pre": [],
-    "channels": {
-      "html5": {
-        "build": "rm -rf build/web && mkdir -p build/web && cp -R index.html game build/web/ && if [ -d assets ]; then cp -R assets build/web/; fi",
-        "dir": "build/web",
-        "must": "index.html"
-      }
-    }
-  },
   "asset": {
     "dir": "assets/models",
     "format": "glb",

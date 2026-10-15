@@ -1,7 +1,7 @@
 ---
 name: init
 description: >-
-  Sets a game repo up for gamedev-kit, from an empty folder if need be: asks where the game will be played (a phone · a browser) and so which engine, finds the editor on this machine and the build modules it needs,
+  Sets a game repo up for gamedev-kit, from an empty folder if need be: asks where the game will be played (a phone · a computer · a browser — one or several) and so which engine, finds the editor on this machine and the build modules it needs,
   creates the engine project when there is none, then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
   the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by offering the dashboard of all games (one question, only where Node.js is) and goes on into the GDD with what the user said about the game.
   Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game — "이런 게임 만들고 싶어" ("I want to make a game like …"), "게임 만들자" ("let's make a game") in a folder without kit.config.json — on "gamedev-kit 깔아줘" ("install gamedev-kit"),
@@ -27,9 +27,11 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    ```
 
    If the folder is already an engine project (or the kit is already installed), it names the engine — use it and do not ask.
-   Otherwise it lists the engines **by where their games are played**. Ask **one question, about the player, not the tool**: where will people play it —
-   each option is a line it printed, said in the player's terms (on a phone · in a browser …), with the engine named after it.
-   Mark one `recommended`, from what the user said about the game ("a quick puzzle for the commute" → a phone; "something to share by link" → a browser; 3D → not the editorless one).
+   Otherwise it lists each engine with where its games can be played, what it suits and when to pick it. Ask **about the player, not the tool**, in one decision:
+   where will people play it — a phone (Android · iPhone), a computer (Steam), a browser (shared by a link) — **more than one may be picked**, and
+   **ask whether a store or a computer may come later even if it starts in a browser** (it moves the choice: a browser-only engine cannot follow there without a wrapper).
+   Then recommend the engine whose `pick it when` fits the places and the game the user described (2D or 3D, how large), say why in one line, and name the alternative.
+   Say the costs of the places picked once: an iPhone build needs a Mac with Xcode, and each store has its own developer account and fee — uploading is not the kit's (the user asks Claude Code when the game is ready).
    If the user already said where it is played or which engine ("a Godot one", "for Android"), do not ask — say in one line which engine that means and go on.
    If the repo belongs to any other engine, do not install and say so.
    **Keep what the user said about the game** — it is the first answer of the GDD interview that follows (step 11), not to be asked again.
@@ -37,9 +39,10 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 2. **The editor on this machine.**
 
    ```bash
-   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --editor
+   python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" <engine> --editor --for <places>
    ```
 
+   `<places>` is where the game is played, as the words the modules name (`Android,iPhone`) — only those places' build modules are checked.
    It prints the editor executable it found (the newest when several versions are installed) and whether the modules a build needs are there.
    When something is missing it prints exactly what to install and exits 1: **relay that to the user and wait.** Installing an editor or a module is a download of several GB
    and signing in to the engine's hub (license) is the user's — do not run an install command unasked, even though one is printed. After they say it is done, run `--editor` again.
@@ -80,8 +83,8 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 7. **Create the table and check.** Create `data/balance.xlsx` with the balance-table skill's `export`, and check with the gdd-sync skill that
    a report comes out. It works if the GDD template's example row (BAL.PLAYER.HP) pairs with the value file's example value and shows as `synced`.
 
-8. **Fill in deploy · assets when you use them.** `deploy.target` in `kit.config.json` (the game on the platform in `deploy.platform`), the asset API key, and
-   the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the deploy · asset skills guide how to fill them.
+8. **Fill in assets when you use them.** The asset API keys and the art-style paragraph of `docs/DESIGN.md` are installed empty. On first use the asset skill guides how to fill them —
+   and without them the cycle runs on placeholders, with the user putting their own files in the slots.
 
 9. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
     Run `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" serve --status` and `command -v node git`, then:

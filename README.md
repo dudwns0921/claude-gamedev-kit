@@ -3,7 +3,7 @@
 </p>
 
 **Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.**
-A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** (Android) and plain **web** games.
+A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** and plain **web** games — for phones, computers or the browser. It asks where your game will be played and picks the engine with you.
 
 [Landing page](https://gamedev-kit-site.vercel.app)
 
@@ -48,8 +48,10 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 
 What tripped you becomes one of your rules, loaded into every game you make next. Once you say so, rules go to this repository as issues, and the ones that hold for anyone become the kit's rules for everybody.
 
-Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, `gdd-sync`, `deploy`, … — if you would rather type one.
-Assets are optional: a cycle runs on placeholders, and any file you put in its place counts.
+Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, `gdd-sync`, `asset`, … — if you would rather type one.
+
+Models, sprites, sounds and clips can be made through outside services with your own API keys — or not at all: a cycle runs on placeholders, and any file you make and put in its place counts.
+The kit covers making the game; when it is ready to ship, ask Claude Code to build and upload it.
 
 ## Updating
 

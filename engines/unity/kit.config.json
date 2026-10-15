@@ -13,15 +13,6 @@
     "doc_prefix": "///",
     "comment": "//"
   },
-  "deploy": {
-    "platform": "google-play",
-    "target": "",
-    "version": { "file": "ProjectSettings/ProjectSettings.asset", "regex": "bundleVersion: (\\S+)" },
-    "pre": [],
-    "channels": {
-      "android": { "build": "\"${UNITY:?set UNITY to the Unity editor executable}\" -batchmode -quit -projectPath . -buildTarget Android -executeMethod KitBuild.AndroidAab -logFile -", "dir": "build/android", "must": "game.aab" }
-    }
-  },
   "asset": {
     "work": "art/_gen",
     "dir": "Assets/Models",

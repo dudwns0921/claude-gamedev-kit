@@ -2,8 +2,9 @@
 """Install the files gamedev-kit uses into a game repository. Run it at the game repository's root.
 
   python3 init.py              list the engines that can be installed
-  python3 init.py --detect     which engine's project this folder already is (or the engines to choose from: where each one's games are played, what it suits)
-  python3 init.py <engine> --editor     the editor executable on this machine and the modules a build needs — if missing, says what to install and exits 1
+  python3 init.py --detect     which engine's project this folder already is (or the engines to choose from: where each one's games are played, what it suits, when to pick it)
+  python3 init.py <engine> --editor [--for Android,iPhone]     the editor executable on this machine and the modules a build needs — only those for the places named
+                                       with --for (modules with no `for` always). If missing, says what to install and exits 1
   python3 init.py <engine> --create     create the engine project in this folder if there is none (.git · docs/ may already be there)
   python3 init.py <engine>       install the config · GDD template · engine templates. Also adds the engine's .gitignore lines
   python3 init.py <engine> --import     have the engine read the installed files once (compile · import). Exits 1 if there are error lines
@@ -28,7 +29,8 @@ How to recognise an engine project · find the editor · create one is in engine
   marker    if this file exists, it is that engine's project
   editor    env (environment variable pointing at the executable) · path (names to look for on PATH) · <sys.platform>.glob (where it installs — if several, the newest by the version regex) ·
             <sys.platform>.modules (from the executable's folder to the modules folder) · missing (what to tell the user when it is not there)
-  modules   for each module a build needs: name · dir · must (what has to be inside) · install (what to say when missing. {version} is filled in)
+  modules   for each module a build needs: name · dir · must (what has to be inside) · for (the place it builds for — a word of choose.plays_on) · install (what to say when missing. {version} is filled in)
+  choose    how the engine is chosen: plays_on (where its games can be played) · suits · pick_when (the user's game that makes it the one to recommend)
   create · import   files (files written if absent) · run (commands — {editor} · {root} · {log}) · error (regex for error lines to look for in the output)
 """
 import glob
@@ -115,7 +117,7 @@ def need_editor(engine):
     return exe, version
 
 
-def cmd_editor(engine):
+def cmd_editor(engine, places=None):
     spec = project(engine)
     ed = spec.get("editor", {})
     if not ed:
@@ -125,7 +127,11 @@ def cmd_editor(engine):
     print(f"{ed.get('name', engine)} {version} — {exe}".replace("  ", " ")
           + (f"\n  installed versions {' · '.join(versions)} — picked the newest (for another, set the environment variable {ed['env']})" if len(versions) > 1 else ""))
     base, have, lack = ed.get(sys.platform, {}).get("modules"), [], []
+    wanted = [w.lower() for w in places or []]
     for mod in spec.get("modules", []):
+        if wanted and mod.get("for") and mod["for"].lower() not in wanted:
+            print(f"  skipped  {mod['name']} — for {mod['for']}, not where this game is played")
+            continue
         if base is None:
             print(f"  unknown  {mod['name']} — where it installs on this machine is not known. Check in the editor")
             continue
@@ -139,7 +145,8 @@ def cmd_editor(engine):
             print(f"  missing  {mod['name']} — " + (f"{' · '.join(gone)} not found in it" if os.path.isdir(folder) else f"{folder} does not exist"))
             print("\n".join(f"           {line.replace('{version}', version)}" for line in mod.get("install", [])))
     print("\nWrite under `## This game's rules` in CLAUDE.md (that heading already exists — do not create a new one): "
-          f"editor executable `{exe}`" + (f" · installed modules {' · '.join(have)}" if have else ""))
+          f"editor executable `{exe}`" + (f" · installed modules {' · '.join(have)}" if have else "")
+          + (f" · played on {' · '.join(places)}" if places else ""))
     if lack:
         sys.exit(f"\nmodules the build needs are missing: {' · '.join(lack)} — installing them is the user's call (the download is large). Run this again after installing")
 
@@ -342,13 +349,21 @@ def main():
     if "--detect" in args:
         here, config = detect(root), os.path.join(root, "kit.config.json")
         has = json.load(open(config, encoding="utf-8")).get("engine", "") if os.path.exists(config) else ""
-        def choice(e):  # where a game made with it is played, and what it suits — the engine's own words (engines/<engine>/project.json)
+        def choice(e):  # where a game made with it can be played, what it suits and when to pick it — the engine's own words (engines/<engine>/project.json)
             c = project(e).get("choose", {})
-            return f"  {e} — plays {c['plays_on']} · {c['suits']}" if c.get("plays_on") else f"  {e}"
+            if not c.get("plays_on"):
+                return f"  {e}"
+            return (f"  {e}\n    plays on:     " + "\n                  ".join(c["plays_on"])
+                    + f"\n    suits:        {c.get('suits', '')}\n    pick it when: {c.get('pick_when', '')}")
         print("\n".join(f"{e} — {project(e)['marker']} exists" for e in here)
               or "not an engine project — engines to choose from, by where the game is played:\n" + "\n".join(choice(e) for e in engines()))
         return print(f"the kit is already installed as {has} (kit.config.json)" if has else "the kit is not installed yet (no kit.config.json)")
     again_files, only_rules, force = "--files" in args, "--rules" in args, "--force" in args
+    places = None
+    if "--for" in args:  # where the game is played — only those places' build modules are checked
+        i = args.index("--for")
+        places = [w.strip() for w in (args[i + 1] if i + 1 < len(args) else "").split(",") if w.strip()]
+        del args[i:i + 2]
     steps = [a for a in args if a in ("--editor", "--create", "--import", "--gitignore")]
     args = [a for a in args if a not in ("--files", "--rules", "--force", *steps)]
     if not args:
@@ -362,7 +377,7 @@ def main():
         return sync_rules(root, engine, force)
     if steps:  # the engine project's side — each is called on its own
         if steps[0] == "--editor":
-            return cmd_editor(engine)
+            return cmd_editor(engine, places)
         if steps[0] == "--create":
             return cmd_create(engine, root)
         if steps[0] == "--import":

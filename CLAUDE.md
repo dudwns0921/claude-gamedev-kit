@@ -6,13 +6,9 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 
 - **Whatever differs per engine lives only in `engines/<engine>/`.** Do not put branches on an engine's name into skills or scripts.
   Scripts read only values from `kit.config.json` (extensions · regexes · paths). Adding an engine must be a matter of adding one folder.
-  The engines included now are Godot, Unity (Android) and web (plain HTML and JavaScript — no editor) — **only an engine verified by making a whole game with it goes in** (the Roblox settings were removed in 0.9.0; they are in the git history).
+  The engines included now are Godot, Unity and web (plain HTML and JavaScript — no editor) — **only an engine verified by making a whole game with it goes in** (the Roblox settings were removed in 0.9.0; they are in the git history).
   Unity and web are being filled in while games are made with them — how far it has been run is recorded in `records.md`.
   `tests/test_structure.py` blocks an engine's name appearing as a string in a script.
-- **Whatever differs per upload platform lives only in `platforms/<platform>/`.** The tool an upload needs, how to tell it is logged in, the upload command
-  (or that there is none and the user uploads by hand), the form of a target are data in `platform.json`; what the user does once is in its `NOTES.md`.
-  The deploy script branches only on what that file says, and the deploy skill and agent name no platform. Adding a platform must be a matter of adding one folder.
-  Which platform an engine's build is for is in that engine's `kit.config.json` (`deploy.platform`). `tests/test_structure.py` blocks a platform folder's name appearing as a string in a script.
 - **A skill is complete within its own folder.** Do not import another skill's scripts. Settings go in `kit.config.json` under a section named after the skill.
 - **Scripts use only the standard library** (Python 3.9 — a package missing on the installing side breaks only there. `tests/test_structure.py` blocks it). Only the script Blender runs (`blender_finish.py`) uses `bpy`. The game root is found by walking up from the current folder — never from the script's location.
 - **Do not overwrite files in the game repository.** init creates only files that do not exist. There is one exception — the `<!-- gamedev-kit start -->` block (`<!-- gamedev-kit 시작 -->` in a game set up by an older kit) inside the game's CLAUDE.md belongs to the kit,
@@ -21,21 +17,24 @@ This is a Claude Code plugin repository. There is no game code here — the plug
   `hooks/hooks.json` (`${CLAUDE_PLUGIN_ROOT}/…`) — hooks fail silently. `tests/test_structure.py` blocks it.
 - **The plugin's description is written in one place, `plugin.json`.** Writing it again in the plugin entry of `marketplace.json` leaves one side stale.
 - Skill names are embedded in the games' CLAUDE.md and GDD (`/gamedev-kit:gdd-sync`). Do not change them.
-- **For anything that goes out (deploying · posting), the script checks and the skill asks.** An agent neither obtains approval nor skips it.
+- **For anything that goes out (an issue posted to this repository), the script checks and the skill asks.** An agent neither obtains approval nor skips it.
   Logins and tokens are done by the user and kept outside the repository.
 - **Do not write instructions that make something read a cycle or playtest document whole.** The lines needed are pulled out by that skill's script (`cycle.py` · `playtest.py`).
 - **Do not write a game's name.** This repository is installed into any game. When bringing over something learned in a game, drop that game's name · files · numbers and
   keep only the rule and its reason ("where it was learned" stays in the user's own rules — do not write a game's name in commit messages either). Use `<game>` in examples.
 - **The cycle owns an asset's slot, not how it is made.** Name, path and size belong to the workflow; a file in the slot counts whoever made it.
   The asset and video skills are optional ways to fill slots — nothing in the cycle, the board or the other skills may require their services.
+  Without them (no key, or the user would rather not), the cycle still runs: the slot waits on a placeholder and the user makes the file and puts it there.
+- **The kit covers making a game and showing where it stands — nothing after.** What repeats while a game is made (cycles, GDD ↔ code, decisions, assets in slots) is the kit's;
+  what happens now and then at the end (a store build, signing, uploading) is left to Claude Code itself, asked in plain words. Do not add a skill for it.
 - **Commit messages are written in English**, as `<version> — <summary>`.
 - After a change, bump `version` in `.claude-plugin/plugin.json` — without it the installed side does not receive the new version.
 
 ## Verification
 
 ```bash
-python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init's engine project creation runs against a fake editor, deploy against a fake upload tool (the platform files are read as they are), feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
-python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's or a platform's name in scripts, is only the standard library used
+python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init's engine project creation runs against a fake editor, feedback against a fake gh · a fake GitHub server, asset and start's concept images against a fake API server, video against a fake Higgsfield server · a fake ffmpeg (asset's finishing runs for real if Blender is present)
+python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's name in scripts, is only the standard library used
 claude plugin validate .           # manifest
 ```
 

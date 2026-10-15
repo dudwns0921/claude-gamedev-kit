@@ -18,7 +18,7 @@ Items with an ID in the GDD Appendix A sync table (numbers · enums · rules · 
 
 The game runs on the balance value file. `data/balance.xlsx` is those numbers on one sheet, for the user to look over; a hook rewrites it whenever the value file changes.
 
-- The user changed a number in the table → balance-table `bake`, then `/gamedev-kit:gdd-sync to-gdd`. `check` must pass before deploying.
+- The user changed a number in the table → balance-table `bake`, then `/gamedev-kit:gdd-sync to-gdd`. `check` must pass before a build goes out to players.
 - **Rewriting the table overwrites it with the code's values.** If the user may have changed numbers in the table and not baked them, run `check` before editing the value file — if it differs, ask whether to bake first.
 
 ## Which skill takes what
@@ -33,7 +33,6 @@ This session directs; the skills and their agents do the work. Each skill's own 
 | A 3D model, a 2D sprite or a sound | `/gamedev-kit:asset` — the style is the one paragraph in [docs/DESIGN.md](docs/DESIGN.md); do not write a style per asset |
 | A trailer shot or a cutscene clip | `/gamedev-kit:video` |
 | "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
-| Building and uploading | `/gamedev-kit:deploy` |
 | Starting over light | `/clear`, then `/gamedev-kit:cycle next` — in the same window, so the dashboard stays connected; the cycle document holds the state, and work in hand that is not in it is left there first (the cycle skill's "Leaving a session") |
 
 ## The user decides
@@ -52,4 +51,4 @@ Do not read cycle · playtest documents whole — that skill's script extracts t
 ## What was learned, and what goes outside
 
 - A pitfall or a way to verify is sorted when it happens, not saved up: specific to this game → this file's "Pitfalls"; would trip this user again in another game → one of the user's own rules (`add` of the feedback skill — it holds from the next session, in every game of theirs). The feedback skill sends those rules on to the kit, as the user has said they should go.
-- Before anything is uploaded, show the target · version · size and get consent. Logins and API keys live outside the repository — do not write them in any file.
+- Before anything goes outside (a build uploaded to a store, an issue posted), say what goes where and get consent. Logins and API keys live outside the repository — do not write them in any file.

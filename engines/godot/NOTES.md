@@ -1,7 +1,7 @@
 # Godot
 
 - **Editor (`init.py godot --editor`)**: `GODOT` if set, else `godot` · `godot4` on PATH, else (macOS) `/Applications/Godot*.app/Contents/MacOS/Godot`. The kit's commands call `godot` —
-  if it was found only as an app, put it on PATH under that name or write the path in the game's CLAUDE.md under the existing `## This game's rules` heading. Godot has no build modules to check here (export templates are below, under Deploy).
+  if it was found only as an app, put it on PATH under that name or write the path in the game's CLAUDE.md under the existing `## This game's rules` heading. Godot has no build modules to check here (export templates are below, under Exporting).
 - **Creating the project (`init.py godot --create`)**: Godot has no create command — a folder with a `project.godot` is a project, so init writes a minimal one (`config_version=5`, an empty `config/name`, `config/version="0.1.0"`).
   Set the name in Project Settings (or in the file) and open the project once in the editor so it fills in the rest (`config/features`, the renderer, an icon). `init.py godot --import` runs `godot --headless --path <game root> --import`.
 - `.gitignore`: init appends the lines in `engines/godot/gitignore` (`.godot/`, `/android/`, `build/`, `assets/_gen/*/raw.glb`).
@@ -11,13 +11,12 @@
 - **A game installed by an older kit** has code that reads the balance table while the game runs. The kit no longer installs it. To remove it: delete
   `game/config/balance_table.gd` and `game/debug/balance_watch.gd`, remove the `BalanceWatch` line under `[autoload]` in `project.godot`, and in `game/config/balance.gd` delete
   the `Table` and `TABLE_PATH` constants, `_static_init()` and `reload_table()` — the value lines stay as they are. Nothing breaks if it is left in.
-- **Deploy**: the Web build goes to the platform in `deploy.platform` in `kit.config.json`; write the game there in `deploy.target` (`deploy.py notes` says what it looks like and what the user does once). In the editor's Project → Export create a preset named **`Web`**
-  and download the export templates (once, by the user in the editor). If you name the preset differently, change `deploy.channels.html5.build`.
-  The version is read from `config/version` in `project.godot` — set it in Project Settings → Application → Config → Version.
-  The export does not create its target folder — the build command makes it first (`mkdir -p build/web && …`).
+- **Exporting** (when the user asks for a build — the kit has no step for it): in the editor's Project → Export the user creates a preset (e.g. **`Web`**)
+  and downloads the export templates once; then `godot --headless --path . --export-release <preset> <path>`.
+  The version is `config/version` in `project.godot` (Project Settings → Application → Config → Version).
+  The export does not create its target folder — make it first (`mkdir -p build/web && …`).
   Add `build/*` to the preset's exclude filter: a build folder inside the project is packed into the next `.pck`, pictures and all.
   Plain text (a licence `.txt`) is not packed by default — add `*.txt` to the preset's include filter, or put the credits in the game.
-  To add a desktop build, add a channel: `"windows": { "build": "godot --headless --path . --export-release Windows build/windows/game.exe", "dir": "build/windows" }`.
 - **Assets (asset skill)**: finished models land in `assets/models/<name>.glb`. Godot reads glb as is — if the editor is open it imports when you return to the window,
   if closed import with `godot --headless --path . --import`. 1 unit is 1 m, so `--size` is the in-game size as is. The origin is the center of the bottom.
   The art style paragraph in `docs/DESIGN.md` and the API key are walked through by the asset skill on first use.

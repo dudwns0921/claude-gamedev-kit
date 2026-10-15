@@ -3,7 +3,7 @@
 
   python3 tests/test_structure.py
 
-Do the files the skill documents and hooks point to exist, are the scripts free of branches on an engine's or a platform's name, do they use the standard library only.
+Do the files the skill documents and hooks point to exist, are the scripts free of branches on an engine's name, do they use the standard library only.
 """
 import ast
 import glob
@@ -56,15 +56,13 @@ class Structure(unittest.TestCase):
         self.assertTrue(seen, "found no path pointed to at all — has the way they are written changed?")
 
     def test_no_engine_branches(self):
-        """Engine names live in engines/ only and platform names in platforms/ only — scripts look at the values in kit.config.json and platform.json alone."""
+        """Engine names live in engines/ only — scripts look at the values in kit.config.json alone."""
         engines = [os.path.basename(p) for p in glob.glob(os.path.join(KIT, "engines", "*")) if os.path.isdir(p)]
-        platforms = [os.path.basename(p) for p in glob.glob(os.path.join(KIT, "platforms", "*")) if os.path.isdir(p)]
         self.assertTrue(engines)
-        self.assertTrue(platforms)
         for path in scripts():
             with self.subTest(rel(path)):
                 found = [n.value for n in ast.walk(ast.parse(read(path)))
-                         if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.lower() in engines + platforms]
+                         if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.lower() in engines]
                 self.assertEqual(found, [])
 
     def test_stdlib_only(self):

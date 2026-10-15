@@ -13,15 +13,6 @@
     "doc_prefix": "##",
     "comment": "#"
   },
-  "deploy": {
-    "platform": "itch",
-    "target": "",
-    "version": { "file": "project.godot", "regex": "config/version=\"([^\"]+)\"" },
-    "pre": [],
-    "channels": {
-      "html5": { "build": "mkdir -p build/web && godot --headless --path . --export-release Web build/web/index.html", "dir": "build/web", "must": "index.html" }
-    }
-  },
   "asset": {
     "dir": "assets/models",
     "format": "glb",

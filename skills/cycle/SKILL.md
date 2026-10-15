@@ -173,7 +173,7 @@ If a problem list comes, hand it to `/gamedev-kit:playtest` and write that docum
 If given screenshots, you may call the designer with `review` (without a model — Opus — in either mode; checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
 When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
-**Shipping is not a stage.** A build goes out when the user asks for one (`/gamedev-kit:deploy`), usually after several cycles — do not ask about it or offer it here.
+**Shipping is not a stage.** A build goes out when the user asks for one, usually after several cycles — do not ask about it or offer it here.
 
 ## What was learned — when it happens
 

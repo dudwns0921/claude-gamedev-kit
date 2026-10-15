@@ -5,7 +5,7 @@ description: >-
   in code, which is what the game runs on. Code → table (export; a hook does it whenever the value file changes), table → code (bake),
   are they equal (check). Engine-agnostic (kit.config.json sets the shape of a value line). Use when the user says "밸런스 표" ("balance table"), "엑셀" ("Excel"),
   "표 구워줘" ("bake the table"), "bake", "표랑 코드 맞춰" ("align the table and the code"), "표 보여줘" ("show me the table"); the user says they changed a number in the table
-  (bake → gdd-sync to-gdd); the table does not exist yet or looks out of date (export); before making a deploy build (check).
+  (bake → gdd-sync to-gdd); the table does not exist yet or looks out of date (export); before making a build that goes out to players (check).
 ---
 
 # balance-table
@@ -32,7 +32,7 @@ the user saved it in the spreadsheet and has not baked, or the table was never s
 | There is no table yet | `export` — the first run is the opt-in; the hook only rewrites a table that exists |
 | The user changed a number in the table | `bake` → `/gamedev-kit:gdd-sync to-gdd` |
 | The value file is about to be edited (a task, `/gdd-sync to-code`) and the table may hold unbaked changes | `check` first. If it differs, ask the user whether to bake |
-| Making a deploy build | `check` must pass. Put it in the build script |
+| Making a build that goes out to players | `check` must pass. Put it in the build script |
 
 **export rewrites the table with the code values**, and an edit to the value file makes the hook do exactly that. Numbers the user changed in the table and has not baked
 are lost then — that is why `check` comes before editing the value file.
@@ -52,7 +52,7 @@ are lost then — that is why `check` comes before editing the value file.
 - Names that exist only in the table are ignored.
 - The game does not read the table. A number changed there takes effect after `bake`, on the next run of the game.
 
-## Deploy build check
+## Release build check
 
 The plugin is installed in a folder managed by Claude, so the game's build script cannot call this script by path.
 If the build script must run `check`, copy `scripts/balance_table.py` into the game repository's `tools/` and call that

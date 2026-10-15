@@ -7,5 +7,5 @@ Whatever turns out different, add it to your rules (`/gamedev-kit:feedback` — 
 - The game runs on the value file. The balance table (`data/balance.xlsx`) is a view of it: a number changed in the table reaches the game after `bake`, on the next page load.
 - `.gitignore`: init appends the lines in `engines/web/gitignore` (`build/`, `node_modules/`).
 - Write the headless browser's executable path in the game's CLAUDE.md under "Running".
-- **Deploy**: the build goes to the platform in `deploy.platform` in `kit.config.json`; write the game there in `deploy.target` (`deploy.py notes` says what it looks like and what the user does once). The `html5` channel copies `index.html`, `game/` and `assets/` into `build/web` —
-  if the game loads anything from another folder, add it to that channel's `build` command. The version is read from `game/version.js`.
+- **A build to put online** (when the user asks — the kit has no step for it) is `index.html`, `game/` and `assets/` copied into `build/web`, plus any other folder the game loads from.
+  The version is in `game/version.js`.

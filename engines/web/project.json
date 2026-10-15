@@ -1,7 +1,10 @@
 {
   "choose": {
-    "plays_on": "in a browser — plain HTML and JavaScript on itch.io",
-    "suits": "small 2D games; no editor at all, the lightest to start"
+    "plays_on": [
+      "browsers, on a computer or a phone — loads at once, shared by a link (itch.io, any web host)"
+    ],
+    "suits": "small 2D games written all in code, no editor to install; physics, tilemaps and the like are written or brought in as libraries; reaching a store needs a wrapper the kit does not set up",
+    "pick_when": "it is played in a browser only, is 2D and small (minutes a session, a jam game, something to share by link)"
   },
   "marker": "index.html",
   "create": {
