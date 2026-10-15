@@ -1507,7 +1507,8 @@ def serve(whole, mode):
     have = env_lines(keys)
     started = not pid
     if not pid:
-        env = dict(os.environ, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1",
+        mine = re.compile(r"^(CLAUDE_CODE_|CLAUDECODE$|CLAUDE_EFFORT$|CLAUDE_PLUGIN_|CLAUDE_SKILL_|CLAUDE_PROJECT_DIR$)")  # what ties a process to this session
+        env = dict({k: v for k, v in os.environ.items() if not mine.match(k)}, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1",
                    CLAUDE_BIN=shutil.which("claude") or "claude")  # the dashboard runs Claude for answers no session took, once the user allows it
         with open(log, "a", encoding="utf-8") as f:
             proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(port), "-H", "127.0.0.1"], cwd=app, env=env,

@@ -1712,7 +1712,7 @@ if sys.argv[1] == "rev-parse":
             "npm": f"""import http.server, json, os, sys
 open({calls!r}, "a").write("npm " + " ".join(sys.argv[1:3]) + "\\n")
 if sys.argv[1:3] == ["run", "start"]:
-    open({calls!r}, "a").write("password " + os.environ.get("APP_PASSWORD", "none") + " token " + os.environ["INGEST_TOKEN"] + "\\n")
+    open({calls!r}, "a").write("password " + os.environ.get("APP_PASSWORD", "none") + " token " + os.environ["INGEST_TOKEN"] + " session " + os.environ.get("CLAUDE_CODE_SESSION_ID", "none") + "\\n")
     class S(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a): pass
         def reply(self, body=b""):
@@ -1730,7 +1730,7 @@ if sys.argv[1:3] == ["run", "start"]:
             with open(os.path.join(bin_dir, name), "w") as f:
                 f.write(f"#!{sys.executable}\n{body}")
             os.chmod(os.path.join(bin_dir, name), 0o755)
-        env = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"], KIT_NO_BROWSER="1")
+        env = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"], KIT_NO_BROWSER="1", CLAUDE_CODE_SESSION_ID="this-session")  # the session that runs serve — not passed on
         env.pop("GAMEDEV_BOARD_URL", None)
         env.pop("GAMEDEV_BOARD_TOKEN", None)
         serve = lambda *a: subprocess.run([sys.executable, BOARD, "--root", game, "serve", *a], capture_output=True, text=True, env=env, timeout=90)
@@ -1752,7 +1752,7 @@ if sys.argv[1:3] == ["run", "start"]:
         log = open(calls).read()
         self.assertIn("git clone --depth", log)
         self.assertIn("npm install --no-audit\nnpm run build\n", log)
-        self.assertIn(f'password none token {kept["GAMEDEV_BOARD_TOKEN"]}', log, "the server runs with the token the file holds, and no password")
+        self.assertIn(f'password none token {kept["GAMEDEV_BOARD_TOKEN"]} session none', log, "the server runs with the token the file holds, and no password")
         self.assertNotIn("GAMEDEV_BOARD_PASSWORD", kept)
         self.assertIn(f'put /api/ingest/my-game/summary Bearer {kept["GAMEDEV_BOARD_TOKEN"]}', log, "and this game's board is sent at once")
         self.assertIn("running", serve("--status").stdout)
