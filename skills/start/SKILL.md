@@ -23,7 +23,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/start.py" unskip <gdd|concept>
 2. **Read only the stage file it names** (`stages/gdd.md` · `stages/concept.md` · `stages/goal.md`) and do that stage. Do not read the other two — each is read when its stage begins.
 3. **The user may skip a stage** ("컨셉은 나중에" — "the concept later", "GDD 는 이미 머리에 있어" — "the GDD is already in my head"). Run `skip`, say in one line what the later stages will lack because of it, and go on.
    `status` keeps listing skipped stages — mention them when the goal stage comes, once.
-4. **At the end of each stage, say in one line that this is a good place to close the session**: the state is in the files, so a new session continues with `/gamedev-kit:start`.
+4. **At the end of each stage, say in one line that this is a good place to `/clear`**: the state is in the files, so `/clear` then `/gamedev-kit:start` continues — in the same window.
    An interview grows the conversation fast, and everything re-read each turn costs — do not carry a finished stage into the next one unless the user wants to go on.
 
 What this skill does not do: it does not create a cycle document (the cycle skill's `new` does), does not write code, and does not make planning documents of its own —

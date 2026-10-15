@@ -135,7 +135,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 
 | Command | What it does |
 |---|---|
-| `/gamedev-kit:cycle` | One cycle through a single document: `<goal>` · `next` · `status`. `next` is also how a new session picks up where the last one stopped |
+| `/gamedev-kit:cycle` | One cycle through a single document: `<goal>` · `next` · `status`. `next` is also how a cleared session (`/clear`) picks up where it stopped |
 | `/gamedev-kit:playtest` | Problem list → analysis document → one agent per task. `plan` analyses only, `implement [T3 …]` builds only, `status` lists what remains |
 
 **Keep in sync, see where you are**
@@ -180,7 +180,7 @@ The frame comes from [gstack](https://github.com/garrytan/gstack) — an agent p
 | `playtest-analyst` | Opus | Finds the causes behind a problem list and writes them as a task document. Does not change code |
 | `deployer` | Sonnet | Check, build, upload to the configured platform. On a broken build, finds the first error and returns it |
 
-**Sessions stay short.** Most tokens go to what the main session re-reads every turn, so the ledgers of cycle and playtest documents are kept by scripts, a hook suggests a new session once context passes 200k tokens, and the cycle document carries the work across — what a session has in hand outside the tasks is left in it as a few lines.
+**Sessions stay short.** Most tokens go to what the main session re-reads every turn, so the ledgers of cycle and playtest documents are kept by scripts, a hook suggests `/clear` once context passes 200k tokens, and the cycle document carries the work across — what a session has in hand outside the tasks is left in it as a few lines.
 
 ## Your rules
 
@@ -254,7 +254,7 @@ engines/<engine>/   kit.config.json (engine settings) · NOTES.md (what to do af
 platforms/<name>/   platform.json (the upload tool, how to tell it is logged in, the upload command or what to tell you
                     when there is none, the form of a target) · NOTES.md (what you do once: log in, create the page)
 templates/          GDD.md · DESIGN.md · CLAUDE.md — templates installed into the game repo
-hooks/              suggest a new session when context grows · keep the kit's rule block current ·
+hooks/              suggest /clear when context grows · keep the kit's rule block current ·
                     send your rules to the kit as you said · keep the balance table and the board current as documents change
 tools/              session_usage.py — where tokens went, from a game repo's session logs ·
                     harvest.py — which issues a harvest reads, and the check on what it changed

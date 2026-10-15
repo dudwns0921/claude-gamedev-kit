@@ -1786,6 +1786,7 @@ if sys.argv[1:3] == ["run", "start"]:
         review = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
         self.assertEqual([(i["key"], i["latest"]) for i in review if i["kind"] == "decision"], [("c02-D1", True), ("c01-D1", False)],
                          "every open decision is on the review, the newest cycle first — not one decided for the user in a cycle that has moved on")
+        self.assertTrue(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "decisions asked — a break, where the session can be cleared")
         asks = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["asks"]
         self.assertIn({"doc": "02-shop.md", "num": "D1", "key": "c02-D1"}, [q.get("decision") for q in asks],
                       "a decision on the stage pages carries its review key — the dashboard sends \"not needed\" for it by that key")
@@ -1807,6 +1808,13 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("  D1 → ②\n", out)
         self.assertIn("  D1 → not needed (drop) — “no restarts now” [cycle 01 — --doc docs/cycle/01-bow.md]", out, "an older cycle's decision names its document")
         self.assertEqual(os.listdir(box), ["1.relayed"], "relayed — kept, so the dashboard shows the session is on it")
+        self.assertIn("reopen <key>", out, "the session is told how to leave one open")
+        self.assertIn("c02-D1", out.split("keys: ")[1])
+        # one answer left open by the session (it was mistyped): answerable again — out of the relayed batch, and not remembered as answered
+        self.assertIn("answerable again on the dashboard: c02-D1", run(BOARD, root, "reopen", "c02-D1").stdout)
+        self.assertEqual([r["key"] for r in json.load(open(os.path.join(box, "1.relayed")))], ["c01-D1"])
+        self.assertNotIn("c02-D1", json.load(open(os.path.join(root, "docs/board/answered.json"))))
+        self.assertIn("not found among relayed answers: c09-D9", run(BOARD, root, "reopen", "c09-D9").stdout)
         run(BOARD, root)
         self.assertEqual(os.listdir(box), ["1.relayed"], "while the board still asks them")
         run(CYCLE, root, "decide", "D1", "②")

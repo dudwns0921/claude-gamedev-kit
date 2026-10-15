@@ -63,4 +63,4 @@ When the user agrees:
 
 ## End of the stage
 
-`start.py status` shows concept as done. One line: this is a good place to close the session — a new session continues with `/gamedev-kit:start` (next: first goal).
+`start.py status` shows concept as done. One line: this is a good place to `/clear` — then `/gamedev-kit:start` continues (next: first goal).

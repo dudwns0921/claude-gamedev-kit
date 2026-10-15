@@ -40,12 +40,12 @@ python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped
 
 These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
 
-**Break sessions.** All state is in the document, so a new session continues with one `next`. There are three places to break —
+**Clear the context at the breaks — in the same session.** All state is in the document, so a cleared session continues with one `next`. There are three places to break —
 where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
-"Opening a new session here and continuing with `/gamedev-kit:cycle next` is lighter." If the user says just go on, go on.
-When decisions are asked and the board is shared, the user may answer on the link instead: then this session may stay open and wait — "Send to Claude" there wakes it
-(the board skill's "The link"). Say both in one line; a new session reads the saved answers just the same.
-A session that opened with `next` often starts at one of these (decisions asked again · Play) — it is already the light session, so do not recommend another; recommend only once this session has run a stage, a wave or a playtest round.
+"`/clear` here, then `/gamedev-kit:cycle next`, is lighter." The user stays in the same window (on the desktop, the terminal or their phone) and the dashboard stays connected to it —
+answers sent from there still wake it, and a cleared session picks up whatever waits as it starts. If the user says just go on, go on.
+When decisions are asked, the user may answer on the dashboard instead of the chat: this session stays open and waits, and "Send to the session" wakes it.
+A session that started (or was cleared) with `next` often starts at one of these (decisions asked again · Play) — it is already light, so do not recommend clearing again; recommend it only once this session has run a stage, a wave or a playtest round.
 Do not chain two or more cycles in one session. If work is in hand that the document does not hold (assets · settings · another repo · a fix under way), leave it first — "Leaving a session" below.
 
 **Not done in this session**: reading code · reading images · reading logs. Agents do all of it and only summaries come back. When relaying an agent's report to the user, do not expand it at length again.
@@ -211,7 +211,7 @@ Documents written before the kit wrote English use the Korean words (`# 사이�
 
 ## Leaving a session
 
-The cycle document is the one thing a new session picks up from — there is no separate note. Stage, decisions and tasks are already in it. What is not — work outside the tasks,
+The cycle document is the one thing a cleared (or new) session picks up from — there is no separate note. Stage, decisions and tasks are already in it. What is not — work outside the tasks,
 what the user said in this conversation that is written nowhere, a job still running — goes in with `carry`, one line each, **only what the next session cannot find in a file**:
 
 - unfinished work: what, how far, where to pick up (`file:line` · the command to type)
@@ -220,7 +220,7 @@ what the user said in this conversation that is written nowhere, a job still run
 
 Write from what you know now — do not re-read files to write the lines; that makes the session you are leaving heavier. A handful of lines, not the history of the conversation,
 not copies of logs or code. **Point only to files inside the repository** — what lives in the session's own folder (subagent transcripts) is deleted with the session.
-The script stamps each line with the date and the commit, and says so if there are uncommitted changes — relay that. Then one line: "Open a new session and run `/gamedev-kit:cycle next`." Do not continue working in this session.
+The script stamps each line with the date and the commit, and says so if there are uncommitted changes — relay that. Then one line: "`/clear`, then `/gamedev-kit:cycle next`." Do not continue working before the context is cleared.
 
 Before the first cycle there is no document to carry in, and none is needed: `/gamedev-kit:start` reads where the game stands from its files.
 

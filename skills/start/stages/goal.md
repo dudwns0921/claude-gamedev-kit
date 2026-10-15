@@ -25,6 +25,6 @@ If the user wants more in, do not argue — say what it adds to the first playab
 
 When the user agrees on the goal, in their words:
 
-- Say that the next step is `/gamedev-kit:cycle` with that goal, **and recommend a fresh session** — this one carries the interview; the cycle skill reads the GDD and DESIGN.md from the files.
+- Say that the next step is `/gamedev-kit:cycle` with that goal, **and recommend `/clear` first** — this conversation carries the interview; the cycle skill reads the GDD and DESIGN.md from the files.
 - Give the goal as one line they can paste: `/gamedev-kit:cycle <the goal, in the user's words>`.
 - If the user wants to go on in this session, invoke the cycle skill with that goal. Do not create the cycle document yourself — `cycle.py new` does, and from then on `start.py status` says the start is over.

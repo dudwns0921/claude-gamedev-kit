@@ -76,4 +76,4 @@ It is fine to stop at the end of a topic group (after 3, after 5, after 7, after
 ## End of the stage
 
 `start.py status` shows no empty required section. Tell the user in two or three lines what the GDD now says and what sits under `Open questions`, then the one line:
-this is a good place to close the session — a new session continues with `/gamedev-kit:start` (next: concept).
+this is a good place to `/clear` — then `/gamedev-kit:start` continues (next: concept).

@@ -8,6 +8,7 @@
   python3 board.py push [--if-changed]   send the board to your own board service (board.service.game in kit.config.json; address and token in board.service_file)
   python3 board.py serve [--stop | --status]   run the dashboard on this machine (cloned, built and started once; every game sends to it)
   python3 board.py watch [--rewake | --notice]   wake the session when answers arrive from the dashboard (the plugin's monitor · hooks run it)
+  python3 board.py reopen <key> …                 an answer from the dashboard the session leaves open (unclear, mistyped): its card can be answered again
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
 
 index.html is the chart — one card per stage of play, in play order: how far Function · Art · Sound · Verified have come.
@@ -1212,7 +1213,9 @@ def build(outdir, index_name):
     now = cycles[-1] if cycles else None
     c = tally([i for s in st for lane in LANES for i in s["lanes"][lane]])
     summary = {"name": name, "drawn": stamp, "complete": total, "share": CFG["share"] or None,
-               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"])} if now else None,
+               # a break: the cycle waits on the user (decisions asked, or time to play) — a good moment to /clear the session and go on with `cycle next`
+               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]),
+                       "pause": bool(re.match(STAGE_PLAY, now["stage"]) or any(not d["done"] for d in now["decisions"]))} if now else None,
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(review),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
@@ -1712,7 +1715,34 @@ def answers(path):
     json.dump(seen, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     for p in taken:  # relayed — kept as .relayed, so the dashboard shows "the session is on it" until the board no longer asks it
         os.replace(p, os.path.splitext(p)[0] + ".relayed")
+    if any(groups.values()):
+        out.append(f'Leaving one open (unclear, mistyped, not to act on now)? python3 "{os.path.abspath(__file__)}" reopen <key> — its card can be answered again')
+        out.append("  keys: " + " · ".join(f'{i["ref"][:30]} = {i["key"]}' for g in groups.values() for i, _p, _n in g))
     print("\n".join(out) if any(groups.values()) else "No new answers." + (f" ({out[-1]})" if stale else ""))
+
+
+def reopen(keys):
+    """An answer the session did not act on: the card is answerable again — taken out of the relayed batches, and forgotten as answered."""
+    folder = board_folder()
+    box, want = os.path.join(folder, "inbox"), set(keys)
+    done = set()
+    for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
+        if not name.endswith((".relayed", ".taken")):
+            continue
+        p = os.path.join(box, name)
+        rows = rows_in(load_json(p) or [])
+        keep = [r for r in rows if r.get("key") not in want]
+        done |= {r.get("key") for r in rows} & want
+        if len(keep) != len(rows):
+            if keep:
+                json.dump(keep, open(p, "w", encoding="utf-8"), ensure_ascii=False)
+            else:
+                os.remove(p)
+    seen_path = os.path.join(folder, "answered.json")
+    seen = load_json(seen_path) or {}
+    if want & set(seen):
+        json.dump({k: v for k, v in seen.items() if k not in want}, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print(f"answerable again on the dashboard: {' · '.join(sorted(want))}" + (f" (not found among relayed answers: {' · '.join(sorted(want - done))})" if want - done else ""))
 
 
 def main():
@@ -1745,6 +1775,9 @@ def main():
         elif args[0] == "answers" and len(args) == 2:
             setup(root)
             answers(args[1])
+        elif args[0] == "reopen" and len(args) >= 2:
+            setup(root)
+            reopen(args[1:])
         else:
             sys.exit(__doc__)
     except Exception as err:  # run by the hook, it never blocks the turn of the user, whatever happens

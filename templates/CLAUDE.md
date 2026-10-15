@@ -34,7 +34,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 | A trailer shot or a cutscene clip | `/gamedev-kit:video` |
 | "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
 | Building and uploading | `/gamedev-kit:deploy` |
-| Moving to a new session | `/gamedev-kit:cycle next` in the new one — the cycle document holds the state; work in hand that is not in it is left there first (the cycle skill's "Leaving a session") |
+| Starting over light | `/clear`, then `/gamedev-kit:cycle next` — in the same window, so the dashboard stays connected; the cycle document holds the state, and work in hand that is not in it is left there first (the cycle skill's "Leaving a session") |
 
 ## The user decides
 
@@ -46,7 +46,7 @@ Only the user can see and hear: after making an image, a sound or a clip, give t
 
 ## Keep sessions short
 
-The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · a new goal) reached by work in this session — a session that just opened at one is already the new one.
+The longer the conversation, the more is re-read every turn. At a cycle's break points (decisions asked · time to play · a new goal) reached by work in this session, recommend `/clear` then `/gamedev-kit:cycle next` — the same window stays connected to the dashboard. A session that just started or was cleared at one is already light.
 Do not read cycle · playtest documents whole — that skill's script extracts the lines needed.
 
 ## What was learned, and what goes outside
