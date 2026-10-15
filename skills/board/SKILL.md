@@ -171,7 +171,7 @@ From a phone or another computer: `tailscale serve --bg <port>` (only the user's
 Run `serve` once in each game that should appear (init offers it at the end); it also draws the game's own board and adds `docs/board/` to `.gitignore`. After a restart of the machine, `serve` starts it again.
 
 From then on a hook runs `board.py push --if-changed` in the background at the end of every turn: when the board was redrawn since the last push, it asks the dashboard
-which pictures it lacks, sends only those, then the page and the board as data (`docs/board/board.json` — the counts, and under `board` every stage with its items,
+which pictures it lacks, sends only those, then the board as data (`docs/board/board.json` — the counts, and under `board` every stage with its items,
 the open questions, the cycles, the review cards and the asset sheet; the dashboard draws its own screens from it). With the dashboard down, the hook does nothing.
 
 **Answers from the dashboard reach the session by themselves.** The dashboard's Review tab holds everything that waits on the user — every cycle's open decisions

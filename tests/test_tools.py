@@ -1664,13 +1664,13 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIn(f"pushed to {url}/g/sample", out.stdout, out.stderr)
         self.assertIn("files sent 1", out.stdout)
         self.assertEqual(got[0], ("POST", "/api/ingest/sample/check", "Bearer t0k"))
-        self.assertEqual([g[1].rsplit("/", 1)[0] for g in got[1:]], ["/api/ingest/sample/file", "/api/ingest/sample", "/api/ingest/sample"])
-        self.assertEqual([g[1].rsplit("/", 1)[1] for g in got[2:]], ["page", "summary"])
+        self.assertEqual([g[1] for g in got[1:]], [got[1][1], "/api/ingest/sample/summary"], "a picture, then the board as data — no page")
+        self.assertTrue(got[1][1].startswith("/api/ingest/sample/file/"))
         summary = json.load(open(os.path.join(root, "docs/board/board.json"))) if os.path.exists(os.path.join(root, "docs/board/board.json")) else None
         got.clear()
         self.assertIn("files sent 0", push().stdout, "what the service has is not sent again")
         local = sent[-1].get("local") or {}
-        self.assertEqual((local.get("root"), local.get("kit")), (root, KIT), "a dashboard on this machine is told where the game and the kit are")
+        self.assertEqual(local, {"root": root, "board": os.path.join(root, "docs/board")}, "a dashboard on this machine is told where the game's inbox is — nothing to run")
         got.clear()
         self.assertEqual(push("--if-changed").stdout, "", "nothing drawn since the last push — nothing sent")
         self.assertEqual(got, [])

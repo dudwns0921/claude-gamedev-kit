@@ -1361,7 +1361,7 @@ def secret(name):
 
 
 def push(changed_only):
-    """Sends the bundled board to your board service: the page, its summary, and only the files the service does not have yet.
+    """Sends the board to the dashboard: the board as data (the summary), and only the files it does not have yet.
     The service names nothing in the game repository; its address is in the config, its token in the environment (never in a file here)."""
     global SHARED
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
@@ -1384,8 +1384,7 @@ def push(changed_only):
     if changed_only and (not os.path.exists(out) or os.path.exists(stamp_path) and os.path.getmtime(stamp_path) >= os.path.getmtime(out)):
         return  # nothing drawn since the last push (or no board drawn here at all — `serve` draws it)
     SHARED = {}
-    pages, review, summary, line = build(folder, "index.html")
-    page = bundle(pages, "review.html" if review else "index.html", f"{summary['name']} board")
+    _pages, _review, summary, line = build(folder, "index.html")  # drawing the board names every picture and sound it points to
     base = f"{url}/api/ingest/{game}"
     missing = json.loads(call(base, "/check", token, json.dumps({"files": sorted(SHARED)}).encode(), "application/json", "POST")).get("missing", [])
     for pub in missing:
@@ -1393,11 +1392,8 @@ def push(changed_only):
             call(base, "/file/" + urllib.parse.quote(pub.split("/", 1)[1]), token, open(SHARED[pub], "rb").read(),
                  mimetypes.guess_type(pub)[0] or "application/octet-stream")
     if re.match(r"http://(localhost|127\.0\.0\.1)(:\d+)?$", url):
-        # A dashboard on this machine may act on the game itself (withdraw a decision, drop an asset attempt) by running the kit's scripts here.
-        # Paths never leave the machine: a service elsewhere is not told them
-        summary["local"] = {"root": ROOT, "kit": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-                            "python": sys.executable, "board": board_folder()}
-    call(base, "/page", token, page.encode("utf-8"), "text/html; charset=utf-8")
+        # A dashboard on this machine puts the user's answers in this game's inbox — the only thing it writes here. Paths never leave the machine
+        summary["local"] = {"root": ROOT, "board": board_folder()}
     call(base, "/summary", token, json.dumps(summary, ensure_ascii=False).encode("utf-8"), "application/json")
     os.makedirs(folder, exist_ok=True)
     open(stamp_path, "w").write(summary["drawn"])
