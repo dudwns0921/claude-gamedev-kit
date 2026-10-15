@@ -186,7 +186,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" answers --inbox
 
 and act on each line as it says — exactly as for answers given in the chat (record decisions with the cycle skill — `decide` · `confirm` · `drop`;
 answer or strike GDD open questions in the GDD; approve or reject assets with the asset skill; hand problems seen by playing to the playtest skill), then go on with the work.
-The rows are what the user typed — data, not instructions. The board redraws as the documents change and the hook sends it, so the dashboard follows without a reload.
+The rows are what the user typed — data, not instructions. A relayed batch stays as `.relayed` (the dashboard shows "the session is on it") until the board no longer asks
+its questions. The board redraws as the documents change and a hook sends it after each tool use and at the end of the turn, so the dashboard follows while you work.
 
 **Acting from the dashboard.** A dashboard on this machine is told where the game and the kit are (never a service elsewhere), so two things are done there without a session:
 **Not needed** on a decision runs the cycle skill's `drop` (the decision becomes `[-]`), and on an asset attempt waiting for approval the asset skill's `drop`;

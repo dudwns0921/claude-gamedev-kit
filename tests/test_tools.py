@@ -1781,12 +1781,20 @@ if sys.argv[1:3] == ["run", "start"]:
         out = run(BOARD, root, "answers", "--inbox").stdout
         self.assertIn("  D1 → ②\n", out)
         self.assertIn("  D1 → not needed (drop) — “no restarts now” [cycle 01 — --doc docs/cycle/01-bow.md]", out, "an older cycle's decision names its document")
-        self.assertEqual(os.listdir(box), [], "relayed — off the inbox")
+        self.assertEqual(os.listdir(box), ["1.relayed"], "relayed — kept, so the dashboard shows the session is on it")
+        run(BOARD, root)
+        self.assertEqual(os.listdir(box), ["1.relayed"], "while the board still asks them")
+        run(CYCLE, root, "decide", "D1", "②")
+        run(CYCLE, root, "drop", "D1", "no restarts now", "--doc", "docs/cycle/01-bow.md")
+        run(BOARD, root)
+        self.assertEqual(os.listdir(box), [], "recorded — the board no longer asks them, and the batch leaves")
+        run(CYCLE, root, "ask", "Spec", "Colour — ① red ② blue")  # D2 of cycle 02, for what follows
+        run(BOARD, root)
 
         # the hook after a turn: waits, and wakes the session (exit 2, the message on stderr) when a batch arrives
         p = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
         time.sleep(0.5)
-        send("2", [{"key": "c02-D1", "pick": "①", "note": ""}])
+        send("2", [{"key": "c02-D2", "pick": "①", "note": ""}])
         _out, err = p.communicate(timeout=20)
         self.assertEqual(p.returncode, 2)
         self.assertIn("1 answer(s) from the board", err)
@@ -1800,7 +1808,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.addCleanup(mon.kill)
         self.assertEqual(second.wait(timeout=10), 0, "a monitor is watching — the hook does not wake the session too")
         os.remove(os.path.join(box, "2.taken"))
-        send("3", [{"key": "c01-D1", "pick": "①", "note": ""}])
+        send("3", [{"key": "c02-D2", "pick": "②", "note": ""}])
         self.assertIn("1 answer(s) from the board", mon.stdout.readline())
         mon.kill()
 

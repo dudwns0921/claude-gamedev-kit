@@ -1267,6 +1267,7 @@ def draw(quiet):
     with open(os.path.join(folder, "board.json"), "w", encoding="utf-8") as f:  # the board as data — what a page elsewhere draws from
         json.dump(summary, f, ensure_ascii=False, indent=1)
     keep_review(review)
+    tidy_inbox({i["key"] for i in review})
     if not quiet:
         print(f"{os.path.relpath(out, ROOT)} — {line}")
         if CFG.get("gen_apart"):
@@ -1540,6 +1541,15 @@ def board_folder():
     return os.path.dirname(os.path.join(ROOT, CFG["out"]))
 
 
+def tidy_inbox(asked):
+    """A relayed batch leaves once the board no longer asks any of its questions (the session recorded them) — or after a day."""
+    box = os.path.join(board_folder(), "inbox")
+    for name in os.listdir(box) if os.path.isdir(box) else []:
+        p = os.path.join(box, name)
+        if name.endswith(".relayed") and (not {r["key"] for r in rows_in(load_json(p) or [])} & asked or time.time() - os.path.getmtime(p) > 86400):
+            os.remove(p)
+
+
 def claim():
     box, n = os.path.join(board_folder(), "inbox"), 0
     for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
@@ -1656,8 +1666,8 @@ def answers(path):
     if stale:
         out.append(f"{stale} saved answer(s) are to questions no longer on the page (answered, or the question changed) — ignored")
     json.dump(seen, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    for p in taken:  # relayed — off the inbox; the dashboard shows the answer as done once the board no longer asks it
-        os.remove(p)
+    for p in taken:  # relayed — kept as .relayed, so the dashboard shows "the session is on it" until the board no longer asks it
+        os.replace(p, os.path.splitext(p)[0] + ".relayed")
     print("\n".join(out) if any(groups.values()) else "No new answers." + (f" ({out[-1]})" if stale else ""))
 
 
