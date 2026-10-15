@@ -7,20 +7,16 @@ A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** (Androi
 
 ## Quick start
 
-In your game's folder (an empty one is fine):
-
-```bash
-claude plugin marketplace add dudwns0921/claude-gamedev-kit
-claude plugin install gamedev-kit@claude-gamedev-kit --scope project
-```
-
-Then just say what you want, in that folder:
+Open Claude Code in your game's folder (an empty one is fine) and just say what you want:
 
 ```
-let's make a game — a Godot one        → sets up the project, then writes the GDD with you, one question at a time
-this time, let's add a shop            → one cycle: spec, design, build; what is yours to decide waits on the dashboard
+install the gamedev-kit plugin from github.com/dudwns0921/claude-gamedev-kit   → then reopen Claude Code here
+let's make a game — a Godot one         → sets up the project, then writes the GDD with you, one question at a time
+this time, let's add a shop             → one cycle: spec, design, build; what is yours to decide waits on the dashboard
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
+
+To install it yourself instead: `claude plugin marketplace add dudwns0921/claude-gamedev-kit`, then `claude plugin install gamedev-kit@claude-gamedev-kit --scope project`.
 
 You need Claude Code and Python 3.9 or later; the dashboard needs Node.js; Godot and Unity need their editor.
 
