@@ -5,7 +5,7 @@
 **Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.**
 A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** (Android) and plain **web** games.
 
-**Site:** [gamedev-kit-site.vercel.app](https://gamedev-kit-site.vercel.app) · [한국어](https://gamedev-kit-site.vercel.app/ko)
+[Landing page](https://gamedev-kit-site.vercel.app)
 
 ## Quick start
 
