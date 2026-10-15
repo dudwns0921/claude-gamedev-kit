@@ -2,7 +2,7 @@
   <img src="assets/banner.svg" alt="claude-gamedev-kit — goal, spec, design, plan, build, play" width="860">
 </p>
 
-**A repeatable way to make a game with [Claude Code](https://code.claude.com) — one that gets better with every game you make.**
+**A repeatable way to make a game with [Claude Code](https://code.claude.com) — one that gets better with every game you make.** · [gamedev-kit-site.vercel.app](https://gamedev-kit-site.vercel.app) ([한국어](https://gamedev-kit-site.vercel.app/ko))
 
 You say what the next version should do. Agents write the spec, the design and the code, and stop to ask you whatever is yours to decide. You play it and say what is wrong. Then again. Works with **Godot**, **Unity** (Android) and plain **web** games.
 
@@ -40,7 +40,7 @@ claude plugin install gamedev-kit@claude-gamedev-kit --scope project
 Then, inside Claude Code:
 
 ```
-/gamedev-kit:init      pick an engine; the kit finds the editor, creates the project and installs its files
+/gamedev-kit:init      pick an engine; the kit finds the editor, creates the project and installs its files (and offers the dashboard)
 /gamedev-kit:start     write the GDD together, agree on the look, set the first goal
 /gamedev-kit:cycle     build that goal — and every goal after it
 ```

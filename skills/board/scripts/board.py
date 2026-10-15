@@ -1487,6 +1487,14 @@ def serve(whole, mode):
             json.dump(whole, f, ensure_ascii=False, indent=2)
             f.write("\n")
         CFG["service"] = whole[SECTION]["service"]
+    # The game's own board too: the hook redraws it and sends only when it changed. Its pages are redrawn from the documents — kept out of git
+    folder = os.path.relpath(os.path.dirname(os.path.join(ROOT, CFG["out"])), ROOT).replace(os.sep, "/") + "/"
+    ignore = os.path.join(ROOT, ".gitignore")
+    text = read(ignore)
+    if folder not in text.split("\n"):
+        with open(ignore, "a", encoding="utf-8") as f:
+            f.write(("" if not text or text.endswith("\n") else "\n") + "\n# the status board — redrawn from the documents\n" + folder + "\n")
+    draw(False)
     try:
         push(False)
     except Exception as err:

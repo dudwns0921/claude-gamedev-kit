@@ -169,7 +169,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve --stop
 It needs git and Node.js; without them it says so and the pages in `docs/board/` go on working. The app is cloned to `~/.config/gamedev-kit/board-app` (`board.app_dir`),
 outside every game. Its sign-in password and the token games send with are made on the first run and kept in `~/.config/gamedev-kit/board.env` — tell the user where
 the password is; do not print it into the conversation. The game joins under an id made from its folder name (`board.service.game` in `kit.config.json`, written when missing).
-Run `serve` once in each game that should appear; after a restart of the machine, `serve` starts it again.
+Run `serve` once in each game that should appear (init offers it at the end); it also draws the game's own board and adds `docs/board/` to `.gitignore`. After a restart of the machine, `serve` starts it again.
 
 From then on a hook runs `board.py push --if-changed` in the background at the end of every turn: when the board was redrawn since the last push, it asks the dashboard
 which pictures it lacks, sends only those, then the page and the board as data (`docs/board/board.json` — the counts, and under `board` every stage with its items,

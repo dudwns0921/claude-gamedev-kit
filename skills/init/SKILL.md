@@ -3,7 +3,7 @@ name: init
 description: >-
   Sets a game repo up for gamedev-kit, from an empty folder if need be: asks which engine (Godot · Unity), finds the editor on this machine and the build modules it needs,
   creates the engine project when there is none, then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
-  the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by pointing to `/gamedev-kit:start`.
+  the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by offering the dashboard of all games (one question, only where Node.js is) and pointing to `/gamedev-kit:start`.
   Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game, on "gamedev-kit 깔아줘" ("install gamedev-kit"),
   "엔진 프로젝트 만들어줘" ("create the engine project"), "키트 규칙 맞춰줘" ("align the kit rules"), "init rules", "GDD 동기화 세팅" ("set up GDD sync"),
   "밸런스 표 세팅" ("set up the balance table"), or when gdd-sync, balance-table or start says it cannot find kit.config.json.
@@ -87,7 +87,15 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
      (connect → sync → the one question about pushing → write the voice if this game has decisions). If the user says later, say that
      `/gamedev-kit:voice setup <address>` picks it up, and finish.
 
-10. **Point to the next step and stop.** The kit is installed and the game is still empty: say in one line that `/gamedev-kit:start` takes it from here —
+10. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
+    Run `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" serve --status` and `command -v node git`, then:
+    - **Running already** (another game started it): ask "Show this game on the dashboard too?" — yes → run `serve` (it joins the game and sends its board in seconds).
+    - **Not running, Node.js and git present**: ask "Start a dashboard that shows all your games on one page? (local, about a minute the first time)" — yes → run `serve`
+      and relay its last lines (where the password is, how to reach it from another device). Do not print the password.
+    - **Node.js or git missing**: do not ask. Say in one line that a dashboard of all games exists for later (`/gamedev-kit:board`, needs Node.js).
+    A no is final for this init; nothing else in the kit depends on it.
+
+11. **Point to the next step and stop.** The kit is installed and the game is still empty: say in one line that `/gamedev-kit:start` takes it from here —
     GDD → concept → the first cycle's goal — and that a fresh session is a good place to begin it. init does not start the GDD itself.
 
 ## Aligning the kit rules (`/gamedev-kit:init rules`)

@@ -1715,6 +1715,8 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertTrue(open(keys).read().startswith("# mine\n"), "the user's own lines stay")
         self.assertEqual(oct(os.stat(keys).st_mode & 0o777), "0o600")
         self.assertEqual(json.load(open(os.path.join(game, "kit.config.json")))["board"]["service"], {"game": "my-game"}, "the game joins under its folder's name")
+        self.assertTrue(os.path.exists(os.path.join(game, "docs/board/index.html")), "its own board is drawn, so the hook sends only what changed")
+        self.assertIn("\ndocs/board/\n", open(os.path.join(game, ".gitignore")).read())
         log = open(calls).read()
         self.assertIn("git clone --depth", log)
         self.assertIn("npm install --no-audit\nnpm run build\n", log)
