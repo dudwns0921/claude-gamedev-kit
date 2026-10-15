@@ -1672,14 +1672,19 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         local = sent[-1].get("local") or {}
         self.assertEqual(local, {"root": root, "board": os.path.join(root, "docs/board")}, "a dashboard on this machine is told where the game's inbox is — nothing to run")
         got.clear()
-        self.assertEqual(push("--if-changed").stdout, "", "nothing drawn since the last push — nothing sent")
+        self.assertEqual(push("--if-changed").stdout, "", "nothing changed since the last push — nothing sent")
         self.assertEqual(got, [])
         self.assertIsNone(summary, "push alone does not draw the local board")
         run(BOARD, root)
         self.assertEqual(json.load(open(os.path.join(root, "docs/board/board.json")))["counts"]["review"], 1, "the board as data, beside the pages")
         got.clear()
         self.assertEqual(push("--if-changed").stdout, "", "the hook says nothing")
-        self.assertIn(("PUT", "/api/ingest/sample/summary"), [g[:2] for g in got], "a board drawn since the last push is sent by the hook")
+        self.assertEqual(got, [], "drawn here, but no document changed since the last push — the dashboard has it already")
+        earlier = time.time() - 30  # the last push, before the document was written
+        os.utime(os.path.join(root, "docs/board/share/pushed"), (earlier, earlier))
+        push("--if-changed")
+        self.assertIn(("PUT", "/api/ingest/sample/summary"), [g[:2] for g in got],
+                      "a document changed since the last push — sent, whether or not the pages were redrawn yet: the drawing hook runs beside this one")
         got.clear()
         push("--if-changed")
         self.assertEqual(got, [], "and only once")

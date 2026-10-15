@@ -1404,8 +1404,11 @@ def push(changed_only):
     folder = os.path.join(ROOT, CFG["share_dir"])
     stamp_path = os.path.join(folder, "pushed")
     out = os.path.join(ROOT, CFG["out"])
-    if changed_only and (not os.path.exists(out) or os.path.exists(stamp_path) and os.path.getmtime(stamp_path) >= os.path.getmtime(out)):
-        return  # nothing drawn since the last push (or no board drawn here at all — `serve` draws it)
+    # changed since the last push: judged by the documents themselves, not by the drawn pages — the hook that draws runs beside this one,
+    # and one that asked "was it redrawn?" before the redraw ended sent nothing, at the end of a turn for good
+    newest = max([os.path.getmtime(p) for p in sources() + [os.path.abspath(__file__)] if os.path.exists(p)] or [0])
+    if changed_only and (not os.path.exists(out) or os.path.exists(stamp_path) and os.path.getmtime(stamp_path) >= newest):
+        return  # nothing changed since the last push (or no board drawn here at all — `serve` draws it)
     SHARED = {}
     _pages, review, summary, line = build(folder, "index.html")  # drawing the board names every picture and sound it points to
     base = f"{url}/api/ingest/{game}"
