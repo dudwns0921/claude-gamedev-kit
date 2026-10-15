@@ -336,6 +336,8 @@ def cmd_preview(arg, as_json):
 
 
 def cmd_send(arg, to, as_is):
+    if os.environ.get("GAMEDEV_KIT_JOB"):  # Claude run by the dashboard with nobody watching: nothing leaves the machine
+        sys.exit("not sent — this is a run the dashboard started (GAMEDEV_KIT_JOB); rules go out from a session the user is in")
     repo, version = kit()
     chosen = pick(arg)
     if to and len(chosen) != 1:
@@ -378,6 +380,8 @@ def waiting():
 
 def cmd_push(quiet):
     """Send what can go by itself. Silent with --quiet unless something went out."""
+    if os.environ.get("GAMEDEV_KIT_JOB"):
+        return None if quiet else print("not sent — this is a run the dashboard started; the next session sends them")
     if auto() is not True:
         return None if quiet else print("auto is off — the user sends rules themselves (`send`), or `auto on` once they say so")
     todo = waiting()

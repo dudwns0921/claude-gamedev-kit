@@ -1507,7 +1507,8 @@ def serve(whole, mode):
     have = env_lines(keys)
     started = not pid
     if not pid:
-        env = dict(os.environ, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1")
+        env = dict(os.environ, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1",
+                   CLAUDE_BIN=shutil.which("claude") or "claude")  # the dashboard runs Claude for answers no session took, once the user allows it
         with open(log, "a", encoding="utf-8") as f:
             proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(port), "-H", "127.0.0.1"], cwd=app, env=env,
                                     stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -1619,6 +1620,8 @@ def watch(mode):
         n = claim(stranded=True)
         if n:
             print(told(n))
+        return
+    if os.environ.get("GAMEDEV_KIT_JOB"):  # a run the dashboard started: it was told at its start, and it must end when its work does
         return
     parent, session = os.getppid(), session_pid()
     gone = lambda: os.getppid() != parent or not running(session)  # the session that started this watcher has ended — it would take batches for no one

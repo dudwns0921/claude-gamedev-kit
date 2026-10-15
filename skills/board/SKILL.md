@@ -180,6 +180,10 @@ The plugin wakes the open session for it — a monitor (`board.py watch`) where 
 the session by exiting 2); a session opened later is told at its start (`watch --notice`). Whichever takes the batch first relays it; none relays it twice.
 Across a change of sessions nothing is lost: the newest session's watcher takes the batches (an older one left open stands aside), a watcher whose session ended stops,
 and a batch taken but never read is told again to the next session at its start.
+**With no session open**, the dashboard can run Claude Code in the game's folder for the batch — only once the user allowed it for that game (a card on the Review tab,
+with a dollar limit per run). That run is started with `GAMEDEV_KIT_JOB` set: it is told of the batch at its start like any session, works to the next point where the user
+has to answer or play, and ends; the kit's scripts refuse to upload, push or post in it, and the after-turn hook does not wait. Nobody reads that conversation —
+everything for the user goes through decisions.
 When woken with "answer(s) from the board", run
 
 ```bash

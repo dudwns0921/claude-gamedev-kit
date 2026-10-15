@@ -611,6 +611,7 @@ exit 0
         self.assertIn("no build in", deploy("push", "--dry-run", ok=False))
         self.assertIn("1 file(s)", deploy("build"))
         self.assertIn("→ itch.io me/game:html5 · version 0.3.0 · not uploaded", deploy("push", "html5", "--dry-run"))
+        self.assertIn("not uploaded — this is a run the dashboard started", deploy("push", ok=False, GAMEDEV_KIT_JOB="j1"), "Claude run by the dashboard uploads nothing")
         pushed = deploy("push")
         self.assertIn("out (1 file(s) · 0.0 MB) → itch.io me/game:html5 · version 0.3.0\n", pushed)
         self.assertIn("https://me.itch.io/game", pushed, "what to look at once it is up")
@@ -1820,6 +1821,9 @@ if sys.argv[1:3] == ["run", "start"]:
         _out, err = p.communicate(timeout=20)
         self.assertEqual(p.returncode, 2)
         self.assertIn("1 answer(s) from the board", err)
+        # in a run the dashboard started, the hook does not wait — the run must end when its work does
+        job = subprocess.run([sys.executable, BOARD, "--root", root, "watch", "--rewake"], capture_output=True, text=True, env=dict(env, GAMEDEV_KIT_JOB="j1"), timeout=10)
+        self.assertEqual(job.returncode, 0)
         # a newer turn's hook replaces the waiting one
         first = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         time.sleep(0.5)
@@ -2248,8 +2252,8 @@ if sys.argv[1:3] == ["run", "start"]:
 
         env = dict(os.environ, GAMEDEV_KIT_GITHUB_API=f"http://127.0.0.1:{server.server_port}", GAMEDEV_KIT_RULES=home, GAMEDEV_KIT_VOICE=old_home)
 
-        def fb(*args, ok=True, game=None, cwd=None):
-            p = subprocess.run([sys.executable, SEND] + ([] if cwd else ["--root", game or root]) + list(args), capture_output=True, text=True, env=env, cwd=cwd)
+        def fb(*args, ok=True, game=None, cwd=None, **more):
+            p = subprocess.run([sys.executable, SEND] + ([] if cwd else ["--root", game or root]) + list(args), capture_output=True, text=True, env=dict(env, **more), cwd=cwd)
             self.assertEqual(p.returncode == 0, ok, p.stdout + p.stderr)
             return p.stdout + p.stderr
 
@@ -2323,6 +2327,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("‘secretname’", fb("preview", "R12") if fb("add", "SecretName crashes → avoid it") else "", "private-words.txt holds back too")
         fb("drop", "R12")
         self.assertFalse(os.path.exists(log), "if any one is caught, nothing is sent")
+        self.assertIn("not sent — this is a run the dashboard started", fb("send", "R6", ok=False, GAMEDEV_KIT_JOB="j1"))
         self.assertIn("opened issue #12: https://github.com/me/kit/issues/12", fb("send", "R6"))
         self.assertIn("commented on issue #7", fb("send", "R5", "--to", "#7"))
         self.assertIn("- R6. web export does not make the folder → make it first (moongame) [issue #12]", rules("rules.md"))
@@ -2369,6 +2374,7 @@ if sys.argv[1:3] == ["run", "start"]:
         fb("auto", "on")
         fb("add", "headless does not compile shaders → run it once in a window")
         self.assertIn("held back", fb("--notice", cwd=root), "auto on, and a rule waits to be reworded")
+        self.assertEqual(fb("push", "--quiet", GAMEDEV_KIT_JOB="j1"), "", "a run the dashboard started sends nothing — the next session does")
         out = fb("push", "--quiet")
         self.assertRegex(out, r"^\[gamedev-kit\] sent 6 of the user's rules to the kit: R13 → #\d+ · ")
         sent = open(log).read()
