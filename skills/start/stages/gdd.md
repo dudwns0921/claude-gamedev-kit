@@ -9,7 +9,10 @@ If some sections already have text (a resumed session), read those and continue 
 
 ## 1. One loop, in their words
 
-Ask the user to describe **one full loop from the player's seat**, however roughly: who the player is and what they are after, what the hands actually do,
+If the user already described the game in this conversation (they came in with "I want to make a game where …" and init ran first), that is this answer — do not ask it again:
+go straight to saying it back as nested loops, below, and ask only what it leaves open.
+
+Otherwise ask the user to describe **one full loop from the player's seat**, however roughly: who the player is and what they are after, what the hands actually do,
 how a round ends, and what carries over to the next one. One open question, no options — options here would put your game in place of theirs.
 
 If the user hands the game over instead ("네가 골라" — "you pick", "아무거나 작은 걸로" — "anything small"), offer **one line** as a seed, say it is yours, and ask the same open question about it —

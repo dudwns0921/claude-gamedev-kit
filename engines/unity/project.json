@@ -1,13 +1,32 @@
 {
+  "choose": {
+    "plays_on": "on phones — an Android build for Google Play",
+    "suits": "2D or 3D mobile games; needs the Unity editor with Android build support"
+  },
   "marker": "ProjectSettings/ProjectVersion.txt",
   "editor": {
     "name": "Unity",
     "env": "UNITY",
     "path": [],
     "version": "/Editor/([^/]+)/",
-    "darwin": { "glob": ["/Applications/Unity/Hub/Editor/*/Unity.app/Contents/MacOS/Unity"], "modules": "../../../PlaybackEngines" },
-    "linux": { "glob": ["~/Unity/Hub/Editor/*/Editor/Unity"], "modules": "Data/PlaybackEngines" },
-    "win32": { "glob": ["C:/Program Files/Unity/Hub/Editor/*/Editor/Unity.exe"], "modules": "Data/PlaybackEngines" },
+    "darwin": {
+      "glob": [
+        "/Applications/Unity/Hub/Editor/*/Unity.app/Contents/MacOS/Unity"
+      ],
+      "modules": "../../../PlaybackEngines"
+    },
+    "linux": {
+      "glob": [
+        "~/Unity/Hub/Editor/*/Editor/Unity"
+      ],
+      "modules": "Data/PlaybackEngines"
+    },
+    "win32": {
+      "glob": [
+        "C:/Program Files/Unity/Hub/Editor/*/Editor/Unity.exe"
+      ],
+      "modules": "Data/PlaybackEngines"
+    },
     "missing": [
       "Install Unity Hub (https://unity.com/download), sign in and activate the license, then install the editor with Installs → Install Editor — when installing, pick the Android Build Support module together with OpenJDK · Android SDK & NDK Tools.",
       "If it is installed somewhere else, put the executable's path in the environment variable UNITY and run this again."
@@ -17,7 +36,11 @@
     {
       "name": "Android Build Support",
       "dir": "AndroidPlayer",
-      "must": ["SDK", "NDK", "OpenJDK"],
+      "must": [
+        "SDK",
+        "NDK",
+        "OpenJDK"
+      ],
       "install": [
         "Close the editor, then Unity Hub → Installs → the gear on that version ({version}) → Add modules → pick Android Build Support together with OpenJDK · Android SDK & NDK Tools.",
         "From a shell: \"/Applications/Unity Hub.app/Contents/MacOS/Unity Hub\" -- --headless install-modules --version {version} -m android android-sdk-ndk-tools android-open-jdk",
@@ -26,10 +49,30 @@
     }
   ],
   "create": {
-    "run": [["{editor}", "-batchmode", "-quit", "-createProject", "{root}", "-logFile", "{log}"]]
+    "run": [
+      [
+        "{editor}",
+        "-batchmode",
+        "-quit",
+        "-createProject",
+        "{root}",
+        "-logFile",
+        "{log}"
+      ]
+    ]
   },
   "import": {
-    "run": [["{editor}", "-batchmode", "-quit", "-projectPath", "{root}", "-logFile", "-"]],
+    "run": [
+      [
+        "{editor}",
+        "-batchmode",
+        "-quit",
+        "-projectPath",
+        "{root}",
+        "-logFile",
+        "-"
+      ]
+    ],
     "error": "error CS\\d+"
   }
 }

@@ -2,7 +2,7 @@
 """Install the files gamedev-kit uses into a game repository. Run it at the game repository's root.
 
   python3 init.py              list the engines that can be installed
-  python3 init.py --detect     which engine's project this folder already is (or the engines to choose from)
+  python3 init.py --detect     which engine's project this folder already is (or the engines to choose from: where each one's games are played, what it suits)
   python3 init.py <engine> --editor     the editor executable on this machine and the modules a build needs — if missing, says what to install and exits 1
   python3 init.py <engine> --create     create the engine project in this folder if there is none (.git · docs/ may already be there)
   python3 init.py <engine>       install the config · GDD template · engine templates. Also adds the engine's .gitignore lines
@@ -342,8 +342,11 @@ def main():
     if "--detect" in args:
         here, config = detect(root), os.path.join(root, "kit.config.json")
         has = json.load(open(config, encoding="utf-8")).get("engine", "") if os.path.exists(config) else ""
+        def choice(e):  # where a game made with it is played, and what it suits — the engine's own words (engines/<engine>/project.json)
+            c = project(e).get("choose", {})
+            return f"  {e} — plays {c['plays_on']} · {c['suits']}" if c.get("plays_on") else f"  {e}"
         print("\n".join(f"{e} — {project(e)['marker']} exists" for e in here)
-              or "not an engine project — engines to choose from: " + " · ".join(engines()))
+              or "not an engine project — engines to choose from, by where the game is played:\n" + "\n".join(choice(e) for e in engines()))
         return print(f"the kit is already installed as {has} (kit.config.json)" if has else "the kit is not installed yet (no kit.config.json)")
     again_files, only_rules, force = "--files" in args, "--rules" in args, "--force" in args
     steps = [a for a in args if a in ("--editor", "--create", "--import", "--gitignore")]

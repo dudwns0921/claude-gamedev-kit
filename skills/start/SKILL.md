@@ -6,7 +6,7 @@ description: >-
   so any session can pick it up. Use when the user says "새 게임 시작하자" ("let's start a new game"), "게임 하나 만들자" ("let's make a game"), "GDD 같이 쓰자" ("let's write the GDD together"),
   "기획부터 하자" ("start with the design"), "컨셉 잡자" ("let's settle the concept"), "컨셉 그림 그려줘" ("draw a concept picture"),
   "첫 사이클까지 가자" ("take it to the first cycle"), "뭐부터 하지" ("where do I start"), or "어디까지 했지" ("how far did we get") · "이어서 하자" ("let's continue") before any cycle document exists; right after `/gamedev-kit:init` finishes.
-  Not when a cycle document already exists (→ cycle), and not when `kit.config.json` is missing (→ init). Not for a 3D model, a sprite or a sound (→ asset).
+  Not when a cycle document already exists (→ cycle), and not when `kit.config.json` is missing (→ init first, which comes back here with what the user said). Not for a 3D model, a sprite or a sound (→ asset).
 ---
 
 # start

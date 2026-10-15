@@ -1,10 +1,21 @@
 {
+  "choose": {
+    "plays_on": "in a browser — a web build on itch.io",
+    "suits": "2D or 3D, most kinds of game; needs the Godot editor on this machine"
+  },
   "marker": "project.godot",
   "editor": {
     "name": "Godot",
     "env": "GODOT",
-    "path": ["godot", "godot4"],
-    "darwin": { "glob": ["/Applications/Godot*.app/Contents/MacOS/Godot"] },
+    "path": [
+      "godot",
+      "godot4"
+    ],
+    "darwin": {
+      "glob": [
+        "/Applications/Godot*.app/Contents/MacOS/Godot"
+      ]
+    },
     "missing": [
       "Install Godot 4 (https://godotengine.org/download) — the kit's commands call `godot`, so put it on PATH under that name.",
       "If it is somewhere else, put the executable's path in the environment variable GODOT and run this again."
@@ -12,10 +23,20 @@
   },
   "modules": [],
   "create": {
-    "files": { "project.godot": "config_version=5\n\n[application]\n\nconfig/name=\"\"\nconfig/version=\"0.1.0\"\n" }
+    "files": {
+      "project.godot": "config_version=5\n\n[application]\n\nconfig/name=\"\"\nconfig/version=\"0.1.0\"\n"
+    }
   },
   "import": {
-    "run": [["{editor}", "--headless", "--path", "{root}", "--import"]],
+    "run": [
+      [
+        "{editor}",
+        "--headless",
+        "--path",
+        "{root}",
+        "--import"
+      ]
+    ],
     "error": "SCRIPT ERROR|Parse Error"
   }
 }

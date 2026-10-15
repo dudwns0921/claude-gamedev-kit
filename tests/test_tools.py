@@ -424,7 +424,8 @@ exit 0
             return p.stdout + p.stderr
 
         out = init("--detect")
-        self.assertIn("not an engine project — engines to choose from: godot · unity", out)
+        self.assertIn("not an engine project — engines to choose from, by where the game is played:", out)
+        self.assertIn("  unity — plays on phones", out, "each engine says where its games are played — the question init asks is about the player")
         self.assertIn("the kit is not installed yet", out)
         self.assertIn("points to does not exist", init("unity", "--editor", ok=False, UNITY=os.path.join(top, "missing")))
         if "modules" in spec["editor"].get(sys.platform, {}):
@@ -2345,7 +2346,7 @@ if sys.argv[1:3] == ["run", "start"]:
         open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# names of games\nHiggsfield\n")
         p = check(GAMEDEV_KIT_RULES=home)
         self.assertEqual(p.returncode, 1)
-        self.assertIn("README.md:", p.stderr)
+        self.assertIn("skills/video/SKILL.md:", p.stderr)
         msg = os.path.join(home, "msg")
         open(msg, "w", encoding="utf-8").write("0.1.0 — fixed\n# 2026-01-01 is a comment git added\n")
         self.assertEqual(check("--message", msg, GAMEDEV_KIT_RULES=home).returncode, 0)

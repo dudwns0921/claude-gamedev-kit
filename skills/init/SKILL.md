@@ -1,10 +1,10 @@
 ---
 name: init
 description: >-
-  Sets a game repo up for gamedev-kit, from an empty folder if need be: asks which engine (Godot · Unity), finds the editor on this machine and the build modules it needs,
+  Sets a game repo up for gamedev-kit, from an empty folder if need be: asks where the game will be played (a phone · a browser) and so which engine, finds the editor on this machine and the build modules it needs,
   creates the engine project when there is none, then installs the files the kit uses — engine config (kit.config.json), GDD template, CLAUDE.md rules,
-  the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by offering the dashboard of all games (one question, only where Node.js is) and pointing to `/gamedev-kit:start`.
-  Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game, on "gamedev-kit 깔아줘" ("install gamedev-kit"),
+  the balance value file, the engine's other template files, the engine's .gitignore lines. Ends by offering the dashboard of all games (one question, only where Node.js is) and goes on into the GDD with what the user said about the game.
+  Also aligns the kit rules in CLAUDE.md after the kit bumps its version (rules). Use when starting a new game — "이런 게임 만들고 싶어" ("I want to make a game like …"), "게임 만들자" ("let's make a game") in a folder without kit.config.json — on "gamedev-kit 깔아줘" ("install gamedev-kit"),
   "엔진 프로젝트 만들어줘" ("create the engine project"), "키트 규칙 맞춰줘" ("align the kit rules"), "init rules", "GDD 동기화 세팅" ("set up GDD sync"),
   "밸런스 표 세팅" ("set up the balance table"), or when gdd-sync, balance-table or start says it cannot find kit.config.json.
 ---
@@ -27,7 +27,12 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    ```
 
    If the folder is already an engine project (or the kit is already installed), it names the engine — use it and do not ask.
-   Otherwise ask the user **one question**: which of the engines it lists. If the repo belongs to any other engine, do not install and say so.
+   Otherwise it lists the engines **by where their games are played**. Ask **one question, about the player, not the tool**: where will people play it —
+   each option is a line it printed, said in the player's terms (on a phone · in a browser …), with the engine named after it.
+   Mark one `recommended`, from what the user said about the game ("a quick puzzle for the commute" → a phone; "something to share by link" → a browser; 3D → not the editorless one).
+   If the user already said where it is played or which engine ("a Godot one", "for Android"), do not ask — say in one line which engine that means and go on.
+   If the repo belongs to any other engine, do not install and say so.
+   **Keep what the user said about the game** — it is the first answer of the GDD interview that follows (step 11), not to be asked again.
 
 2. **The editor on this machine.**
 
@@ -86,8 +91,9 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
     - **Node.js or git missing**: do not ask. Say in one line that a dashboard of all games exists for later (`/gamedev-kit:board`, needs Node.js).
     A no is final for this init; nothing else in the kit depends on it.
 
-11. **Point to the next step and stop.** The kit is installed and the game is still empty: say in one line that `/gamedev-kit:start` takes it from here —
-    GDD → concept → the first cycle's goal — and that a fresh session is a good place to begin it. init does not start the GDD itself.
+11. **Go on to the game.** The kit is installed and the game is still empty. If the user came in with a game in mind ("I want to make a game where …"),
+    go straight on to the start skill — what they said is its first answer: say it back as the loop it describes and ask only what it leaves open.
+    If they only asked to install, say in one line that saying what game they want (or `/gamedev-kit:start`) takes it from here — GDD → concept → the first cycle's goal.
 
 ## Aligning the kit rules (`/gamedev-kit:init rules`)
 
