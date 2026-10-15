@@ -18,6 +18,7 @@ kit   Spec, design and plan are written. Three things are yours to decide:
       7 tasks in 3 waves, once you answer.
 
 you   D1 ②. D2 overlay — I want to see the run behind it. D3 placeholder.
+      (or pick them on the dashboard, from your phone)
 
 kit   Built. Your turn to play.
 
@@ -59,13 +60,18 @@ Claude Code can already write the game. What goes wrong over weeks is everything
 
 Every number and rule in the GDD has an ID, and the code that implements it carries a `GDD: <ID>` marker. `/gamedev-kit:gdd-sync` compares the two and reports what is synced, what disagrees and what is not built — then aligns whichever side you name. Balance numbers go one step further: `/gamedev-kit:balance-table` keeps them on one Excel sheet that follows the code, and a number you change there is baked back into the code.
 
-### 2. You always see where the game stands
+### 2. You see where the game stands — and answer from there
 
-<p align="center"><img src="assets/board.png" alt="The status board of a sample game: five stage cards in play order, each with a completion ring and four meters for function, art, sound and verification, and three undecided questions above them" width="860"></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The dashboard of a sample game: four stage cards in play order, each with a completion ring and meters for function, art, sound and verification; beside them the current cycle, the undecided questions and the cycles so far" width="860"></picture></p>
 
-`/gamedev-kit:board` draws the game as the player meets it: one card per stage of play, each showing what is done, what is a placeholder, what is not made and what is a problem — and what is still undecided. A script reads it all from the GDD, the cycle and playtest documents and the asset records; no model is involved, and a hook redraws it whenever those documents change.
-A review page beside it puts what waits on you — open decisions with their comparison pictures, asset images to approve, checks by playing — on cards with a button per answer, and `share` carries the board and the review to a private claude.ai link you can open on a phone, where every tap is saved for the session to read back.
-For every game on your machine at once, `board.py serve` runs a dashboard on localhost (optional — it needs Node.js): what waits on you across games, then each game's stages, review and assets, redrawn as the games change. Reach it from another device through an SSH forward or Tailscale.
+The dashboard runs on your own machine and shows every game you make with the kit: one card per stage of play, as the player meets it — what is done, what is a placeholder, what is not made, what is a problem — and what is still undecided.
+It is drawn from the GDD, the cycle and playtest documents and the asset records; no model reads them, and a hook sends a fresh board whenever they change. `/gamedev-kit:init` offers it at the end (it needs Node.js); without it, the same board is a set of pages in `docs/board/`.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/review-dark.png"><img src="assets/review-light.png" alt="The review tab: a decision the session is working on, shown in blue, and a decision with three pictures to compare — now, the counter in the middle, a wall of goods — above the options to pick from" width="860"></picture></p>
+
+Everything that waits on you is on its Review tab: every question the session has for you is a decision, with the pictures to look at — a capture of now, the candidates — and a button per option; asset images to approve; checks by playing.
+**Send to the session** and the game's open Claude session is woken for your answers — on the desktop, in a terminal, or on your phone through Tailscale. The dashboard never acts on the game itself: it only signals, and the card shows where your answer stands until the session is done with it.
+At a break in the cycle it tells you so: `/clear`, then `/gamedev-kit:cycle next`, starts the session over light in the same window, still connected.
 
 ### 3. It gets better at your games
 
