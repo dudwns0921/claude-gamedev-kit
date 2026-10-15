@@ -37,6 +37,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/context_watch.py\" --record",
+            "timeout": 5
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/balance-table/scripts/balance_table.py\" export --if-stale",
             "timeout": 5
           },

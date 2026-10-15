@@ -35,6 +35,7 @@ import signal
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -1211,17 +1212,27 @@ def build(outdir, index_name):
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     stray, stray_assets = stray_of(st)
     now = cycles[-1] if cycles else None
+    talk = int((load_json(context_kept()) or {}).get("size") or 0)
     c = tally([i for s in st for lane in LANES for i in s["lanes"][lane]])
     summary = {"name": name, "drawn": stamp, "complete": total, "share": CFG["share"] or None,
-               # a break: the cycle waits on the user (decisions asked, or time to play) — a good moment to /clear the session and go on with `cycle next`
-               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]),
-                       "pause": bool(re.match(STAGE_PLAY, now["stage"]) or any(not d["done"] for d in now["decisions"]))} if now else None,
+               # pause: the cycle waits on the user (decisions asked, or time to play) and the game's conversation has grown long —
+               # a good moment to /clear the session and go on with `cycle next`. context: that conversation's size, as the context hook kept it
+               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]), "context": talk,
+                       "pause": talk >= CLEAR_AT and bool(re.match(STAGE_PLAY, now["stage"]) or any(not d["done"] for d in now["decisions"]))} if now else None,
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(review),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
                "board": chart_data(st, asks, cycles, sheet, review)}
     return pages, review, summary, (f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
                                     + f" · review {len(review)}")
+
+
+CLEAR_AT = 200_000  # a conversation this long is worth clearing at a break — the context hook's first line, too
+
+
+def context_kept():
+    """The size of this game's latest conversation, kept by the context hook (hooks/context_watch.py — the same path)."""
+    return os.path.join(tempfile.gettempdir(), "gamedev-kit-context", "game-" + hashlib.sha1(os.path.realpath(ROOT).encode()).hexdigest()[:16] + ".json")
 
 
 def sources():
@@ -1232,7 +1243,8 @@ def sources():
             + [p for p in table_files() if p]
             + cycle_docs() + playtest_docs() + ([os.path.join(gen, n) for n in os.listdir(gen)] if os.path.isdir(gen) else [])
             # a record rewritten in place (approve · keep · reject) does not touch its folder's time — the records themselves are watched
-            + [os.path.join(gen, n, fn) for n in (os.listdir(gen) if os.path.isdir(gen) else []) for fn in ("asset.json", "sprite.json", "sound.json")])
+            + [os.path.join(gen, n, fn) for n in (os.listdir(gen) if os.path.isdir(gen) else []) for fn in ("asset.json", "sprite.json", "sound.json")]
+            + [context_kept()])
 
 
 PART_FILES = 200            # files per publish — the link takes up to 255 in one go

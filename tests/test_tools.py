@@ -1786,7 +1786,23 @@ if sys.argv[1:3] == ["run", "start"]:
         review = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
         self.assertEqual([(i["key"], i["latest"]) for i in review if i["kind"] == "decision"], [("c02-D1", True), ("c01-D1", False)],
                          "every open decision is on the review, the newest cycle first — not one decided for the user in a cycle that has moved on")
-        self.assertTrue(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "decisions asked — a break, where the session can be cleared")
+        self.assertFalse(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "a break, but the conversation is short — nothing to clear")
+        # the context hook keeps the conversation's size where the board reads it: long, at a break → the dashboard says it is a good moment to /clear
+        hook = lambda size, *a: subprocess.run([sys.executable, WATCH, *a], input=json.dumps({"transcript_path": transcript(size), "cwd": root, "session_id": "s1"}),
+                                                capture_output=True, text=True)
+        logs = tempfile.mkdtemp(prefix="kit-ctx-")
+        self.addCleanup(shutil.rmtree, logs, True)
+        def transcript(size):
+            p = os.path.join(logs, f"{size}.jsonl")
+            open(p, "w").write(json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": size}}}) + "\n")
+            return p
+        self.assertEqual(hook(250_000, "--record").stdout, "", "the Stop hook only keeps the size")
+        run(BOARD, root, "--if-stale")
+        now = json.load(open(os.path.join(root, "docs/board/board.json")))["now"]
+        self.assertEqual((now["pause"], now["context"]), (True, 250_000), "kept size is newer than the board — it redraws, and the break is shown")
+        hook(3_000)
+        run(BOARD, root, "--if-stale")
+        self.assertFalse(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "cleared — short again, no more saying so")
         asks = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["asks"]
         self.assertIn({"doc": "02-shop.md", "num": "D1", "key": "c02-D1"}, [q.get("decision") for q in asks],
                       "a decision on the stage pages carries its review key — the dashboard sends \"not needed\" for it by that key")

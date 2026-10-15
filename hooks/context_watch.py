@@ -7,25 +7,51 @@ of thousands of tokens, which eats most of the tokens and the time. The cycle do
 
 Only inside a game repository (where kit.config.json is): one line when the context passes 200k tokens, then one for every 100k more.
 When nothing is up it prints nothing (what it prints goes into the context). It always exits 0 — it never blocks the user's input.
+It also keeps the size where the board reads it (outside the game, in the temp folder, by game): the dashboard says "a good moment to /clear" only when
+the conversation is long and the cycle is at a break. `--record` (the Stop hook) only keeps the size, so the board knows it at the end of a turn too.
 """
+import hashlib
 import json
 import os
 import sys
 import tempfile
+import time
 
 FIRST, STEP = 200_000, 100_000
 TAIL = 600_000  # read only this much from the end of the log
 
 
 def in_game(cwd):
+    """The game root above cwd, or None."""
     d = os.path.abspath(cwd or ".")
     while True:
         if os.path.exists(os.path.join(d, "kit.config.json")):
-            return True
+            return d
         up = os.path.dirname(d)
         if up == d:
-            return False
+            return None
         d = up
+
+
+def kept_at(root):
+    """Where the size is kept for the board — the same path board.py reads (the tests hold the two together)."""
+    return os.path.join(tempfile.gettempdir(), "gamedev-kit-context", "game-" + hashlib.sha1(os.path.realpath(root).encode()).hexdigest()[:16] + ".json")
+
+
+def keep(root, size, session):
+    """Rewritten only when the session or the size's level changes — every rewrite makes the board draw again."""
+    path = kept_at(root)
+    level = lambda n: 0 if n < FIRST else 1 + (n - FIRST) // STEP
+    try:
+        was = json.load(open(path))
+        if was.get("session") == session and level(int(was.get("size") or 0)) == level(size):
+            return
+    except (OSError, ValueError):
+        pass
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".part", "w") as f:
+        json.dump({"size": size, "session": session, "at": time.time()}, f)
+    os.replace(path + ".part", path)
 
 
 def context_size(path):
@@ -50,9 +76,13 @@ def context_size(path):
 def main():
     data = json.load(sys.stdin)
     path = data.get("transcript_path") or ""
-    if not os.path.exists(path) or not in_game(data.get("cwd")):
+    root = in_game(data.get("cwd"))
+    if not root:
         return
-    size = context_size(path)
+    size = context_size(path) if os.path.exists(path) else 0  # a session just cleared has no answer in its log yet
+    keep(root, size, str(data.get("session_id") or ""))
+    if "--record" in sys.argv[1:] or not os.path.exists(path):
+        return
     level = 0 if size < FIRST else 1 + (size - FIRST) // STEP
     mark = os.path.join(tempfile.gettempdir(), "gamedev-kit-context", str(data.get("session_id") or "session"))
     try:

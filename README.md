@@ -71,7 +71,7 @@ It is drawn from the GDD, the cycle and playtest documents and the asset records
 
 Everything that waits on you is on its Review tab: every question the session has for you is a decision, with the pictures to look at — a capture of now, the candidates — and a button per option; asset images to approve; checks by playing.
 **Send to the session** and the game's open Claude session is woken for your answers — on the desktop, in a terminal, or on your phone through Tailscale. The dashboard never acts on the game itself: it only signals, and the card shows where your answer stands until the session is done with it.
-At a break in the cycle it tells you so: `/clear`, then `/gamedev-kit:cycle next`, starts the session over light in the same window, still connected.
+When the session's conversation has grown long and the cycle is at a break, it says so: type `/clear`, then `/gamedev-kit:cycle next`, and the session starts over light in the same window, still connected.
 
 ### 3. It gets better at your games
 
