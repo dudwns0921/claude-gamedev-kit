@@ -33,6 +33,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <Spec|Design|Plan> "<question
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # auto mode: decided in the user's place — written [~]
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" drop D4,D12 "<why>"         # the user says a decision is not needed any more — [-], nothing waits on it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry "<what the next session must know>"       # work in hand that the document does not hold — `next` shows it
@@ -239,7 +240,7 @@ Run `cycle.py next` and continue from there — do not read the document. If the
 If their commit differs from the current one, say so — the lines are a snapshot of when they were left. Run `carry done` at once (what is still unfinished when this session ends is carried again),
 ask the questions among them, and start from them — **do not scan the project to find out what the lines do not say**; open only the files that work needs.
 A "handoff note not resumed" line is a note from before `carry` existed: read that one file and treat it the same way. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.
-Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`. An overturned decision is an answer that changes the plan: call the agent whose section it touches,
+Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<their words>"`; not needed any more → `drop D2 "<their words>"` (the dashboard does this itself when the user presses "Not needed" there). An overturned decision is an answer that changes the plan: call the agent whose section it touches,
 then rework the tasks that hung on it. Then the voice skill's "Score" and "Learn", silently. If a document without a `## Spec` section (made before this stage existed) stands before Design or Plan,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.
 A document standing at 배포 or 회고 (shipping and retrospective — made when those were stages) is in Play — treat it so, and write nothing in those sections.

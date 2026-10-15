@@ -270,6 +270,15 @@ def keep(name):
     print(f"{name}: kept under the current art style")
 
 
+def drop(name):
+    """An attempt the user no longer wants (a draft beside the one that was used) — marked dropped, so the board stops asking about it.
+    Nothing is deleted; `image` on it again lifts the mark."""
+    rec = load(name)
+    rec["dropped"] = str(datetime.date.today())
+    save(rec)
+    print(f"{name}: dropped — off the review; the files stay")
+
+
 def reject(name, said):
     """The user turned it down — their words are the material for "Learned". Lifts the approval."""
     rec = load(name)
@@ -343,7 +352,7 @@ def main():
     as_is = "--as-is" in args
     args = [a for a in args if a != "--as-is"]
     cmd, rest = (args[0] if args else ""), args[1:]
-    if cmd not in ("new", "image", "approve", "keep", "reject", "animate", "status", "credits") or (cmd not in ("status", "credits") and not rest):
+    if cmd not in ("new", "image", "approve", "keep", "drop", "reject", "animate", "status", "credits") or (cmd not in ("status", "credits") and not rest):
         sys.exit(__doc__)
     setup(opts.get("--root"))
     ref = opts.get("--ref")
@@ -379,6 +388,9 @@ def main():
         elif cmd == "keep":
             for name in rest:
                 keep(name)
+        elif cmd == "drop":
+            for name in rest:
+                drop(name)
         elif cmd == "reject":
             if len(rest) != 2:
                 sys.exit(__doc__)

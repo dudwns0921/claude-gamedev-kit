@@ -170,7 +170,8 @@ def decision(mark, num, rest):
     cut = re.search(r" — (?=①)", ask) or re.search(r" — ", ask)  # the dash before the options, not one inside the title
     title, options = (ask[:cut.start()], ask[cut.end():]) if cut else (ask, "")
     pick = re.sub(r"\s*\([^()]*\)\s*$", "", pick)
-    return {"num": num, "done": mark == "x", "proxy": mark == "~", "title": title.strip(), "options": options.strip(), "pick": pick.strip(),
+    # [-] is a decision the user withdrew — nothing to answer, like an answered one
+    return {"num": num, "done": mark in "x-", "proxy": mark == "~", "title": title.strip(), "options": options.strip(), "pick": pick.strip(),
             "who": who.group(1) if who else "", "answer": (answer[:date.start()] if date else answer).strip(),
             "date": date.group(1) if date else ""}
 
@@ -418,7 +419,8 @@ def open_questions(st, cycles):
             t = re.match(r"\*\*(.+?)\*\*:?\s*(.*)", b) or re.match(r"(.+?)(?: — |: | \(|\. )(.*)", b)  # without a bold title, the first phrase
             out.append({"title": (t.group(1) if t else b).replace("**", ""), "text": (t.group(2) if t else "").replace("**", ""), "from": "GDD"})
     for c in cycles:
-        out += [{"title": f'{d["num"]} {d["title"]}', "text": "decided for you — waiting for your confirmation" if d["proxy"] else "waiting for your answer", "from": f'Cycle {c["num"]}'} for d in c["decisions"] if not d["done"]]
+        out += [{"title": f'{d["num"]} {d["title"]}', "text": "decided for you — waiting for your confirmation" if d["proxy"] else "waiting for your answer", "from": f'Cycle {c["num"]}',
+                 "decision": {"doc": c["file"], "num": d["num"]}} for d in c["decisions"] if not d["done"]]
     for q in out:
         s = place_words(st, q["title"] + " " + q["text"]) or st[-1]
         q["stage"] = s["i"]
@@ -821,11 +823,11 @@ def sheet_data():
             drawn = (rec.get("image") or {}).get("style") or ""
             first = next(iter((rec.get("prompts") or {}).values()), "")
             # Was it drawn under a different art style than the current one — by the recorded mark; for older records, by whether that prompt holds the current paragraph
-            old = bool(style) and not rec.get("as_is") and (drawn != mark if drawn else bool(first) and style not in first)
+            old = bool(style) and not rec.get("as_is") and not rec.get("dropped") and (drawn != mark if drawn else bool(first) and style not in first)
             here = os.path.abspath(front) if front else ""
             models.append({"name": name, "img": front, "tool": fn.split(".")[0], "views": [p for p in views if os.path.exists(p)],
                            "st": "done" if placed else "temp" if rec.get("approved") else "none",
-                           "state": "in the game" if placed else "approved" if rec.get("approved") else "image only" if front else "no image",
+                           "state": "in the game" if placed else "dropped" if rec.get("dropped") else "approved" if rec.get("approved") else "image only" if front else "no image",
                            "old": old, "ref": bool(here) and any(os.path.abspath(os.path.join(ROOT, r)) == here for r in refs),
                            "from": rec.get("ref") or "", "said": rec.get("said") or [], "what": rec.get("subject", "")})
         rec = load_json(os.path.join(gdir, name, "sound.json"))
@@ -1010,7 +1012,7 @@ def review_items(cycles, sheet):
             q = pics.get(d["num"], {})
             opts = [(str(o.get("mark", "")), str(o.get("text", ""))) for o in q.get("options", []) if isinstance(o, dict)] or split_options(d["options"])
             rec = next((str(o.get("mark")) for o in q.get("options", []) if isinstance(o, dict) and o.get("recommend")), d["pick"])
-            items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "title": d["title"],
+            items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "doc": c["file"], "title": d["title"],
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
     for m in sheet["models"]:
@@ -1120,7 +1122,7 @@ def picture_data(img):
 def review_data(i):
     out = {k: i[k] for k in ("key", "kind", "ref", "title")}
     if i["kind"] == "decision":
-        out.update(cycle=i["cycle"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
+        out.update(cycle=i["cycle"], doc=i["doc"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
     elif i["kind"] in ("asset", "style"):
         out.update(tool=i["tool"], state=i["state"], what=i["what"], old=i["old"], views=[rel(v) for v in i["views"]],
@@ -1133,7 +1135,7 @@ def review_data(i):
 def chart_data(st, asks, cycles, sheet, review):
     stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "loop": s["loop"], "complete": stage_pct(s),
                "image": hero_of(s), "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
-               "open": [{"title": q["title"], "text": q["text"], "from": q["from"]} for q in s["open"]],
+               "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
                          "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}
               for s in st if not s["common"] or any(s["lanes"].values()) or s["open"]]
@@ -1141,7 +1143,7 @@ def chart_data(st, asks, cycles, sheet, review):
                        "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"])}
     return {"lanes": [{"key": k, "label": LANE_LABEL[k]} for k in LANES],
             "stages": stages,
-            "asks": [{"title": q["title"], "text": q["text"], "from": q["from"], "stage": q["stage"]} for q in asks],
+            "asks": [dict({"title": q["title"], "text": q["text"], "from": q["from"], "stage": q["stage"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in asks],
             "cycles": [{"num": c["num"], "name": c["name"], "stage": stage_word(c["stage"]), "start": c["start"], "goal": c["goal"],
                         "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"))},
                         "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
@@ -1364,6 +1366,11 @@ def push(changed_only):
         if pub in SHARED:
             call(base, "/file/" + urllib.parse.quote(pub.split("/", 1)[1]), token, open(SHARED[pub], "rb").read(),
                  mimetypes.guess_type(pub)[0] or "application/octet-stream")
+    if re.match(r"http://(localhost|127\.0\.0\.1)(:\d+)?$", url):
+        # A dashboard on this machine may act on the game itself (withdraw a decision, drop an asset attempt) by running the kit's scripts here.
+        # Paths never leave the machine: a service elsewhere is not told them
+        summary["local"] = {"root": ROOT, "kit": os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+                            "python": sys.executable}
     call(base, "/page", token, page.encode("utf-8"), "text/html; charset=utf-8")
     call(base, "/summary", token, json.dumps(summary, ensure_ascii=False).encode("utf-8"), "application/json")
     os.makedirs(folder, exist_ok=True)

@@ -1599,7 +1599,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         os.makedirs(gen)
         open(os.path.join(gen, "front.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 4, 4))
         json.dump({"name": "knight", "subject": "a knight"}, open(os.path.join(gen, "asset.json"), "w"))
-        got, have = [], set()
+        got, have, sent = [], set(), []
 
         class Service(http.server.BaseHTTPRequestHandler):
             def log_message(self, *a):
@@ -1616,6 +1616,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
             def do_PUT(self):
                 data = self.rfile.read(int(self.headers["Content-Length"]))
                 got.append(("PUT", self.path, len(data)))
+                if self.path.endswith("/summary"):
+                    sent.append(json.loads(data))
                 if "/file/" in self.path:
                     have.add("f/" + self.path.rsplit("/", 1)[1])
                 self.send_response(204)
@@ -1646,6 +1648,8 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         summary = json.load(open(os.path.join(root, "docs/board/board.json"))) if os.path.exists(os.path.join(root, "docs/board/board.json")) else None
         got.clear()
         self.assertIn("files sent 0", push().stdout, "what the service has is not sent again")
+        local = sent[-1].get("local") or {}
+        self.assertEqual((local.get("root"), local.get("kit")), (root, KIT), "a dashboard on this machine is told where the game and the kit are")
         got.clear()
         self.assertEqual(push("--if-changed").stdout, "", "nothing drawn since the last push — nothing sent")
         self.assertEqual(got, [])
@@ -1956,6 +1960,16 @@ if sys.argv[1:3] == ["run", "start"]:
                              env=dict(os.environ, GAMEDEV_KIT_VOICE=os.path.join(root, "voice-home"))).stdout
         self.assertIn("03 D1 [accepted]", out, "an accepted proxy decision is counted apart from one the user picked")
         self.assertIn("accepted 2", out)
+
+        # a decision the user no longer needs is withdrawn — [-] with their words; nothing waits on it, and it is not counted open
+        run(CYCLE, root, "ask", "Spec", "Sign — ① wood ② stone")
+        run(CYCLE, root, "ask", "Design", "Bell — ① yes ② no")
+        run(CYCLE, root, "decide", "D6", "①", "--proxy", "V2")
+        self.assertIn("not needed: D5 · D6", run(CYCLE, root, "drop", "D5,D6", "the shop has no front any more").stdout)
+        self.assertRegex(atext(), r"- \[-\] D5\. Sign — ① wood ② stone \(Spec\) → not needed: the shop has no front any more \(\d{4}")
+        self.assertRegex(atext(), r"- \[-\] D6\. Bell — ① yes ② no \(Design\) → not needed: ", "a proxy decision withdrawn drops the proxy's pick")
+        self.assertIn("open decisions 1\n", run(CYCLE, root, "status").stdout.split("03-auto")[1] + "\n", "a withdrawn decision is not open")
+        self.assertIn("D1: already answered", run(CYCLE, root, "drop", "D1", "x", ok=False).stderr)
         run(CYCLE, root, "decide", "D3", "①")
 
         # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English

@@ -175,6 +175,10 @@ From then on a hook runs `board.py push --if-changed` in the background at the e
 which pictures it lacks, sends only those, then the page and the board as data (`docs/board/board.json` — the counts, and under `board` every stage with its items,
 the open questions, the cycles, the review cards and the asset sheet; the dashboard draws its own screens from it). With the dashboard down, the hook does nothing.
 
+**Acting from the dashboard.** A dashboard on this machine is told where the game and the kit are (never a service elsewhere), so two things are done there without a session:
+**Not needed** on a decision runs the cycle skill's `drop` (the decision becomes `[-]`), and on an asset attempt waiting for approval the asset skill's `drop`;
+then it redraws and sends the board. Answers (an option, approve, OK) still reach the session as before.
+
 **Seeing it from another device.** The server listens on this machine only. To open it elsewhere, the user sets up one of:
 `ssh -L 3100:127.0.0.1:3100 <this machine>` then `http://127.0.0.1:3100` there; or Tailscale on both devices and `tailscale serve --bg 3100` here (an https address only
 their own devices reach). Do not open it to the internet.

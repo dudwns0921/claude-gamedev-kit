@@ -11,6 +11,7 @@
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py decide D2 "②" --proxy V3     Auto mode — decided in the user's place. Written as [~] (basis: the voice's principle number, or `recommended` if none)
   python3 cycle.py confirm D2,D5                The user accepted the proxy decisions — they become [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
+  python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
   python3 cycle.py later "<in the user's own words>"   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
@@ -145,7 +146,7 @@ def decisions(text):
 def waiting(block, ds):
     """The decisions in a task block's `Waiting: D2` that have no answer yet."""
     line = WAITING_RE.search(block)
-    return [d for d in re.findall(r"D\d+", line.group(1)) if ds.get(d, (" ",))[0] not in "x~"] if line else []
+    return [d for d in re.findall(r"D\d+", line.group(1)) if ds.get(d, (" ",))[0] not in "x~-"] if line else []
 
 
 def carried(text):
@@ -175,7 +176,7 @@ def summary(path):
     text = read(path)
     marks = [t[0] for t in tasks(text).values()]
     dmarks = [d[0] for d in decisions(text).values()]
-    open_d, proxy = sum(1 for m in dmarks if m not in "x~"), dmarks.count("~")
+    open_d, proxy = sum(1 for m in dmarks if m not in "x~-"), dmarks.count("~")
     left = len(carried(text))
     return (f"{os.path.relpath(path, ROOT)} — stage: {stage_of(text)} · tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
             f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
@@ -193,7 +194,7 @@ def cmd_next(path):
     for num, (mark, line) in ds.items():
         if mark == "~":
             print(f"proxy decision (unconfirmed): {line[6:]}")
-        elif mark != "x":
+        elif mark not in "x-":
             print(f"open decision: {line[6:]}")
     for num, (mark, title, a, b) in ts.items():
         if mark == "!":
@@ -278,6 +279,24 @@ def cmd_confirm(path, names):
     print(f"accepted: {' · '.join(picked)}" if picked else "no proxy decisions awaiting confirmation")
 
 
+def cmd_drop(path, names, why):
+    """A decision the user no longer needs — withdrawn, not answered. The question stays in the document, struck as [-] with their reason."""
+    text = read(path)
+    ds = decisions(text)
+    for num in names.split(","):
+        if num not in ds:
+            sys.exit(f"{num}: no such decision — " + " · ".join(ds))
+        mark, old = ds[num]
+        if mark == "x":
+            sys.exit(f"{num}: already answered — to change the answer, `decide {num}`")
+        if mark == "-":
+            continue
+        ask = PROXY_RE.match(old).group(1) if mark == "~" else old
+        text = text.replace(old, f"- [-]{ask[5:]} → not needed: {' '.join(why.split())} ({datetime.date.today()})", 1)
+    write(path, text)
+    print(f"not needed: {' · '.join(names.split(','))}")
+
+
 def cmd_lesson(path, text):
     engine = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("engine", "?")
     num = re.match(r"\d+", os.path.basename(path))
@@ -327,7 +346,7 @@ def close(path):
         print(f"the previous cycle is still at stage {stage}: {rel}")
     marks, ds = [t[0] for t in tasks(text).values()], [d[0] for d in decisions(text).values()]
     left = [f"{label} {n}" for label, n in (("[ ]", marks.count(" ")), ("[!]", marks.count("!")),
-                                            ("open decisions", sum(1 for m in ds if m not in "x~")), ("proxy decisions", ds.count("~"))) if n]
+                                            ("open decisions", sum(1 for m in ds if m not in "x~-")), ("proxy decisions", ds.count("~"))) if n]
     if left:
         print("left in the previous cycle: " + " · ".join(left))
     for said in LATER_RE.findall(text):
@@ -362,7 +381,7 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "stage": 1, "later": 1, "carry": 1, "lesson": 1}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "lesson": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -386,6 +405,8 @@ def main():
         cmd_decide(path, *rest, opts.get("--proxy", ""))
     elif cmd == "confirm":
         cmd_confirm(path, rest[0])
+    elif cmd == "drop":
+        cmd_drop(path, *rest)
     elif cmd == "later":
         cmd_later(path, rest[0])
     elif cmd == "carry":
