@@ -611,7 +611,6 @@ exit 0
         self.assertIn("no build in", deploy("push", "--dry-run", ok=False))
         self.assertIn("1 file(s)", deploy("build"))
         self.assertIn("→ itch.io me/game:html5 · version 0.3.0 · not uploaded", deploy("push", "html5", "--dry-run"))
-        self.assertIn("not uploaded — this is a run the dashboard started", deploy("push", ok=False, GAMEDEV_KIT_JOB="j1"), "Claude run by the dashboard uploads nothing")
         pushed = deploy("push")
         self.assertIn("out (1 file(s) · 0.0 MB) → itch.io me/game:html5 · version 0.3.0\n", pushed)
         self.assertIn("https://me.itch.io/game", pushed, "what to look at once it is up")
@@ -1787,6 +1786,9 @@ if sys.argv[1:3] == ["run", "start"]:
         review = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
         self.assertEqual([(i["key"], i["latest"]) for i in review if i["kind"] == "decision"], [("c02-D1", True), ("c01-D1", False)],
                          "every open decision is on the review, the newest cycle first — not one decided for the user in a cycle that has moved on")
+        asks = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["asks"]
+        self.assertIn({"doc": "02-shop.md", "num": "D1", "key": "c02-D1"}, [q.get("decision") for q in asks],
+                      "a decision on the stage pages carries its review key — the dashboard sends \"not needed\" for it by that key")
         box = os.path.join(root, "docs/board/inbox")
         os.makedirs(box)
         def send(name, rows):  # written whole, then renamed in — as the dashboard does, so a watcher never reads half a file
@@ -1821,9 +1823,6 @@ if sys.argv[1:3] == ["run", "start"]:
         _out, err = p.communicate(timeout=20)
         self.assertEqual(p.returncode, 2)
         self.assertIn("1 answer(s) from the board", err)
-        # in a run the dashboard started, the hook does not wait — the run must end when its work does
-        job = subprocess.run([sys.executable, BOARD, "--root", root, "watch", "--rewake"], capture_output=True, text=True, env=dict(env, GAMEDEV_KIT_JOB="j1"), timeout=10)
-        self.assertEqual(job.returncode, 0)
         # a newer turn's hook replaces the waiting one
         first = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         time.sleep(0.5)
@@ -1994,6 +1993,9 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("knight (3D model — asset.py) → redo — “armour too shiny”", out)
         self.assertIn("✗ Is the string readable — “lost in the fog”", out)
         self.assertIn("1 saved answer(s) are to questions no longer on the page", out, "an answer to an old question is not relayed")
+        json.dump({"key": knight, "pick": "drop", "note": "", "at": 2}, open(os.path.join(saved, "a.json"), "w"))
+        self.assertIn("knight (3D model — asset.py) → not needed (drop)", run(BOARD, root, "answers", saved).stdout,
+                      "\"not needed\" from the dashboard is an answer too — the session drops the attempt")
         data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))["board"]
         d1 = next(i for i in data["review"] if i["key"] == "c01-D1")
         self.assertEqual((d1["recommend"], d1["options"][1], d1["pictures"][0]["crop"], d1["pictures"][0]["size"]),
@@ -2334,7 +2336,6 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("‘secretname’", fb("preview", "R12") if fb("add", "SecretName crashes → avoid it") else "", "private-words.txt holds back too")
         fb("drop", "R12")
         self.assertFalse(os.path.exists(log), "if any one is caught, nothing is sent")
-        self.assertIn("not sent — this is a run the dashboard started", fb("send", "R6", ok=False, GAMEDEV_KIT_JOB="j1"))
         self.assertIn("opened issue #12: https://github.com/me/kit/issues/12", fb("send", "R6"))
         self.assertIn("commented on issue #7", fb("send", "R5", "--to", "#7"))
         self.assertIn("- R6. web export does not make the folder → make it first (moongame) [issue #12]", rules("rules.md"))
@@ -2381,7 +2382,6 @@ if sys.argv[1:3] == ["run", "start"]:
         fb("auto", "on")
         fb("add", "headless does not compile shaders → run it once in a window")
         self.assertIn("held back", fb("--notice", cwd=root), "auto on, and a rule waits to be reworded")
-        self.assertEqual(fb("push", "--quiet", GAMEDEV_KIT_JOB="j1"), "", "a run the dashboard started sends nothing — the next session does")
         out = fb("push", "--quiet")
         self.assertRegex(out, r"^\[gamedev-kit\] sent 6 of the user's rules to the kit: R13 → #\d+ · ")
         sent = open(log).read()

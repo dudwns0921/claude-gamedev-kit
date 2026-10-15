@@ -422,7 +422,7 @@ def open_questions(st, cycles):
             out.append({"title": (t.group(1) if t else b).replace("**", ""), "text": (t.group(2) if t else "").replace("**", ""), "from": "GDD"})
     for c in cycles:
         out += [{"title": f'{d["num"]} {d["title"]}', "text": "decided for you — waiting for your confirmation" if d["proxy"] else "waiting for your answer", "from": f'Cycle {c["num"]}',
-                 "decision": {"doc": c["file"], "num": d["num"]}} for d in c["decisions"] if not d["done"] and not (d["proxy"] and c is not cycles[-1])]
+                 "decision": {"doc": c["file"], "num": d["num"], "key": f'c{c["num"]}-{d["num"]}'}} for d in c["decisions"] if not d["done"] and not (d["proxy"] and c is not cycles[-1])]
     for q in out:
         s = place_words(st, q["title"] + " " + q["text"]) or st[-1]
         q["stage"] = s["i"]
@@ -1508,8 +1508,7 @@ def serve(whole, mode):
     started = not pid
     if not pid:
         mine = re.compile(r"^(CLAUDE_CODE_|CLAUDECODE$|CLAUDE_EFFORT$|CLAUDE_PLUGIN_|CLAUDE_SKILL_|CLAUDE_PROJECT_DIR$)")  # what ties a process to this session
-        env = dict({k: v for k, v in os.environ.items() if not mine.match(k)}, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1",
-                   CLAUDE_BIN=shutil.which("claude") or "claude")  # the dashboard runs Claude for answers no session took, once the user allows it
+        env = dict({k: v for k, v in os.environ.items() if not mine.match(k)}, INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1")
         with open(log, "a", encoding="utf-8") as f:
             proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(port), "-H", "127.0.0.1"], cwd=app, env=env,
                                     stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
@@ -1622,8 +1621,6 @@ def watch(mode):
         if n:
             print(told(n))
         return
-    if os.environ.get("GAMEDEV_KIT_JOB"):  # a run the dashboard started: it was told at its start, and it must end when its work does
-        return
     parent, session = os.getppid(), session_pid()
     gone = lambda: os.getppid() != parent or not running(session)  # the session that started this watcher has ended — it would take batches for no one
     if mode == "--rewake":
@@ -1707,8 +1704,9 @@ def answers(path):
         out.append("Open questions in the GDD — write an answer where it belongs in the GDD and strike the question (~~…~~); a not needed one is struck only:")
         out += [f'  “{i["ref"]}” → {"not needed" if pick == "drop" else "answer"}{note(n)}' for i, pick, n in groups["question"]]
     if groups["asset"]:
-        out.append("Assets — the asset skill: approve, or reject with the user's words:")
-        out += [f'  {i["ref"]} ({"3D model — asset.py" if i.get("tool") == "asset" else "sprite — sprite.py"}) → {pick or "?"}{note(n)}' for i, pick, n in groups["asset"]]
+        out.append("Assets — the asset skill: approve, reject with the user's words, or drop the attempt when not needed (`drop <name>`):")
+        out += [f'  {i["ref"]} ({"3D model — asset.py" if i.get("tool") == "asset" else "sprite — sprite.py"}) → {"not needed (drop)" if pick == "drop" else pick or "?"}{note(n)}'
+                for i, pick, n in groups["asset"]]
     if groups["check"]:
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
         out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem' + (" (hand the problems to the playtest skill as one list):" if bad else ""))

@@ -44,8 +44,6 @@ the board's review and the dashboard show only what is written there, and a ques
 (or a sheet, for options compared side by side — the cycle skill's "chosen by eye"). Not a separate page, not only a path in the chat.
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
-A session started by the dashboard (`GAMEDEV_KIT_JOB` is set) has nobody reading it: write every question as a decision, stop at the next point where the user has to answer or play, and send nothing off this machine.
-
 ## Keep sessions short
 
 The longer the conversation, the more is re-read every turn. Move to a new session at a cycle's break points (decisions asked · time to play · a new goal) reached by work in this session — a session that just opened at one is already the new one.
