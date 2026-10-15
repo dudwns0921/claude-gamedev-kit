@@ -27,12 +27,14 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
    ```
 
    If the folder is already an engine project (or the kit is already installed), it names the engine — use it and do not ask.
-   Otherwise it lists each engine with where its games can be played, what it suits and when to pick it. Ask **about the player, not the tool**, in one decision:
-   where will people play it — a phone (Android · iPhone), a computer (Steam), a browser (shared by a link) — **more than one may be picked**, and
-   **ask whether a store or a computer may come later even if it starts in a browser** (it moves the choice: a browser-only engine cannot follow there without a wrapper).
-   Then recommend the engine whose `pick it when` fits the places and the game the user described (2D or 3D, how large), say why in one line, and name the alternative.
-   Say the costs of the places picked once: an iPhone build needs a Mac with Xcode, and each store has its own developer account and fee — uploading is not the kit's (the user asks Claude Code when the game is ready).
-   If the user already said where it is played or which engine ("a Godot one", "for Android"), do not ask — say in one line which engine that means and go on.
+   Otherwise it lists the engines the kit supports, each with where its games can be played and what it needs — facts only; the kit keeps no opinion on which to pick.
+   Ask **about the player, not the tool**, in one short decision: where will people play it — a phone (Android · iPhone), a computer (Steam), a browser (shared by a link) —
+   **more than one may be picked**, and whether a store or a computer may come later even if it starts in a browser. Then name the engines that reach every place picked,
+   and offer in one line to recommend one ("want a recommendation? I'll look up how they compare now"). Do not recommend unasked.
+   **On yes, look it up then** — search the web for how those engines compare today for a game like the one described (2D or 3D, its size, the places picked),
+   and recommend **only among the engines `--detect` listed** (the kit runs no other), with why in a line or two and the sources' links. Where the web cannot be searched, say so and let the user pick from the list.
+   If only one engine reaches the places picked, say it is that one and go on. If the user already said where it is played or which engine ("a Godot one", "for Android"), do not ask — say in one line which engine that means and go on.
+   Uploading is not the kit's (the user asks Claude Code when the game is ready).
    If the repo belongs to any other engine, do not install and say so.
    **Keep what the user said about the game** — it is the first answer of the GDD interview that follows (step 9), not to be asked again.
 

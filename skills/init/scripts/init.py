@@ -2,7 +2,7 @@
 """Install the files gamedev-kit uses into a game repository. Run it at the game repository's root.
 
   python3 init.py              list the engines that can be installed
-  python3 init.py --detect     which engine's project this folder already is (or the engines to choose from: where each one's games are played, what it suits, when to pick it)
+  python3 init.py --detect     which engine's project this folder already is (or the engines to choose from: where each one's games are played, what it needs)
   python3 init.py <engine>       install the config · GDD template · engine templates. Also adds the engine's .gitignore lines
   python3 init.py <engine> --gitignore  add only the engine's .gitignore lines (lines already there are not written again)
   python3 init.py <engine> --files   in an already installed project, also reinstall the engine templates (the value file and what else the engine brings) that are missing
@@ -23,7 +23,7 @@ reads in with the game's CLAUDE.md. They live in the rules home (~/.config/gamed
 
 How to recognise an engine project and how the engine is chosen is in engines/<engine>/project.json (not copied into the game):
   marker    if this file exists, it is that engine's project
-  choose    plays_on (where its games can be played) · suits · pick_when (the user's game that makes it the one to recommend)
+  choose    plays_on (where its games can be played) · needs (what the user installs) — facts only; which engine to recommend is looked up when the user asks
 Finding the editor and creating the engine project are not the kit's — Claude does them with the engine's own tools, and the user installs the editor.
 """
 import hashlib
@@ -242,12 +242,11 @@ def main():
     if "--detect" in args:
         here, config = detect(root), os.path.join(root, "kit.config.json")
         has = json.load(open(config, encoding="utf-8")).get("engine", "") if os.path.exists(config) else ""
-        def choice(e):  # where a game made with it can be played, what it suits and when to pick it — the engine's own words (engines/<engine>/project.json)
+        def choice(e):  # where a game made with it can be played and what it needs — facts only (engines/<engine>/project.json)
             c = project(e).get("choose", {})
             if not c.get("plays_on"):
                 return f"  {e}"
-            return (f"  {e}\n    plays on:     " + "\n                  ".join(c["plays_on"])
-                    + f"\n    suits:        {c.get('suits', '')}\n    pick it when: {c.get('pick_when', '')}")
+            return f"  {e}\n    plays on: " + "\n              ".join(c["plays_on"]) + f"\n    needs:    {c.get('needs', '')}"
         print("\n".join(f"{e} — {project(e)['marker']} exists" for e in here)
               or "not an engine project — engines to choose from, by where the game is played:\n" + "\n".join(choice(e) for e in engines()))
         return print(f"the kit is already installed as {has} (kit.config.json)" if has else "the kit is not installed yet (no kit.config.json)")

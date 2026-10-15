@@ -4,10 +4,9 @@
       "Android phones (Google Play)",
       "iPhones (App Store) — the build needs a Mac with Xcode",
       "computers (Steam, itch.io)",
-      "browsers — heavy to load"
+      "browsers"
     ],
-    "suits": "2D or 3D, with the mobile ecosystem (ads, in-app purchases, device testing); needs the Unity editor and an account, and a build module per place",
-    "pick_when": "phones are where it is played first, or it needs ads or purchases"
+    "needs": "the Unity editor, a Unity account, and a build module for each place"
   },
   "marker": "ProjectSettings/ProjectVersion.txt"
 }

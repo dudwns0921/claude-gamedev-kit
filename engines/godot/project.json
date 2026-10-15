@@ -1,13 +1,12 @@
 {
   "choose": {
     "plays_on": [
-      "browsers — the engine is a few MB to load, slower to start on a phone",
+      "browsers",
       "computers (Steam, itch.io)",
       "Android phones (Google Play)",
       "iPhones (App Store) — the build needs a Mac with Xcode"
     ],
-    "suits": "2D or 3D with scenes, physics, tilemaps, animation and UI built in; free; needs the Godot editor (GDScript — a C# game cannot go to a browser)",
-    "pick_when": "the game may go to a store or a computer at all, even later, or it is 3D or large (many levels, physics at its heart) — and it is not a phone game first"
+    "needs": "the Godot editor"
   },
   "marker": "project.godot"
 }

@@ -385,13 +385,13 @@ class Tools(unittest.TestCase):
 
         out = init("--detect")
         self.assertIn("not an engine project — engines to choose from, by where the game is played:", out)
-        self.assertIn("  unity\n    plays on:     Android phones", out, "each engine says where its games are played — the question init asks is about the player")
+        self.assertIn("  unity\n    plays on: Android phones", out, "each engine says where its games are played — the question init asks is about the player")
         for engine in CODE:
             spec = json.load(open(os.path.join(KIT, "engines", engine, "project.json"), encoding="utf-8"))
             self.assertEqual(sorted(spec), ["choose", "marker"], "the engine folder holds no setup machinery")
             choose = spec["choose"]
-            self.assertTrue(choose["plays_on"] and choose["suits"] and choose["pick_when"], engine)
-            self.assertIn(f"    pick it when: {choose['pick_when']}", out)
+            self.assertEqual(sorted(choose), ["needs", "plays_on"], "facts only — which to recommend is looked up when the user asks")
+            self.assertIn(f"    needs:    {choose['needs']}", out)
         self.assertIn("the kit is not installed yet", out)
         for gone in ("--editor", "--create", "--import"):
             self.assertIn(f"unknown engine {gone}", init(gone, ok=False), "the setup steps are gone — an unknown word is taken for an engine")
@@ -416,12 +416,12 @@ class Tools(unittest.TestCase):
         engines = os.path.join(top, "engines")
         os.makedirs(os.path.join(engines, "toy"))
         json.dump({"engine": "toy"}, open(os.path.join(engines, "toy", "kit.config.json"), "w"))
-        json.dump({"marker": "toy.project", "choose": {"plays_on": ["toy boxes"], "suits": "toys", "pick_when": "it is a toy"}},
+        json.dump({"marker": "toy.project", "choose": {"plays_on": ["toy boxes"], "needs": "a toy editor"}},
                   open(os.path.join(engines, "toy", "project.json"), "w"))
         root = os.path.join(top, "game2")
         os.makedirs(root)
         out = init("--detect", GAMEDEV_KIT_ENGINES=engines)
-        self.assertIn("  toy\n    plays on:     toy boxes\n    suits:        toys\n    pick it when: it is a toy", out)
+        self.assertIn("  toy\n    plays on: toy boxes\n    needs:    a toy editor", out)
         open(os.path.join(root, "toy.project"), "w").close()
         self.assertIn("toy — toy.project exists", init("--detect", GAMEDEV_KIT_ENGINES=engines))
 
