@@ -1758,12 +1758,14 @@ if sys.argv[1:3] == ["run", "start"]:
         json.dump({"board": {"service": {"game": "g"}}}, open(os.path.join(root, "kit.config.json"), "w"))
         run(CYCLE, root, "new", "bow", "Draw the bow")
         run(CYCLE, root, "ask", "Spec", "Restart — ① every time ② once · recommended: ①")
+        run(CYCLE, root, "ask", "Spec", "Arrows — ① stay ② vanish")
+        run(CYCLE, root, "decide", "D2", "①", "--proxy", "recommended")  # decided for the user — the cycle after moves on standing on it
         run(CYCLE, root, "new", "shop", "A shop")
         run(CYCLE, root, "ask", "Spec", "Price — ① fixed ② floating")
         run(BOARD, root)
         review = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
         self.assertEqual([(i["key"], i["latest"]) for i in review if i["kind"] == "decision"], [("c02-D1", True), ("c01-D1", False)],
-                         "every open decision is on the review, the newest cycle first")
+                         "every open decision is on the review, the newest cycle first — not one decided for the user in a cycle that has moved on")
         box = os.path.join(root, "docs/board/inbox")
         os.makedirs(box)
         def send(name, rows):  # written whole, then renamed in — as the dashboard does, so a watcher never reads half a file
@@ -1777,7 +1779,7 @@ if sys.argv[1:3] == ["run", "start"]:
         send("1", [{"key": "c02-D1", "pick": "②", "note": ""}, {"key": "c01-D1", "pick": "drop", "note": "no restarts now"}])
         self.assertIn("2 answer(s) from the board", watch("--notice").stdout)
         self.assertEqual(os.listdir(box), ["1.taken"], "taken once — no other watcher relays it again")
-        self.assertEqual(watch("--notice").stdout, "")
+        self.assertIn("2 answer(s)", watch("--notice").stdout, "a session starting before it was read is told of it too")
         out = run(BOARD, root, "answers", "--inbox").stdout
         self.assertIn("  D1 → ②\n", out)
         self.assertIn("  D1 → not needed (drop) — “no restarts now” [cycle 01 — --doc docs/cycle/01-bow.md]", out, "an older cycle's decision names its document")
@@ -1810,7 +1812,50 @@ if sys.argv[1:3] == ["run", "start"]:
         os.remove(os.path.join(box, "2.taken"))
         send("3", [{"key": "c02-D2", "pick": "②", "note": ""}])
         self.assertIn("1 answer(s) from the board", mon.stdout.readline())
+
+        # a change of sessions with the old one left open: the newest session's monitor takes the batches, the older stands aside
+        newer = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+        self.addCleanup(newer.kill)
+        time.sleep(0.5)
+        os.remove(os.path.join(box, "3.taken"))
+        send("4", [{"key": "c02-D2", "pick": "①", "note": "newest"}])
+        self.assertIn("1 answer(s) from the board", newer.stdout.readline(), "the session opened last is told")
+        # the newer session closes: the older one takes over again
+        newer.kill()
+        newer.wait()
+        os.remove(os.path.join(box, "4.taken"))
+        send("5", [{"key": "c02-D2", "pick": "②", "note": "older"}])
+        self.assertIn("1 answer(s) from the board", mon.stdout.readline(), "the session still open picks up again")
         mon.kill()
+        mon.wait()
+        # it was told, then closed before reading the batch: the next session is told of it at its start
+        self.assertEqual(os.listdir(box), ["5.taken"])
+        self.assertIn("1 answer(s) from the board", watch("--notice").stdout, "a batch taken and never read is not lost")
+        self.assertIn("D2 → ②", run(BOARD, root, "answers", "--inbox").stdout)
+        self.assertEqual(watch("--notice").stdout, "", "read — not told again")
+        # a watcher whose session has ended stops instead of taking batches for no one
+        for mode, shell in (("", False), ("--rewake", False), ("", True), ("--rewake", True)):
+            for left in (".watching", ".rewake"):  # what the watchers before left — a fresh beat would make the hook stand aside at once
+                if os.path.exists(os.path.join(root, "docs/board", left)):
+                    os.remove(os.path.join(root, "docs/board", left))
+            cmd = f'"{sys.executable}" "{BOARD}" --root "{root}" watch {mode}'
+            starts = (f"import subprocess,sys,time\np=subprocess.Popen({['sh', '-c', cmd + '; true'] if shell else ['sh', '-c', 'exec ' + cmd]!r},"
+                      "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\ntime.sleep(1)\nprint(p.pid,flush=True)\ntime.sleep(60)")
+            session = subprocess.Popen([sys.executable, "-c", starts], stdout=subprocess.PIPE, text=True, env=env)  # stands in for the session
+            child = int(session.stdout.readline())
+            pid = int(subprocess.run(["pgrep", "-P", str(child)], capture_output=True, text=True).stdout.split()[0]) if shell else child
+            session.kill()
+            session.wait()
+            end = time.time() + 10
+            while time.time() < end:
+                try:
+                    os.kill(pid, 0)
+                except OSError:
+                    break
+                time.sleep(0.1)
+            else:
+                os.kill(pid, 9)
+                self.fail(f"watch {mode} outlived its session")
 
         json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertEqual(watch(timeout=10).returncode, 0, "a game without a dashboard: the monitor ends at once")

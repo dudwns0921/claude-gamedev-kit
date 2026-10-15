@@ -422,7 +422,7 @@ def open_questions(st, cycles):
             out.append({"title": (t.group(1) if t else b).replace("**", ""), "text": (t.group(2) if t else "").replace("**", ""), "from": "GDD"})
     for c in cycles:
         out += [{"title": f'{d["num"]} {d["title"]}', "text": "decided for you — waiting for your confirmation" if d["proxy"] else "waiting for your answer", "from": f'Cycle {c["num"]}',
-                 "decision": {"doc": c["file"], "num": d["num"]}} for d in c["decisions"] if not d["done"]]
+                 "decision": {"doc": c["file"], "num": d["num"]}} for d in c["decisions"] if not d["done"] and not (d["proxy"] and c is not cycles[-1])]
     for q in out:
         s = place_words(st, q["title"] + " " + q["text"]) or st[-1]
         q["stage"] = s["i"]
@@ -1019,7 +1019,7 @@ def review_items(cycles, sheet, asks=()):
     for c in reversed(cycles):  # every decision still open, the newest cycle first — what waits on the user is all on one page
         latest = c is cycles[-1]
         for d in c["decisions"]:
-            if d["done"]:
+            if d["done"] or (d["proxy"] and not latest):  # decided for the user in a cycle that has moved on: the work stands on it — to change it is a new goal
                 continue
             q = pics.get(d["num"], {}) if latest else {}  # the sheet's pictures are by decision id — the newest cycle's
             opts = [(str(o.get("mark", "")), str(o.get("text", ""))) for o in q.get("options", []) if isinstance(o, dict)] or split_options(d["options"])
@@ -1560,9 +1560,14 @@ def tidy_inbox(asked):
             os.remove(p)
 
 
-def claim():
+def claim(stranded=False):
+    """Takes the batches no watcher has taken. stranded: also counts the ones taken but never read — the session told of them ended
+    (or its watcher outlived it) before running `answers --inbox`, so a session starting now picks them up. Reading twice is harmless:
+    `answers` says nothing for an answer it has already relayed."""
     box, n = os.path.join(board_folder(), "inbox"), 0
     for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
+        if stranded and name.endswith(".taken"):
+            n += len(rows_in(load_json(os.path.join(box, name)) or []))
         if name.endswith(".json"):
             try:
                 os.rename(os.path.join(box, name), os.path.join(box, name[:-5] + ".taken"))
@@ -1572,6 +1577,27 @@ def claim():
     return n
 
 
+def session_pid():
+    """The process above the one that started this watcher — the session itself when a hook or monitor is run through a shell."""
+    try:
+        out = subprocess.run(["ps", "-o", "ppid=", "-p", str(os.getppid())], capture_output=True, text=True, timeout=5).stdout.strip()
+        return int(out) if out and int(out) > 1 else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None  # no ps here — the parent alone is watched
+
+
+def running(pid):
+    if pid is None:
+        return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True  # there, but not ours to signal
+
+
 def told(n):
     return (f"{n} answer(s) from the board — the user sent them from the dashboard. Run "
             f"python3 \"{os.path.abspath(__file__)}\" answers --inbox and act on each as it says, then go on.")
@@ -1579,24 +1605,28 @@ def told(n):
 
 def watch(mode):
     """The monitor (no mode): runs the whole session and says a line when answers arrive. --rewake: a hook waiting after a turn, for where
-    monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start."""
+    monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start.
+    Across a change of sessions: the newest session's watcher takes the batches (an older session left open stands aside), a watcher whose
+    session has ended stops, and a new session is told at its start of whatever is waiting — sent while none was open, or taken and never read."""
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
     if not svc.get("game"):
         return  # no dashboard for this game
     folder = board_folder()
     beat = os.path.join(folder, ".watching")
     if mode == "--notice":
-        n = claim()
+        n = claim(stranded=True)
         if n:
             print(told(n))
         return
+    parent, session = os.getppid(), session_pid()
+    gone = lambda: os.getppid() != parent or not running(session)  # the session that started this watcher has ended — it would take batches for no one
     if mode == "--rewake":
         me = os.path.join(folder, ".rewake")
         os.makedirs(folder, exist_ok=True)
         open(me, "w").write(str(os.getpid()))
         end = time.time() + 3300
         while time.time() < end:
-            if read(me).strip() != str(os.getpid()):
+            if gone() or read(me).strip() != str(os.getpid()):
                 return  # a newer turn's hook took over
             if os.path.exists(beat) and time.time() - os.path.getmtime(beat) < 4 * INBOX_POLL + 2:
                 return  # a monitor is watching
@@ -1606,12 +1636,16 @@ def watch(mode):
                 sys.exit(2)  # wakes the session (asyncRewake)
             time.sleep(INBOX_POLL)
         return
-    while True:
-        os.makedirs(folder, exist_ok=True)
-        open(beat, "w").write(str(os.getpid()))
-        n = claim()
-        if n:
-            print(told(n), flush=True)
+    os.makedirs(folder, exist_ok=True)
+    open(beat, "w").write(str(os.getpid()))  # the newest monitor watches; one already running stands aside while this one beats
+    while not gone():
+        mine = read(beat).strip() == str(os.getpid())
+        if mine or not os.path.exists(beat) or time.time() - os.path.getmtime(beat) > 4 * INBOX_POLL + 2:  # or the newer one's session ended — take over again
+            os.makedirs(folder, exist_ok=True)
+            open(beat, "w").write(str(os.getpid()))
+            n = claim()
+            if n:
+                print(told(n), flush=True)
         time.sleep(INBOX_POLL)
 
 

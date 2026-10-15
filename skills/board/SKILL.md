@@ -178,6 +178,8 @@ the open questions, the cycles, the review cards and the asset sheet; the dashbo
 (the newest first), the GDD's open questions, images to approve, checks by playing. "Send to the session" writes the answers as one file in `docs/board/inbox/`.
 The plugin wakes the open session for it — a monitor (`board.py watch`) where monitors run, else the hook that waits after each turn (`watch --rewake`, which wakes
 the session by exiting 2); a session opened later is told at its start (`watch --notice`). Whichever takes the batch first relays it; none relays it twice.
+Across a change of sessions nothing is lost: the newest session's watcher takes the batches (an older one left open stands aside), a watcher whose session ended stops,
+and a batch taken but never read is told again to the next session at its start.
 When woken with "answer(s) from the board", run
 
 ```bash

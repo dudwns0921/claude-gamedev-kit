@@ -12,6 +12,7 @@ Items with an ID in the GDD Appendix A sync table (numbers · enums · rules · 
 
 - Changed **in the code** → end the task with `/gamedev-kit:gdd-sync to-gdd`. Changed **in the GDD** → `/gamedev-kit:gdd-sync to-code`. Not sure which side is right → `/gamedev-kit:gdd-sync` (report only) and ask.
 - A new value in code gets a `GDD: <ID>` marker on its defining line, and a row in the table first.
+- The GDD's "Open questions" holds only what is still open — the board asks the user every unstruck line there. Once one is answered, write the answer where it belongs in the body and strike the line (`~~…~~ → <answer>`); never list what was decided or built there.
 
 ## The balance table shows the game's numbers
 
@@ -38,6 +39,8 @@ This session directs; the skills and their agents do the work. Each skill's own 
 ## The user decides
 
 Claude does not decide scope · taste · numbers · whether to ship. Offer options with one recommendation, ask, and write the answer in the cycle document's "Decisions" in the user's own words.
+**Every question for the user is a decision**, whatever stage or skill it comes up in (build, play, a playtest fix, an asset, a logo): write it with `cycle.py ask <stage> "…"` in the newest cycle document before asking —
+the board's review and the dashboard show only what is written there, and a question asked only in the chat is lost when the session changes. One chosen by eye (candidates to pick from) gets a sheet with its pictures (the cycle skill's "chosen by eye"), not a separate page.
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
 
 The one exception is auto mode, and only when the user asks for it (`/gamedev-kit:cycle auto …`): the user's voice decides in their place up to the point of playing, every such decision is marked `[~]` and waits for them, and it never ships, spends money or starts a second cycle.

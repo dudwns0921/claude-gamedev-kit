@@ -18,6 +18,8 @@ A number written in the body must have the same value as the same item in Append
 
 ## 8. Open questions
 
+Only what is not decided yet, one `- ` line each. An answered one is struck (`~~…~~ → <answer>`) and its answer written in the body above.
+
 ---
 
 ## Appendix A. Sync table

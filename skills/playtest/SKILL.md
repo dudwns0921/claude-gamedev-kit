@@ -40,7 +40,9 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    Record the current commit with `git rev-parse --short HEAD`, and say so if there are uncommitted changes.
 2. **Call the `gamedev-kit:playtest-analyst` agent.** Pass: the problem list verbatim, the commit hash,
    context the user added (which scene · which device · how many tries). **Do not pass your guesses** — an analyst handed a hypothesis comes back having confirmed it.
-3. When it returns, relay the document path, the task count, and "Questions for the user". For `plan`, stop here.
+3. When it returns, write each of its "Questions for the user" as a decision in the newest cycle document
+   (`python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" ask Playtest "<question — ① … ② … · recommended: ①>"` — the board's review and the dashboard show only decisions),
+   then relay the document path, the task count and the questions with their numbers. For `plan`, stop here. When answered, `cycle.py decide` records it as for any decision.
 
 ## 2. Build
 

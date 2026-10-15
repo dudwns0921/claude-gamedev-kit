@@ -29,7 +29,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" status          # one line per do
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" next            # stage · unanswered decisions · next wave's tasks
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # one task and only the decisions it hangs on
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<reason>" · open
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <Spec|Design|Plan> "<question — ① … ② … · recommended: ①>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <stage> "<question — ① … ② … · recommended: ①>"   # any stage — Build · Play too
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "②" --proxy V3   # auto mode: decided in the user's place — written [~]
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # the user accepts proxy decisions (`all`). To overturn: decide
@@ -106,7 +106,12 @@ If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "Decisions" with `ask`, and ask the user all at once —
 options · what each costs · the recommendation. Then show the task count and waves. **Stop here.**
 
-**A decision chosen by eye is asked with a picture, one per question.** A screen, a pose, a grip, a colour: text plus a wide comparison image handed over separately cannot be chosen from (least of all on a phone).
+**Every question for the user is a decision — in every stage, not only these three.** One that comes up in Build or Play (a fix that could go two ways, which logo, whether to redo a picture),
+from a playtest or an asset, is written with `ask Build|Play|Playtest|Asset "…"` in the newest cycle document before it is asked. A question asked only in the chat is not on the board's review,
+cannot be answered from the dashboard, and is lost when the session changes.
+
+**A decision chosen by eye is asked with a picture, one per question.** Candidates the user picks from (logo drafts, two looks of one screen) are the options of one decision, each with its picture —
+not a page of their own. A screen, a pose, a grip, a colour: text plus a wide comparison image handed over separately cannot be chosen from (least of all on a phone).
 Write the questions to a json file and make the sheets — each comes out as one picture with the numbered question and its options on top and, below, one tightly cropped picture per option, labelled (now · the change · a reference):
 
 ```bash

@@ -7,7 +7,7 @@
   python3 cycle.py task T3                      One task and only the decisions it depends on (what the developer agent reads)
   python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
-  python3 cycle.py ask <Spec|Design|Plan> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4)
+  python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py decide D2 "②" --proxy V3     Auto mode — decided in the user's place. Written as [~] (basis: the voice's principle number, or `recommended` if none)
   python3 cycle.py confirm D2,D5                The user accepted the proxy decisions — they become [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
