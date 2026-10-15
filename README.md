@@ -14,12 +14,12 @@ claude plugin marketplace add dudwns0921/claude-gamedev-kit
 claude plugin install gamedev-kit@claude-gamedev-kit --scope project
 ```
 
-Then, inside Claude Code:
+Then just say what you want, in that folder:
 
 ```
-/gamedev-kit:init      pick an engine; the kit creates the project, installs its files and offers the dashboard
-/gamedev-kit:start     write the GDD together, agree on the look, set the first goal
-/gamedev-kit:cycle     build that goal — and every goal after it
+let's make a game — a Godot one        → sets up the project, then writes the GDD with you, one question at a time
+this time, let's add a shop            → one cycle: spec, design, build; what is yours to decide waits on the dashboard
+I played it — the prices are unreadable → finds the causes and fixes them
 ```
 
 You need Claude Code and Python 3.9 or later; the dashboard needs Node.js; Godot and Unity need their editor.
@@ -46,20 +46,8 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 
 What tripped you becomes one of your rules, loaded into every game you make next. Once you say so, rules go to this repository as issues, and the ones that hold for anyone become the kit's rules for everybody.
 
-## Commands
-
-| | |
-|---|---|
-| `/gamedev-kit:init` · `start` | Set up a game, from an empty folder · write the GDD, agree on the look, set the first goal |
-| `/gamedev-kit:cycle` | One goal through spec, design, plan, build and play — `<goal>` · `next` · `status` |
-| `/gamedev-kit:playtest` | Your list of problems after playing → causes found → fixed, one agent per task |
-| `/gamedev-kit:board` | The board and the dashboard of every game on your machine (`serve`) |
-| `/gamedev-kit:gdd-sync` · `balance-table` | Align the GDD and the code · the balance numbers on one sheet |
-| `/gamedev-kit:asset` · `video` | Optional: 3D models, sprites, sounds · trailers and cutscenes — or bring your own files |
-| `/gamedev-kit:deploy` | Build and upload on your approval — itch.io, Google Play |
-| `/gamedev-kit:feedback` | Your rules, and sending them to the kit |
-
-Assets are optional: a cycle runs on placeholders, and any file you put in the slot counts. The kit's own generators need API keys you keep outside the repository — see [`skills/asset`](skills/asset/SKILL.md).
+Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, `gdd-sync`, `deploy`, … — if you would rather type one.
+Assets are optional: a cycle runs on placeholders, and any file you put in its place counts.
 
 ## Updating
 
