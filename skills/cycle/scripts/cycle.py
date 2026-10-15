@@ -10,7 +10,7 @@
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
         [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard
   python3 cycle.py attach D3 --image "<label>=<path>" …   Pictures for a decision already asked (they replace any attached before)
-  python3 cycle.py reask D3 "<question — ① … ② … · recommended: ①>" [--image …]   Ask it again, worded anew (the answer was a question back, the options changed): same number, open again
+  python3 cycle.py reask D3 "<question — ① … ② … · recommended: ①>" [--image …]   Ask it again as a new decision (the answer was a question back, the options changed): D3 closes as "asked again as D7", D7 is asked
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
@@ -22,7 +22,9 @@
 The document is the newest one (highest number). For another, `--doc <path>`.
 Documents are written in English. Ones written before that use Korean words — both are read, and a stage or section given in Korean is taken too.
 """
+import contextlib
 import datetime
+import io
 import json
 import os
 import re
@@ -284,20 +286,32 @@ def cmd_ask(path, who, question, images=()):
 
 
 def cmd_reask(path, num, question, images=()):
-    """Ask a decision again, worded anew — when the user's answer was a question back, or the options changed. Same number, open again,
-    who asked it kept; an answer it had is dropped. The board gives it a new card, and an answer sent to the old wording is not relayed."""
+    """Ask a decision again as a new one — when the user's answer was a question back, or the options changed. The old one is closed
+    ([-] "asked again as D7"), the new one gets the next number and the same asker; its pictures come along unless new ones are given.
+    On the dashboard the old card leaves and a new card comes — nothing of the old answer holds it."""
     text = read(path)
     ds = decisions(text)
     if num not in ds:
         sys.exit(f"{num}: no such decision — " + " · ".join(ds))
-    old = ds[num][1]
+    mark, old = ds[num]
+    if mark == "x":
+        sys.exit(f"{num}: already answered — to change the answer, `decide {num}`; for another question, `ask`")
     who = re.search(r"\((Spec|Design|Plan|Build|Play|Playtest|Asset|기획|디자인|계획|구현|플레이)\)", old)
     pics = pictures(images)
-    q = clean(question)
-    write(path, text.replace(old, f"- [ ] {num}. {q} ({EN.get(who.group(1), who.group(1)) if who else 'Spec'})", 1))
+    new = "D%d" % (max(int(d[1:]) for d in ds) + 1)
+    ask = PROXY_RE.match(old).group(1) if mark == "~" else old.split(" → ")[0]
+    text = text.replace(old, f"- [-]{ask[5:]} → asked again as {new} ({datetime.date.today()})", 1)
+    write(path, text)
+    with contextlib.redirect_stdout(io.StringIO()):
+        cmd_ask(path, EN.get(who.group(1), who.group(1)) if who else "Spec", question)
+    if not pics:  # the pictures the old one was asked with
+        cyc = int(re.match(r"\d+", os.path.basename(path)).group(0))
+        kept = os.path.join(ROOT, SHEETS, f"asks-{cyc:02d}.json")
+        was = next((q for q in (json.load(open(kept, encoding="utf-8")) if os.path.exists(kept) else []) if q.get("id") == num), None)
+        pics = was["images"] if was else []
     if pics:
-        keep_pictures(path, num, q, pics)
-    print(f"{num}: asked again — answer it on the dashboard or in the chat")
+        keep_pictures(path, new, clean(question), pics)
+    print(f"{num} → {new}: asked again as a new decision")
 
 
 def cmd_attach(path, num, images):

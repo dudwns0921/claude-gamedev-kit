@@ -1869,32 +1869,32 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(os.listdir(box), [], "the dashboard has a board that no longer asks them — the batch leaves")
         run(CYCLE, root, "ask", "Spec", "Colour — ① red ② blue")  # D2 of cycle 02, for what follows
         run(BOARD, root)
-        # an answer that asks back: the session asks the decision again, worded anew — the relayed answer leaves the card, and it is open again
+        # an answer that asks back: the session asks it again as a new decision — the old card leaves with the answer that held it
         send("9", [{"key": "c02-D2", "pick": "", "note": "can it be both?"}])
         run(BOARD, root, "watch", "--notice")
         run(BOARD, root, "answers", "--inbox")
         held = lambda: [r["key"] for n in os.listdir(box) if n.endswith(".relayed") for r in json.load(open(os.path.join(box, n)))]
         self.assertIn("c02-D2", held())
-        self.assertIn("asked again", run(CYCLE, root, "reask", "D2", "D2. Colour — ① red ② blue ③ both, one per team · recommended: ③ (Spec)").stdout)
-        line = next(l for l in open(os.path.join(root, "docs/cycle/02-shop.md"), encoding="utf-8").read().split("\n") if "D2." in l)
-        self.assertEqual(line, "- [ ] D2. Colour — ① red ② blue ③ both, one per team · recommended: ③ (Spec)", "no number or stage twice")
+        self.assertIn("D2 → D3: asked again as a new decision", run(CYCLE, root, "reask", "D2", "D2. Colour — ① red ② blue ③ both, one per team · recommended: ③ (Spec)").stdout)
+        text = open(os.path.join(root, "docs/cycle/02-shop.md"), encoding="utf-8").read()
+        self.assertRegex(text, r"- \[-\] D2\. Colour — ① red ② blue \(Spec\) → asked again as D3 \(\d{4}-\d\d-\d\d\)\n")
+        self.assertIn("- [ ] D3. Colour — ① red ② blue ③ both, one per team · recommended: ③ (Spec)\n", text, "no number or stage twice")
         run(BOARD, root)
-        self.assertIn("c02-D2", held(), "until the dashboard has the new wording (push), the old answer still holds the card")
-        # what push does once the dashboard took the board: tidy the inbox against the questions as now worded
+        keys = [i["key"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "decision"]
+        self.assertIn("c02-D3", keys)
+        self.assertNotIn("c02-D2", keys)
         tidy = ("import json, sys; sys.path.insert(0, sys.argv[1]); import board; board.setup(sys.argv[2]); "
                 "board.tidy_inbox({i['key']: i.get('asked', '') for i in json.load(open(sys.argv[3]))})")
         subprocess.run([sys.executable, "-c", tidy, os.path.dirname(BOARD), root, os.path.join(root, "docs/board/review.json")], check=True)
-        self.assertNotIn("c02-D2", held(), "asked anew — the card is open again on the dashboard")
-        send("10", [{"key": "c02-D2", "pick": "", "note": "can it be both?"}])
-        run(BOARD, root, "watch", "--notice")
-        self.assertIn("D2 → (no option) — “can it be both?”", run(BOARD, root, "answers", "--inbox").stdout, "the same words to the new question are a new answer")
+        self.assertEqual(held(), [], "once the dashboard has the board, nothing holds the old card")
+        self.assertIn("D1: already answered", run(CYCLE, root, "reask", "D1", "x", ok=False).stderr)
         for n in os.listdir(box):
             os.remove(os.path.join(box, n))
 
         # the hook after a turn: waits, and wakes the session (exit 2, the message on stderr) when a batch arrives
         p = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
         time.sleep(0.5)
-        send("2", [{"key": "c02-D2", "pick": "①", "note": ""}])
+        send("2", [{"key": "c02-D3", "pick": "①", "note": ""}])
         _out, err = p.communicate(timeout=20)
         self.assertEqual(p.returncode, 2)
         self.assertIn("1 answer(s) from the board", err)
@@ -1919,7 +1919,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.addCleanup(mon.kill)
         self.assertEqual(second.wait(timeout=10), 0, "a monitor is watching — the hook does not wake the session too")
         os.remove(os.path.join(box, "2.taken"))
-        send("3", [{"key": "c02-D2", "pick": "②", "note": ""}])
+        send("3", [{"key": "c02-D3", "pick": "②", "note": ""}])
         self.assertIn("1 answer(s) from the board", mon.stdout.readline())
 
         # a change of sessions with the old one left open: the newest session's monitor takes the batches, the older stands aside
@@ -1927,20 +1927,20 @@ if sys.argv[1:3] == ["run", "start"]:
         self.addCleanup(newer.kill)
         time.sleep(0.5)
         os.remove(os.path.join(box, "3.taken"))
-        send("4", [{"key": "c02-D2", "pick": "①", "note": "newest"}])
+        send("4", [{"key": "c02-D3", "pick": "①", "note": "newest"}])
         self.assertIn("1 answer(s) from the board", newer.stdout.readline(), "the session opened last is told")
         # the newer session closes: the older one takes over again
         newer.kill()
         newer.wait()
         os.remove(os.path.join(box, "4.taken"))
-        send("5", [{"key": "c02-D2", "pick": "②", "note": "older"}])
+        send("5", [{"key": "c02-D3", "pick": "②", "note": "older"}])
         self.assertIn("1 answer(s) from the board", mon.stdout.readline(), "the session still open picks up again")
         mon.kill()
         mon.wait()
         # it was told, then closed before reading the batch: the next session is told of it at its start
         self.assertEqual(os.listdir(box), ["5.taken"])
         self.assertIn("1 answer(s) from the board", watch("--notice").stdout, "a batch taken and never read is not lost")
-        self.assertIn("D2 → ②", run(BOARD, root, "answers", "--inbox").stdout)
+        self.assertIn("D3 → ②", run(BOARD, root, "answers", "--inbox").stdout)
         self.assertEqual(watch("--notice").stdout, "", "read — not told again")
         # a watcher whose session has ended stops instead of taking batches for no one
         for mode, shell in (("", False), ("--rewake", False), ("", True), ("--rewake", True)):
