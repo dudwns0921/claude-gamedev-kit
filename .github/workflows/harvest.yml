@@ -85,6 +85,13 @@ jobs:
           python3 tools/harvest.py pick "$@"
           grep -qx 'run=true' "$GITHUB_OUTPUT" || { echo "::error::nothing to pick any more — the issues changed since the pick job"; exit 1; }
 
+      # A sweep whose tests fail is thrown away — so a default branch already failing them would throw away the model's work for nothing.
+      - name: The default branch passes its tests
+        run: |
+          for cmd in "tests/test_tools.py" "tests/test_structure.py" "tools/private_check.py"; do
+            python3 $cmd || { echo "::error::$cmd fails on the default branch itself — fix that first; the sweep did not run"; exit 1; }
+          done
+
       # The actor of an `issues` event can be anyone, so the action's own check on the actor is replaced by what `pick` lets through
       # (allowed_non_write_users — it also strips secrets from the environment of what the model runs). The token it gets is this job's: read-only.
       - name: Draft the change

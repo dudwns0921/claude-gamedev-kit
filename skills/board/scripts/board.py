@@ -1221,13 +1221,14 @@ def build(outdir, index_name):
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     stray, stray_assets = stray_of(st)
     now = cycles[-1] if cycles else None
-    talk = int((load_json(context_kept()) or {}).get("size") or 0)
+    kept = load_json(context_kept()) or {}
+    talk = int(kept.get("size") or 0)
     c = tally([i for s in st for lane in LANES for i in s["lanes"][lane]])
     summary = {"name": name, "drawn": stamp, "complete": total, "share": CFG["share"] or None,
-               # pause: the cycle waits on the user (decisions asked, or time to play) and the game's conversation has grown long —
-               # a good moment to /clear the session and go on with `cycle next`. context: that conversation's size, as the context hook kept it
+               # pause: the game's session told the user to /clear, and no later answer of it took that back — the session judges, the board only says it.
+               # context: that conversation's size. Both as the context hook kept them
                "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]), "context": talk,
-                       "pause": talk >= CLEAR_AT and bool(re.match(STAGE_PLAY, now["stage"]) or any(not d["done"] for d in now["decisions"]))} if now else None,
+                       "pause": bool(kept.get("pause")) and kept.get("pause") == kept.get("session")} if now else None,
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(review),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
@@ -1236,11 +1237,8 @@ def build(outdir, index_name):
                                     + f" · review {len(review)}")
 
 
-CLEAR_AT = 200_000  # a conversation this long is worth clearing at a break — the context hook's first line, too
-
-
 def context_kept():
-    """The size of this game's latest conversation, kept by the context hook (hooks/context_watch.py — the same path)."""
+    """The size of this game's latest conversation and whether it told the user to /clear, kept by the context hook (hooks/context_watch.py — the same path)."""
     return os.path.join(tempfile.gettempdir(), "gamedev-kit-context", "game-" + hashlib.sha1(os.path.realpath(ROOT).encode()).hexdigest()[:16] + ".json")
 
 
@@ -1664,19 +1662,39 @@ def told(n):
             f"python3 \"{os.path.abspath(__file__)}\" answers --inbox and act on each as it says, then go on.")
 
 
+def say_session(state, why, pid, only_if=None):
+    """Where the game's session stands, in <board>/.session — the dashboard shows it as written and judges nothing itself:
+    on — a watcher of the kit holds the game, answers sent now wake the session; work — a turn is running, answers are taken when it ends;
+    off — none will take them until the user sends any message in the session (why: the reason). pid: the process whose end makes it untrue —
+    the one fact the dashboard checks, since a process that is killed cannot write that it went. only_if: write only while the file still names this pid."""
+    path = os.path.join(board_folder(), ".session")
+    was = load_json(path) or {}
+    if only_if is not None and was.get("pid") != only_if:
+        return
+    if (was.get("state"), was.get("why"), was.get("pid")) == (state, why, pid):
+        return  # every write is a change the dashboard tells its pages
+    os.makedirs(board_folder(), exist_ok=True)
+    with open(path + ".part", "w") as f:
+        json.dump({"state": state, "why": why, "pid": pid, "at": f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S}"}, f)
+    os.replace(path + ".part", path)
+
+
 def at_work():
-    """The session is at work (a prompt came, a tool ran): answers sent now are taken when its turn ends — the dashboard says so."""
+    """The session is at work (a prompt came, a tool ran): answers sent now are taken when its turn ends — unless a watcher alive still takes them now."""
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
-    if svc.get("game"):
-        os.makedirs(board_folder(), exist_ok=True)
-        open(os.path.join(board_folder(), ".active"), "w").write(f"{time.time():.0f}\n")
+    if not svc.get("game"):
+        return
+    was = load_json(os.path.join(board_folder(), ".session")) or {}
+    if was.get("state") == "on" and isinstance(was.get("pid"), int) and running(was["pid"]):
+        return
+    say_session("work", "", session_pid())
 
 
 def watch(mode):
     """The monitor (no mode): runs the whole session and says a line when answers arrive. --rewake: a hook waiting after a turn, for where
     monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start, and on every
     prompt the user sends — so any message reconnects a session whose watcher is gone (an idle hour, an update) and picks up what waits.
-    The hook leaves why it ended in .rewake.log and takes its .rewake away — the dashboard reads those to say whether a session is listening.
+    Each says in .session where the session stands as it changes (say_session) — that is all the dashboard reads of it.
     Across a change of sessions: the newest session's watcher takes the batches (an older session left open stands aside), a watcher whose
     session has ended stops, and a new session is told at its start of whatever is waiting — sent while none was open, or taken and never read."""
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
@@ -1696,13 +1714,17 @@ def watch(mode):
         me = os.path.join(folder, ".rewake")
         os.makedirs(folder, exist_ok=True)
         open(me, "w").write(str(os.getpid()))
+        say_session("on", "", os.getpid())
 
-        def ended(why, code=0):
-            """One line on why this hook stopped waiting; its .rewake goes with it, unless a newer hook's is there."""
+        def ended(why, code=0, state="off"):
+            """One line on why this hook stopped waiting; its .rewake goes with it, unless a newer hook's is there.
+            state: what the session is now, said only while .session still names this hook (a newer hook or a monitor says its own)."""
             try:
                 open(os.path.join(folder, ".rewake.log"), "w").write(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} · pid {os.getpid()} · {why}\n")
                 if read(me).strip() == str(os.getpid()):
                     os.remove(me)
+                if state:
+                    say_session(state, why if state == "off" else "", session if state == "work" else None, only_if=os.getpid())
             except OSError:
                 pass
             sys.exit(code)
@@ -1714,13 +1736,13 @@ def watch(mode):
             if gone():
                 ended("the session that started it has ended")
             if read(me).strip() != str(os.getpid()):
-                ended("a newer turn's hook took over")
+                ended("a newer turn's hook took over", state="")
             if os.path.exists(beat) and time.time() - os.path.getmtime(beat) < 4 * INBOX_POLL + 2:
-                ended("a monitor is watching")
+                ended("a monitor is watching", state="")
             n = claim()
             if n:
                 print(told(n), file=sys.stderr)
-                ended("woke the session for the answers", 2)  # exit 2 wakes the session (asyncRewake)
+                ended("woke the session for the answers", 2, state="work")  # exit 2 wakes the session (asyncRewake)
             time.sleep(INBOX_POLL)
         ended("waited the hour a hook may — any message in the session reconnects it")
     os.makedirs(folder, exist_ok=True)
@@ -1730,10 +1752,12 @@ def watch(mode):
         if mine or not os.path.exists(beat) or time.time() - os.path.getmtime(beat) > 4 * INBOX_POLL + 2:  # or the newer one's session ended — take over again
             os.makedirs(folder, exist_ok=True)
             open(beat, "w").write(str(os.getpid()))
+            say_session("on", "", os.getpid())
             n = claim()
             if n:
                 print(told(n), flush=True)
         time.sleep(INBOX_POLL)
+    say_session("off", "the session that started it has ended", None, only_if=os.getpid())
 
 
 def rows_in(data):

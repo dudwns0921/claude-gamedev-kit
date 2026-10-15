@@ -1633,23 +1633,31 @@ if sys.argv[1:3] == ["run", "start"]:
         review = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
         self.assertEqual([(i["key"], i["latest"]) for i in review if i["kind"] == "decision"], [("c02-D1", True), ("c01-D1", False)],
                          "every open decision is on the review, the newest cycle first — not one decided for the user in a cycle that has moved on")
-        self.assertFalse(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "a break, but the conversation is short — nothing to clear")
-        # the context hook keeps the conversation's size where the board reads it: long, at a break → the dashboard says it is a good moment to /clear
-        hook = lambda size, *a: subprocess.run([sys.executable, WATCH, *a], input=json.dumps({"transcript_path": transcript(size), "cwd": root, "session_id": "s1"}),
-                                                capture_output=True, text=True)
+        self.assertFalse(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "nothing said about clearing — nothing shown")
+        # the session judges when to /clear; the context hook keeps what its last answer said where the board reads it, and the board only shows it
         logs = tempfile.mkdtemp(prefix="kit-ctx-")
         self.addCleanup(shutil.rmtree, logs, True)
-        def transcript(size):
-            p = os.path.join(logs, f"{size}.jsonl")
-            open(p, "w").write(json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": size}}}) + "\n")
+        def transcript(size, text):
+            p = os.path.join(logs, f"{size}-{len(text)}.jsonl")
+            with open(p, "w") as f:
+                f.write(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": text}], "usage": {"input_tokens": size}}}) + "\n")
+                f.write(json.dumps({"type": "assistant", "isSidechain": True, "message": {"content": [{"type": "text", "text": "a subagent's"}]}}) + "\n")
             return p
-        self.assertEqual(hook(250_000, "--record").stdout, "", "the Stop hook only keeps the size")
-        run(BOARD, root, "--if-stale")
-        now = json.load(open(os.path.join(root, "docs/board/board.json")))["now"]
-        self.assertEqual((now["pause"], now["context"]), (True, 250_000), "kept size is newer than the board — it redraws, and the break is shown")
-        hook(3_000)
-        run(BOARD, root, "--if-stale")
-        self.assertFalse(json.load(open(os.path.join(root, "docs/board/board.json")))["now"]["pause"], "cleared — short again, no more saying so")
+        hook = lambda size, text, session="s1", *a: subprocess.run([sys.executable, WATCH, *a],
+                                                                   input=json.dumps({"transcript_path": transcript(size, text), "cwd": root, "session_id": session}),
+                                                                   capture_output=True, text=True)
+        now = lambda: (run(BOARD, root, "--if-stale"), json.load(open(os.path.join(root, "docs/board/board.json")))["now"])[1]
+        self.assertEqual(hook(250_000, "Built. Your turn to play.", "s1", "--record").stdout, "", "the Stop hook only keeps")
+        self.assertEqual((now()["pause"], now()["context"]), (False, 250_000), "long, at a break — but the session did not say it, so the board does not")
+        hook(120_000, "D3 is asked. `/clear` then `/gamedev-kit:cycle next` is lighter.", "s1", "--record")
+        self.assertEqual((now()["pause"], now()["context"]), (True, 120_000), "the session said it — the board redraws and shows it, whatever the size")
+        hook(130_000, "D3 is ①.", "s1")
+        self.assertTrue(now()["pause"], "the prompt hook keeps what the last answer said")
+        hook(140_000, "On with T4.", "s1", "--record")
+        self.assertFalse(now()["pause"], "the user went on — the next answer did not say it")
+        hook(140_000, "`/clear`, then `/gamedev-kit:cycle next`.", "s1", "--record")
+        hook(3_000, "", "s2")
+        self.assertFalse(now()["pause"], "cleared — another session, nothing said yet")
         asks = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["asks"]
         self.assertIn({"doc": "02-shop.md", "num": "D1", "key": "c02-D1"}, [q.get("decision") for q in asks],
                       "a decision on the stage pages carries its review key — the dashboard sends \"not needed\" for it by that key")
@@ -1663,7 +1671,9 @@ if sys.argv[1:3] == ["run", "start"]:
         watch = lambda *a, **k: subprocess.run([sys.executable, BOARD, "--root", root, "watch", *a], capture_output=True, text=True, env=env, **k)
 
         self.assertEqual(watch("--notice").stdout, "", "nothing sent — nothing said")
-        self.assertTrue(os.path.exists(os.path.join(root, "docs/board/.active")), "a prompt marks the session at work — the dashboard reads it")
+        # where the session stands is said by the kit as it changes — the dashboard shows .session as written
+        sess = lambda: json.load(open(os.path.join(root, "docs/board/.session")))
+        self.assertEqual(sess()["state"], "work", "a prompt: the session is at work")
         send("1", [{"key": "c02-D1", "pick": "②", "note": ""}, {"key": "c01-D1", "pick": "drop", "note": "no restarts now"}])
         self.assertIn("2 answer(s) from the board", watch("--notice").stdout)
         self.assertEqual(os.listdir(box), ["1.taken"], "taken once — no other watcher relays it again")
@@ -1746,12 +1756,14 @@ if sys.argv[1:3] == ["run", "start"]:
         _out, err = p.communicate(timeout=20)
         self.assertEqual(p.returncode, 2)
         self.assertIn("1 answer(s) from the board", err)
+        self.assertEqual(sess()["state"], "work", "woken for the answers — at work on them")
         # a newer turn's hook replaces the waiting one
         first = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         time.sleep(0.5)
         second = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         self.assertEqual(first.wait(timeout=10), 0, "the older one stands down")
-        self.assertIn("a newer turn's hook took over", open(os.path.join(root, "docs/board/.rewake.log")).read(), "and says why — the dashboard reads it")
+        self.assertIn("a newer turn's hook took over", open(os.path.join(root, "docs/board/.rewake.log")).read(), "and says why")
+        self.assertEqual((sess()["state"], sess()["pid"]), ("on", second.pid), "the newer hook listens — the older one's going does not say off")
         # stopped from outside (the session closed, the plugin updated): it says so and takes its .rewake away, so no one counts it as listening
         stopped = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         time.sleep(0.5)
@@ -1759,6 +1771,9 @@ if sys.argv[1:3] == ["run", "start"]:
         stopped.terminate()
         self.assertEqual(stopped.wait(timeout=10), 0)
         self.assertIn("stopped by SIGTERM", open(os.path.join(root, "docs/board/.rewake.log")).read())
+        self.assertEqual((sess()["state"], sess()["why"]), ("off", "stopped by SIGTERM"), "no session listening, and why")
+        run(BOARD, root, "--if-stale")
+        self.assertEqual(sess()["state"], "work", "a tool ran — at work again")
         self.assertFalse(os.path.exists(os.path.join(root, "docs/board/.rewake")))
         second = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch", "--rewake"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
         time.sleep(0.5)
@@ -1766,6 +1781,9 @@ if sys.argv[1:3] == ["run", "start"]:
         mon = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
         self.addCleanup(mon.kill)
         self.assertEqual(second.wait(timeout=10), 0, "a monitor is watching — the hook does not wake the session too")
+        self.assertEqual((sess()["state"], sess()["pid"]), ("on", mon.pid), "the monitor listens — the hook standing aside does not say off")
+        run(BOARD, root, "--if-stale")
+        self.assertEqual(sess()["state"], "on", "a tool runs while a watcher is alive: answers are still taken now")
         os.remove(os.path.join(box, "2.taken"))
         send("3", [{"key": "c02-D3", "pick": "②", "note": ""}])
         self.assertIn("1 answer(s) from the board", mon.stdout.readline())
@@ -1785,6 +1803,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("1 answer(s) from the board", mon.stdout.readline(), "the session still open picks up again")
         mon.kill()
         mon.wait()
+        self.assertEqual((sess()["state"], sess()["pid"]), ("on", mon.pid), "killed, it could not say so — the pid it named is what the dashboard checks")
         # it was told, then closed before reading the batch: the next session is told of it at its start
         self.assertEqual(os.listdir(box), ["5.taken"])
         self.assertIn("1 answer(s) from the board", watch("--notice").stdout, "a batch taken and never read is not lost")
@@ -2174,14 +2193,15 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(p.returncode, 0, p.stderr)
         home = tempfile.mkdtemp(prefix="kit-private-")
         self.addCleanup(shutil.rmtree, home, True)
-        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# names of games\nHiggsfield\n")
+        # a word only this test holds — what other files say may change; this line is always here
+        open(os.path.join(home, "private-words.txt"), "w", encoding="utf-8").write("# names of games\nKit-Private-Probe\n")
         p = check(GAMEDEV_KIT_RULES=home)
         self.assertEqual(p.returncode, 1)
-        self.assertIn("skills/video/SKILL.md:", p.stderr)
+        self.assertIn("tests/test_tools.py:", p.stderr)
         msg = os.path.join(home, "msg")
         open(msg, "w", encoding="utf-8").write("0.1.0 — fixed\n# 2026-01-01 is a comment git added\n")
         self.assertEqual(check("--message", msg, GAMEDEV_KIT_RULES=home).returncode, 0)
-        open(msg, "w", encoding="utf-8").write("0.1.0 — learned from higgsfield\n")
+        open(msg, "w", encoding="utf-8").write("0.1.0 — learned from kit-private-probe\n")
         self.assertIn("commit message:1: blocked word", check("--message", msg, GAMEDEV_KIT_RULES=home).stderr)
         open(msg, "w", encoding="utf-8").write("0.1.0 — measured on 2026-01-01\n")
         self.assertIn("commit message:1: date", check("--message", msg, GAMEDEV_KIT_RULES=home).stderr)

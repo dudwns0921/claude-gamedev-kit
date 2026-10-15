@@ -182,9 +182,10 @@ Across a change of sessions nothing is lost: the newest session's watcher takes 
 and a batch taken but never read is told again to the next session at its start.
 **Any message reconnects.** Every prompt the user sends also picks up what waits (`watch --notice` runs on each one), and the turn it starts ends with the
 after-turn hook waiting again — so a session whose watcher is gone (idle past the hook's hour, the plugin updated, the app restarted) is back with one message.
-The hook leaves why it stopped in `docs/board/.rewake.log`; the dashboard reads that and the watcher files to say whether a session is listening.
-**The dashboard only signals.** It never runs anything in the game: an answer, a "Not needed", an approval is a line in the inbox, and the session does the work
-(recording the decision, dropping the asset attempt) — the board it redraws is how the dashboard learns it happened. With no session open, the batch waits for the next one.
+The watchers write where the session stands as it changes — listening · at work · off and why — in `docs/board/.session`, and the dashboard shows it as written.
+**The dashboard only signals.** It never runs anything in the game and judges nothing about it: an answer, a "Not needed", an approval is a line in the inbox, and the session does the work
+(recording the decision, dropping the asset attempt) — the board it redraws is how the dashboard learns it happened, its data updated in place. With no session open, the batch waits for the next one.
+What it says about the session comes from the session too: the session's state from `.session`, and "a good moment to /clear" only when the session's last answer said so.
 When woken with "answer(s) from the board", run
 
 ```bash
