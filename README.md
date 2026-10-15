@@ -3,20 +3,26 @@
 </p>
 
 **Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.**
-A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** (Android) and plain **web** games. · [gamedev-kit-site.vercel.app](https://gamedev-kit-site.vercel.app) ([한국어](https://gamedev-kit-site.vercel.app/ko))
+A [Claude Code](https://code.claude.com) plugin for **Godot**, **Unity** (Android) and plain **web** games.
+
+**Site:** [gamedev-kit-site.vercel.app](https://gamedev-kit-site.vercel.app) · [한국어](https://gamedev-kit-site.vercel.app/ko)
 
 ## Quick start
 
-Open Claude Code in your game's folder (an empty one is fine) and just say what you want:
+In Claude Code, in your game's folder (an empty one is fine):
 
 ```
-install the gamedev-kit plugin from github.com/dudwns0921/claude-gamedev-kit   → then reopen Claude Code here
+/plugin marketplace add dudwns0921/claude-gamedev-kit
+/plugin install gamedev-kit@claude-gamedev-kit
+```
+
+Restart Claude Code, and that's it — there is nothing to learn. Say what you want, and the kit's skills step in:
+
+```
 let's make a game — a Godot one         → sets up the project, then writes the GDD with you, one question at a time
 this time, let's add a shop             → one cycle: spec, design, build; what is yours to decide waits on the dashboard
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
-
-To install it yourself instead: `claude plugin marketplace add dudwns0921/claude-gamedev-kit`, then `claude plugin install gamedev-kit@claude-gamedev-kit --scope project`.
 
 You need Claude Code and Python 3.9 or later; the dashboard needs Node.js; Godot and Unity need their editor.
 
