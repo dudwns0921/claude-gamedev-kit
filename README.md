@@ -2,8 +2,8 @@
   <img src="assets/banner.svg" alt="claude-gamedev-kit — goal, spec, design, plan, build, play" width="860">
 </p>
 
-**Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.**
-A [Claude Code](https://code.claude.com) plugin for making games.
+**A [Claude Code](https://code.claude.com) plugin for making games.**
+Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.
 
 [Landing page](https://gamedev-kit-site.vercel.app)
 
