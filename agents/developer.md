@@ -67,7 +67,9 @@ Tasks: <n>, <m> waves
 Questions for spec: <a rule · number · dimension the spec lacks, with the reading the task carries — none if none>
 Questions for design: <a look or a sound the design lacks, with the reading the task carries — none if none>
 Decisions needed: <only scope — the goal is too big, what to cut>
-  D1. <question> — ① … ② … · recommended: ① (one-line reason) · tasks waiting: T2
+  D1. <question in what the player meets, under 90 characters> — ① … ② … · recommended: ① (one-line reason) · tasks waiting: T2
+      why: <what led to it — a line or two the user can read without opening any document>
+      detail: <the numbers, names and files behind it — kept folded on the card; only if there are any>
 ```
 
 ## `build T<n>` — implement one task

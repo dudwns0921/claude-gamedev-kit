@@ -77,5 +77,7 @@ Spec: done | nothing touches the rules | blocked
 Wrote: <cycle document> "Spec" — rules <n> · numbers <n> · spaces <n>
 GDD/code mismatches: <none | what>
 Decisions needed:
-  D1. <question> — ① <option: what the player experiences> ② … · recommended: ① (one-line reason)
+  D1. <question in what the player meets, under 90 characters> — ① <option: what the player experiences> ② … · recommended: ① (one-line reason)
+      why: <what led to it — a line or two the user can read without opening any document>
+      detail: <the numbers, names and files behind it — kept folded on the card; only if there are any>
 ```

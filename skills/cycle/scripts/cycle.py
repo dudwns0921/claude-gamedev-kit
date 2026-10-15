@@ -10,6 +10,10 @@
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
         [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard.
                                                 A short clip of play (.mp4 · .webm, up to 25 MB) goes the same way, played on the card
+        [--why "<what led to it, in a line or two>"] [--detail "<the numbers, names and files behind it>"]
+                                                The card reads the question, the why, the options, the recommendation — and keeps the detail folded.
+                                                Written for the user to read on a phone, in what the player meets: the question short, two options or more,
+                                                and no code names, file paths or document section numbers in it — those go in --detail. ask refuses otherwise
   python3 cycle.py attach D3 --image "<label>=<path>" …   Pictures for a decision already asked (they replace any attached before)
   python3 cycle.py reask D3 "<question — ① … ② … · recommended: ①>" [--image …]   Ask it again as a new decision (the answer was a question back, the options changed): D3 closes as "asked again as D7", D7 is asked
   python3 cycle.py decide D2 "<the user's answer, as said>"
@@ -278,20 +282,50 @@ def clean(question, num=""):
     return WHO_TAIL.sub("", q).strip()
 
 
-def cmd_ask(path, who, question, images=()):
+ASK_MAX = 90  # characters of the question itself (before the options) — read on a phone, at a glance
+CODE_WORDS = re.compile(
+    r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b"                       # a constant's name — PICKUP_WINDOW
+    r"|\b[a-z][a-z0-9]*_[a-z0-9_]+\b"                        # a variable's name — pickup_window
+    r"|[\w-]+/[\w./-]*\.[A-Za-z]{1,5}\b"                     # a path — game/config/balance.gd
+    r"|\b[\w-]+\.(?:gd|cs|js|ts|py|tscn|tres|json|md|xlsx|unity|prefab)\b"  # a file
+    r"|\bGDD\s*§?\s*\d+(?:\.\d+)+|§\s*\d+")                     # a section of a document — GDD 4.6
+
+
+def unreadable(question):
+    """What keeps the user from reading the question at a glance — empty when it reads."""
+    marks = [m for m in re.finditer(r"[①②③④⑤⑥⑦⑧⑨⑩]", question) if question[:m.start()].count("(") <= question[:m.start()].count(")")]
+    head = question[:marks[0].start()] if marks else question
+    head = re.sub(r"\s*—\s*$", "", head.strip())
+    said = re.split(r" · (?:recommended|권함):", question)[0]
+    out = []
+    if len(marks) < 2:
+        out.append("give two options or more, each marked ① ② … — a question with nothing to pick is not a decision (say it, or put it in the GDD)")
+    if len(head) > ASK_MAX:
+        out.append(f"the question is {len(head)} characters — keep it under {ASK_MAX}; the background goes in --why, numbers and names in --detail")
+    code = sorted(set(m.group(0) for m in CODE_WORDS.finditer(said)))
+    if code:
+        out.append("code names, files or section numbers in it (" + " · ".join(code) + ") — say what the player meets instead, and put these in --detail")
+    return out
+
+
+def cmd_ask(path, who, question, images=(), why="", detail=""):
     question = clean(question)
+    bad = unreadable(question)
+    if bad:
+        sys.exit("Not asked — the user reads it on a phone, in what the player meets:\n- " + "\n- ".join(bad))
     text = read(path)
     span = section(text, "Decisions") or sys.exit("the document has no `## Decisions` section")
     pics = pictures(images)
     num = "D%d" % (max([int(d[1:]) for d in decisions(text)] or [0]) + 1)
     body = text[span[0]:span[1]].rstrip("\n")
-    write(path, text[:span[0]] + body + f"\n- [ ] {num}. {question.strip()} ({EN.get(who, who)})\n\n" + text[span[1]:])
+    under = "".join(f"\n  - {k}: {' '.join(v.split())}" for k, v in (("why", why), ("detail", detail)) if v.strip())
+    write(path, text[:span[0]] + body + f"\n- [ ] {num}. {question.strip()} ({EN.get(who, who)}){under}\n\n" + text[span[1]:])
     if pics:
         keep_pictures(path, num, question.strip(), pics)
     print(num)
 
 
-def cmd_reask(path, num, question, images=()):
+def cmd_reask(path, num, question, images=(), why="", detail=""):
     """Ask a decision again as a new one — when the user's answer was a question back, or the options changed. The old one is closed
     ([-] "asked again as D7"), the new one gets the next number and the same asker; its pictures come along unless new ones are given.
     On the dashboard the old card leaves and a new card comes — nothing of the old answer holds it."""
@@ -302,6 +336,9 @@ def cmd_reask(path, num, question, images=()):
     mark, old = ds[num]
     if mark == "x":
         sys.exit(f"{num}: already answered — to change the answer, `decide {num}`; for another question, `ask`")
+    bad = unreadable(clean(question))
+    if bad:
+        sys.exit("Not asked — the user reads it on a phone, in what the player meets:\n- " + "\n- ".join(bad))
     who = re.search(r"\((Spec|Design|Plan|Build|Play|Playtest|Asset|기획|디자인|계획|구현|플레이)\)", old)
     pics = pictures(images)
     new = "D%d" % (max(int(d[1:]) for d in ds) + 1)
@@ -309,7 +346,7 @@ def cmd_reask(path, num, question, images=()):
     text = text.replace(old, f"- [-]{ask[5:]} → asked again as {new} ({datetime.date.today()})", 1)
     write(path, text)
     with contextlib.redirect_stdout(io.StringIO()):
-        cmd_ask(path, EN.get(who.group(1), who.group(1)) if who else "Spec", question)
+        cmd_ask(path, EN.get(who.group(1), who.group(1)) if who else "Spec", question, why=why, detail=detail)
     if not pics:  # the pictures the old one was asked with
         cyc = int(re.match(r"\d+", os.path.basename(path)).group(0))
         kept = os.path.join(ROOT, SHEETS, f"asks-{cyc:02d}.json")
@@ -448,7 +485,7 @@ def cmd_new(name, goal):
 def main():
     args = sys.argv[1:]
     opts, images = {}, []
-    for flag in ("--root", "--doc", "--key"):
+    for flag in ("--root", "--doc", "--key", "--why", "--detail"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
@@ -462,6 +499,8 @@ def main():
     cmd, rest = (args[0] if args else ""), args[1:]
     if images and cmd not in ("ask", "attach", "reask"):
         sys.exit("--image goes with ask, attach or reask")
+    if ("--why" in opts or "--detail" in opts) and cmd not in ("ask", "reask"):
+        sys.exit("--why and --detail go with ask or reask")
     need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
@@ -481,11 +520,11 @@ def main():
             sys.exit("the state is done · blocked · open")
         cmd_mark(path, rest[0], rest[1], rest[2] if len(rest) > 2 else "")
     elif cmd == "ask":
-        cmd_ask(path, *rest, images)
+        cmd_ask(path, *rest, images, opts.get("--why", ""), opts.get("--detail", ""))
     elif cmd == "attach":
         cmd_attach(path, rest[0], images)
     elif cmd == "reask":
-        cmd_reask(path, rest[0], rest[1], images)
+        cmd_reask(path, rest[0], rest[1], images, opts.get("--why", ""), opts.get("--detail", ""))
     elif cmd == "decide":
         cmd_decide(path, *rest)
     elif cmd == "confirm":

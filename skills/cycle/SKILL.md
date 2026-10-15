@@ -103,6 +103,13 @@ options · what each costs · the recommendation. Then show the task count and w
 from a playtest or an asset, is written with `ask Build|Play|Playtest|Asset "…"` in the newest cycle document before it is asked. A question asked only in the chat is not on the board's review,
 cannot be answered from the dashboard, and is lost when the session changes.
 
+**A decision is read on a phone, by someone who has not opened the documents.** The question is short (under 90 characters) and in what the player meets —
+"how did the pickup feel?", not the constant behind it; each option says what changes in play, not in code; the recommendation carries its one-line reason.
+What led to it goes in `--why` (a line or two), and the numbers, names and files behind it in `--detail` — the card keeps it folded. `ask` refuses a question
+with fewer than two options, one too long, or one with a code name, a file path or a document section number in it — rewrite it, do not work around it.
+Something to settle by playing (a value inside an agreed range) is not a question: say what to try in the table instead.
+Carry the agents' `why:` and `detail:` lines over to `--why` and `--detail`.
+
 **Whatever the user should look at to decide goes with the decision.** `ask … --image "<label>=<path>"` (repeat it; paths from the game root) keeps the pictures beside the question,
 and the board's review and the dashboard show them on its card — a capture of how it is now, a measurement, a reference, the candidates. Ask the agent that raised it for the paths.
 Pictures made after the question was asked go on with `attach D3 --image "<label>=<path>" …`.

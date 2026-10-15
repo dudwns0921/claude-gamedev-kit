@@ -1234,6 +1234,29 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(d1["who"], "Play")
         self.assertNotIn("c01-D2", [i["key"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]], "answered — off the review")
 
+        # asked for the user to read on a phone: what the player meets, short; numbers, names and files folded under it
+        ask = lambda *a, ok=True: run(CYCLE, root, "ask", "Play", *a, ok=ok)
+        self.assertIn("give two options or more", ask("Is the pickup fine?", ok=False).stderr)
+        long = "When the door opens in the afternoon and the child is waiting at the nursery, is the time left to walk there and back the right amount for you"
+        self.assertIn(f"the question is {len(long)} characters", ask(long + " — ① yes ② no", ok=False).stderr)
+        refused = ask("Pickup — ① PICKUP_WINDOW 20 ② 40 in game/config/balance.gd (GDD 4.6)", ok=False).stderr
+        self.assertIn("code names, files or section numbers in it (GDD 4.6 · PICKUP_WINDOW · game/config/balance.gd)", refused)
+        self.assertNotIn("D3", open(doc, encoding="utf-8").read(), "nothing is written when it is refused")
+        num = ask("The pickup — how did it feel? ① too easy ② too tight ③ something else · recommended: ② — you missed it every day",
+                  "--why", "You marked the 30 seconds to leave as a problem.", "--detail", "PICKUP_WINDOW 30 → 20 (①) or 40 (②)").stdout.strip()
+        self.assertEqual(num, "D3")
+        self.assertIn("(Play)\n  - why: You marked the 30 seconds to leave as a problem.\n  - detail: PICKUP_WINDOW 30 → 20 (①) or 40 (②)\n", open(doc, encoding="utf-8").read())
+        run(BOARD, root)
+        d3 = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["key"] == "c01-D3")
+        self.assertEqual((d3["title"], d3["recommend"], d3["reason"]), ("The pickup — how did it feel?", "②", "you missed it every day"))
+        self.assertEqual((d3["why"], d3["detail"]), ("You marked the 30 seconds to leave as a problem.", "PICKUP_WINDOW 30 → 20 (①) or 40 (②)"))
+        page = open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read()
+        self.assertIn("<summary>Detail</summary>", page)
+        self.assertIn("Recommended ② — you missed it every day", page)
+        run(CYCLE, root, "reask", "D3", "The pickup — ① shorter ② longer", "--why", "Asked again, simpler.")
+        self.assertIn("  - why: Asked again, simpler.", open(doc, encoding="utf-8").read(), "asked again, with its own why")
+        self.assertIn("--why and --detail go with ask or reask", run(CYCLE, root, "later", "x", "--why", "y", ok=False).stderr)
+
     def test_cycle_uncommitted(self):
         """`new` and `carry` say when there is uncommitted work — not because of the lines they write themselves."""
         root = tempfile.mkdtemp(prefix="kit-git-")

@@ -171,6 +171,21 @@ def section(text, key):
 PROXY_LINE = re.compile(r"^(.*) → (.*? · (?:proxy|대리) .*?)$")  # the arrow before the answer is the last one — the options may hold arrows too
 
 
+UNDER_RE = re.compile(r"\A(?:\n[ \t]+- (why|detail): *([^\n]*))+")
+
+
+def decisions_in(text):
+    """Every decision line, with the lines under it that `cycle.py ask` writes — why (what led to it) and detail (numbers, names, files)."""
+    out = []
+    for m in DECISION_RE.finditer(text):
+        d = decision(*m.groups())
+        under = UNDER_RE.match(text[m.end():])
+        for k, v in re.findall(r"\n[ \t]+- (why|detail): *([^\n]*)", under.group(0) if under else ""):
+            d[k] = v.strip()
+        out.append(d)
+    return out
+
+
 def decision(mark, num, rest):
     """Splits `question — ① … ② … · recommended: ① (Spec) → the user's answer (date)`."""
     proxy = PROXY_LINE.match(rest.strip()) if mark == "~" else None
@@ -199,9 +214,12 @@ def decision(mark, num, rest):
     else:
         cut = re.search(r" — ", ask)
         title, options = (ask[:cut.start()], ask[cut.end():]) if cut else (ask, "")
-    pick = re.sub(r"\s*\([^()]*\)\s*$", "", pick)
+    rec = re.match(rf"\s*([{MARKS}])\s*(?:[—:-]\s*|\(\s*)?(.*?)\)?\s*$", pick)  # `① — easier to make` · `① (easier to make)`: the mark, and why
+    reason = rec.group(2).strip() if rec else ""
+    pick = rec.group(1) if rec else re.sub(r"\s*\([^()]*\)\s*$", "", pick)
     # [-] is a decision the user withdrew — nothing to answer, like an answered one
-    return {"num": num, "done": mark in "x-", "proxy": mark == "~", "title": title.strip(), "options": options.strip(), "pick": pick.strip(),
+    return {"num": num, "done": mark in "x-", "proxy": mark == "~", "title": title.strip(), "options": options.strip(), "pick": pick.strip(), "reason": reason,
+            "why": "", "detail": "",
             "who": who.group(1) if who else "", "answer": (answer[:date.start()] if date else answer).strip(),
             "date": date.group(1) if date else ""}
 
@@ -237,7 +255,7 @@ def cycle(path):
     return {"needs": needs, "file": os.path.basename(path), "num": num, "name": head.group(2).strip() if head else os.path.basename(path)[:-3],
             "stage": stage.group(1) if stage else "?", "start": start.group(1) if start else "",
             "goal": " ".join(section(text, "goal").split()),
-            "decisions": [decision(*m.groups()) for m in DECISION_RE.finditer(section(text, "decisions"))], "tasks": tasks}
+            "decisions": decisions_in(section(text, "decisions")), "tasks": tasks}
 
 
 # ── The chart — in play order, one screen ─────────────────────────────
@@ -988,7 +1006,8 @@ def review_items(cycles, sheet, asks=()):
             items.append({"key": f'c{c["num"]}-{d["num"]}', "kind": "decision", "ref": d["num"], "cycle": c["num"], "doc": c["file"], "latest": latest, "title": d["title"],
                           "asked": short(d["title"] + "|" + d["options"]),  # its wording — asked anew, an answer to the old one no longer holds the card
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
-                          "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
+                          "pictures": [i for i in q.get("images", []) if isinstance(i, dict)],
+                          "why": d.get("why", ""), "detail": d.get("detail", ""), "reason": d.get("reason", "")})
     for q in asks:
         if q["from"] == "GDD":
             items.append({"key": "q-" + short(q["title"]), "kind": "question", "ref": q["title"], "title": q["title"], "text": q["text"]})
@@ -1045,8 +1064,12 @@ def card(i):
         figs = "".join(picture(p) for p in i["pictures"])
         tag = " · ".join(x for x in ("" if i["latest"] else f'cycle {i["cycle"]}', i["who"], "decided for you" if i["proxy"] else "") if x)
         return (head + (f'<span class="lab">{e(tag)}</span>' if tag else "")
-                + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>' + (f'<div class="figs">{figs}</div>' if figs else "")
-                + f'<div class="opts">{opts}</div>' + note.format("Note (optional)"))
+                + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>'
+                + (f'<div class="sub">{md(i["why"])}</div>' if i.get("why") else "") + (f'<div class="figs">{figs}</div>' if figs else "")
+                + f'<div class="opts">{opts}</div>'
+                + (f'<div class="sub">Recommended {e(i["recommend"])} — {md(i["reason"])}</div>' if i.get("reason") and i["recommend"] else "")
+                + (f'<details class="sub"><summary>Detail</summary>{md(i["detail"])}</details>' if i.get("detail") else "")
+                + note.format("Note (optional)"))
     if i["kind"] == "question":
         return (head + '<span class="lab">GDD · open question</span>' + f'<h3>{md(i["title"])}</h3>' + (f'<div class="sub">{md(i["text"])}</div>' if i["text"] else "")
                 + '<div class="opts pair"><button class="opt" data-pick="answer">Answer (in the note)</button><button class="opt no" data-pick="drop">Not needed</button></div>'
@@ -1096,6 +1119,7 @@ def review_data(i):
     if i.get("later"):
         out["later"] = i["later"]
     if i["kind"] == "decision":
+        out.update(why=i.get("why", ""), detail=i.get("detail", ""), reason=i.get("reason", ""))
         out.update(cycle=i["cycle"], doc=i["doc"], latest=i["latest"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
     elif i["kind"] == "question":

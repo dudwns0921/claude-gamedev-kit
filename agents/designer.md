@@ -83,7 +83,9 @@ Wrote: <cycle document> "Design" · <n> lines of rules added to docs/DESIGN.md
 Missing assets: <list — none if none>
 Questions for spec: <what could not be decided because the spec lacks it — none if none>
 Decisions needed:
-  D1. <question> — ① <option: feel · cost> ② … · recommended: ① (one-line reason)
+  D1. <question in what the player meets, under 90 characters> — ① <option: feel · cost> ② … · recommended: ① (one-line reason)
+      why: <what led to it — a line or two the user can read without opening any document>
+      detail: <the numbers, names and files behind it — kept folded on the card; only if there are any>
       pictures: <label> <path> crop x,y,w,h · … — only for a decision that is chosen by eye and that you have captures for: one per option,
       the box drawn tight around the subject and the same size in every picture. The caller lays them out as one sheet; it does not open them.
 ```
