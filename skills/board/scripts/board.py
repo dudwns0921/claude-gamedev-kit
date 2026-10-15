@@ -1468,6 +1468,27 @@ def alive(pid_path):
         return 0
 
 
+def halt(pid, pid_path):
+    """npm and the server under it (a group of their own): asked to stop, then made to — a server waits for open live connections otherwise."""
+    for sig, wait in ((signal.SIGTERM, 5), (signal.SIGKILL, 2)):
+        try:
+            os.killpg(pid, sig)
+        except OSError:
+            break
+        end = time.time() + wait
+        while time.time() < end:
+            try:
+                os.killpg(pid, 0)
+            except OSError:
+                break
+            time.sleep(0.2)
+        else:
+            continue
+        break
+    if os.path.exists(pid_path):
+        os.remove(pid_path)
+
+
 def answering(url, wait):
     end = time.time() + wait
     while True:
@@ -1499,9 +1520,14 @@ def serve(whole, mode):
     pid = alive(pid_path)
     if mode == "--stop":
         if pid:
-            os.killpg(pid, signal.SIGTERM)  # npm and the server under it — started as a group of their own
+            halt(pid, pid_path)
         print(f"stopped the dashboard ({url})" if pid else "the dashboard is not running")
         return
+    if pid and mode != "--status" and not answering(url, 5):
+        # alive but not answering: a server stopped while a page held its live connection closes its port and waits for that page for good
+        halt(pid, pid_path)
+        print("the dashboard was not answering — starting it again", flush=True)
+        pid = 0
     if mode == "--status":
         print(f"running — {url} (pid {pid})" if pid else f"not running — board.py serve starts it ({app})")
         return

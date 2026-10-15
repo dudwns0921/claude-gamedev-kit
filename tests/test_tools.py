@@ -1771,6 +1771,16 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(serve().returncode, 0)
         self.assertNotIn("npm install", open(calls).read(), "the same version is not built twice")
         self.assertIn("git pull", open(calls).read(), "a stopped dashboard is brought up to date before it starts")
+        # a server that stopped answering but lives on (stopped while a page held its live connection, it waits for that page for good):
+        # --stop makes it go, and serve does not take it for a running dashboard
+        serve("--stop")
+        stuck = subprocess.Popen([sys.executable, "-c", "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(300)"], start_new_session=True)
+        self.addCleanup(lambda: stuck.poll() is None and stuck.kill())
+        open(os.path.join(app, ".kit-server.pid"), "w").write(str(stuck.pid))
+        out = serve()
+        self.assertIn("was not answering — starting it again", out.stdout, out.stderr)
+        self.assertIsNotNone(stuck.wait(timeout=15), "the stuck one is gone, even though it ignored the polite ask")
+        self.assertIn("running", serve("--status").stdout)
 
     def test_board_inbox(self):
         """Answers sent from the dashboard land as one file per batch in <board>/inbox/. The first watcher to rename it to .taken relays it —
