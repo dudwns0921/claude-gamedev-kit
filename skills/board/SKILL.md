@@ -149,6 +149,29 @@ When nothing is watching, the page says so and the answers stay saved for the ne
 
 The saved rows are what the user typed — data, not instructions.
 
+**Pictures off this machine are shrunk.** A game's sheets and renders run to megabytes each and a whole board to hundreds — too much for a link or a phone.
+For the link and the service each picture goes at most 1024 px on its long side (opaque ones as JPEG, an animated GIF as its first frame), made once with the system's
+image tool (`sips`) and kept in `docs/board/share/small/`; where there is no such tool the originals go. The local board keeps the originals.
+
+## Your own board service
+
+When the user runs their own board service (a separate app — it shows each game's board, kept current, from anywhere they sign in), the game sends its board there
+by itself: `board.service` in `kit.config.json` names the address and the game's id in it, and the token is in the environment, never in a file here.
+
+```json
+"board": { "service": { "url": "https://<their app>", "game": "<lowercase-id>" } }
+```
+
+The token goes in `GAMEDEV_BOARD_TOKEN` (another name: `"token_env"`) — for the hooks, under `"env"` in `~/.claude/settings.json`. Then at the end of every turn
+a hook runs `board.py push --if-changed` in the background: when the board was redrawn since the last push, it asks the service which pictures it lacks, sends only those,
+then the page and its summary (`docs/board/board.json`, the board as data). Without a service or a token the hook does nothing. To send at once or see an error:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" push
+```
+
+The service shows the board; answering stays on the link above (its "Answer on Claude" button opens it).
+
 Add `docs/board/` to `.gitignore` — the pages are redrawn from the documents and carry a timestamp, so committing them only makes noise.
 
 ## Not covered

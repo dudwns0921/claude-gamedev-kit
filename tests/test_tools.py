@@ -1571,6 +1571,67 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         p = subprocess.run([sys.executable, BOARD], cwd=empty, capture_output=True, text=True)
         self.assertIn("kit.config.json not found — run this inside a game repository, after /gamedev-kit:init", p.stderr)
 
+    def test_board_push(self):
+        """`push` sends the board to your own service: it asks which files are missing and sends only those, then the page and the summary.
+        The token comes from the environment; without a service set up, the hook's `push --if-changed` does nothing and says nothing."""
+        root = tempfile.mkdtemp(prefix="kit-push-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        gen = os.path.join(root, "assets/_gen/knight")
+        os.makedirs(gen)
+        open(os.path.join(gen, "front.png"), "wb").write(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", 4, 4))
+        json.dump({"name": "knight", "subject": "a knight"}, open(os.path.join(gen, "asset.json"), "w"))
+        got, have = [], set()
+
+        class Service(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                got.append(("POST", self.path, self.headers["Authorization"]))
+                out = json.dumps({"missing": [f for f in body["files"] if f not in have]}).encode()
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(out)
+
+            def do_PUT(self):
+                data = self.rfile.read(int(self.headers["Content-Length"]))
+                got.append(("PUT", self.path, len(data)))
+                if "/file/" in self.path:
+                    have.add("f/" + self.path.rsplit("/", 1)[1])
+                self.send_response(204)
+                self.end_headers()
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Service)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        url = f"http://127.0.0.1:{server.server_port}"
+
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        self.assertEqual(run(BOARD, root, "push", "--if-changed").stdout, "", "no service here — the hook does nothing")
+        json.dump({"board": {"service": {"url": url, "game": "sample"}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        p = run(BOARD, root, "push", ok=False)
+        self.assertIn("no token", p.stderr)
+        env = dict(os.environ, GAMEDEV_BOARD_TOKEN="t0k")
+        push = lambda *a: subprocess.run([sys.executable, BOARD, "--root", root, "push", *a], capture_output=True, text=True, env=env)
+        out = push()
+        self.assertIn(f"pushed to {url}/g/sample", out.stdout, out.stderr)
+        self.assertIn("files sent 1", out.stdout)
+        self.assertEqual(got[0], ("POST", "/api/ingest/sample/check", "Bearer t0k"))
+        self.assertEqual([g[1].rsplit("/", 1)[0] for g in got[1:]], ["/api/ingest/sample/file", "/api/ingest/sample", "/api/ingest/sample"])
+        self.assertEqual([g[1].rsplit("/", 1)[1] for g in got[2:]], ["page", "summary"])
+        summary = json.load(open(os.path.join(root, "docs/board/board.json"))) if os.path.exists(os.path.join(root, "docs/board/board.json")) else None
+        got.clear()
+        self.assertIn("files sent 0", push().stdout, "what the service has is not sent again")
+        got.clear()
+        self.assertEqual(push("--if-changed").stdout, "", "nothing drawn since the last push — nothing sent")
+        self.assertEqual(got, [])
+        self.assertIsNone(summary, "push alone does not draw the local board")
+        run(BOARD, root)
+        self.assertEqual(json.load(open(os.path.join(root, "docs/board/board.json")))["counts"]["review"], 1, "the board as data, beside the pages")
+
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,
         checks by playing — one card each. `share` bundles every page into one for a link and sends only new files; `answers` turns the

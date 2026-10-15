@@ -5,6 +5,7 @@
   python3 board.py --if-stale   rewrite only when the board exists and a source is newer. Prints nothing and always exits 0 (the hook calls it)
   python3 board.py share        bundle the board and the review page into one page for a private claude.ai link — writes <share_dir>/ and its publish.json
   python3 board.py share --done <url>   after the publish went through: remember the link (board.share in kit.config.json) and what was sent
+  python3 board.py push [--if-changed]   send the board to your own board service (board.service in kit.config.json; its token from the environment)
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
 
 index.html is the chart — one card per stage of play, in play order: how far Function · Art · Sound · Verified have come.
@@ -22,12 +23,16 @@ import fnmatch
 import hashlib
 import html
 import json
+import mimetypes
 import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
+import urllib.error
 import urllib.parse
+import urllib.request
 
 CONFIG_NAME = "kit.config.json"
 SECTION = "board"
@@ -49,6 +54,7 @@ DEFAULTS = {
     "sheets": "docs/cycle/sheets", # the question files of the cycle's sheet script — the pictures of a decision chosen by eye
     "share_dir": "docs/board/share",  # where `share` bundles the page and the files it shows
     "share": "",                   # the private link the board was published to (written by `share --done`)
+    "service": {},                 # your own board service: {"url": "https://…", "game": "<id in its address>", "token_env": "GAMEDEV_BOARD_TOKEN"}
 }
 # Document words: the English form is written now, the Korean one is in older documents. Both are read.
 LEGACY = {"appendix_heading": "## 부록 A", "open_heading": "미정"}  # read too while the config holds the default
@@ -222,6 +228,29 @@ def playtest_docs():
 
 
 SHARED = None  # while bundling for a link: published name → the file it is a copy of
+SMALL_SIDE = 1024        # a picture sent off this machine is at most this many pixels on its long side
+SMALL_FROM = 200 * 1024  # and only pictures bigger than this are shrunk
+
+
+def small(path):
+    """The picture as it goes off this machine: a game's sheets and renders run to megabytes each, a whole board to hundreds —
+    too much for a phone or a link. Shrunk on the long side, opaque ones as JPEG, an animated GIF as its first frame.
+    Uses the system's image tool (sips) where there is one; elsewhere the original goes. Kept beside the bundle, made once per version of the file."""
+    tool = shutil.which("sips")
+    if not tool or not path.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")) or os.path.getsize(path) <= SMALL_FROM:
+        return path
+    st = os.stat(path)
+    key = hashlib.sha1(f"{os.path.abspath(path)}|{st.st_mtime_ns}|{st.st_size}|{SMALL_SIDE}".encode()).hexdigest()[:16]
+    folder = os.path.join(ROOT, CFG["share_dir"], "small")
+    for ext in (".png", ".jpg"):
+        if os.path.exists(os.path.join(folder, key + ext)):
+            return os.path.join(folder, key + ext)
+    alpha = subprocess.run([tool, "-g", "hasAlpha", path], capture_output=True, text=True).stdout.strip().endswith("yes")
+    out = os.path.join(folder, key + (".png" if alpha else ".jpg"))
+    os.makedirs(folder, exist_ok=True)
+    args = [tool, "-Z", str(SMALL_SIDE), "-s", "format", "png" if alpha else "jpeg"] + ([] if alpha else ["-s", "formatOptions", "78"])
+    done = subprocess.run(args + [path, "--out", out], capture_output=True)
+    return out if done.returncode == 0 and os.path.exists(out) else path
 
 
 def rel(path):
@@ -232,6 +261,7 @@ def rel(path):
     if SHARED is not None:
         if not os.path.isfile(path):
             return ""
+        path = small(path)
         pub = "f/" + hashlib.sha1(open(path, "rb").read()).hexdigest()[:16] + os.path.splitext(path)[1].lower()
         SHARED[pub] = os.path.abspath(path)
         return pub
@@ -1087,8 +1117,14 @@ def build(outdir, index_name):
     pages = {index_name: index, "assets.html": sheet_html(name, sheet), "review.html": review_html(name, review, stamp)}
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     stray, stray_assets = stray_of(st)
-    return pages, review, (f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
-                           + f" · review {len(review)}")
+    now = cycles[-1] if cycles else None
+    c = tally([i for s in st for lane in LANES for i in s["lanes"][lane]])
+    summary = {"name": name, "drawn": stamp, "complete": total, "share": CFG["share"] or None,
+               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"])} if now else None,
+               "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "undecided": len(asks), "review": len(review)},
+               "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]]}
+    return pages, review, summary, (f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
+                                    + f" · review {len(review)}")
 
 
 def sources():
@@ -1133,7 +1169,7 @@ def draw(quiet):
     folder = os.path.dirname(out)
     if quiet and os.path.getmtime(out) >= newest and all(os.path.exists(os.path.join(folder, n)) for n in ("assets.html", "review.html")):
         return
-    pages, review, line = build(folder, os.path.basename(out))
+    pages, review, summary, line = build(folder, os.path.basename(out))
     os.makedirs(folder, exist_ok=True)
     old = os.path.join(folder, "log.html")  # a page 0.12.0 wrote — no longer drawn
     if os.path.exists(old):
@@ -1141,6 +1177,8 @@ def draw(quiet):
     for fn, (title, body) in pages.items():
         with open(os.path.join(folder, fn), "w", encoding="utf-8") as f:
             f.write(shell(title, body))
+    with open(os.path.join(folder, "board.json"), "w", encoding="utf-8") as f:  # the board as data — what a page elsewhere draws from
+        json.dump(summary, f, ensure_ascii=False, indent=1)
     keep_review(review)
     if not quiet:
         print(f"{os.path.relpath(out, ROOT)} — {line}")
@@ -1169,7 +1207,7 @@ def share(whole, done):
         print(f"shared: {done} — {len(now['all'])} files on the link")
         return
     SHARED = {}
-    pages, review, line = build(folder, "index.html")
+    pages, review, _summary, line = build(folder, "index.html")
     keep_review(review)
     first = "review.html" if review else "index.html"
     os.makedirs(os.path.join(folder, "f"), exist_ok=True)
@@ -1200,6 +1238,49 @@ def share(whole, done):
     print(f"{os.path.relpath(os.path.join(folder, 'publish.json'), ROOT)} — {line} · files new {len(new)} ({total / 1048576:.1f} MB)"
           f" · dropped {len(sent - set(SHARED))} · in {max(1, len([p for p in parts if p]))} publish(es)"
           + (f" · to {CFG['share']}" if CFG["share"] else " · first publish — new link"))
+
+
+def call(base, path, token, body, kind, method="PUT"):
+    req = urllib.request.Request(base + path, data=body, method=method, headers={"Authorization": f"Bearer {token}", "Content-Type": kind})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read()
+
+
+def push(changed_only):
+    """Sends the bundled board to your board service: the page, its summary, and only the files the service does not have yet.
+    The service names nothing in the game repository; its address is in the config, its token in the environment (never in a file here)."""
+    global SHARED
+    svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
+    url, game = str(svc.get("url", "")).rstrip("/"), str(svc.get("game", ""))
+    env = str(svc.get("token_env") or "GAMEDEV_BOARD_TOKEN")
+    token = os.environ.get(env, "")
+    if not url or not game:
+        sys.exit("no service — set board.service in kit.config.json: {\"url\": \"https://…\", \"game\": \"<id>\"}")
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", game):
+        sys.exit(f"board.service.game is lowercase letters · digits · hyphens: {game!r}")
+    if not (url.startswith("https://") or re.match(r"http://(localhost|127\.0\.0\.1)(:\d+)?$", url)):
+        sys.exit(f"board.service.url must be https (or http://localhost): {url}")
+    if not token:
+        sys.exit(f"no token — set {env} in the environment (for the hook: \"env\" in ~/.claude/settings.json)")
+    folder = os.path.join(ROOT, CFG["share_dir"])
+    stamp_path = os.path.join(folder, "pushed")
+    out = os.path.join(ROOT, CFG["out"])
+    if changed_only and os.path.exists(stamp_path) and os.path.exists(out) and os.path.getmtime(stamp_path) >= os.path.getmtime(out):
+        return  # nothing drawn since the last push
+    SHARED = {}
+    pages, review, summary, line = build(folder, "index.html")
+    page = bundle(pages, "review.html" if review else "index.html", f"{summary['name']} board")
+    base = f"{url}/api/ingest/{game}"
+    missing = json.loads(call(base, "/check", token, json.dumps({"files": sorted(SHARED)}).encode(), "application/json", "POST")).get("missing", [])
+    for pub in missing:
+        if pub in SHARED:
+            call(base, "/file/" + urllib.parse.quote(pub.split("/", 1)[1]), token, open(SHARED[pub], "rb").read(),
+                 mimetypes.guess_type(pub)[0] or "application/octet-stream")
+    call(base, "/page", token, page.encode("utf-8"), "text/html; charset=utf-8")
+    call(base, "/summary", token, json.dumps(summary, ensure_ascii=False).encode("utf-8"), "application/json")
+    os.makedirs(folder, exist_ok=True)
+    open(stamp_path, "w").write(summary["drawn"])
+    print(f"pushed to {url}/g/{game} — {line} · files sent {len(missing)}")
 
 
 def rows_in(data):
@@ -1263,13 +1344,20 @@ def main():
         i = args.index("--root")
         root = args[i + 1]
         del args[i:i + 2]
-    quiet = args == ["--if-stale"]
+    quiet = args in (["--if-stale"], ["push", "--if-changed"])  # what the hooks run: never a word, never a failed turn
     try:
         if not args or quiet:
             setup(root)
             draw(quiet)
         elif args[0] == "share" and (len(args) == 1 or (len(args) == 3 and args[1] == "--done")):
             share(setup(root), args[2] if len(args) == 3 else "")
+        elif args[0] == "push" and args[1:] in ([], ["--if-changed"]):
+            setup(root)
+            if args[1:] and not (CFG["service"] and os.environ.get(str(CFG["service"].get("token_env") or "GAMEDEV_BOARD_TOKEN"))):
+                return  # the hook: no service set up here — nothing to do, nothing said
+            if args[1:]:
+                draw(True)
+            push(bool(args[1:]))
         elif args[0] == "answers" and len(args) == 2:
             setup(root)
             answers(args[1])
