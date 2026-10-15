@@ -65,6 +65,7 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 
 `/gamedev-kit:board` draws the game as the player meets it: one card per stage of play, each showing what is done, what is a placeholder, what is not made and what is a problem — and what is still undecided. A script reads it all from the GDD, the cycle and playtest documents and the asset records; no model is involved, and a hook redraws it whenever those documents change.
 A review page beside it puts what waits on you — open decisions with their comparison pictures, asset images to approve, checks by playing — on cards with a button per answer, and `share` carries the board and the review to a private claude.ai link you can open on a phone, where every tap is saved for the session to read back.
+For every game on your machine at once, `board.py serve` runs a dashboard on localhost (optional — it needs Node.js): what waits on you across games, then each game's stages, review and assets, redrawn as the games change. Reach it from another device through an SSH forward or Tailscale.
 
 ### 3. It gets better at your games
 
@@ -144,7 +145,7 @@ Shipping is not a stage of the cycle. Call it after as many cycles as you like. 
 |---|---|
 | `/gamedev-kit:gdd-sync` | Compares the GDD's sync table with `GDD: <ID>` markers in code. Reports by default; `to-code` or `to-gdd` aligns one side to the other |
 | `/gamedev-kit:balance-table` | Keeps the game's balance numbers on one Excel sheet that follows the value file in code and opens from the status board (export · bake · check) |
-| `/gamedev-kit:board` | Draws the status board and the review page as HTML pages, keeps them current, and carries them to a private link for a phone |
+| `/gamedev-kit:board` | Draws the status board and the review page as HTML pages, keeps them current, carries them to a private link for a phone, and runs a local dashboard of every game (`serve`) |
 
 **Assets and footage**
 

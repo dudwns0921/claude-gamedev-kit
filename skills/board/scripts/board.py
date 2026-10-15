@@ -6,6 +6,7 @@
   python3 board.py share        bundle the board and the review page into one page for a private claude.ai link — writes <share_dir>/ and its publish.json
   python3 board.py share --done <url>   after the publish went through: remember the link (board.share in kit.config.json) and what was sent
   python3 board.py push [--if-changed]   send the board to your own board service (board.service.game in kit.config.json; address and token in board.service_file)
+  python3 board.py serve [--stop | --status]   run the dashboard on this machine (cloned, built and started once; every game sends to it)
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
 
 index.html is the chart — one card per stage of play, in play order: how far Function · Art · Sound · Verified have come.
@@ -26,10 +27,13 @@ import json
 import mimetypes
 import os
 import re
+import secrets
 import shutil
+import signal
 import struct
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -56,6 +60,9 @@ DEFAULTS = {
     "share": "",                   # the private link the board was published to (written by `share --done`)
     "service": {},                 # your own board service: {"game": "<id in its address>"} — its address and token from service_file
     "service_file": "~/.config/gamedev-kit/board.env",  # GAMEDEV_BOARD_URL=… · GAMEDEV_BOARD_TOKEN=… — outside every repository
+    "app_repo": "https://github.com/dudwns0921/gamedev-kit-board",  # the dashboard `serve` runs on this machine
+    "app_dir": "~/.config/gamedev-kit/board-app",  # where it is cloned — outside every game, shared by all of them
+    "app_port": 3100,
 }
 # Document words: the English form is written now, the Korean one is in older documents. Both are read.
 LEGACY = {"appendix_heading": "## 부록 A", "open_heading": "미정"}  # read too while the config holds the default
@@ -1363,6 +1370,131 @@ def push(changed_only):
     print(f"pushed to {url}/g/{game} — {line} · files sent {len(missing)}")
 
 
+# ── The dashboard on this machine ─────────────────────────────────────
+#
+# `serve` clones the dashboard app beside the kit's other keys, builds it and runs it on localhost — one for every game on this machine.
+# Its password and the token games send with are made once and kept in the service file; the service file then points every game here.
+# Seen from elsewhere through a tunnel the user sets up (an SSH forward, Tailscale) — the server itself listens on this machine only.
+
+def env_lines(path):
+    out = {}
+    for line in open(path, encoding="utf-8") if os.path.exists(path) else []:
+        k, _, v = line.strip().partition("=")
+        if k and not k.startswith("#") and v:
+            out[k] = v.strip().strip("\"'")
+    return out
+
+
+def env_write(path, values):
+    """Sets these keys in the file, keeping its other lines (the user's comments, other keys) where they are."""
+    lines = open(path, encoding="utf-8").read().split("\n") if os.path.exists(path) else []
+    left = dict(values)
+    for n, line in enumerate(lines):
+        k = line.partition("=")[0].strip()
+        if k in left:
+            lines[n] = f"{k}={left.pop(k)}"
+    lines = [x for x in lines if x.strip()] + [f"{k}={v}" for k, v in left.items()]
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.chmod(path, 0o600)
+
+
+def alive(pid_path):
+    try:
+        pid = int(open(pid_path).read().strip())
+        os.kill(pid, 0)
+        return pid
+    except (OSError, ValueError):
+        return 0
+
+
+def answering(url, wait):
+    end = time.time() + wait
+    while True:
+        try:
+            urllib.request.urlopen(url + "/login", timeout=2).read()
+            return True
+        except urllib.error.HTTPError:
+            return True  # it answered
+        except OSError:
+            if time.time() >= end:
+                return False
+            time.sleep(0.5)
+
+
+def step(what, args, cwd, log):
+    with open(log, "a", encoding="utf-8") as f:
+        f.write(f"\n$ {' '.join(args)}\n")
+        f.flush()
+        done = subprocess.run(args, cwd=cwd, stdout=f, stderr=subprocess.STDOUT)
+    if done.returncode != 0:
+        sys.exit(f"{what} failed — the last lines of {log}:\n" + "".join(open(log, encoding="utf-8").readlines()[-15:]))
+
+
+def serve(whole, mode):
+    app, port = os.path.expanduser(str(CFG["app_dir"])), int(CFG["app_port"])
+    pid_path, log = os.path.join(app, ".kit-server.pid"), os.path.join(os.path.dirname(app), "board-app.log")
+    keys = os.path.expanduser(str(CFG["service_file"]))
+    url = f"http://localhost:{port}"
+    pid = alive(pid_path)
+    if mode == "--stop":
+        if pid:
+            os.killpg(pid, signal.SIGTERM)  # npm and the server under it — started as a group of their own
+        print(f"stopped the dashboard ({url})" if pid else "the dashboard is not running")
+        return
+    if mode == "--status":
+        print(f"running — {url} (pid {pid})" if pid else f"not running — board.py serve starts it ({app})")
+        return
+    for tool in ("git", "node", "npm"):
+        if not shutil.which(tool):
+            sys.exit(f"{tool} not found — the dashboard needs git and Node.js (https://nodejs.org). The board pages in docs/board/ work without it")
+    os.makedirs(os.path.dirname(app), exist_ok=True)
+    if not os.path.isdir(os.path.join(app, ".git")):
+        print(f"cloning the dashboard into {app}", flush=True)
+        step("clone", ["git", "clone", "--depth", "1", str(CFG["app_repo"]), app], os.path.dirname(app), log)
+    elif not pid:
+        step("update", ["git", "pull", "--ff-only"], app, log)  # a copy changed by hand is left as it is: the pull fails and says so
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=app, capture_output=True, text=True).stdout.strip()
+    built = os.path.join(app, ".kit-built")
+    if not pid and (not os.path.exists(built) or open(built).read().strip() != head):
+        print("installing and building the dashboard (a minute or two, once per version)", flush=True)
+        step("npm install", ["npm", "install", "--no-audit", "--no-fund"], app, log)
+        step("build", ["npm", "run", "build"], app, log)
+        open(built, "w").write(head)
+    have = env_lines(keys)
+    made = {k: secrets.token_hex(16 if k == "GAMEDEV_BOARD_PASSWORD" else 32)
+            for k in ("GAMEDEV_BOARD_TOKEN", "GAMEDEV_BOARD_PASSWORD", "GAMEDEV_BOARD_SECRET") if not have.get(k)}
+    if have.get("GAMEDEV_BOARD_URL") != url or made:
+        env_write(keys, dict(made, GAMEDEV_BOARD_URL=url))
+        if have.get("GAMEDEV_BOARD_URL") and have["GAMEDEV_BOARD_URL"] != url:
+            print(f"games now send to {url} (was {have['GAMEDEV_BOARD_URL']})")
+    have = env_lines(keys)
+    if not pid:
+        env = dict(os.environ, APP_PASSWORD=have["GAMEDEV_BOARD_PASSWORD"], SESSION_SECRET=have["GAMEDEV_BOARD_SECRET"],
+                   INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1")
+        with open(log, "a", encoding="utf-8") as f:
+            proc = subprocess.Popen(["npm", "run", "start", "--", "-p", str(port), "-H", "127.0.0.1"], cwd=app, env=env,
+                                    stdout=f, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
+        open(pid_path, "w").write(str(proc.pid))
+        if not answering(url, 60):
+            sys.exit(f"the dashboard did not answer on {url} — see {log}")
+    svc = whole.get(SECTION, {}).get("service")
+    if not (isinstance(svc, dict) and svc.get("game")):  # this game joins the dashboard under an id made from its folder
+        game = re.sub(r"[^a-z0-9]+", "-", os.path.basename(ROOT).lower()).strip("-")[:63] or "game"
+        whole.setdefault(SECTION, {})["service"] = dict(svc if isinstance(svc, dict) else {}, game=game)
+        with open(os.path.join(ROOT, CONFIG_NAME), "w", encoding="utf-8") as f:
+            json.dump(whole, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        CFG["service"] = whole[SECTION]["service"]
+    try:
+        push(False)
+    except Exception as err:
+        print(f"the board was not sent yet ({err}) — the next turn sends it")
+    print(f"dashboard: {url} — password: GAMEDEV_BOARD_PASSWORD in {keys}\n"
+          f"from another device: forward the port (ssh -L {port}:localhost:{port} <this machine>) or `tailscale serve --bg {port}`")
+
+
 def rows_in(data):
     """The saved answers wherever they sit in what was read back — a list of rows, rows with a data field, or a map by id."""
     if isinstance(data, dict):
@@ -1447,6 +1579,8 @@ def main():
             if args[1:]:
                 draw(True)
             push(bool(args[1:]))
+        elif args[0] == "serve" and args[1:] in ([], ["--stop"], ["--status"]):
+            serve(setup(root), args[1] if args[1:] else "")
         elif args[0] == "answers" and len(args) == 2:
             setup(root)
             answers(args[1])

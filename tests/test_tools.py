@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import struct
 import subprocess
 import sys
@@ -1651,6 +1652,86 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
         self.assertIsNone(summary, "push alone does not draw the local board")
         run(BOARD, root)
         self.assertEqual(json.load(open(os.path.join(root, "docs/board/board.json")))["counts"]["review"], 1, "the board as data, beside the pages")
+
+    def test_board_serve(self):
+        """`serve` runs the dashboard on this machine: cloned and built once per version, started on localhost, its password and token made once
+        in the service file, and this game joined and sent. git · npm here are fakes; `npm run start` runs a small server that takes the board."""
+        root = tempfile.mkdtemp(prefix="kit-serve-")
+        self.addCleanup(shutil.rmtree, root, True)
+        game = os.path.join(root, "My Game")
+        os.makedirs(os.path.join(game, "docs/cycle"))
+        open(os.path.join(game, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        keys, app, calls = os.path.join(root, "keys/board.env"), os.path.join(root, "keys/board-app"), os.path.join(root, "calls")
+        json.dump({"board": {"service_file": keys, "app_dir": app, "app_port": port}}, open(os.path.join(game, "kit.config.json"), "w"))
+        bin_dir = os.path.join(root, "bin")
+        os.makedirs(bin_dir)
+        fake = {
+            "git": f"""import os, sys
+open({calls!r}, "a").write("git " + " ".join(sys.argv[1:3]) + "\\n")
+if sys.argv[1] == "clone":
+    os.makedirs(os.path.join(sys.argv[-1], ".git"))
+if sys.argv[1] == "rev-parse":
+    print("c0ffee")
+""",
+            "node": "",
+            "npm": f"""import http.server, json, os, sys
+open({calls!r}, "a").write("npm " + " ".join(sys.argv[1:3]) + "\\n")
+if sys.argv[1:3] == ["run", "start"]:
+    open({calls!r}, "a").write("password " + os.environ["APP_PASSWORD"] + " token " + os.environ["INGEST_TOKEN"] + "\\n")
+    class S(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a): pass
+        def reply(self, body=b""):
+            self.send_response(200); self.end_headers(); self.wfile.write(body)
+        def do_GET(self): self.reply(b"sign in")
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"])); self.reply(json.dumps({{"missing": []}}).encode())
+        def do_PUT(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            open({calls!r}, "a").write("put " + self.path + " " + self.headers["Authorization"] + "\\n"); self.reply()
+    http.server.HTTPServer(("127.0.0.1", int(sys.argv[sys.argv.index("-p") + 1])), S).serve_forever()
+""",
+        }
+        for name, body in fake.items():
+            with open(os.path.join(bin_dir, name), "w") as f:
+                f.write(f"#!{sys.executable}\n{body}")
+            os.chmod(os.path.join(bin_dir, name), 0o755)
+        env = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"])
+        env.pop("GAMEDEV_BOARD_URL", None)
+        env.pop("GAMEDEV_BOARD_TOKEN", None)
+        serve = lambda *a: subprocess.run([sys.executable, BOARD, "--root", game, "serve", *a], capture_output=True, text=True, env=env, timeout=90)
+        self.addCleanup(serve, "--stop")
+        os.makedirs(os.path.dirname(keys))
+        open(keys, "w").write("# mine\nGAMEDEV_BOARD_URL=https://old.example\n")
+
+        out = serve()
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn(f"dashboard: http://localhost:{port}", out.stdout)
+        self.assertIn("games now send to", out.stdout, "a key file that pointed elsewhere now points here, and says so")
+        kept = dict(line.split("=", 1) for line in open(keys).read().split("\n") if "=" in line)
+        self.assertEqual(kept["GAMEDEV_BOARD_URL"], f"http://localhost:{port}")
+        self.assertTrue(open(keys).read().startswith("# mine\n"), "the user's own lines stay")
+        self.assertEqual(oct(os.stat(keys).st_mode & 0o777), "0o600")
+        self.assertEqual(json.load(open(os.path.join(game, "kit.config.json")))["board"]["service"], {"game": "my-game"}, "the game joins under its folder's name")
+        log = open(calls).read()
+        self.assertIn("git clone --depth", log)
+        self.assertIn("npm install --no-audit\nnpm run build\n", log)
+        self.assertIn(f'password {kept["GAMEDEV_BOARD_PASSWORD"]} token {kept["GAMEDEV_BOARD_TOKEN"]}', log, "the server runs with the keys the file holds")
+        self.assertIn(f'put /api/ingest/my-game/summary Bearer {kept["GAMEDEV_BOARD_TOKEN"]}', log, "and this game's board is sent at once")
+        self.assertIn("running", serve("--status").stdout)
+
+        open(calls, "w").close()
+        out = serve()
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("npm", open(calls).read(), "running already — nothing is built or started again")
+        self.assertEqual(dict(line.split("=", 1) for line in open(keys).read().split("\n") if "=" in line), kept, "the keys are made once")
+        self.assertIn("stopped", serve("--stop").stdout)
+        open(calls, "w").close()
+        self.assertEqual(serve().returncode, 0)
+        self.assertNotIn("npm install", open(calls).read(), "the same version is not built twice")
+        self.assertIn("git pull", open(calls).read(), "a stopped dashboard is brought up to date before it starts")
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,
