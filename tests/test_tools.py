@@ -1698,7 +1698,7 @@ if sys.argv[1:3] == ["run", "start"]:
             with open(os.path.join(bin_dir, name), "w") as f:
                 f.write(f"#!{sys.executable}\n{body}")
             os.chmod(os.path.join(bin_dir, name), 0o755)
-        env = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"])
+        env = dict(os.environ, PATH=bin_dir + os.pathsep + os.environ["PATH"], KIT_NO_BROWSER="1")
         env.pop("GAMEDEV_BOARD_URL", None)
         env.pop("GAMEDEV_BOARD_TOKEN", None)
         serve = lambda *a: subprocess.run([sys.executable, BOARD, "--root", game, "serve", *a], capture_output=True, text=True, env=env, timeout=90)
@@ -1708,10 +1708,10 @@ if sys.argv[1:3] == ["run", "start"]:
 
         out = serve()
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn(f"dashboard: http://localhost:{port}", out.stdout)
+        self.assertIn(f"dashboard: http://127.0.0.1:{port}", out.stdout)
         self.assertIn("games now send to", out.stdout, "a key file that pointed elsewhere now points here, and says so")
         kept = dict(line.split("=", 1) for line in open(keys).read().split("\n") if "=" in line)
-        self.assertEqual(kept["GAMEDEV_BOARD_URL"], f"http://localhost:{port}")
+        self.assertEqual(kept["GAMEDEV_BOARD_URL"], f"http://127.0.0.1:{port}")
         self.assertTrue(open(keys).read().startswith("# mine\n"), "the user's own lines stay")
         self.assertEqual(oct(os.stat(keys).st_mode & 0o777), "0o600")
         self.assertEqual(json.load(open(os.path.join(game, "kit.config.json")))["board"]["service"], {"game": "my-game"}, "the game joins under its folder's name")

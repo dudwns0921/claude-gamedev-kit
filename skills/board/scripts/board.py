@@ -37,6 +37,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import webbrowser
 
 CONFIG_NAME = "kit.config.json"
 SECTION = "board"
@@ -1436,7 +1437,7 @@ def serve(whole, mode):
     app, port = os.path.expanduser(str(CFG["app_dir"])), int(CFG["app_port"])
     pid_path, log = os.path.join(app, ".kit-server.pid"), os.path.join(os.path.dirname(app), "board-app.log")
     keys = os.path.expanduser(str(CFG["service_file"]))
-    url = f"http://localhost:{port}"
+    url = f"http://127.0.0.1:{port}"  # not "localhost": where it means ::1 first, a browser that does not fall back finds nothing (the server listens on IPv4)
     pid = alive(pid_path)
     if mode == "--stop":
         if pid:
@@ -1470,6 +1471,7 @@ def serve(whole, mode):
         if have.get("GAMEDEV_BOARD_URL") and have["GAMEDEV_BOARD_URL"] != url:
             print(f"games now send to {url} (was {have['GAMEDEV_BOARD_URL']})")
     have = env_lines(keys)
+    started = not pid
     if not pid:
         env = dict(os.environ, APP_PASSWORD=have["GAMEDEV_BOARD_PASSWORD"], SESSION_SECRET=have["GAMEDEV_BOARD_SECRET"],
                    INGEST_TOKEN=have["GAMEDEV_BOARD_TOKEN"], PORT=str(port), HOSTNAME="127.0.0.1")
@@ -1499,8 +1501,10 @@ def serve(whole, mode):
         push(False)
     except Exception as err:
         print(f"the board was not sent yet ({err}) — the next turn sends it")
+    if started and not os.environ.get("KIT_NO_BROWSER"):
+        webbrowser.open(url)  # a dashboard just started is opened once; joining a running one opens nothing
     print(f"dashboard: {url} — password: GAMEDEV_BOARD_PASSWORD in {keys}\n"
-          f"from another device: forward the port (ssh -L {port}:localhost:{port} <this machine>) or `tailscale serve --bg {port}`")
+          f"from another device: forward the port (ssh -L {port}:127.0.0.1:{port} <this machine>) or `tailscale serve --bg {port}`")
 
 
 def rows_in(data):

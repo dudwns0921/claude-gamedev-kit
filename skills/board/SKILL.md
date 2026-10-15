@@ -161,7 +161,7 @@ The kit's pages are one game each. The dashboard is a separate app (Node.js) tha
 each game's stages, review and assets — kept current as the games redraw. It is optional: nothing else in the kit needs it. When the user asks for it ("현황판 띄워줘", "dashboard"):
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve            # clone (once) · build (once per version) · start on http://localhost:3100 · send this game
+python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve            # clone (once) · build (once per version) · start on http://127.0.0.1:3100 and open it · send this game
 python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve --status
 python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" serve --stop
 ```
@@ -176,7 +176,7 @@ which pictures it lacks, sends only those, then the page and the board as data (
 the open questions, the cycles, the review cards and the asset sheet; the dashboard draws its own screens from it). With the dashboard down, the hook does nothing.
 
 **Seeing it from another device.** The server listens on this machine only. To open it elsewhere, the user sets up one of:
-`ssh -L 3100:localhost:3100 <this machine>` then `http://localhost:3100` there; or Tailscale on both devices and `tailscale serve --bg 3100` here (an https address only
+`ssh -L 3100:127.0.0.1:3100 <this machine>` then `http://127.0.0.1:3100` there; or Tailscale on both devices and `tailscale serve --bg 3100` here (an https address only
 their own devices reach). Do not open it to the internet.
 
 The same app can run anywhere else (`board.service_file` holds `GAMEDEV_BOARD_URL` and `GAMEDEV_BOARD_TOKEN` — set by hand for an app that is not on this machine).
