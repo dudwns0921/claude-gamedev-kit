@@ -1573,7 +1573,7 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
     def test_board_push(self):
         """`push` sends the board to your own service: it asks which files are missing and sends only those, then the page and the summary.
-        The token comes from the environment; without a service set up, the hook's `push --if-changed` does nothing and says nothing."""
+        The address and token come from a file outside the game (or the environment); without them the hook's `push --if-changed` does nothing and says nothing."""
         root = tempfile.mkdtemp(prefix="kit-push-")
         self.addCleanup(shutil.rmtree, root, True)
         os.makedirs(os.path.join(root, "docs/cycle"))
@@ -1611,10 +1611,14 @@ cp "$1" "$2" && echo "FINISH {\\"tris\\": 2, \\"size\\": [1, $3, 1]}"
 
         json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertEqual(run(BOARD, root, "push", "--if-changed").stdout, "", "no service here — the hook does nothing")
-        json.dump({"board": {"service": {"url": url, "game": "sample"}}}, open(os.path.join(root, "kit.config.json"), "w"))
-        p = run(BOARD, root, "push", ok=False)
-        self.assertIn("no token", p.stderr)
-        env = dict(os.environ, GAMEDEV_BOARD_TOKEN="t0k")
+        keys = os.path.join(root, "board.env")  # outside the game, as the asset keys are
+        json.dump({"board": {"service": {"game": "sample"}, "service_file": keys}}, open(os.path.join(root, "kit.config.json"), "w"))
+        self.assertIn("no service address", run(BOARD, root, "push", ok=False).stderr)
+        open(keys, "w").write(f"GAMEDEV_BOARD_URL={url}\n")
+        self.assertIn("no token", run(BOARD, root, "push", ok=False).stderr)
+        self.assertEqual(run(BOARD, root, "push", "--if-changed").stdout, "", "no token — the hook does nothing")
+        open(keys, "a").write("GAMEDEV_BOARD_TOKEN=t0k\n")
+        env = dict(os.environ)
         push = lambda *a: subprocess.run([sys.executable, BOARD, "--root", root, "push", *a], capture_output=True, text=True, env=env)
         out = push()
         self.assertIn(f"pushed to {url}/g/sample", out.stdout, out.stderr)

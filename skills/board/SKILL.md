@@ -156,15 +156,23 @@ image tool (`sips`) and kept in `docs/board/share/small/`; where there is no suc
 ## Your own board service
 
 When the user runs their own board service (a separate app — it shows each game's board, kept current, from anywhere they sign in), the game sends its board there
-by itself: `board.service` in `kit.config.json` names the address and the game's id in it, and the token is in the environment, never in a file here.
+by itself. Its address and token live in a file outside every repository, as the asset keys do — the user writes it once, in a terminal; keep them from pasting the token into the conversation:
 
-```json
-"board": { "service": { "url": "https://<their app>", "game": "<lowercase-id>" } }
+```
+# ~/.config/gamedev-kit/board.env
+GAMEDEV_BOARD_URL=https://<their app>
+GAMEDEV_BOARD_TOKEN=<the service's INGEST_TOKEN>
 ```
 
-The token goes in `GAMEDEV_BOARD_TOKEN` (another name: `"token_env"`) — for the hooks, under `"env"` in `~/.claude/settings.json`. Then at the end of every turn
+Each game names only its id in the service, in `kit.config.json`:
+
+```json
+"board": { "service": { "game": "<lowercase-id>" } }
+```
+
+(Environment variables of the same names win over the file.) Then at the end of every turn
 a hook runs `board.py push --if-changed` in the background: when the board was redrawn since the last push, it asks the service which pictures it lacks, sends only those,
-then the page and its summary (`docs/board/board.json`, the board as data). Without a service or a token the hook does nothing. To send at once or see an error:
+then the page and its summary (`docs/board/board.json`, the board as data). Without a game id, an address or a token the hook does nothing. To send at once or see an error:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" push

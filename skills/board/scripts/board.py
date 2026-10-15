@@ -5,7 +5,7 @@
   python3 board.py --if-stale   rewrite only when the board exists and a source is newer. Prints nothing and always exits 0 (the hook calls it)
   python3 board.py share        bundle the board and the review page into one page for a private claude.ai link — writes <share_dir>/ and its publish.json
   python3 board.py share --done <url>   after the publish went through: remember the link (board.share in kit.config.json) and what was sent
-  python3 board.py push [--if-changed]   send the board to your own board service (board.service in kit.config.json; its token from the environment)
+  python3 board.py push [--if-changed]   send the board to your own board service (board.service.game in kit.config.json; address and token in board.service_file)
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
 
 index.html is the chart — one card per stage of play, in play order: how far Function · Art · Sound · Verified have come.
@@ -54,7 +54,8 @@ DEFAULTS = {
     "sheets": "docs/cycle/sheets", # the question files of the cycle's sheet script — the pictures of a decision chosen by eye
     "share_dir": "docs/board/share",  # where `share` bundles the page and the files it shows
     "share": "",                   # the private link the board was published to (written by `share --done`)
-    "service": {},                 # your own board service: {"url": "https://…", "game": "<id in its address>", "token_env": "GAMEDEV_BOARD_TOKEN"}
+    "service": {},                 # your own board service: {"game": "<id in its address>"} — its address and token from service_file
+    "service_file": "~/.config/gamedev-kit/board.env",  # GAMEDEV_BOARD_URL=… · GAMEDEV_BOARD_TOKEN=… — outside every repository
 }
 # Document words: the English form is written now, the Korean one is in older documents. Both are read.
 LEGACY = {"appendix_heading": "## 부록 A", "open_heading": "미정"}  # read too while the config holds the default
@@ -1246,22 +1247,36 @@ def call(base, path, token, body, kind, method="PUT"):
         return r.read()
 
 
+def secret(name):
+    """A value from the environment, or else the line of the same name in the service file (as the asset keys are kept). Empty when neither has it."""
+    if os.environ.get(name):
+        return os.environ[name]
+    path = os.path.expanduser(str(CFG["service_file"]))
+    for line in open(path, encoding="utf-8") if os.path.exists(path) else []:
+        k, _, v = line.strip().partition("=")
+        if k == name and v:
+            return v.strip().strip("\"'")
+    return ""
+
+
 def push(changed_only):
     """Sends the bundled board to your board service: the page, its summary, and only the files the service does not have yet.
     The service names nothing in the game repository; its address is in the config, its token in the environment (never in a file here)."""
     global SHARED
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
-    url, game = str(svc.get("url", "")).rstrip("/"), str(svc.get("game", ""))
-    env = str(svc.get("token_env") or "GAMEDEV_BOARD_TOKEN")
-    token = os.environ.get(env, "")
-    if not url or not game:
-        sys.exit("no service — set board.service in kit.config.json: {\"url\": \"https://…\", \"game\": \"<id>\"}")
+    url, game = str(svc.get("url") or secret("GAMEDEV_BOARD_URL")).rstrip("/"), str(svc.get("game", ""))
+    token = secret("GAMEDEV_BOARD_TOKEN")
+    where = os.path.expanduser(str(CFG["service_file"]))
+    if not game:
+        sys.exit("no service for this game — set board.service in kit.config.json: {\"game\": \"<lowercase-id>\"}")
+    if not url:
+        sys.exit(f"no service address — add a GAMEDEV_BOARD_URL=https://… line to {where}")
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,62}", game):
         sys.exit(f"board.service.game is lowercase letters · digits · hyphens: {game!r}")
     if not (url.startswith("https://") or re.match(r"http://(localhost|127\.0\.0\.1)(:\d+)?$", url)):
         sys.exit(f"board.service.url must be https (or http://localhost): {url}")
     if not token:
-        sys.exit(f"no token — set {env} in the environment (for the hook: \"env\" in ~/.claude/settings.json)")
+        sys.exit(f"no token — add a GAMEDEV_BOARD_TOKEN=… line to {where} (the same value as the service's INGEST_TOKEN)")
     folder = os.path.join(ROOT, CFG["share_dir"])
     stamp_path = os.path.join(folder, "pushed")
     out = os.path.join(ROOT, CFG["out"])
@@ -1353,7 +1368,8 @@ def main():
             share(setup(root), args[2] if len(args) == 3 else "")
         elif args[0] == "push" and args[1:] in ([], ["--if-changed"]):
             setup(root)
-            if args[1:] and not (CFG["service"] and os.environ.get(str(CFG["service"].get("token_env") or "GAMEDEV_BOARD_TOKEN"))):
+            svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
+            if args[1:] and not (svc.get("game") and (svc.get("url") or secret("GAMEDEV_BOARD_URL")) and secret("GAMEDEV_BOARD_TOKEN")):
                 return  # the hook: no service set up here — nothing to do, nothing said
             if args[1:]:
                 draw(True)
