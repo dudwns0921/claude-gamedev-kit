@@ -8,7 +8,8 @@
   python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
-        [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard
+        [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard.
+                                                A short clip of play (.mp4 · .webm, up to 25 MB) goes the same way, played on the card
   python3 cycle.py attach D3 --image "<label>=<path>" …   Pictures for a decision already asked (they replace any attached before)
   python3 cycle.py reask D3 "<question — ① … ② … · recommended: ①>" [--image …]   Ask it again as a new decision (the answer was a question back, the options changed): D3 closes as "asked again as D7", D7 is asked
   python3 cycle.py decide D2 "<the user's answer, as said>"
@@ -33,6 +34,7 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
+CLIP_MAX = 25 * 2**20  # the dashboard takes a file up to 30 MB
 SHEETS = os.path.join(DIR, "sheets")  # where the sheet script keeps its questions — the board reads a decision's pictures from there
 NOTES = os.path.join("docs", "handoff")  # notes of the skill that carried work across sessions before `carry` did
 TEMPLATE = """# Cycle {num} — {name}
@@ -248,6 +250,9 @@ def pictures(images):
         label = label.strip() if sep else os.path.splitext(os.path.basename(rel))[0]
         if not os.path.isfile(os.path.join(ROOT, rel)):
             sys.exit(f"{rel}: no such file (paths are relative to the game root) — nothing was written")
+        if rel.lower().endswith((".mp4", ".webm", ".m4v", ".mov")) and os.path.getsize(os.path.join(ROOT, rel)) > CLIP_MAX:
+            sys.exit(f"{rel}: a clip over {CLIP_MAX // 2**20} MB does not reach the dashboard — cut it to the seconds that matter and shrink it "
+                     "(ffmpeg -i in -t 10 -vf scale=960:-2 -c:v libx264 -crf 28 -an out.mp4). Nothing was written")
         pics.append({"label": label, "path": rel.replace(os.sep, "/")})
     return pics
 

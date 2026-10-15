@@ -1816,6 +1816,7 @@ if sys.argv[1:3] == ["run", "start"]:
         watch = lambda *a, **k: subprocess.run([sys.executable, BOARD, "--root", root, "watch", *a], capture_output=True, text=True, env=env, **k)
 
         self.assertEqual(watch("--notice").stdout, "", "nothing sent — nothing said")
+        self.assertTrue(os.path.exists(os.path.join(root, "docs/board/.active")), "a prompt marks the session at work — the dashboard reads it")
         send("1", [{"key": "c02-D1", "pick": "②", "note": ""}, {"key": "c01-D1", "pick": "drop", "note": "no restarts now"}])
         self.assertIn("2 answer(s) from the board", watch("--notice").stdout)
         self.assertEqual(os.listdir(box), ["1.taken"], "taken once — no other watcher relays it again")
@@ -2022,6 +2023,15 @@ if sys.argv[1:3] == ["run", "start"]:
         review = {i["key"]: i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]}
         self.assertEqual([p["label"] for p in review["c01-D1"]["pictures"]], ["After"])
         self.assertEqual([p["label"] for p in review["c02-D1"]["pictures"]], ["Now"])
+
+        open(os.path.join(root, "shots", "jump.mp4"), "wb").write(b"\0" * 64)
+        open(os.path.join(root, "shots", "long.mp4"), "wb").truncate(26 * 2**20)
+        self.assertIn("a clip over 25 MB does not reach the dashboard", run(CYCLE, root, "attach", "D1", "--image", "shots/long.mp4", ok=False).stderr)
+        run(CYCLE, root, "attach", "D1", "--image", "Landing=shots/jump.mp4")
+        run(BOARD, root)
+        clip = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
+        self.assertEqual([p["label"] for i in clip if i["key"] == "c02-D1" for p in i["pictures"]], ["Landing"], "a clip goes with a decision like a picture")
+        self.assertIn('<video src="', open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read(), "and plays on the board's own page")
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,

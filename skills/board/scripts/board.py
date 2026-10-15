@@ -1051,6 +1051,9 @@ def review_items(cycles, sheet, asks=()):
     return items
 
 
+CLIPS = (".mp4", ".webm", ".m4v", ".mov")  # what a decision may show besides pictures: a short clip of play
+
+
 def picture(img):
     """One comparison picture of a decision, cropped as the agent that raised it asked."""
     path = os.path.join(ROOT, str(img.get("path", "")))
@@ -1058,6 +1061,8 @@ def picture(img):
     if not os.path.isfile(path):
         return f'<figure>{cap}<div class="im"></div></figure>'
     src, crop = rel(path), img.get("crop")
+    if path.lower().endswith(CLIPS):  # a clip of play — played where it stands
+        return f'<figure style="grid-column:1/-1">{cap}<video src="{src}" controls muted loop playsinline preload="metadata" style="width:100%;border-radius:10px"></video></figure>'
     size = png_size(path) if crop else None
     try:
         x, y, w, h = (float(v) for v in crop) if size else (0, 0, 0, 0)
@@ -1630,6 +1635,14 @@ def told(n):
             f"python3 \"{os.path.abspath(__file__)}\" answers --inbox and act on each as it says, then go on.")
 
 
+def at_work():
+    """The session is at work (a prompt came, a tool ran): answers sent now are taken when its turn ends — the dashboard says so."""
+    svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
+    if svc.get("game"):
+        os.makedirs(board_folder(), exist_ok=True)
+        open(os.path.join(board_folder(), ".active"), "w").write(f"{time.time():.0f}\n")
+
+
 def watch(mode):
     """The monitor (no mode): runs the whole session and says a line when answers arrive. --rewake: a hook waiting after a turn, for where
     monitors do not run — it stands aside while a monitor is alive, and the newest one replaces the one before. --notice: at session start, and on every
@@ -1643,6 +1656,7 @@ def watch(mode):
     folder = board_folder()
     beat = os.path.join(folder, ".watching")
     if mode == "--notice":
+        at_work()
         n = claim(stranded=True)
         if n:
             print(told(n))
@@ -1805,6 +1819,8 @@ def main():
     try:
         if not args or args == ["--if-stale"]:
             setup(root)
+            if args:  # run by the hooks after a tool, a subagent, a turn: the session is at work
+                at_work()
             draw(quiet)
         elif args[0] == "share" and (len(args) == 1 or (len(args) == 3 and args[1] == "--done")):
             share(setup(root), args[2] if len(args) == 3 else "")
