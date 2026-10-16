@@ -27,6 +27,8 @@ Everything that can be verified without a screen becomes a headless test. Run th
 - **Screen (color · layout · HUD) by capture.** Keep a scene that briefly opens a window and shoots set scenes (`res://tests/capture_<name>.tscn -- <folder>`). Claude reads the captured images.
   **If the screen is locked or the window is covered, nothing is captured** (it does not draw). If the window grabs the mouse, mouse movement during the shot changes the framing.
 - **Motion by frames.** `<godot> --path . --write-movie <folder>/<scene>.png --fixed-fps 10 --resolution 800x450 res://tests/capture_play.tscn -- <scene>`.
+  `--write-movie` ignores `--resolution` when the project sets a window size, and writes one extra copy of the last frame. To bake at a set size, put a temporary `override.cfg`
+  (`display/window/size`) in the project root for the run and delete it after; when muxing keep only the source frame count (`-frames:v N`) — a local ffmpeg may lack a Theora encoder to rescale an `.ogv` afterwards.
 - `Parameter "material" is null` in headless output is noise from having no renderer. Look only at `SCRIPT ERROR`.
 - **Run every headless test under a time limit.** A script with a parse error does not fail the run — it hangs. When a run hangs, look for a parse error first.
   macOS has no `timeout` command (a loop that calls it gets rc 127 every time and checks nothing): `perl -e 'alarm shift; exec @ARGV' <seconds> <command>`.
