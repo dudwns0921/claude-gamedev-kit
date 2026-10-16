@@ -24,7 +24,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
   keep only the rule and its reason ("where it was learned" stays in the user's own rules — do not write a game's name in commit messages either). Use `<game>` in examples.
 - **The cycle owns an asset's slot, not how it is made.** Name, path and size belong to the workflow; a file in the slot counts whoever made it.
   The kit makes no assets and names no service: the cycle runs on placeholders, and how a user has models, sprites, sounds or clips made is their way of working —
-  kept in their `ways.md` (the feedback skill's `way`), never in the kit.
+  kept as their own skills (`~/.claude/skills/` — the feedback skill's "Ways of working"), never in the kit.
 - **The kit covers making a game and showing where it stands — nothing after.** What repeats while a game is made (cycles, GDD ↔ code, decisions, slots for assets) is the kit's;
   what happens now and then at the end (a store build, signing, uploading) is left to Claude Code itself, asked in plain words. Do not add a skill for it.
 - **Commit messages are written in English**, as `<version> — <summary>`.

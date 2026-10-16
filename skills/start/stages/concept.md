@@ -24,8 +24,8 @@ These change how everything is built (and what the engine project is set to), an
 **Ask whether the user has reference images** — screenshots, photos, drawings they like. They go in `docs/concept/` (the user puts them there; any image format).
 For each, ask what in it they like (one thing) — a reference without that sentence gets copied whole.
 
-If the user would rather have pictures generated, the kit draws none itself: follow the user's ways of working (`ways.md`) if they say how pictures are made,
-otherwise ask which tool or service they want and keep the answer as a way (the feedback skill's `way`). Say how many will be made and that each one may cost money, and wait for a yes.
+If the user would rather have pictures generated, the kit draws none itself: follow the user's own skill for pictures if they have one,
+otherwise ask which tool or service they want and make the answer one of their skills (the feedback skill's "Ways of working"). Say how many will be made and that each one may cost money, and wait for a yes.
 Start with two or three that differ in one clear way, not eight, in the orientation decided above, saved in `docs/concept/` under new names — never over an existing one.
 
 ## 3. You do not look

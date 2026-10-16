@@ -30,7 +30,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 | A new game with no cycle yet — the GDD, the look, the first goal | `/gamedev-kit:start` — it reads where the game stands from the files |
 | A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from Goal to Play |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
-| A 3D model, a sprite, a sound or a clip | Made the way the user's ways of working say (`ways.md`) — the kit makes none; the style is the one in [docs/DESIGN.md](docs/DESIGN.md); the file goes to its slot's path |
+| A 3D model, a sprite, a sound or a clip | Made the way the user's own skill for it says (their ways of working, in `~/.claude/skills/`; with none, ask which tool and make one — `/gamedev-kit:feedback`) — the kit makes none; the style is the one in [docs/DESIGN.md](docs/DESIGN.md); the file goes to its slot's path |
 | "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
 | Starting over light | `/clear`, then `/gamedev-kit:cycle next` — in the same window, so the dashboard stays connected; the cycle document holds the state, and work in hand that is not in it is left there first (the cycle skill's "Leaving a session") |
 

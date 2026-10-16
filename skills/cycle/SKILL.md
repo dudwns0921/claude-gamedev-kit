@@ -117,7 +117,7 @@ Call them one at a time in the order systems designer → designer → developer
   if the developer returns "Questions for design", call the designer again with them attached. If the section they own changed, call the asker again. Do not answer in their place,
   and do not pass these to the user — an owner that cannot settle one from what is already decided hands it back under "Decisions needed", and only then is it asked.
 
-If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that does not exist, tell the user — what to do about it is asked as a decision: have it made (the way the user's `ways.md` says, if it says), bring their own file, or leave the placeholder.
+If the "Design" section's "Assets needed" lists a 3D model, sprite or sound that does not exist, tell the user — what to do about it is asked as a decision: have it made (the way the user's own skill for it says, if they have one), bring their own file, or leave the placeholder.
 **Either way the build runs on placeholders.** Assets are not made during Build — they are made after it, all at once ("Assets" below).
 
 Number the "Decisions needed" from all three consecutively (D1 …), write them into the document's "Decisions" with `ask`, and ask the user all at once —
@@ -191,8 +191,8 @@ and the user looks once, not every few tasks.
 1. List them from the "Assets needed" table — every row still `none` or `placeholder …` that was decided "make" or "bring my own".
    For the ones the user brings, tell them exactly what to deliver, one line each: the path the placeholder holds, the format the game already uses, and the size
    (longest side in metres for a model, shown pixels for a sprite, seconds for a sound).
-   The kit makes no assets: the ones to make are made the way the user's ways of working say (`ways.md`). If they say nothing, ask which tool or service, and keep the answer
-   with the feedback skill's `way`. Say how many and what it may cost before making any.
+   The kit makes no assets: the ones to make are made the way the user's own skill for that kind says (their ways of working, in `~/.claude/skills/`). With none, ask which tool or service,
+   and make the answer one of their skills (the feedback skill's "Ways of working"). Say how many and what it may cost before making any.
 2. **Show the user all of them in one sitting** — as decisions with the pictures attached (`ask Asset … --image`), or the board's asset sheet (`docs/board/assets.html`),
    which lays every file in a slot side by side — and take approvals and redraws together.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.

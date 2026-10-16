@@ -21,12 +21,8 @@ so a rule holds from the next session in every game of the user's — their size
   python3 feedback.py --notice             Called by the hook at session start: one line when unsent rules have piled up. Does not look outside
 
 The user's ways of working are not rules: a rule is what went wrong and would go wrong again — a candidate for the kit. A way is how this user chose to make
-things — the tools, services and MCP servers they use, how their assets are made. Ways live in ways.md beside the rules, are imported into every game the same way,
-and are never sent anywhere.
-
-  python3 feedback.py way "<how this user does it>"   Add a way. Prints its id (W2)
-  python3 feedback.py ways                  The ways, one per line
-  python3 feedback.py drop W2               Remove a way
+things — the tools, services and MCP servers they use, how their assets are made. A way is one of the user's own skills (~/.claude/skills/), never kept here and
+never sent. ways.md, where older kits kept them, is no longer imported: while it still holds ways, --notice asks for them to be turned into skills.
 
 `list` · `preview` · `state` take --json (what the dashboard reads). Outside a game, --all lists every file and send · drop still work.
 Before anything goes out it looks for words that seem to be a game's (the game folder's name · the GDD's title · feedback.private in kit.config.json ·
@@ -64,10 +60,7 @@ SETTINGS = os.path.join(HOME, "settings.json")  # {"auto": true | false} — abs
 RULES_HEAD = ("# The user's rules{engine}\n\n"
               "What this user learned in earlier games that holds {scope} — one rule per line, written by `feedback.py add`. "
               "Claude Code loads this file into every game made with gamedev-kit.\n\n")
-WAYS = os.path.join(HOME, "ways.md")
-WAYS_HEAD = ("# The user's ways of working\n\n"
-             "How this user makes things — the tools, services and MCP servers they chose, how their assets are made — one per line, written by `feedback.py way`. "
-             "Never sent anywhere. Claude Code loads this file into every game made with gamedev-kit.\n\n")
+WAYS = os.path.join(HOME, "ways.md")  # where older kits kept the ways of working — read only to ask for them to become skills
 WAY_RE = re.compile(r"^- W(\d+)\. (.*)$", re.M)
 RULE_RE = re.compile(r"^- R(\d+)\. (.*?)(?: \((?P<game>[^()]*)\))?(?: \[(?:issue #(?P<issue>\d+)|not for the kit: (?P<kept>[^\]]*))\])?$", re.M)
 OLD_OPEN = re.compile(r"^- \[ \] (.*)$")
@@ -139,8 +132,6 @@ def settle():
                 text = read(os.path.join(OLD_HOME, name)).replace("written by `voice.py rule`", "written by `feedback.py add`")
                 write(os.path.join(HOME, name), text)
                 told.append(f"copied {name} from {OLD_HOME} — the rules live in {HOME} now (the old folder is left as it was)")
-    if not os.path.exists(WAYS):
-        write(WAYS, WAYS_HEAD)
     for engine in dict.fromkeys(("", ENGINE)):
         if not os.path.exists(rules_file(engine)):
             write(rules_file(engine), RULES_HEAD.format(engine=f" — {engine}" if engine else "",
@@ -198,26 +189,6 @@ def add(text, any_engine, quiet=False):
 
 def ways():
     return [(int(m.group(1)), m.group(2).strip()) for m in WAY_RE.finditer(read(WAYS))]
-
-
-def add_way(text):
-    text = " ".join(text.split())
-    if not text:
-        sys.exit("a way needs its text — `way \"<how this user does it>\"`")
-    num = max([n for n, _ in ways()] + [0]) + 1
-    body = read(WAYS) or WAYS_HEAD
-    write(WAYS, body + ("" if body.endswith("\n") else "\n") + f"- W{num}. {text}\n")
-    print(f"W{num} — {WAYS}")
-
-
-def drop_way(wid):
-    m = re.fullmatch(r"[Ww](\d+)", wid.strip())
-    text = read(WAYS)
-    hit = next((w for w in WAY_RE.finditer(text) if m and int(w.group(1)) == int(m.group(1))), None)
-    if not hit:
-        sys.exit(f"{wid}: no such way — `ways`")
-    write(WAYS, text[:hit.start()] + text[hit.end():].lstrip("\n"))
-    print(f"dropped W{hit.group(1)} — {WAYS}")
 
 
 def words(text):
@@ -498,6 +469,9 @@ def notice():
     if not ROOT:
         return
     settle()
+    if ways():
+        print(f"[gamedev-kit] {WAYS} holds {len(ways())} of the user's ways of working from an older kit — games no longer load it. "
+              "At a stopping point, offer to turn them into the user's own skills, as the feedback skill's \"Ways of working\" says.")
     limit = config().get("feedback", {}).get("notice", NOTICE)
     todo = waiting()
     if limit is False or not todo:
@@ -530,7 +504,7 @@ def main():
     flags = {a for a in args if a in ("--as-is", "--any", "--all", "--json")}
     args = [a for a in args if a not in flags]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"add": 1, "list": 0, "drop": 1, "way": 1, "ways": 0, "preview": 1, "send": 1, "sent": 2, "keep": 2, "state": 0, "auto": 1, "push": 0}
+    need = {"add": 1, "list": 0, "drop": 1, "preview": 1, "send": 1, "sent": 2, "keep": 2, "state": 0, "auto": 1, "push": 0}
     quiet = "--quiet" in args
     args = [a for a in args if a != "--quiet"]
     cmd, rest = (args[0] if args else ""), args[1:]
@@ -551,13 +525,6 @@ def main():
             print(told)
     if cmd == "add":
         add(rest[0], "--any" in flags)
-    elif cmd == "way":
-        add_way(rest[0])
-    elif cmd == "ways":
-        shown = ways()
-        print("\n".join(f"W{n}. {t}" for n, t in shown) or "no ways yet — `way \"<how this user does it>\"`")
-    elif cmd == "drop" and rest[0][:1] in "Ww":
-        drop_way(rest[0])
     elif cmd == "list":
         cmd_list("--all" in flags, "--json" in flags)
     elif cmd == "preview":

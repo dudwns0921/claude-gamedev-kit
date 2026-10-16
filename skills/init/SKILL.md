@@ -62,7 +62,7 @@ It does not touch CLAUDE.md, and if the kit rules are an old version it says so 
 6. **Create the table and check.** Create `data/balance.xlsx` with the balance-table skill's `export`, and check with the gdd-sync skill that
    a report comes out. It works if the GDD template's example row (BAL.PLAYER.HP) pairs with the value file's example value and shows as `synced`.
 
-7. **Assets are the user's.** The kit makes none: the cycle runs on placeholders, and the user's files — made however they like (their `ways.md`) — go in the slots.
+7. **Assets are the user's.** The kit makes none: the cycle runs on placeholders, and the user's files — made however they like (their own skills) — go in the slots.
 
 8. **The dashboard — one question, at most.** The dashboard shows every game on this machine on one page (optional; it needs git and Node.js).
     Run `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" serve --status` and `command -v node git`, then:

@@ -8,7 +8,7 @@ description: >-
   whether to drop their copy. Use when a cycle · playtest step writes down a lesson (add); when the user says "내 규칙 보여줘" ("show my rules"),
   "이건 내 규칙으로" ("make this one of my rules"), "내 규칙에서 빼줘" ("drop it from my rules"), "피드백 보내줘" ("send the feedback"),
   "키트에 올려줘" ("send it up to the kit"), "배운 거 올리자" ("let's send what we learned"), "이슈로 올려줘" ("open it as an issue");
-  also keeps the user's ways of working (way) — how they make things, the tools · services · MCP servers they use — never sent:
+  also turns the user's ways of working — how they make things, the tools · services · MCP servers they use — into their own skills on this machine, never sent:
   "앞으로 에셋은 이렇게 만들자" ("from now on, make assets like this"), "이 MCP 로 만들어" ("make it with this MCP"), "내 방식으로 기억해줘" ("remember this as how I do it");
   when the session-start notice asks how rules go to the kit, or says some are held back. Not for a problem in the game itself.
 ---
@@ -34,14 +34,11 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" preview R3,R5   # what would g
 python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" send R3,R5      # send these now (--to 14: comment on issue #14 instead)
 python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" sent R3 14      # the user posted it by hand
 python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" state           # every sent rule's issue: open · closed (completed) · closed (not planned)
-python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" way "<how this user does it>"   # a way of working — never sent
-python3 "${CLAUDE_SKILL_DIR}/scripts/feedback.py" ways            # the ways (drop W2 removes one)
 ```
 
 **A rule is not a way of working.** A rule is what went wrong and would go wrong again — a candidate for the kit. A way is how this user chose to make things:
 the tools, services and MCP servers they use, how their models · sprites · sounds · clips are made, the steps they want around them. The kit makes no assets
-and names no service; when the user says how they want it done, write it with `way` (`ways.md`, beside the rules, imported into every game of theirs the same way)
-and follow it in every game. A way never goes to the kit — do not write one with `add`.
+and names no service; a way is one of the user's own skills ("Ways of working" below). A way never goes to the kit — do not write one with `add`.
 
 The dashboard's Rules page shows the same ledger and runs the same commands.
 
@@ -80,6 +77,21 @@ It does not go out until reworded: offer a rewording that keeps the rule and its
 At a stopping point, or when the user asks to see their rules, run `state`. For each `closed (completed)`, the kit carries it now: ask, one line per rule,
 whether to drop their copy (`drop R<n>`) — the copy is read on every turn, so dropping saves tokens. **Do not drop without the answer.**
 Leave alone a rule whose issue is open, closed as not planned (the kit will not carry it — it stays the user's), or could not be read.
+
+## Ways of working
+
+When the user says how they want something made, it becomes **their own skill** — `~/.claude/skills/<name>/SKILL.md`, where Claude Code finds it in every project.
+Only its description is read until it is used, and its scripts live beside it; it is never in a game's repository and never sent.
+
+1. Look for one of theirs that already covers it (`ls ~/.claude/skills/`) — a change to how they make sprites is an edit to that skill, not a second one.
+2. Make or edit it with the `skill-creator` skill when this machine has it; otherwise write `SKILL.md` directly. One skill per kind of thing made
+   (3D models · sprites · sounds · clips · …), so each loads only when that kind is made.
+3. The description says when it is used — "filling a sprite slot in a gamedev-kit game" — so it does not fire in other projects.
+   The body holds the steps, the settings, where keys are kept (a path outside every repository — never a key itself), and what is asked before a paid call.
+4. Tell the user its name and path in one line.
+
+Older kits kept ways as lines in `~/.config/gamedev-kit/rules/ways.md`, no longer loaded by games. When the session-start notice says that file still holds ways,
+offer at a stopping point to turn them into skills; on a yes, make them as above, show the user the skills made, and on their word delete `ways.md`.
 
 ## Config
 

@@ -300,10 +300,10 @@ class Tools(unittest.TestCase):
                 self.addCleanup(shutil.rmtree, root, True)
                 out = run(init, root, engine).stdout
                 self.assertIn("new      kit.config.json", out)
-                for name in ("rules.md", f"rules-{engine}.md", "ways.md"):  # the rules home gets the files the block imports
+                for name in ("rules.md", f"rules-{engine}.md"):  # the rules home gets the files the block imports
                     self.assertTrue(os.path.exists(os.path.join(home, name)), name)
                 self.assertIn("new      " + os.path.join(home, f"rules-{engine}.md"), out)
-                for name in ("rules.md", f"rules-{engine}.md", "ways.md"):  # the feedback skill owns these files — the ones init makes are the ones it would make
+                for name in ("rules.md", f"rules-{engine}.md"):  # the feedback skill owns these files — the ones init makes are the ones it would make
                     by_init = open(os.path.join(home, name), encoding="utf-8").read()
                     os.remove(os.path.join(home, name))
                     run(SEND, root, "list")
@@ -355,14 +355,14 @@ class Tools(unittest.TestCase):
                         open(os.path.join(user, ".config/gamedev-kit/voice/VOICE.md"), "w").write("# Voice\n")
                     out = subprocess.run([sys.executable, init, "--root", game, engine], capture_output=True, text=True, env=env, check=True).stdout
                     made.append(open(os.path.join(game, "CLAUDE.md"), encoding="utf-8").read())
-                    self.assertEqual(sorted(os.listdir(os.path.join(user, ".config/gamedev-kit/rules"))), sorted(["rules.md", f"rules-{engine}.md", "ways.md"]))
+                    self.assertEqual(sorted(os.listdir(os.path.join(user, ".config/gamedev-kit/rules"))), sorted(["rules.md", f"rules-{engine}.md"]))
                 kept = open(os.path.join(user, ".config/gamedev-kit/rules/rules.md"), encoding="utf-8").read()
                 self.assertIn("- R4. an old rule (g) [issue #3]", kept)
                 self.assertIn("written by `feedback.py add`", kept)
                 self.assertIn("copied", out)
                 self.assertTrue(os.path.exists(os.path.join(user, ".config/gamedev-kit/voice/VOICE.md")), "the old folder is left as it was")
                 self.assertEqual(made[0], made[1])
-                self.assertIn(f"\n\n@~/.config/gamedev-kit/rules/rules.md\n@~/.config/gamedev-kit/rules/rules-{engine}.md\n@~/.config/gamedev-kit/rules/ways.md\n<!-- gamedev-kit end -->", made[0])
+                self.assertIn(f"\n\n@~/.config/gamedev-kit/rules/rules.md\n@~/.config/gamedev-kit/rules/rules-{engine}.md\n<!-- gamedev-kit end -->", made[0])
                 if os.path.exists(os.path.join(KIT, "engines", engine, "files")):
                     self.assertIn("The table and the code match", (run(TABLE, root, "export"), run(TABLE, root, "check"))[1].stdout)
                     self.assertIn("| synced | 3 |", run(REPORT, root).stdout, "the template's three example rows pair with the value file")
@@ -442,13 +442,13 @@ class Tools(unittest.TestCase):
         # the block ends with the lines that import the user's own rules — plain lines of their own, outside any code block, after the engine's rules
         home = os.environ["GAMEDEV_KIT_RULES"]
         body = fresh.split("<!-- gamedev-kit end -->")[0]
-        self.assertTrue(body.endswith(f"\n\n@{home}/rules.md\n@{home}/rules-{engine}.md\n@{home}/ways.md\n"), body[-300:])
+        self.assertTrue(body.endswith(f"\n\n@{home}/rules.md\n@{home}/rules-{engine}.md\n"), body[-300:])
         self.assertEqual(body.count("```") % 2, 0, "every code block is closed before the import lines")
         self.assertIn("kept outside this repository", body.split("\n## ")[-1])
-        for name in ("rules.md", f"rules-{engine}.md", "ways.md"):  # a missing file is made again — by the hook too, without a word, and the block still matches
+        for name in ("rules.md", f"rules-{engine}.md"):  # a missing file is made again — by the hook too, without a word, and the block still matches
             os.remove(os.path.join(home, name))
             self.assertEqual(check(), "")
-            self.assertRegex(open(os.path.join(home, name), encoding="utf-8").read(), r"\A# The user's (rules|ways of working).*\n\n.*Claude Code loads this file.*\n\n\Z")
+            self.assertRegex(open(os.path.join(home, name), encoding="utf-8").read(), r"\A# The user's rules.*\n\n.*Claude Code loads this file.*\n\n\Z")
         os.remove(os.path.join(home, "rules.md"))
         self.assertIn("match the current version", run(init, root, engine, "--rules").stdout)
         self.assertTrue(os.path.exists(os.path.join(home, "rules.md")))
@@ -1917,16 +1917,16 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual(sent.count("issue comment 7"), 1, "much the same as an open issue — a comment, not a new issue")
         self.assertIn("not sent", fb("list"), "the rules naming a game or a date stay")
         self.assertEqual(fb("push", "--quiet"), "", "nothing more to send — nothing said")
-        # a way of working is the user's alone: kept beside the rules, imported the same way, never sent — even with auto on
-        self.assertIn("W1 — ", fb("way", "Sprites are made with the Ludo MCP server — the still first, approved, then animated"))
-        self.assertIn("W2 — ", fb("way", "Sounds come from the ElevenLabs MCP server"))
-        self.assertIn("- W1. Sprites are made with the Ludo MCP server", rules("ways.md"))
-        self.assertTrue(rules("ways.md").startswith("# The user's ways of working"))
+        # a way of working is one of the user's own skills, not a line here: the ways an older kit kept are asked to become skills, and never sent
+        self.assertNotIn("ways.md", os.listdir(home), "no ways file is made any more")
+        with open(os.path.join(home, "ways.md"), "w") as f:
+            f.write("# The user's ways of working\n\n- W1. Sprites are made with the Ludo MCP server\n- W2. Sounds come from the ElevenLabs MCP server\n")
+        self.assertIn("holds 2 of the user's ways of working from an older kit", fb("--notice", cwd=root))
         self.assertEqual(fb("push", "--quiet"), "", "ways are never sent")
         self.assertNotIn("Ludo", open(log).read())
         self.assertNotIn("W1", fb("list", "--all"), "a way is not a rule")
-        self.assertIn("dropped W1", fb("drop", "W1"))
-        self.assertEqual(fb("ways").strip(), "W2. Sounds come from the ElevenLabs MCP server")
+        os.remove(os.path.join(home, "ways.md"))
+        self.assertNotIn("ways of working", fb("--notice", cwd=root), "silent once they became skills")
         self.assertIn("nothing to send — 1 held back until reworded: R8", fb("push"))
         open(os.path.join(root, "kit.config.json"), "w").write("{broken")
         self.assertEqual(fb("push", "--quiet", cwd=root), "")
