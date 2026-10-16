@@ -30,6 +30,8 @@
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision (or the to-do, U3) is not needed any more — [-]. Nothing waits on it; it is no longer asked
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
+  python3 cycle.py skip Spec|Design "<why, in a line>"   The goal does not touch that section's owner (no rule or number changes · nothing seen or heard changes):
+                                                its agent is not called, and the section says so. `next` and `status` show it
   python3 cycle.py later "<in the user's own words>" [--key <review key>]   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made.
                                                 With --key (an answer from the dashboard that is work for later), the line names the card — the board shows it waiting, not in hand
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
@@ -252,9 +254,11 @@ def summary(path):
     open_d, proxy = sum(1 for m in dmarks if m not in "x~-"), dmarks.count("~")
     left = len(carried(text))
     yours = sum(1 for t in todos(text).values() if t[0] == " ")
+    skips = skipped(text)
     return (f"{os.path.relpath(path, ROOT)} — stage: {stage_of(text)} · tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
             f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
-            + (f" · carried over {left}" if left else "") + (f" · for the user {yours}" if yours else ""))
+            + (f" · carried over {left}" if left else "") + (f" · for the user {yours}" if yours else "")
+            + "".join(f" · {k} skipped" for k in skips))
 
 
 def cmd_next(path):
@@ -618,6 +622,35 @@ def cmd_checked(path, line, result, seen=""):
     print(f"checked ({result}): {hit[:80]}" + (" — the problem goes to the playtest skill with the others" if result == "problem" else ""))
 
 
+SKIP_RE = re.compile(r"^_Skipped: (.+)_$", re.M)
+
+
+def skipped(text):
+    """The sections a cycle chose not to run, with why: {Spec: "…", Design: "…"}."""
+    out = {}
+    for name in ("Spec", "Design"):
+        span = section(text, name)
+        got = SKIP_RE.search(text[span[0]:span[1]]) if span else None
+        if got:
+            out[name] = got.group(1)
+    return out
+
+
+def cmd_skip(path, name, why):
+    name = EN.get(name, name)
+    if name not in ("Spec", "Design"):
+        sys.exit("only Spec or Design is skipped — Plan always runs (the developer plans from whatever there is)")
+    why = " ".join(why.split())
+    if not why:
+        sys.exit('say why, in a line: skip Spec "only how the menu looks changes"')
+    text = read(path)
+    span = section(text, name) or sys.exit(f"the document has no `## {name}` section")
+    if text[span[0]:span[1]].strip() and not SKIP_RE.search(text[span[0]:span[1]]):
+        sys.exit(f"## {name} already has content — it ran; nothing to skip")
+    write(path, text[:span[0]] + f"\n_Skipped: {why}_\n\n" + text[span[1]:].lstrip("\n"))
+    print(f"{name}: skipped — {why}. If the developer comes back with questions for {name.lower()}, its agent is called after all")
+
+
 def cmd_later(path, said, key=""):
     text = read(path)
     span = section(text, "Play") or sys.exit("the document has no `## Play` section")
@@ -737,7 +770,7 @@ def main():
         sys.exit("--why and --detail go with ask, reask or todo")
     if "--wait" in opts and cmd != "todo":
         sys.exit("--wait goes with todo")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -773,6 +806,8 @@ def main():
         cmd_checked(path, *rest)
     elif cmd == "checks":
         cmd_checks(path)
+    elif cmd == "skip":
+        cmd_skip(path, *rest)
     elif cmd == "decide":
         cmd_decide(path, *rest)
     elif cmd == "confirm":

@@ -94,6 +94,20 @@ Who owns what: the **systems designer** owns how the game works (rules · balanc
 
 **Which model thinks is set per game**: `"models"` in `kit.config.json`. `standard` (or no key) → call the systems designer and the designer without a model — the agent's own, Opus. `max` → pass `model: fable` on those calls. Read the key once at the start; it changes nothing else.
 
+**How deep this cycle goes — decided here, from the goal, before any agent is called.** Each of the three is an expensive call that reads the project; a goal that does not
+touch an owner's part does not pay for it. Read the goal (and the decisions already in the document) — do not scan the project for this:
+
+| The goal | Runs | Skip with |
+|---|---|---|
+| A new system, rule, screen or mode · numbers whose shape changes · anything unsure | systems designer → designer → developer | — |
+| Only how something looks or sounds changes (a screen's layout, effects, sounds, assets, polish) | designer → developer | `skip Spec "<why>"` |
+| Nothing seen or heard changes (save, loading, performance, a value's range, inner logic) | systems designer → developer | `skip Design "<why>"` |
+| A few tasks in one place that leave every rule and look as they are (a bug cluster, wiring what is already designed) | developer | both |
+
+Say it to the user in one line as you go on — "Spec and Design skipped: only the wiring of the agreed save screen" — not as a question: they can say "the full way" and it is undone
+(the sections are empty but for that line). When unsure, run it. A skip is cheap to be wrong about: if the developer returns "Questions for spec" or "Questions for design"
+on a skipped section, call that owner then, with the questions. A fix of a line or two is not a cycle at all.
+
 Call them one at a time in the order systems designer → designer → developer (`plan`). Call the next only after the previous returns. Pass only the cycle document path and the mode. Do not attach your own thoughts.
 
 - If the systems designer returns "nothing touches the rules", go straight to Design.

@@ -2109,6 +2109,22 @@ none
         os.remove(os.path.join(home, ".game-salt"))
         self.assertNotEqual(run_id()[0], a1, "and without that salt the name gives another id — a guessed name cannot be checked")
 
+    def test_cycle_skip(self):
+        """A goal that does not touch an owner's part skips that agent: the section says why, status shows it, and a section that ran cannot be skipped."""
+        root = tempfile.mkdtemp(prefix="kit-skip-")
+        self.addCleanup(shutil.rmtree, root, True)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "menu", "The menu looks nicer")
+        self.assertIn("Spec: skipped — only how the menu looks changes", run(CYCLE, root, "skip", "Spec", "only how the menu looks changes").stdout)
+        doc = open(os.path.join(root, "docs/cycle/01-menu.md"), encoding="utf-8").read()
+        self.assertIn("## Spec\n_Skipped: only how the menu looks changes_\n\n## Design", doc)
+        self.assertIn("Spec skipped", run(CYCLE, root, "status").stdout)
+        self.assertIn("Plan always runs", run(CYCLE, root, "skip", "Plan", "x", ok=False).stderr)
+        self.assertIn("say why", run(CYCLE, root, "skip", "Design", " ", ok=False).stderr)
+        with open(os.path.join(root, "docs/cycle/01-menu.md"), "w", encoding="utf-8") as f:
+            f.write(doc.replace("## Design\n", "## Design\n### Screen and UI\n- a wider logo\n"))
+        self.assertIn("already has content", run(CYCLE, root, "skip", "Design", "nothing seen changes", ok=False).stderr)
+
     def test_harvest_sort(self):
         """As an issue arrives: the same lesson already open from the same sender is its duplicate — from another sender it is a second game, left alone."""
         root = tempfile.mkdtemp(prefix="kit-sort-")

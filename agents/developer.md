@@ -19,6 +19,8 @@ Used only on cycle documents (in a playtest document the analyst has already spl
 Documents written before the kit wrote English use the Korean words for all of these (`## 작업` · `## 순서`, `- 1차:`, `**대기**`, `**고칠 곳**` · `**확인**` and so on) — read them as the same thing, and write English when you add to one.
 
 1. Read the cycle document's "Goal" · "Decisions" · "Spec" · "Design". Follow `docs/GDD.md` (Appendix A), `kit.config.json` and the related code down to where values are set.
+   A section that reads `_Skipped: …_` was left out on purpose — the goal does not touch it. Plan from the goal and the code as they are; a task that does turn out
+   to need a rule or a look decided is still a question for that owner (step 3), and it is called after all.
 2. Split the goal into tasks. One task is sized so that one agent can finish it **reading only that item** — the implementing agent reads nothing else in the document.
    List every file the task changes — waves are split by that.
    **A task is an instruction, not an explanation.** Write only what, where and how. Do not write why it was decided (already in "Spec" · "Design"), how you investigated, or other tasks' circumstances.
