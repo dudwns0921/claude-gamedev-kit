@@ -1520,6 +1520,21 @@ def halt(pid, pid_path):
         os.remove(pid_path)
 
 
+def holder(port):
+    """(pid, its folder) of what listens on the port — read with lsof, so a dashboard the pid file lost track of is still found. None: nothing, or no lsof."""
+    tool = shutil.which("lsof")
+    if not tool:
+        return None
+    try:
+        pids = subprocess.run([tool, "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True, timeout=10).stdout.split()
+        if not pids:
+            return None
+        cwd = subprocess.run([tool, "-a", "-p", pids[0], "-d", "cwd", "-Fn"], capture_output=True, text=True, timeout=10).stdout
+        return int(pids[0]), next((l[1:] for l in cwd.split("\n") if l.startswith("n")), "")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def answering(url, wait):
     end = time.time() + wait
     while True:
@@ -1563,6 +1578,19 @@ def serve(whole, mode):
     keys = os.path.expanduser(str(CFG["service_file"]))
     url = f"http://127.0.0.1:{port}"  # not "localhost": where it means ::1 first, a browser that does not fall back finds nothing (the server listens on IPv4)
     pid = alive(pid_path)
+    held = holder(port)
+    try:
+        group = os.getpgid(held[0]) if held else 0
+    except OSError:
+        held = None  # gone between the two reads
+    if held and (not pid or group != pid):
+        # the port is held by a server the pid file does not name — two serves at once, or a file lost. Built over while it runs,
+        # it would serve pages that point at files the new build no longer has. Take it as the running dashboard, so it is stopped before any build
+        if os.path.realpath(held[1] or "/") == os.path.realpath(app):
+            pid = group
+            open(pid_path, "w").write(str(pid))
+        elif mode != "--stop":
+            sys.exit(f"port {port} is held by another program (pid {held[0]}, {held[1] or 'folder unknown'}) — stop it, or set board.app_port in {CONFIG_NAME}")
     if mode == "--stop":
         if pid:
             halt(pid, pid_path)
@@ -1622,6 +1650,10 @@ def serve(whole, mode):
         open(pid_path, "w").write(str(proc.pid))
         if not answering(url, 60):
             sys.exit(f"the dashboard did not answer on {url} — see {log}")
+        held = holder(port)
+        if held and os.getpgid(held[0]) != proc.pid:  # what answered is not the server just started (it could not take the port)
+            halt(proc.pid, pid_path)
+            sys.exit(f"another server answers on {url} (pid {held[0]}) — the dashboard just built could not start; stop that one and run serve again (see {log})")
     svc = whole.get(SECTION, {}).get("service")
     if not (isinstance(svc, dict) and svc.get("game")):  # this game joins the dashboard under an id made from its folder
         game = re.sub(r"[^a-z0-9]+", "-", os.path.basename(ROOT).lower()).strip("-")[:63] or "game"

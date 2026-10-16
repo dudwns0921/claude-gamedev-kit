@@ -952,6 +952,26 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("was not answering — starting it again", out.stdout, out.stderr)
         self.assertIsNotNone(stuck.wait(timeout=15), "the stuck one is gone, even though it ignored the polite ask")
         self.assertIn("running", serve("--status").stdout)
+        # the pid file lost (two serves at once): the server is found by its port, so it is stopped before a build — never built over while it runs
+        serve("--stop")
+        self.assertEqual(serve().returncode, 0)
+        os.remove(os.path.join(app, ".kit-server.pid"))
+        self.assertIn("running", serve("--status").stdout, "found by the port it holds")
+        self.assertTrue(os.path.exists(os.path.join(app, ".kit-server.pid")), "and written down again")
+        self.assertIn("stopped", serve("--stop").stdout)
+        # another program on the port: serve says so instead of building and starting beside it
+        other = subprocess.Popen([sys.executable, "-m", "http.server", str(port), "--bind", "127.0.0.1"], cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.addCleanup(other.kill)
+        for _ in range(50):
+            with socket.socket() as probe:
+                if probe.connect_ex(("127.0.0.1", port)) == 0:
+                    break
+            time.sleep(0.1)
+        out = serve()
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn(f"port {port} is held by another program", out.stderr)
+        other.kill()
+        other.wait()
 
     def test_board_inbox(self):
         """Answers sent from the dashboard land as one file per batch in <board>/inbox/. The first watcher to rename it to .taken relays it —
