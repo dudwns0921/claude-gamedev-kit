@@ -631,7 +631,7 @@ class Tools(unittest.TestCase):
 
         def shape(root):
             """What the board came to, without the words of the documents: the summary line, and each page's states and counts."""
-            marks = r'class="((?:it|thumb|task|chip|tile|ask)[^"]*)"|<(?:small|em)>(\d+/\d+|none|\d+)</(?:small|em)>|<b>(T\d+|\d+%?)</b>|(your turn to play|Playtest  · open)'
+            marks = r'class="((?:it|thumb|task|chip|tile|ask)[^"]*)"|<(?:small|em)>(\d+/\d+|none|\d+)</(?:small|em)>|<b>(T\d+|\d+%?)</b>|(your turn to play|Playtest first · open)'
             return run(BOARD, root).stdout, [re.findall(marks, page(root, n).split("</style>")[1]) for n in ("index.html", "stage-1.html", "stage-2.html")]
 
         root = project(GDD_EN.replace("# Game", "# Game — design", 1).replace("## 4. Rules", "## 4. Rules <b>")
@@ -681,7 +681,7 @@ class Tools(unittest.TestCase):
         self.assertNotIn("settled", chart)
         self.assertIn('<li class="it st-none"><i class="s-none" title="Not made"></i><div class="t"><b>coin_ping</b>', stage, "`none` in the Have cell = not made, a sound by its kind")
         self.assertIn('<div class="thumb st-temp" title="a coin — placeholder square">', stage, "`placeholder …` in the Have cell = placeholder")
-        self.assertIn("<b>The coin sticks</b><small>Playtest  · open</small>", stage, "an open playtest task is a problem")
+        self.assertIn("<code>T1</code> <b>The coin sticks</b><small>Playtest first · open</small>", stage, "an open playtest task is a problem — with its task and document")
         self.assertNotIn("log.html", chart + stage)
         self.assertIn("unanswered decisions 1", run(BOARD, root).stdout)
         self.assertNotIn("Unsorted", run(BOARD, root).stdout, "with nothing outside the stages, it is not mentioned")
@@ -1367,6 +1367,9 @@ if sys.argv[1:3] == ["run", "start"]:
         run(BOARD, root)
         sounds = [i for s in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["stages"] for i in s["lanes"]["sound"]]
         self.assertEqual(sorted((i["title"], i["st"]) for i in sounds), [("hit", "temp"), ("step", "done")], "a dropped slot is not counted")
+        self.assertEqual({i["src"] for i in sounds}, {"slot"}, "each item says where its state is read from — the dashboard says by it what closes it")
+        verified = [i for s in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["stages"] for i in s["lanes"]["verified"]]
+        self.assertIn(("T1", "playtest", "Playtest 2026-01-01-first · open"), [(i["code"], i["src"], i["sub"]) for i in verified])
 
         # a to-do for the user — a card until the file it waits for is there
         self.assertEqual(run(CYCLE, root, "todo", "Make the door clip on the site", "--wait", "shots/raw.mp4", "--why", "Start image, 5 s, 16:9",

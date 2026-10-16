@@ -345,8 +345,10 @@ def rel(path):
     return urllib.parse.quote(os.path.relpath(path, OUTDIR).replace(os.sep, "/"))
 
 
-def item(st, title, sub="", note="", img="", audio="", tags=(), code=""):
-    return {"st": st, "title": title, "sub": sub, "note": note, "img": img, "audio": audio, "tags": list(tags), "code": code}
+def item(st, title, sub="", note="", img="", audio="", tags=(), code="", src=""):
+    """src: where its state is read from — gdd (a row of the GDD table) · slot (an asset slot of a cycle) · file (an asset file no cycle listed) ·
+    cycle (a cycle that touched the stage) · playtest (a playtest task) · note (a line the user wrote in board-notes). The dashboard says by it how each closes."""
+    return {"st": st, "title": title, "sub": sub, "note": note, "img": img, "audio": audio, "tags": list(tags), "code": code, "src": src}
 
 
 def make_stages(titles, rows):
@@ -409,7 +411,7 @@ def asset_items(st, where, cycles, tasks):
     for c in cycles:
         for n in c["needs"]:
             lane = "sound" if re.search(SOUND_KIND, n["kind"], re.I) else "art"
-            it = found.get(n["name"]) or dict(item("none", n["name"], n["kind"], img=picture(files.get(n["name"], ""))), lane=lane)
+            it = found.get(n["name"]) or dict(item("none", n["name"], n["kind"], img=picture(files.get(n["name"], "")), src="slot"), lane=lane)
             have = n["have"].strip()
             cited = re.findall(r"`([^`]+\.[A-Za-z0-9]+)`", have)  # a file named in the Have cell — it must still exist to count as done
             there = (n["name"] in files or (any(os.path.exists(os.path.join(ROOT, c)) for c in cited) if cited
@@ -422,7 +424,7 @@ def asset_items(st, where, cycles, tasks):
             found[n["name"]] = it
     for name, path in files.items():  # sounds and models in the game that no cycle listed count too
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
-            found[name] = dict(item("done", name, "", audio=sound(path)), lane="sound" if sound(path) else "art")
+            found[name] = dict(item("done", name, "", audio=sound(path), src="file"), lane="sound" if sound(path) else "art")
     for name, it in found.items():
         if it.pop("dropped", False) or any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
             continue
@@ -446,23 +448,23 @@ def check_items(st, where, cycles, playtests):
             for i in {where[x] for x in t["ids"] if x in where}:
                 hit.setdefault(i, []).append(t)
         for i, ts in hit.items():
-            st[i]["lanes"]["verified"].append(item(state, f'Cycle {c["num"]} — {c["name"]}', said))
+            st[i]["lanes"]["verified"].append(item(state, f'Cycle {c["num"]} — {c["name"]}', said, src="cycle"))
             st[i]["work"].append((c, ts))
     for p in playtests:
-        date = re.match(r"\d{4}-\d\d-\d\d", p["file"])
         for t in p["tasks"]:
             if t["mark"] == "-":  # dropped with its reason (merged, folded, its condition never came) — nothing left to fix
                 continue
             s = place_ids(st, where, t["all_ids"]) or place_words(st, t["title"]) or st[-1]
             s["lanes"]["verified"].append(item("done" if t["mark"] == "x" else "bad", t["title"],
-                                         f'Playtest {date.group(0) if date else ""} · {"fixed" if t["mark"] == "x" else "open"}'))
+                                         f'Playtest {p["file"][:-3]} · {"fixed" if t["mark"] == "x" else "blocked" if t["mark"] == "!" else "open"}',
+                                         t["blocked"], code=t["num"], src="playtest"))
     for line in read(os.path.join(ROOT, CFG["notes"])).split("\n"):
         cells = [c.strip() for c in line.lstrip("-* ").split("|")] if line.strip().startswith(("-", "*")) else []
         if len(cells) < 4:
             continue
         s = next((s for s in st if cells[0] and cells[0] in s["name"]), st[-1])
         lane = LANE_KEY.get(cells[1].lower(), "verified")
-        s["lanes"][lane].append(item(NOTE_WORD.get(cells[2].lower(), "bad"), " | ".join(cells[3:]), "noted by the user"))
+        s["lanes"][lane].append(item(NOTE_WORD.get(cells[2].lower(), "bad"), " | ".join(cells[3:]), "noted by the user", src="note"))
 
 
 def open_questions(st, cycles):
@@ -1233,7 +1235,7 @@ def build(outdir, index_name):
         s = place_row(st, r)
         if r["state"] != "retired":
             where[r["id"]] = s["i"]
-            s["lanes"]["function"].append(item({"synced": "done", "mismatch": "bad"}.get(r["state"], "none"), r["value"], r["note"], code=r["id"],
+            s["lanes"]["function"].append(item({"synced": "done", "mismatch": "bad"}.get(r["state"], "none"), r["value"], r["note"], code=r["id"], src="gdd",
                                          tags=touched.get(r["id"], [])[-3:]))
     asset_items(st, where, cycles, [t for d in cycles + playtests for t in d["tasks"]])
     check_items(st, where, cycles, playtests)
