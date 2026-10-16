@@ -199,6 +199,9 @@ Not needed any more → `drop U1 "<why>"`. A choice is not a to-do — that is `
 and do not write a wrap-up: the cycle is closed by the next one (`new`).
 
 If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section.
+**Checks are read by someone holding the game, not the documents.** `stage Play` (and `checks`) lists every check that names something from the code or the documents
+(a constant, a section, a decision number) or runs long: rewrite each, before telling the user what to play, as one plain question about what the player meets —
+"Does the split land on the share you want in one try?" — and move the numbers and what to move in the table to the spec's "Tuning notes", which the card does not show.
 Each check by playing the user answers (in the chat or on the dashboard) is recorded: `checked "<the check>" ok|problem "<what they saw>"` — the start of the line is enough.
 A cycle the next one closes with checks never answered is written "Not played" and stays so on the board until they are (`checked … --doc <that document>`); `new` lists them.
 If given screenshots, you may call the designer with `review` (without a model — Opus — in either mode; checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.

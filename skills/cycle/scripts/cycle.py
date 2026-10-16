@@ -35,6 +35,7 @@
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
   python3 cycle.py checked "<the check, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves,
                                                 and the cycle counts as played. A cycle closed with checks never answered stays "not played" on the board
+  python3 cycle.py checks                       The checks by playing that do not read at a glance (a name from the code or the documents, too long) — `stage Play` says the same
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
 The document is the newest one (highest number). For another, `--doc <path>`.
@@ -566,6 +567,41 @@ def unchecked(text):
     return [c for c in check_lines(text) if " ".join(c.split()) not in done]
 
 
+CHECK_MAX = 90  # a check is a question read on a phone while playing — like a decision's
+
+
+def check_unreadable(line):
+    """What keeps a check by playing from being read at a glance — empty when it reads. The tuning hint behind it goes in "Tuning notes"."""
+    out = []
+    code = sorted(set(m.group(0) for m in CODE_WORDS.finditer(line)) | set(re.findall(r"\(\d+(?:\.\d+)+[^)]*\)|\bD\d+\b", line)))
+    if code:
+        out.append("names from the code or the documents (" + " · ".join(code) + ")")
+    if len(line) > CHECK_MAX:
+        out.append(f"{len(line)} characters — one short question, under {CHECK_MAX}")
+    return out
+
+
+def report_checks(text):
+    """Said as the cycle reaches Play: the checks the user would not understand, to be rewritten before they are asked to play."""
+    bad = [(c, check_unreadable(c)) for c in check_lines(text)]
+    bad = [(c, why) for c, why in bad if why]
+    if bad:
+        print(f"{len(bad)} check(s) by playing do not read at a glance — rewrite each as one plain question about what the player meets, "
+              "and move the numbers, names and what to move in the table to \"### Tuning notes\" (the card does not show it), before telling the user what to play:")
+        for c, why in bad:
+            print(f"  {c[:100]}{'…' if len(c) > 100 else ''}\n    ↳ {' · '.join(why)}")
+
+
+def cmd_checks(path):
+    text = read(path)
+    lines = check_lines(text)
+    report_checks(text)
+    if lines and not any(check_unreadable(c) for c in lines):
+        print(f"{len(lines)} check(s) by playing, all read at a glance")
+    elif not lines:
+        print("no checks by playing in this cycle")
+
+
 def cmd_checked(path, line, result, seen=""):
     if result not in ("ok", "problem"):
         sys.exit("the result is ok or problem")
@@ -701,7 +737,7 @@ def main():
         sys.exit("--why and --detail go with ask, reask or todo")
     if "--wait" in opts and cmd != "todo":
         sys.exit("--wait goes with todo")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3)}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -735,6 +771,8 @@ def main():
         cmd_have(path, *rest)
     elif cmd == "checked":
         cmd_checked(path, *rest)
+    elif cmd == "checks":
+        cmd_checks(path)
     elif cmd == "decide":
         cmd_decide(path, *rest)
     elif cmd == "confirm":
@@ -752,6 +790,8 @@ def main():
         stage = EN.get(rest[0], rest[0])
         write(path, STAGE_RE.sub(lambda m: m.group(1) + stage, text, count=1))
         print(f"stage: {stage}")
+        if stage == "Play":
+            report_checks(read(path))
 
 
 if __name__ == "__main__":

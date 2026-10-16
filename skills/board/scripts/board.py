@@ -1058,7 +1058,8 @@ def review_items(cycles, sheet, asks=()):
     c = cycles[-1] if cycles else None
     if c and re.match(STAGE_PLAY, c["stage"]):
         for line in unchecked_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
-            items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "title": line})
+            ask, _sep, rest = line.partition(" — ")  # a check written with its tuning hint after the dash (older documents): the question on the card, the rest folded
+            items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "title": ask.strip(), "detail": rest.strip()})
     later = parked()
     for i in items:  # put off to a later cycle — the card says so instead of reading as in hand
         if i["key"] in later:
@@ -1134,6 +1135,7 @@ def card(i):
                 + note.format("Your answer"))
     return (head + f'<h3>{md(i["title"])}</h3>'
             '<div class="opts pair"><button class="opt" data-pick="ok">OK</button><button class="opt no" data-pick="problem">Problem</button></div>'
+            + (f'<details class="sub"><summary>Detail</summary>{md(i["detail"])}</details>' if i.get("detail") else "")
             + note.format("What did you see?"))
 
 
@@ -1186,7 +1188,7 @@ def review_data(i):
     elif i["kind"] == "question":
         out.update(text=i["text"])
     else:
-        out.update(cycle=i["cycle"])
+        out.update(cycle=i["cycle"], detail=i.get("detail", ""))
     return out
 
 

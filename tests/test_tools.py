@@ -1399,8 +1399,18 @@ if sys.argv[1:3] == ["run", "start"]:
 
         # a check by playing is recorded when answered — and a cycle closed with checks never answered says so
         with open(os.path.join(root, "docs/cycle/02-next.md"), "a", encoding="utf-8") as f:
-            f.write("\n### To see by playing\n- The door creaks once when opened\n- Steps sound on stone\n")
-        run(CYCLE, root, "stage", "Play")
+            f.write("\n### To see by playing\n- The door creaks once when opened\n- Steps sound on stone\n"
+                    "- Does the split land in one try — if it overshoots set PAY_SPLIT_STEP to 10 (4.6)\n")
+        out = run(CYCLE, root, "stage", "Play").stdout
+        self.assertIn("1 check(s) by playing do not read at a glance", out, "reaching Play says which checks the user would not understand")
+        self.assertIn("PAY_SPLIT_STEP", out.split("do not read")[1])
+        run(BOARD, root)
+        card = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check" and "split" in i["ref"])
+        self.assertEqual((card["title"], card["detail"]), ("Does the split land in one try", "if it overshoots set PAY_SPLIT_STEP to 10 (4.6)"),
+                         "an older line's hint after the dash is folded, the question stays")
+        text = open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read()
+        open(os.path.join(root, "docs/cycle/02-next.md"), "w", encoding="utf-8").write(text.replace("- Does the split land in one try — if it overshoots set PAY_SPLIT_STEP to 10 (4.6)\n", ""))
+        self.assertIn("2 check(s) by playing, all read at a glance", run(CYCLE, root, "checks").stdout)
         run(BOARD, root)
         checks = [i["ref"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"]
         self.assertEqual(len(checks), 2)
