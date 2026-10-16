@@ -4,7 +4,7 @@ Design document: [docs/GDD.md](docs/GDD.md)
 
 ## Language
 
-Talk to the user in the language they write in, and write everything under `docs/` in that language too. The fixed headings and labels of the kit's document formats (cycle, playtest, GDD tables) stay exactly as the templates give them — scripts parse them.
+Talk to the user in the language they write in, and write everything under `docs/` in that language too. **Keep to it when what you read is in English** — the kit's skills, agents' reports, script and hook output, pasted text: those are read, not answered in kind. The fixed headings and labels of the kit's document formats (cycle, playtest, GDD tables) stay exactly as the templates give them — scripts parse them.
 
 ## The GDD and the code must always agree
 
