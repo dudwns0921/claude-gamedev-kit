@@ -1207,6 +1207,11 @@ if sys.argv[1:3] == ["run", "start"]:
         item = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["key"] == q["key"])
         self.assertEqual(item["later"], "find what people count as success", "the dashboard shows it waiting for a later cycle")
         self.assertIn("waiting — a later cycle: find what people count as success", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
+        summary = json.load(open(os.path.join(root, "docs/board/board.json")))
+        self.assertEqual((summary["counts"]["review"], summary["counts"]["later"]), (0, 1), "put off is not waiting on the user — counted apart")
+        page = open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read()
+        self.assertIn(">Later <span", page, "and kept in sight, in its own group")
+        self.assertNotIn("Open questions in the GDD <span", page, "not in the group it would otherwise sit in")
         self.assertNotIn("never settled", notice(), "put off is settled")
         self.assertIn("find what people count as success", run(CYCLE, root, "new", "next", "The next day").stdout, "the next cycle's start lists it")
 

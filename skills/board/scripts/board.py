@@ -1142,11 +1142,15 @@ def card(i):
 def review_html(name, items, stamp):
     cyc = next((i["cycle"] for i in items if i["kind"] == "check"), "")
     groups = [("todo", "For you to do"), ("decision", "Decisions"), ("question", "Open questions in the GDD"), ("check", f"Check by playing · cycle {cyc}")]
+    now, later = now_asked(items), [i for i in items if i.get("later")]
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
-                    for kind, title in groups for its in [[i for i in items if i["kind"] == kind]] for n in [len(its)] if its)
+                    for kind, title in groups for its in [[i for i in now if i["kind"] == kind]] for n in [len(its)] if its)
+    if later:  # put off by the session to a later cycle — kept in sight, not counted as waiting
+        parts += (f'<h2 style="margin:6px 0 0;font-size:18px">Later <span class="lab">{len(later)}</span></h2>'
+                  f'<div class="sub">Put off to a later cycle — nothing to do now; the next cycle&#39;s start lists them again.</div><div class="rvs">{"".join(card(i) for i in later)}</div>')
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a></div>'
             f'<div class="banner"><div><div class="lab">Review</div><h1>{e(name)}</h1>'
-            f'<div class="sub">{len(items)} to answer</div></div></div>'
+            f'<div class="sub">{len(now_asked(items))} to answer' + (f' · {len(items) - len(now_asked(items))} later' if len(items) != len(now_asked(items)) else "") + '</div></div></div>'
             + (parts or '<p class="sub">Nothing waits on you.</p>')
             + ('<div class="dock" id="dock"><span class="lab">answered</span><b>0</b><span class="how"></span><button class="btn copy">Copy answers</button>'
                '<button class="btn go send" hidden>Send to Claude</button><span class="sent"></span></div>' if items else "")
@@ -1213,8 +1217,15 @@ def chart_data(st, asks, cycles, sheet, review):
                        "sounds": [data_item(x) for x in sheet["sounds"]]}}
 
 
+def now_asked(items):
+    """What waits on the user now — not what the session put off to a later cycle (`cycle.py later --key`): that is shown apart, and not counted."""
+    return [i for i in items if not i.get("later")]
+
+
 def review_link(items):
-    return f'<a class="tile go rv" href="review.html"><span class="lab">waiting on you</span><b>Review {len(items)} →</b></a>' if items else ""
+    n, later = len(now_asked(items)), len(items) - len(now_asked(items))
+    return (f'<a class="tile go rv" href="review.html"><span class="lab">waiting on you</span><b>Review {n} →</b>'
+            + (f'<small>{later} later</small>' if later else "") + "</a>") if items else ""
 
 
 def build(outdir, index_name):
@@ -1258,12 +1269,12 @@ def build(outdir, index_name):
                # context: that conversation's size. Both as the context hook kept them
                "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]), "context": talk,
                        "pause": bool(kept.get("pause")) and kept.get("pause") == kept.get("session")} if now else None,
-               "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(review),
+               "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(now_asked(review)), "later": len(review) - len(now_asked(review)),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
                "board": chart_data(st, asks, cycles, sheet, review)}
     return pages, review, summary, (f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
-                                    + f" · review {len(review)}")
+                                    + f" · review {len(now_asked(review))}" + (f" (later {len(review) - len(now_asked(review))})" if len(review) != len(now_asked(review)) else ""))
 
 
 def context_kept():
