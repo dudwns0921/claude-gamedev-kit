@@ -51,6 +51,10 @@ the trap or reported it, change the script and add the case to its test, and wri
 - **The kit takes a rule when a second game has seen it, not before.** A comment on an issue ("Seen here too") is another game reporting the same thing — that is
   the evidence a lesson holds beyond the game that sent it. An issue nobody else has reported yet is a `wait`, however well it reads: its sender already has it
   among their own rules, where it works in every game of theirs, so nothing is lost by waiting, and every rule added here is read on every turn of everyone's games.
+  **Count games, not reports.** Each issue's heading says how many games saw it, from the game ids the reports carry (`game: <8 hex>` — one id per game, nothing that names it).
+  One game reporting the same lesson twice — two issues in other words, or a "Seen here too" from the same id — is still one game, and the lesson waits.
+  Two issues that say the same thing from two ids are a second game. Every issue may come from the same account (one person makes several games), so the sender says nothing about this.
+  A report from before ids existed counts on its own; say in the note when the count rests on those.
   Two things do not wait: a shortcoming of the kit itself (a script that should have caught something, a skill document that misled) is fixed on the first report,
   and so is a correction to a rule already here. An issue tied to one game's layout is a `skip`, not a `wait` — no second game will have it.
 

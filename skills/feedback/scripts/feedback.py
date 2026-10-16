@@ -38,10 +38,12 @@ The rules once lived in the voice folder (~/.config/gamedev-kit/voice, GAMEDEV_K
 Lessons a game once wrote in docs/kit-feedback.md are taken in once: a line much like a rule already here is marked as that rule, any other becomes a new rule.
 """
 import contextlib
+import hashlib
 import io
 import json
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -291,8 +293,26 @@ def title(rule):
     return f"feedback({engine_of(rule)}): " + (head if len(head) <= 80 else head[:79].rstrip() + "…")
 
 
+def game_id(rule):
+    """Which game a rule came from, as the kit's sweep may know it: eight hex digits, the same for every rule of one game — so it can tell one game
+    reporting twice from two games — and nothing that leads back to the game. Salted with a secret made once on this machine, so a guessed name cannot be checked against it."""
+    name = rule.get("game") or GAME
+    if not name:
+        return ""
+    salt_path = os.path.join(HOME, ".game-salt")
+    if not os.path.exists(salt_path):
+        os.makedirs(HOME, exist_ok=True)
+        write(salt_path, secrets.token_hex(16) + "\n")
+    return hashlib.sha256((read(salt_path).strip() + "|" + name).encode()).hexdigest()[:8]
+
+
+def stamp(rule, version):
+    gid = game_id(rule)
+    return f"engine: {engine_of(rule)} · kit: {version}" + (f" · game: {gid}" if gid else "")
+
+
 def body(rule, version):
-    return f"{rule['text']}\n\nengine: {engine_of(rule)} · kit: {version}"
+    return f"{rule['text']}\n\n{stamp(rule, version)}"
 
 
 def get(url):
@@ -389,7 +409,7 @@ def cmd_send(arg, to, as_is):
     tool = gh()
     for r in chosen:
         if to:
-            said = f"Seen here too (engine: {engine_of(r)} · kit: {version})\n\n{r['text']}"
+            said = f"Seen here too ({stamp(r, version)})\n\n{r['text']}"
             args, by_hand = ["issue", "comment", to, "--repo", repo, "--body", said], f"comment this on {WEB}/{repo}/issues/{to}:\n{said}"
         else:
             args = ["issue", "create", "--repo", repo, "--title", title(r), "--body", body(r, version)]

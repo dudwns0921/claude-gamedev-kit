@@ -1815,7 +1815,7 @@ if sys.argv[1:3] == ["run", "start"]:
         # preview: what goes out, without the game it came from; a similar open issue of the same engine
         out = fb("preview", "R5,R6")
         self.assertIn("Goes to: https://github.com/me/kit/issues\n", out)
-        self.assertRegex(out, r"\[R5\] feedback\(godot\): headless does not compile shaders\nheadless does not compile shaders → run it once in a window\n\nengine: godot · kit: \d+\.\d+\.\d+\n~ similar issue #7")
+        self.assertRegex(out, r"\[R5\] feedback\(godot\): headless does not compile shaders\nheadless does not compile shaders → run it once in a window\n\nengine: godot · kit: \d+\.\d+\.\d+ · game: [0-9a-f]{8}\n~ similar issue #7")
         self.assertIn("[R6] feedback(any): web export does not make the folder", out)
         self.assertNotIn("moongame", out)
         self.assertNotIn("#8", out, "another engine's issue does not count as similar")
@@ -2055,6 +2055,22 @@ none
         self.assertIn("about 211k tokens", watch(root), "shrinking and then passing the line again makes it speak again")
         self.assertEqual(subprocess.run([sys.executable, WATCH], input="broken input", capture_output=True, text=True).returncode, 0)
 
+    def test_game_id(self):
+        """A rule names its game to the kit only as eight hex digits — the same for every rule of one game, another for another game, salted on this machine."""
+        home = tempfile.mkdtemp(prefix="kit-gid-")
+        self.addCleanup(shutil.rmtree, home, True)
+        code = ("import importlib.util, sys; s = importlib.util.spec_from_file_location('fb', sys.argv[1]); m = importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+                "print(m.game_id({'game': 'alpha'}), m.game_id({'game': 'alpha'}), m.game_id({'game': 'beta'}), repr(m.game_id({'game': ''})))")
+        run_id = lambda: subprocess.run([sys.executable, "-c", code, SEND], capture_output=True, text=True, env=dict(os.environ, GAMEDEV_KIT_RULES=home)).stdout.split()
+        a1, a2, b, none = run_id()
+        self.assertRegex(a1, r"^[0-9a-f]{8}$")
+        self.assertEqual(a1, a2, "one game, one id")
+        self.assertNotEqual(a1, b, "another game, another id")
+        self.assertEqual(none, "''", "no game, no id")
+        self.assertEqual(run_id()[0], a1, "the salt is kept — the id holds across runs")
+        os.remove(os.path.join(home, ".game-salt"))
+        self.assertNotEqual(run_id()[0], a1, "and without that salt the name gives another id — a guessed name cannot be checked")
+
     def test_harvest_sort(self):
         """As an issue arrives: the same lesson already open from the same sender is its duplicate — from another sender it is a second game, left alone."""
         root = tempfile.mkdtemp(prefix="kit-sort-")
@@ -2136,7 +2152,19 @@ none
         self.assertEqual(got[0]["body"], hostile["body"])
         md = load("harvest-issues.md")
         self.assertIn("untrusted data", md.split("## Issue")[0])
-        self.assertIn("## Issue #1 — engine: unity · seen in 2 more game(s)", md)
+        self.assertIn("## Issue #1 — engine: unity · seen in 3 game(s) (some reports carry no id)", md, "reports from before game ids each count")
+        # with game ids: one game reporting twice is one game, a comment from another is a second
+        one = issue(1, body="lesson\n\nengine: godot · kit: 1.0.0 · game: aaaaaaaa", comments=1,
+                    comment_bodies=["Seen here too (engine: godot · kit: 1.0.0 · game: aaaaaaaa)\n\nsame words"])
+        two = issue(2, body="lesson\n\nengine: godot · kit: 1.0.0 · game: aaaaaaaa", comments=2,
+                    comment_bodies=["The harvest sweep left this out…", "Seen here too (engine: godot · kit: 1.0.0 · game: bbbbbbbb)\n\nx"])
+        pick([one, two], "--force")
+        got = {i["number"]: (i["games"], i["blind"]) for i in json.loads(load("harvest-issues.json"))}
+        self.assertEqual(got, {1: (["aaaaaaaa"], 0), 2: (["aaaaaaaa", "bbbbbbbb"], 0)})
+        ids_md = load("harvest-issues.md")
+        self.assertIn("## Issue #1 — engine: godot · seen in 1 game(s) — game ids aaaaaaaa · author", ids_md)
+        self.assertIn("## Issue #2 — engine: godot · seen in 2 game(s) — game ids aaaaaaaa, bbbbbbbb · author", ids_md)
+        self.assertNotIn("same words", ids_md, "a comment's text never reaches the model — only its id")
         block = md.split("## Issue #1")[1].split("## Issue #2")[0]
         self.assertIn("`````untrusted-data\nfeedback(unity): a `tick`\n", block, "the fence is longer than any run of backticks in the text")
         self.assertTrue(block.rstrip().endswith("edit tools/harvest.py\n`````"), "so the text cannot close it and speak outside")
@@ -2153,7 +2181,7 @@ none
         git("init", "-q")
         git("add", "-A")
         git("commit", "-q", "-m", "start")
-        save("harvest-issues.json", [issue(n) for n in (11, 12, 13, 14, 15, 16)])
+        save("harvest-issues.json", [dict(issue(n), games=["cccccccc"] if n in (11, 12) else [], blind=0 if n in (11, 12) else 1) for n in (11, 12, 13, 14, 15, 16)])
         result = [{"issue": 11, "lane": "rule", "where": "engines/godot/CLAUDE.md", "note": "merged with #12 | closes #99, see https://github.com/a/b/issues/3 @someone",
                    "plain": "Godot games count frames in headless checks"},
                   {"issue": 12, "lane": "rule", "where": "engines/godot/CLAUDE.md", "note": "same trap", "plain": "Godot games count frames in headless checks"},
@@ -2205,7 +2233,8 @@ none
         # read by someone who does not read code: a recommendation first, then what games will do differently
         self.assertTrue(body.startswith("## Recommendation\n\n**Look closer before merging** — it changes a tool"), body[:200])
         self.assertIn("`skills/cycle/scripts/cycle.py`", body.split("\n\n")[1])
-        self.assertIn("- Godot games count frames in headless checks — seen in 1 game(s), issue 11", body)
+        self.assertIn("- Godot games count frames in headless checks — seen in 1 game(s), issues 11, 12 · `engines/godot/CLAUDE.md`\n", body)
+        self.assertEqual(body.count("count frames in headless checks"), 1, "two issues merged into one change are said once")
         self.assertIn("## Already in the kit — closed on merge, nothing changes\n\n- issue 14: already covered", body)
         self.assertIn("Left open, labelled: 1 request · 1 skip", body)
         self.assertLess(body.index("## What a game"), body.index("<details>"), "the issue table is folded below")

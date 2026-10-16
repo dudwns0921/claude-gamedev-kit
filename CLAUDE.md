@@ -77,8 +77,9 @@ A lesson is sorted where the game trips (when a task is blocked · after a playt
 one of their own rules (`feedback.py add` — on their machine, loaded into every game of theirs by the import lines at the end of the kit rules block, so it holds at once).
 Whether a rule holds for every game is not asked of the user line by line — that judgement is the sweep's. The user answers once how their rules go out (`feedback.py auto`):
 from then on a hook sends each new rule to this repository as an issue (titles start with `feedback(<engine>):`), or the user sends them from the skill or the dashboard's Rules page.
-The script holds back anything that names a game or a date, and leaves out the game a rule came from.
-A rule much like an open issue does not open a new one but comments on it — an issue with comments is one seen twice.
+The script holds back anything that names a game or a date, and leaves out the game a rule came from — only its salted id goes, which names nothing.
+A rule much like an open issue does not open a new one but comments on it. Each issue and comment carries the game's id (`game: <8 hex>`, salted on the user's machine —
+it tells games apart without naming one), so the sweep counts games, not reports: one game reporting twice is still one game.
 **The kit takes a rule when a second game has seen it.** Until then the lesson works where it was learned, among its sender's own rules; a shortcoming of the kit itself is fixed on the first report.
 The personal rule carries its issue number; once that issue closes as completed the kit carries the rule, and the feedback skill asks the user whether to drop their copy (`feedback.py state`).
 
