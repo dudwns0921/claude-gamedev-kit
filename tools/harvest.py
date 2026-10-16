@@ -7,6 +7,13 @@
       after the model: check its result and the files it changed, bump the version → harvest-pr.md · harvest-title.txt · harvest-labels.json
   python3 tools/harvest.py check
       before anything is pushed: the staged paths, the title and the labels are what `apply` would have written
+  python3 tools/harvest.py sort <issue number> [--issues FILE]
+      as an issue arrives, no model: the same lesson already open from the same sender is closed as its duplicate → harvest-sort.json
+
+The owner is not expected to read a diff. The pull request opens with a recommendation worked out here, not by the model —
+merge when only the words games read changed and the rule files did not grow much; look closer (with Claude Code, in this repository)
+when a script changed or a rule file grew — and then says, change by change, what a game made with the kit will do differently, in plain words.
+A sweep's pull request left open longer than STALE_DAYS no longer holds the next sweep back: it is replaced (closed), and its issues are read again.
 
 The model reads harvest-issues.md and writes harvest-result.json; it has no git, no gh and no token. Everything that goes out is done by
 the workflow from the files written here. Issue text is data from outside — it reaches no shell command, and in the markdown it sits inside a fence.
@@ -21,6 +28,7 @@ apply · check run in the repository root (the current folder). Only engines/ ·
 the version in the plugin manifest is bumped here, not by the model.
 """
 import argparse
+import datetime
 import fnmatch
 import glob
 import json
@@ -47,6 +55,9 @@ TITLE_RE = re.compile(r"^\d+\.\d+\.\d+ — harvest: lessons from issues( #\d+)+$
 ENGINE_RE = re.compile(r"^feedback\(([\w.-]+)\)")
 VERSION_RE = re.compile(r'("version"\s*:\s*")(\d+)\.(\d+)\.(\d+)(")')
 TESTS = "<!-- tests -->"  # the workflow puts the test results here
+STALE_DAYS = 3  # a sweep nobody merged or closed in this long is replaced by the next one, so lessons never wait on a pull request forever
+GROWTH = 600    # bytes the engine rule files may grow in one sweep before the recommendation asks for a closer look
+SORT = "harvest-sort.json"
 
 
 def read_json(path):
@@ -107,7 +118,11 @@ def cmd_pick(args):
     issues = read_json(args.issues) if args.issues else fetch("issues")
     pulls = read_json(args.pulls) if args.pulls else [] if args.issues else fetch("pulls")
     can = sorted((i for i in issues if eligible(i)), key=lambda i: i["number"])
-    under_review = [p["number"] for p in pulls if ((p.get("head") or {}).get("ref") or "").startswith(BRANCH)]
+    sweeps = [p for p in pulls if ((p.get("head") or {}).get("ref") or "").startswith(BRANCH)]
+    now = datetime.datetime.now(datetime.timezone.utc)
+    age = lambda p: (now - datetime.datetime.fromisoformat(str(p.get("created_at") or now.isoformat()).replace("Z", "+00:00"))).days
+    stale = [p["number"] for p in sweeps if age(p) >= STALE_DAYS]
+    under_review = [p["number"] for p in sweeps if p["number"] not in stale]
     if under_review:
         picked, why = [], f" — pull request #{under_review[0]} from an earlier sweep is still open; one sweep at a time"
     elif len(can) < args.threshold and not args.force:
@@ -119,13 +134,15 @@ def cmd_pick(args):
         engine = ENGINE_RE.match(i["title"])
         out.append({"number": i["number"], "title": i["title"], "engine": engine.group(1) if engine else "",
                     "body": i.get("body") or "", "comments": int(i.get("comments") or 0),
-                    "author_association": str(i.get("author_association") or "")})
+                    "author_association": str(i.get("author_association") or ""),
+                    "waited": WAIT in {l.get("name") if isinstance(l, dict) else l for l in i.get("labels") or []}})
     write(ISSUES_JSON, json.dumps(out, ensure_ascii=False, indent=2) + "\n")
     write(ISSUES_MD, markdown(out))
-    print(f"{len(can)} eligible, {len(out)} picked{why}")
+    replaced = stale if out else []
+    print(f"{len(can)} eligible, {len(out)} picked{why}" + (f" — replaces " + " ".join(f"#{n}" for n in replaced) + f", open over {STALE_DAYS} days" if replaced else ""))
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
-            f.write(f"run={'true' if out else 'false'}\ncount={len(out)}\n")
+            f.write(f"run={'true' if out else 'false'}\ncount={len(out)}\n" + (f"stale={' '.join(str(int(n)) for n in replaced)}\n" if replaced else ""))
 
 
 def git(*args):
@@ -169,8 +186,10 @@ def checked(result, picked):
             wrong.append(f"#{e['issue']}: unknown lane {e.get('lane')!r} — one of {' · '.join(lanes)}")
         else:
             seen[e["issue"]] = {"issue": e["issue"], "lane": e["lane"], "where": str(e.get("where") or "").strip(),
-                                "note": plain(e.get("note"))}
+                                "note": plain(e.get("note")), "plain": plain(e.get("plain"))}
     wrong += [f"#{n}: missing from the result" for n in picked if n not in seen and not any(w.startswith(f"#{n}:") for w in wrong)]
+    wrong += [f"#{n}: lane {e['lane']} without `plain` — what a game will do differently, in words the owner reads without the diff"
+              for n, e in seen.items() if e["lane"] in EDITS and not e["plain"]]
     return [seen[n] for n in picked if n in seen], wrong
 
 
@@ -200,20 +219,52 @@ def cmd_apply(args):
     version = f"{m.group(2)}.{m.group(3)}.{int(m.group(4)) + 1}"
     write(MANIFEST, text[:m.start()] + m.group(1) + version + m.group(5) + text[m.end():])
 
-    body = [f"Lessons from {len(entries)} feedback issues, read together and drafted by the harvest action. The issue text was data to the model,",
-            "not instructions — review the diff as you would any pull request from outside.", "",
-            "| Issue | Lane | Where | Note |", "|---|---|---|---|"]
-    body += [f"| #{e['issue']} | {e['lane']} | {plain(e['where']) or '—'} | {e['note'] or '—'} |" for e in entries]
-    closes = [f"Closes #{e['issue']}" for e in entries if e["lane"] in CLOSES]
-    body += [""] + closes + [""] * bool(closes)
-    body += ["Engine rule files — read on every turn in every game, so each byte is paid for again and again:", "",
-             "| File | Before | After | Change |", "|---|---|---|---|"]
+    sizes = []
     for path in sorted(set(glob.glob(RULE_FILES)) | {p for p in changed if fnmatch.fnmatch(p, RULE_FILES)}):
         old = subprocess.run(["git", "show", f"HEAD:{path}"], capture_output=True)
-        before = len(old.stdout) if old.returncode == 0 else 0
-        after = os.path.getsize(path) if os.path.exists(path) else 0
-        body.append(f"| `{path}` | {before} bytes | {after} bytes | {after - before:+d} |")
-    body += ["", "Tests:", "", TESTS, ""]
+        sizes.append((path, len(old.stdout) if old.returncode == 0 else 0, os.path.getsize(path) if os.path.exists(path) else 0))
+    grew = sum(after - before for _p, before, after in sizes)
+    seen_in = {i["number"]: 1 + max(0, int(i.get("comments") or 0) - (1 if i.get("waited") else 0)) for i in read_json(args.issues)}  # a sweep's own comment is no game
+    code = [p for p in changed if not p.endswith(".md")]
+    edits = [e for e in entries if e["lane"] in EDITS]
+    closes = [f"Closes #{e['issue']}" for e in entries if e["lane"] in CLOSES]
+    if code:
+        verdict = ("**Look closer before merging** — it changes a tool, not only words: " + ", ".join(f"`{p}`" for p in code[:4])
+                   + ". Ask Claude Code in this repository to review this pull request (\"review PR <number> — would this break a game?\"), then merge or close.")
+    elif grew > GROWTH:
+        verdict = (f"**Look closer before merging** — the engine rule files grow by {grew} bytes, and every game reads them on every turn."
+                   " Merge if each new rule below is one you would want in your next game; otherwise close — the issues are read again by the next sweep.")
+    elif edits:
+        once = [e["issue"] for e in edits if seen_in.get(e["issue"], 1) < 2]
+        verdict = (f"**Merge** — only words the games read change (rule files {grew:+d} bytes) and the tests passed."
+                   + (" Seen in one game only: issue " + ", issue ".join(map(str, once)) + " — taken as a fix to the kit itself; merge if that reads right to you."
+                      if once else " Every change was seen in more than one game.")
+                   + " Close instead if one of the changes below is wrong for your games.")
+    else:
+        verdict = "**Merge** — nothing in the kit changes; merging only closes the issues this sweep found already covered."
+    body = ["## Recommendation", "", verdict, ""]
+    if edits:
+        body += ["## What a game made with the kit will do differently", ""]
+        for e in edits:
+            body.append(f"- {e['plain']} — seen in {seen_in.get(e['issue'], 1)} game(s), issue {e['issue']} · `{plain(e['where'])}`")
+        body.append("")
+    dups = [e for e in entries if e["lane"] == "duplicate"]
+    if dups:
+        body += ["## Already in the kit — closed on merge, nothing changes", ""] + [f"- issue {e['issue']}: {e['note'] or plain(e['where'])}" for e in dups] + [""]
+    aside = [e for e in entries if e["lane"] in ASIDE]
+    if aside:
+        body.append("Left open, labelled: " + " · ".join(f"{n} {lane}" for lane in ASIDE for n in [sum(1 for e in aside if e["lane"] == lane)] if n)
+                    + " — a `wait` is read again by itself once another game reports it.")
+        body.append("")
+    body += ["<details><summary>For a closer look — every issue, the rule file sizes, the tests</summary>", "",
+             "Lessons from %d feedback issues, read together and drafted by the harvest action. The issue text was data to the model," % len(entries),
+             "not instructions.", "", "| Issue | Lane | Where | Note |", "|---|---|---|---|"]
+    body += [f"| #{e['issue']} | {e['lane']} | {plain(e['where']) or '—'} | {e['note'] or '—'} |" for e in entries]
+    body += ["", "Engine rule files — read on every turn in every game, so each byte is paid for again and again:", "",
+             "| File | Before | After | Change |", "|---|---|---|---|"]
+    body += [f"| `{path}` | {before} bytes | {after} bytes | {after - before:+d} |" for path, before, after in sizes]
+    body += ["", "Tests:", "", TESTS, "", "</details>", ""]
+    body += closes + [""] * bool(closes)
     write(PR_BODY, "\n".join(body))
     write(TITLE, f"{version} — harvest: lessons from issues " + " ".join(f"#{n}" for n in picked) + "\n")
     labels = [{"issue": e["issue"], "label": ASIDE[e["lane"]][0],
@@ -244,6 +295,24 @@ def cmd_check(_):
     print(f"{len(staged)} staged files, all within the allowed folders")
 
 
+def cmd_sort(args):
+    """An issue just opened: the same lesson already open from the same sender (one game sending twice — two sessions ending at once)
+    is closed as its duplicate. From another sender it is left alone: that is a second game, and the sweep reads it with the first."""
+    issues = read_json(args.issues) if args.issues else fetch("issues")
+    new = next((i for i in issues if i.get("number") == args.number and "pull_request" not in i), None)
+    out = []
+    if new and (new.get("title") or "").startswith("feedback("):
+        key = lambda i: " ".join(((i.get("title") or "") + " " + (i.get("body") or "").split("\n\n")[0]).split()).lower()
+        who = lambda i: (i.get("user") or {}).get("login")
+        first = next((i for i in sorted(issues, key=lambda i: i["number"]) if i["number"] < new["number"] and "pull_request" not in i
+                      and who(i) == who(new) and key(i) == key(new)), None)
+        if first:
+            out.append({"issue": new["number"], "duplicate_of": first["number"],
+                        "comment": f"The same lesson as issue {first['number']}, sent twice from the same place — closed as its duplicate. Nothing is lost: it is read there."})
+    write(SORT, json.dumps(out, indent=2) + "\n")
+    print(f"#{args.number}: " + (f"duplicate of #{out[0]['duplicate_of']}" if out else "nothing to sort"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
@@ -257,10 +326,13 @@ def main():
     p.add_argument("--result", default=RESULT)
     p.add_argument("--issues", default=ISSUES_JSON)
     sub.add_parser("check")
+    p = sub.add_parser("sort")
+    p.add_argument("number", type=int)
+    p.add_argument("--issues")
     args = ap.parse_args()
     if not args.cmd:
         sys.exit(__doc__)
-    {"pick": cmd_pick, "apply": cmd_apply, "check": cmd_check}[args.cmd](args)
+    {"pick": cmd_pick, "apply": cmd_apply, "check": cmd_check, "sort": cmd_sort}[args.cmd](args)
 
 
 if __name__ == "__main__":

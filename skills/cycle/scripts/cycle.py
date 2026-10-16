@@ -1,28 +1,40 @@
 #!/usr/bin/env python3
 """Ledger for the cycle document (docs/cycle/NN-name.md) — pulls out and changes only the lines needed, without reading the whole document or editing it by hand.
 
-  python3 cycle.py new <short-name> "<goal — in the user's own words>"   New document. Numbered after the last one. A previous cycle standing at Play becomes `Closed`, and what is left · deferred there is reported
+  python3 cycle.py new <short-name> "<goal — in the user's own words>"   New document. Numbered after the last one. A previous cycle standing at Play becomes `Closed`, and what is left · deferred there is reported —
+                                                with every playtest task still open and every asset slot still empty, so nothing made earlier is forgotten
   python3 cycle.py status                       Per document: stage · task counts · open decisions
   python3 cycle.py next                         Current stage, open decisions, the tasks of the next wave to run
   python3 cycle.py task T3                      One task and only the decisions it depends on (what the developer agent reads)
   python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
+  python3 cycle.py mark T4 dropped "<why>"      [-] — not to be done (merged into another, overtaken, the user said no). The reason is required
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
         [--image "<label>=<path>" …]            Pictures to look at while deciding (a capture of now, the candidates, a reference) — shown with it on the board and the dashboard.
-                                                A short clip of play (.mp4 · .webm, up to 25 MB) goes the same way, played on the card
+                                                A short clip of play (.mp4 · .webm) or a sound to hear (.mp3 · .m4a · .wav — a voice line, an effect, a loop; up to 25 MB)
+                                                goes the same way, played on the card
         [--why "<what led to it, in a line or two>"] [--detail "<the numbers, names and files behind it>"]
                                                 The card reads the question, the why, the options, the recommendation — and keeps the detail folded.
                                                 Written for the user to read on a phone, in what the player meets: the question short, two options or more,
                                                 and no code names, file paths or document section numbers in it — those go in --detail. ask refuses otherwise
   python3 cycle.py attach D3 --image "<label>=<path>" …   Pictures for a decision already asked (they replace any attached before)
   python3 cycle.py reask D3 "<question — ① … ② … · recommended: ①>" [--image …]   Ask it again as a new decision (the answer was a question back, the options changed): D3 closes as "asked again as D7", D7 is asked
+  python3 cycle.py todo "<what the user does, in a line>" [--wait <path>] [--why "<the steps>"] [--detail "<the prompt · settings to copy>"] [--image …]
+                                                Something only the user can do outside this chat (make a file on a site, sign in, plug in a phone) — prints its number (U1).
+                                                It waits on the board and the dashboard as a card; with --wait it closes by itself once that file is there
+                                                (and the dashboard's watcher wakes the session for it). Not a choice — that is `ask`
+  python3 cycle.py did U1 ["<what came of it>"]  The user did it — [x]. `drop U1 "<why>"` when it is not needed any more
+  python3 cycle.py have <slot> "<what is in it>"   Writes the "Have" cell of an asset slot (the newest document that lists it): the path made · `placeholder (kept — D7)`
+                                                for one the user leaves on its placeholder · `dropped — <why>` for one not needed. The board counts it as written
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
-  python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision is not needed any more — [-]. Nothing waits on it; it is no longer asked
+  python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision (or the to-do, U3) is not needed any more — [-]. Nothing waits on it; it is no longer asked
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
   python3 cycle.py later "<in the user's own words>" [--key <review key>]   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made.
                                                 With --key (an answer from the dashboard that is work for later), the line names the card — the board shows it waiting, not in hand
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
+  python3 cycle.py checked "<the check, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves,
+                                                and the cycle counts as played. A cycle closed with checks never answered stays "not played" on the board
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
 The document is the newest one (highest number). For another, `--doc <path>`.
@@ -40,6 +52,7 @@ import sys
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
 CLIP_MAX = 25 * 2**20  # the dashboard takes a file up to 30 MB
+SOUNDS = (".mp3", ".m4a", ".wav")  # a sound to hear while deciding — a voice line, an effect, a loop
 SHEETS = os.path.join(DIR, "sheets")  # where the sheet script keeps its questions — the board reads a decision's pictures from there
 NOTES = os.path.join("docs", "handoff")  # notes of the skill that carried work across sessions before `carry` did
 TEMPLATE = """# Cycle {num} — {name}
@@ -61,8 +74,8 @@ Started: {date} · Commit {commit} · Stage: Goal
 
 ## Play
 """
-BOX = {"done": "x", "blocked": "!", "open": " "}
-NOTE = {"done": "Done", "blocked": "Blocked"}
+BOX = {"done": "x", "blocked": "!", "open": " ", "dropped": "-"}
+NOTE = {"done": "Done", "blocked": "Blocked", "dropped": "Dropped"}
 # The words of the document: written in English, read in English and in the Korean of older documents.
 KO = {"Goal": "목표", "Decisions": "결정", "Spec": "기획", "Design": "디자인", "Plan": "계획", "Build": "구현", "Tasks": "작업",
       "Order": "순서", "Play": "플레이", "Closed": "끝"}
@@ -76,9 +89,18 @@ CARRY = "Carried over"
 CARRY_RE = re.compile(r"^- \[ \] (.+)$", re.M)
 RESUMED_RE = re.compile(r"^(?:Resumed|이어받음):", re.M)
 LATER_RE = re.compile(r"^- (?:Next|다음에): *(.+)$", re.M)
+CHECKED_RE = re.compile(r"^- Checked \((ok|problem)\): (.+?)(?: — “.*”)? \(\d{4}-\d\d-\d\d\)$", re.M)
+CHECK_HEADS = re.compile(r"^###\s+(?:To see by playing|For a human to see)[ \t]*$", re.M)
 PROXY_RE = re.compile(r"^(.*) → (.*?) · (?:proxy|대리) (.*?) \(\d{4}-\d\d-\d\d\)$")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
+TODO = "For you"  # what only the user can do outside the chat — the board's review carries each as a card
+TODO_RE = re.compile(r"^- \[(.)\] (U\d+)\.(.*)$", re.M)
+WAIT_RE = re.compile(r" — wait: `([^`]+)`")
+PLAYTESTS = os.path.join("docs", "playtest")
+PLAYTEST_TASK = re.compile(r"^### \[([ !])\] (T\d+)\.(.*)$", re.M)
+NEEDS_RE = re.compile(r"^### (?:Assets needed|필요한 에셋)[ \t]*$", re.M)
+HAVE_EMPTY = re.compile(r"^(?:none|없음|—|-)?\s*$|^(?:none|없음)\b", re.I)
 
 ROOT = ""
 
@@ -147,6 +169,52 @@ def decisions(text):
     return {m.group(2): (m.group(1), m.group(0)) for m in DECISION_RE.finditer(text)}
 
 
+def todos(text):
+    """U number → (state mark, the whole line, the file it waits for)."""
+    out = {}
+    for m in TODO_RE.finditer(text):
+        wait = WAIT_RE.search(m.group(3))
+        out[m.group(2)] = (m.group(1), m.group(0), wait.group(1) if wait else "")
+    return out
+
+
+def slots(text):
+    """The rows of the "Assets needed" table: name → (Have cell, the row as written)."""
+    out, head = {}, NEEDS_RE.search(text)
+    if not head:
+        return out
+    end = re.search(r"^##+ ", text[head.end():], re.M)
+    for row in text[head.end():head.end() + end.start() if end else len(text)].split("\n"):
+        cells = [c.strip() for c in row.strip().strip("|").split("|")] if row.startswith("|") else []
+        name = cells[0].split(" — ")[0].strip("` ") if cells else ""
+        if len(cells) >= 4 and re.fullmatch(r"[a-z][a-z0-9_]*", name) and cells[1].strip("—–- "):
+            out[name] = (cells[3], row)
+    return out
+
+
+def leftovers():
+    """What earlier work left that no cycle holds any more: playtest tasks still open, asset slots still empty (as the newest document listing them says)."""
+    d = os.path.join(ROOT, PLAYTESTS)
+    tests = [(n, m.group(1), m.group(2), m.group(3).strip()) for n in (sorted(os.listdir(d)) if os.path.isdir(d) else []) if n.endswith(".md")
+             for m in PLAYTEST_TASK.finditer(read(os.path.join(d, n)))]
+    have = {}
+    for p in docs():
+        have.update(slots(read(p)))
+    empty = [n for n, (cell, _row) in have.items() if HAVE_EMPTY.search(cell)]
+    made = asset_files()
+    return tests, [n for n in empty if n not in made], [n for n in empty if n in made]
+
+
+def asset_files():
+    """Names of the files in the game's asset folder (the board's `assets`, without its work folder `gen`) — a slot whose file is there is made."""
+    try:
+        cfg = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("board", {})
+    except (OSError, ValueError):
+        cfg = {}
+    adir, gen = os.path.join(ROOT, cfg.get("assets", "assets")), os.path.abspath(os.path.join(ROOT, cfg.get("gen", "assets/_gen")))
+    return {n.split(".")[0] for base, _dirs, names in os.walk(adir) if not os.path.abspath(base).startswith(gen) for n in names}
+
+
 def waiting(block, ds):
     """The decisions in a task block's `Waiting: D2` that have no answer yet."""
     line = WAITING_RE.search(block)
@@ -182,9 +250,10 @@ def summary(path):
     dmarks = [d[0] for d in decisions(text).values()]
     open_d, proxy = sum(1 for m in dmarks if m not in "x~-"), dmarks.count("~")
     left = len(carried(text))
+    yours = sum(1 for t in todos(text).values() if t[0] == " ")
     return (f"{os.path.relpath(path, ROOT)} — stage: {stage_of(text)} · tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
             f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
-            + (f" · carried over {left}" if left else ""))
+            + (f" · carried over {left}" if left else "") + (f" · for the user {yours}" if yours else ""))
 
 
 def cmd_next(path):
@@ -200,6 +269,10 @@ def cmd_next(path):
             print(f"proxy decision (unconfirmed): {line[6:]}")
         elif mark not in "x-":
             print(f"open decision: {line[6:]}")
+    for num, (mark, line, wait) in todos(text).items():
+        if mark == " ":
+            there = wait and os.path.exists(os.path.join(ROOT, wait))
+            print(f"for the user: {line[6:]}" + (f" — the file is there now: look at it, go on with what waited for it, then `did {num}`" if there else ""))
     for num, (mark, title, a, b) in ts.items():
         if mark == "!":
             print(f"blocked task: {num}. {title}")
@@ -258,6 +331,11 @@ def pictures(images):
         if rel.lower().endswith((".mp4", ".webm", ".m4v", ".mov")) and os.path.getsize(os.path.join(ROOT, rel)) > CLIP_MAX:
             sys.exit(f"{rel}: a clip over {CLIP_MAX // 2**20} MB does not reach the dashboard — cut it to the seconds that matter and shrink it "
                      "(ffmpeg -i in -t 10 -vf scale=960:-2 -c:v libx264 -crf 28 -an out.mp4). Nothing was written")
+        if rel.lower().endswith(".ogg"):  # Safari — every iPhone — plays no Ogg: the card would stay silent on the phone it is read on
+            sys.exit(f"{rel}: a phone's Safari plays no .ogg — give it as .mp3 or .m4a (ffmpeg -i in.ogg -b:a 128k out.mp3). Nothing was written")
+        if rel.lower().endswith(SOUNDS) and os.path.getsize(os.path.join(ROOT, rel)) > CLIP_MAX:
+            sys.exit(f"{rel}: a sound over {CLIP_MAX // 2**20} MB does not reach the dashboard — cut it to what is compared and give it as .mp3 "
+                     "(ffmpeg -i in -t 20 -b:a 128k out.mp3). Nothing was written")
         pics.append({"label": label, "path": rel.replace(os.sep, "/")})
     return pics
 
@@ -359,7 +437,8 @@ def cmd_reask(path, num, question, images=(), why="", detail=""):
 
 def cmd_attach(path, num, images):
     """Pictures for a decision already asked — when they were made after it, or it was asked without them."""
-    ds = decisions(read(path))
+    text = read(path)
+    ds = dict(decisions(text), **{u: (m, line) for u, (m, line, _w) in todos(text).items()})  # a to-do's pictures go the same way
     if num not in ds:
         sys.exit(f"{num}: no such decision — " + " · ".join(ds))
     if not images:
@@ -367,6 +446,59 @@ def cmd_attach(path, num, images):
     pics = pictures(images)
     keep_pictures(path, num, ds[num][1][6:].split(" — ")[0].strip(), pics)
     print(f"{num}: {len(pics)} picture(s) — shown with it on the board and the dashboard")
+
+
+def cmd_todo(path, what, wait="", images=(), why="", detail=""):
+    """Something only the user can do outside the chat. Kept in the document's "For you" section — the session after this one sees it with `next`."""
+    what = " ".join(what.split())
+    if not what:
+        sys.exit("say what the user does, in a line")
+    if wait and (os.path.isabs(wait) or wait.startswith("..")):
+        sys.exit(f"{wait}: the file it waits for is given from the game root")
+    text = read(path)
+    pics = pictures(images)
+    num = "U%d" % (max([int(u[1:]) for u in todos(text)] or [0]) + 1)
+    span = section(text, TODO)
+    if not span:  # older documents have no such section — it goes right after the decisions
+        at = section(text, "Decisions")
+        cut = at[1] if at else len(text)
+        text = text[:cut].rstrip("\n") + f"\n\n## {TODO}\n\n" + text[cut:].lstrip("\n")
+        span = section(text, TODO)
+    body = text[span[0]:span[1]].rstrip("\n")
+    under = "".join(f"\n  - {k}: {' '.join(v.split())}" for k, v in (("why", why), ("detail", detail)) if v.strip())
+    line = f"- [ ] {num}. {what}" + (f" — wait: `{wait.replace(os.sep, '/')}`" if wait else "")
+    write(path, text[:span[0]] + body + f"\n{line}{under}\n\n" + text[span[1]:].lstrip("\n"))
+    if pics:
+        keep_pictures(path, num, what, pics)
+    print(num + (f" — closes by itself once {wait} is there" if wait else ""))
+
+
+def cmd_did(path, names, said=""):
+    text = read(path)
+    us = todos(text)
+    for num in names.split(","):
+        if num not in us:
+            sys.exit(f"{num}: no such to-do — " + (" · ".join(us) or "none in this document"))
+        mark, old, _wait = us[num]
+        if mark == " ":
+            text = text.replace(old, old.replace("- [ ]", "- [x]", 1) + f" → done{': ' + ' '.join(said.split()) if said.strip() else ''} ({datetime.date.today()})", 1)
+    write(path, text)
+    print(f"done: {names.replace(',', ' · ')}")
+
+
+def cmd_have(path, name, value):
+    """The "Have" cell of an asset slot, in the newest document that lists it (the board reads a slot's state from the newest)."""
+    value = " ".join(value.split()).replace("|", "/")
+    for p in reversed(docs()):
+        text = read(p)
+        got = slots(text)
+        if name in got:
+            row = got[name][1]
+            cells = row.strip().strip("|").split("|")
+            cells[3] = f" {value} "
+            write(p, text.replace(row, "|" + "|".join(cells) + "|", 1))
+            return print(f"{name}: {value} — {os.path.relpath(p, ROOT)}")
+    sys.exit(f"{name}: no asset slot of that name in any cycle document")
 
 
 def cmd_decide(path, num, answer):
@@ -398,7 +530,13 @@ def cmd_drop(path, names, why):
     """A decision the user no longer needs — withdrawn, not answered. The question stays in the document, struck as [-] with their reason."""
     text = read(path)
     ds = decisions(text)
-    for num in names.split(","):
+    for num in [n for n in names.split(",") if n.startswith("U")]:  # a to-do the user will not do
+        us = todos(text)
+        if num not in us:
+            sys.exit(f"{num}: no such to-do — " + (" · ".join(us) or "none in this document"))
+        if us[num][0] == " ":
+            text = text.replace(us[num][1], us[num][1].replace("- [ ]", "- [-]", 1) + f" → not needed: {' '.join(why.split())} ({datetime.date.today()})", 1)
+    for num in [n for n in names.split(",") if not n.startswith("U")]:
         if num not in ds:
             sys.exit(f"{num}: no such decision — " + " · ".join(ds))
         mark, old = ds[num]
@@ -410,6 +548,38 @@ def cmd_drop(path, names, why):
         text = text.replace(old, f"- [-]{ask[5:]} → not needed: {' '.join(why.split())} ({datetime.date.today()})", 1)
     write(path, text)
     print(f"not needed: {' · '.join(names.split(','))}")
+
+
+def check_lines(text):
+    """What to check by playing — the bullets under the spec's "To see by playing" and the design's "For a human to see" (as the board reads them)."""
+    out = []
+    for m in CHECK_HEADS.finditer(text):
+        nxt = re.search(r"^#{1,3} ", text[m.end():], re.M)
+        lines = [x.strip() for x in text[m.end():m.end() + nxt.start() if nxt else len(text)].split("\n") if x.strip() and not x.strip().startswith(("<!--", "|", "- Checked (", "- Not played:", "- Next:"))]
+        bullets = [re.sub(r"^(?:[-*]|\d+[.)])\s+", "", x) for x in lines if re.match(r"^(?:[-*]|\d+[.)])\s+", x)]
+        out += bullets or lines
+    return out
+
+
+def unchecked(text):
+    done = {" ".join(c.split()) for _r, c in CHECKED_RE.findall(text)}
+    return [c for c in check_lines(text) if " ".join(c.split()) not in done]
+
+
+def cmd_checked(path, line, result, seen=""):
+    if result not in ("ok", "problem"):
+        sys.exit("the result is ok or problem")
+    text = read(path)
+    line = " ".join(line.split())
+    lines = {" ".join(c.split()): c for c in check_lines(text)}
+    hit = lines.get(line) or next((c for k, c in lines.items() if k.startswith(line)), None) if len(line) >= 12 or line in lines else None
+    if not hit:
+        sys.exit("not a check of this cycle — give it as the board lists it (the start is enough):\n  " + "\n  ".join(lines) if lines else "this cycle has no checks by playing")
+    span = section(text, "Play") or sys.exit("the document has no `## Play` section")
+    body = text[span[0]:span[1]].rstrip("\n")
+    write(path, text[:span[0]] + body + f"\n- Checked ({result}): {' '.join(hit.split())}" + (f" — “{' '.join(seen.split())}”" if seen.strip() else "")
+          + f" ({datetime.date.today()})\n\n" + text[span[1]:])
+    print(f"checked ({result}): {hit[:80]}" + (" — the problem goes to the playtest skill with the others" if result == "problem" else ""))
 
 
 def cmd_later(path, said, key=""):
@@ -462,6 +632,33 @@ def close(path):
         print(f"deferred: {said}")
     for line in carried(text):
         print(f"carried over, not picked up: {line}")
+    for num, (mark, line, _wait) in todos(text).items():
+        if mark == " ":
+            print(f"for the user, not done: {line[6:]}")
+    never = unchecked(text)
+    if never:  # said in the document too, so the board keeps the cycle "not played" until they are answered — a cycle closed before this stays as it was
+        text = read(path)
+        span = section(text, "Play")
+        if span and not re.search(r"^- Not played:", text, re.M):
+            write(path, text[:span[0]] + text[span[0]:span[1]].rstrip("\n") + f"\n- Not played: {len(never)} check(s) never answered ({datetime.date.today()})\n\n" + text[span[1]:])
+        print(f"checks by playing never answered: {len(never)} — the board counts this cycle as not played until they are (`checked \"…\" ok --doc {rel}`):")
+        for c in never:
+            print(f"  {c[:110]}")
+
+
+def report_leftovers():
+    """Printed as a cycle starts — what earlier work left, so the new goal is set with it in view, not without it."""
+    tests, empty, unwritten = leftovers()
+    if tests:
+        print(f"playtest tasks still open: {len(tests)} — each goes into this goal, stays for later, or is dropped with its reason "
+              "(playtest skill: `mark T4 dropped \"<why>\"`):")
+        for n, mark, num, title in tests:
+            print(f"  [{mark}] {n[:-3]} {num}. {title[:110]}")
+    if empty:
+        print(f"asset slots still empty: {len(empty)} — each is made in this cycle, kept on its placeholder "
+              "(`have <slot> \"placeholder (kept — Dn)\"`), or dropped (`have <slot> \"dropped — <why>\"`): " + " · ".join(empty))
+    if unwritten:
+        print(f"asset slots with their file in the game but \"Have\" still empty: {len(unwritten)} — write each with `have <slot> \"<path>\"`: " + " · ".join(unwritten))
 
 
 def cmd_new(name, goal):
@@ -478,6 +675,7 @@ def cmd_new(name, goal):
     print(os.path.relpath(path, ROOT))
     if before:
         close(before[-1])
+    report_leftovers()
     if dirty:
         print("there are uncommitted changes")
 
@@ -485,7 +683,7 @@ def cmd_new(name, goal):
 def main():
     args = sys.argv[1:]
     opts, images = {}, []
-    for flag in ("--root", "--doc", "--key", "--why", "--detail"):
+    for flag in ("--root", "--doc", "--key", "--why", "--detail", "--wait"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
@@ -497,11 +695,13 @@ def main():
         images.append(args[i + 1])
         del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    if images and cmd not in ("ask", "attach", "reask"):
-        sys.exit("--image goes with ask, attach or reask")
-    if ("--why" in opts or "--detail" in opts) and cmd not in ("ask", "reask"):
-        sys.exit("--why and --detail go with ask or reask")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1}
+    if images and cmd not in ("ask", "attach", "reask", "todo"):
+        sys.exit("--image goes with ask, attach, reask or todo")
+    if ("--why" in opts or "--detail" in opts) and cmd not in ("ask", "reask", "todo"):
+        sys.exit("--why and --detail go with ask, reask or todo")
+    if "--wait" in opts and cmd != "todo":
+        sys.exit("--wait goes with todo")
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3)}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -517,7 +717,9 @@ def main():
         cmd_task(path, rest[0])
     elif cmd == "mark":
         if rest[1] not in BOX:
-            sys.exit("the state is done · blocked · open")
+            sys.exit("the state is done · blocked · open · dropped")
+        if rest[1] == "dropped" and not (rest[2:] and rest[2].strip()):
+            sys.exit("say why it is dropped: mark T4 dropped \"<why>\"")
         cmd_mark(path, rest[0], rest[1], rest[2] if len(rest) > 2 else "")
     elif cmd == "ask":
         cmd_ask(path, *rest, images, opts.get("--why", ""), opts.get("--detail", ""))
@@ -525,6 +727,14 @@ def main():
         cmd_attach(path, rest[0], images)
     elif cmd == "reask":
         cmd_reask(path, rest[0], rest[1], images, opts.get("--why", ""), opts.get("--detail", ""))
+    elif cmd == "todo":
+        cmd_todo(path, rest[0], opts.get("--wait", ""), images, opts.get("--why", ""), opts.get("--detail", ""))
+    elif cmd == "did":
+        cmd_did(path, *rest)
+    elif cmd == "have":
+        cmd_have(path, *rest)
+    elif cmd == "checked":
+        cmd_checked(path, *rest)
     elif cmd == "decide":
         cmd_decide(path, *rest)
     elif cmd == "confirm":

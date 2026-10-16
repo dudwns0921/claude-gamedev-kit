@@ -3,6 +3,8 @@
 You are doing one sweep of this repository's feedback issues. Games made with this kit send what they learned here as issues, one lesson
 each: a trap that cost an afternoon, a way to verify something, a shortcoming of a tool. Your job is to read the collected lessons together and
 draft the change that makes the next game not go through them — as edits to this repository. The maintainer reviews what you leave as one pull request.
+**The maintainer does not read code.** They decide from a recommendation the script works out and one plain sentence per change that you write (`plain`, below) —
+so the sentence must say truly what changes for a game, and a change you cannot say plainly is a change not to make.
 
 Read `CLAUDE.md` at the root first. Its rules bind this work, and its section "What games teach comes back here" is the background.
 
@@ -79,16 +81,20 @@ Finish by writing `harvest-result.json` at the root — one entry for every issu
 
 ```json
 [
-  { "issue": 12, "lane": "rule", "where": "engines/<engine>/CLAUDE.md", "note": "merged with #15 into the rule on time limits for headless runs" },
-  { "issue": 15, "lane": "rule", "where": "engines/<engine>/CLAUDE.md", "note": "same trap as #12" },
+  { "issue": 12, "lane": "rule", "where": "engines/<engine>/CLAUDE.md", "note": "merged with #15 into the rule on time limits for headless runs",
+    "plain": "Godot games stop trusting timed checks in a headless run — they count frames instead, so a slow machine no longer fails them" },
+  { "issue": 15, "lane": "rule", "where": "engines/<engine>/CLAUDE.md", "note": "same trap as #12",
+    "plain": "Godot games stop trusting timed checks in a headless run — they count frames instead, so a slow machine no longer fails them" },
   { "issue": 18, "lane": "duplicate", "where": "engines/<engine>/CLAUDE.md — the rule on comments in the project file", "note": "already covered as written" },
   { "issue": 21, "lane": "request", "where": "", "note": "asks for a new export target" }
 ]
 ```
 
-- `lane` is one of `rule` · `script` · `skill` · `duplicate` · `request` · `skip`.
+- `lane` is one of `rule` · `script` · `skill` · `duplicate` · `request` · `wait` · `skip`.
 - `where`: for `rule` · `script` · `skill`, the path of a file you changed, exactly as it is in the repository. For `duplicate`, the existing rule.
   For `request` and `skip` it may be empty.
+- `plain` (required for `rule` · `script` · `skill`): what a game made with the kit will do differently once this is merged, in one sentence someone who
+  does not program understands — which games (an engine, or every game), what they do or check now, and what that saves. No file names, no code. It heads the pull request.
 - `note`: one line for the maintainer — what you did with the lesson, or why nothing. For `request` and `skip` it is also posted on the issue, so write it to the person who sent the lesson.
 
 The maintainer reads the pull request with this table at the top. A note that says plainly "I was not sure this holds beyond one game" is worth more to them than a confident rule.

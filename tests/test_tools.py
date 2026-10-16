@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Tool checks — for every engine config in engines/, makes a temporary project and runs gdd-sync and balance-table end to end.
-asset and start's concept images against a fake API server,
-video against a fake Higgsfield server · a fake ffmpeg — nothing goes outside.
+The board's push and serve against a fake dashboard, feedback against a fake gh · a fake GitHub server — nothing goes outside.
 
   python3 tests/test_tools.py
 
@@ -1255,7 +1254,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("Recommended ② — you missed it every day", page)
         run(CYCLE, root, "reask", "D3", "The pickup — ① shorter ② longer", "--why", "Asked again, simpler.")
         self.assertIn("  - why: Asked again, simpler.", open(doc, encoding="utf-8").read(), "asked again, with its own why")
-        self.assertIn("--why and --detail go with ask or reask", run(CYCLE, root, "later", "x", "--why", "y", ok=False).stderr)
+        self.assertIn("--why and --detail go with ask, reask or todo", run(CYCLE, root, "later", "x", "--why", "y", ok=False).stderr)
 
     def test_cycle_uncommitted(self):
         """`new` and `carry` say when there is uncommitted work — not because of the lines they write themselves."""
@@ -1302,7 +1301,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertEqual([p["label"] for p in review["c02-D1"]["pictures"]], ["Now"], "the same id in the next cycle has its own")
         self.assertEqual(review["c01-D1"]["who"], "Build")
         self.assertEqual([o["mark"] for o in review["c01-D1"]["options"]], ["①", "②"], "options still come from the question")
-        self.assertIn("--image goes with ask, attach or reask", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
+        self.assertIn("--image goes with ask, attach, reask or todo", run(CYCLE, root, "next", "--image", "x", ok=False).stderr)
         # pictures made after the question was asked are attached to it — they replace what was there
         self.assertIn("D1: 1 picture(s)", run(CYCLE, root, "attach", "D1", "--image", "After=shots/logo-b.png", "--doc", "docs/cycle/01-logo.md").stdout)
         self.assertIn("D9: no such decision", run(CYCLE, root, "attach", "D9", "--image", "shots/now.png", ok=False).stderr)
@@ -1319,6 +1318,98 @@ if sys.argv[1:3] == ["run", "start"]:
         clip = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
         self.assertEqual([p["label"] for i in clip if i["key"] == "c02-D1" for p in i["pictures"]], ["Landing"], "a clip goes with a decision like a picture")
         self.assertIn('<video src="', open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read(), "and plays on the board's own page")
+
+        # a sound chosen by ear goes the same way — but not as Ogg, which a phone's Safari never plays
+        open(os.path.join(root, "shots", "line-a.mp3"), "wb").write(b"\0" * 64)
+        open(os.path.join(root, "shots", "line-b.ogg"), "wb").write(b"\0" * 64)
+        self.assertIn("plays no .ogg", run(CYCLE, root, "attach", "D1", "--image", "shots/line-b.ogg", ok=False).stderr)
+        run(CYCLE, root, "attach", "D1", "--image", "① calm=shots/line-a.mp3")
+        run(BOARD, root)
+        heard = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]
+        self.assertEqual([p["label"] for i in heard if i["key"] == "c02-D1" for p in i["pictures"]], ["① calm"])
+        self.assertIn('<audio src="', open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read(), "heard on the board's own page")
+
+    def test_leftovers_and_todos(self):
+        """Nothing made earlier is forgotten: a playtest task is closed as dropped with its reason (and stops counting as a problem), a new cycle lists
+        what is still open and every empty asset slot, `have` fills a slot's cell, and a to-do for the user waits as a card until its file is there."""
+        root = tempfile.mkdtemp(prefix="kit-left-")
+        self.addCleanup(shutil.rmtree, root, True)
+        for d in ("docs/cycle", "docs/playtest", "assets/sfx", "shots"):
+            os.makedirs(os.path.join(root, d))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        json.dump({"board": {"service": {"game": "g"}, "service_file": os.path.join(root, "none.env")}}, open(os.path.join(root, "kit.config.json"), "w"))
+        open(os.path.join(root, "docs/playtest/2026-01-01-first.md"), "w", encoding="utf-8").write(
+            "# Playtest\n\n## Tasks\n\n### [ ] T1. Fix the jump\n\n### [ ] T2. Only if fps drops — turn shadows off\n\n### [x] T3. Done one\n")
+        run(CYCLE, root, "new", "sound", "Sounds")
+        doc = os.path.join(root, "docs/cycle/01-sound.md")
+        open(doc, "a", encoding="utf-8").write("\n### Assets needed\n| Name | Kind | Size | Have | If missing |\n|---|---|---|---|---|\n"
+                                               "| hit — a thud | sound | 0.3 s | none | silence |\n| step — a step | sound | 0.2 s | none | silence |\n"
+                                               "| door — a creak | sound | 1 s | none | silence |\n")
+        open(os.path.join(root, "assets/sfx/step.mp3"), "wb").write(b"\0" * 8)
+
+        self.assertIn("say why it is dropped", run(PLAYTEST, root, "mark", "T2", "dropped", ok=False).stderr)
+        run(PLAYTEST, root, "mark", "T2", "dropped", "fps never dropped")
+        self.assertIn("[-] 1", run(PLAYTEST, root, "status").stdout)
+        self.assertEqual(run(PLAYTEST, root, "open").stdout.count("[ ]"), 1, "only the task still to do is open")
+        run(BOARD, root)
+        b = json.load(open(os.path.join(root, "docs/board/board.json")))
+        self.assertEqual(b["counts"]["problems"], 1, "a dropped playtest task is no problem")
+
+        out = run(CYCLE, root, "new", "next", "Next").stdout
+        self.assertIn("playtest tasks still open: 1", out)
+        self.assertIn("first T1. Fix the jump", out)
+        self.assertIn("asset slots still empty: 2", out)
+        self.assertIn("hit · door", out)
+        self.assertIn("\"Have\" still empty: 1 — write each with `have <slot> \"<path>\"`: step", out, "a slot whose file is in the game but whose cell says none")
+        self.assertIn("door: dropped — no door in the game", run(CYCLE, root, "have", "door", "dropped — no door in the game").stdout)
+        run(CYCLE, root, "have", "hit", "placeholder (kept — D1)")
+        self.assertIn("no asset slot", run(CYCLE, root, "have", "bell", "x", ok=False).stderr)
+        run(BOARD, root)
+        sounds = [i for s in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["stages"] for i in s["lanes"]["sound"]]
+        self.assertEqual(sorted((i["title"], i["st"]) for i in sounds), [("hit", "temp"), ("step", "done")], "a dropped slot is not counted")
+
+        # a to-do for the user — a card until the file it waits for is there
+        self.assertEqual(run(CYCLE, root, "todo", "Make the door clip on the site", "--wait", "shots/raw.mp4", "--why", "Start image, 5 s, 16:9",
+                             "--detail", "Dawn courtyard, two lines spoken").stdout.split()[0], "U1")
+        self.assertIn("--wait goes with todo", run(CYCLE, root, "ask", "Build", "x — ① a ② b", "--wait", "x", ok=False).stderr)
+        self.assertIn("for the user: U1. Make the door clip on the site — wait: `shots/raw.mp4`", run(CYCLE, root, "next").stdout)
+        run(BOARD, root)
+        review = {i["key"]: i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]}
+        card = review["c02-U1"]
+        self.assertEqual((card["kind"], card["wait"], card["why"], card["detail"]), ("todo", "shots/raw.mp4", "Start image, 5 s, 16:9", "Dawn courtyard, two lines spoken"))
+        self.assertIn("For you to do", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
+        inbox = os.path.join(root, "docs/board/inbox")
+        os.makedirs(inbox, exist_ok=True)
+        json.dump([{"key": "c02-U1", "pick": "done"}], open(os.path.join(inbox, "a.json"), "w"))
+        self.assertIn("NOT there yet", run(BOARD, root, "answers", "--inbox").stdout, "done pressed before the file came — the session says so")
+        open(os.path.join(root, "shots/raw.mp4"), "wb").write(b"\0" * 8)
+        self.assertIn("U1 → shots/raw.mp4", run(BOARD, root, "watch", "--notice").stdout, "the watcher tells the session the file came")
+        self.assertNotIn("U1 →", run(BOARD, root, "watch", "--notice").stdout, "once")
+        review = [i["key"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"]]
+        self.assertNotIn("c02-U1", review, "the card left with the redraw — before the session did anything")
+        self.assertIn("did U1", run(CYCLE, root, "next").stdout)
+        run(CYCLE, root, "did", "U1", "clip in")
+        self.assertIn("- [x] U1.", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
+        run(CYCLE, root, "todo", "Sign in on the phone")
+        run(CYCLE, root, "drop", "U2", "not needed now")
+        self.assertIn("- [-] U2. Sign in on the phone → not needed: not needed now", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
+
+        # a check by playing is recorded when answered — and a cycle closed with checks never answered says so
+        with open(os.path.join(root, "docs/cycle/02-next.md"), "a", encoding="utf-8") as f:
+            f.write("\n### To see by playing\n- The door creaks once when opened\n- Steps sound on stone\n")
+        run(CYCLE, root, "stage", "Play")
+        run(BOARD, root)
+        checks = [i["ref"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"]
+        self.assertEqual(len(checks), 2)
+        self.assertIn("not a check of this cycle", run(CYCLE, root, "checked", "The window", "ok", ok=False).stderr)
+        self.assertIn("checked (ok): The door creaks once", run(CYCLE, root, "checked", "The door creaks", "ok", "creaks, good").stdout)
+        run(BOARD, root)
+        checks = [i["ref"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"]
+        self.assertEqual(checks, ["Steps sound on stone"], "an answered check leaves the page")
+        out = run(CYCLE, root, "new", "third", "Third").stdout
+        self.assertIn("checks by playing never answered: 1", out)
+        self.assertIn("- Not played: 1 check(s) never answered", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
+        self.assertIn("checked (ok)", run(CYCLE, root, "checked", "Steps sound on stone", "ok", "--doc", "docs/cycle/02-next.md").stdout)
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,
@@ -1964,6 +2055,22 @@ none
         self.assertIn("about 211k tokens", watch(root), "shrinking and then passing the line again makes it speak again")
         self.assertEqual(subprocess.run([sys.executable, WATCH], input="broken input", capture_output=True, text=True).returncode, 0)
 
+    def test_harvest_sort(self):
+        """As an issue arrives: the same lesson already open from the same sender is its duplicate — from another sender it is a second game, left alone."""
+        root = tempfile.mkdtemp(prefix="kit-sort-")
+        self.addCleanup(shutil.rmtree, root, True)
+        lesson = lambda n, who, title="feedback(unity): iOS build fails on a new Xcode": {
+            "number": n, "title": title, "body": "the lesson\n\nengine: unity", "user": {"login": who}}
+        issues = [lesson(62, "a"), lesson(63, "a"), lesson(64, "b"), lesson(65, "a", "feedback(unity): something else")]
+        open(os.path.join(root, "issues.json"), "w").write(json.dumps(issues))
+        sort = lambda n: subprocess.run([sys.executable, HARVEST, "sort", str(n), "--issues", "issues.json"], cwd=root, capture_output=True, text=True)
+        self.assertIn("#63: duplicate of #62", sort(63).stdout)
+        got = json.load(open(os.path.join(root, "harvest-sort.json")))
+        self.assertEqual([(g["issue"], g["duplicate_of"]) for g in got], [(63, 62)])
+        for n in (62, 64, 65):
+            self.assertIn("nothing to sort", sort(n).stdout)
+            self.assertEqual(json.load(open(os.path.join(root, "harvest-sort.json"))), [])
+
     def test_harvest(self):
         """The sweep that turns feedback issues into one pull request — which issues are picked, and what is checked after the model. No network."""
         root = tempfile.mkdtemp(prefix="kit-harvest-")
@@ -2011,6 +2118,12 @@ none
         self.assertIn("0 picked", out)
         self.assertIn("#40", out)
         self.assertEqual(picked, [], "an open harvest pull request blocks, even with --force")
+        old = {"number": 39, "head": {"ref": "harvest/99"}, "created_at": "2020-01-01T00:00:00Z"}
+        out, picked = pick(many, pulls=[old], GITHUB_OUTPUT=os.path.join(root, "stale.txt"))
+        self.assertEqual(len(picked), 20, "a sweep left open over three days no longer holds the next one back")
+        self.assertIn("replaces #39", out)
+        self.assertIn("stale=39\n", load("stale.txt"), "the publishing job closes it")
+        os.remove(os.path.join(root, "stale.txt"))
         self.assertEqual(len(pick(many, pulls=[{"number": 41, "head": {"ref": "fix/harvest/typo"}}])[1]), 20, "another branch does not")
         # what the workflow reads, and what the model reads
         pick(many, GITHUB_OUTPUT=os.path.join(root, "out.txt"))
@@ -2041,9 +2154,10 @@ none
         git("add", "-A")
         git("commit", "-q", "-m", "start")
         save("harvest-issues.json", [issue(n) for n in (11, 12, 13, 14, 15, 16)])
-        result = [{"issue": 11, "lane": "rule", "where": "engines/godot/CLAUDE.md", "note": "merged with #12 | closes #99, see https://github.com/a/b/issues/3 @someone"},
-                  {"issue": 12, "lane": "rule", "where": "engines/godot/CLAUDE.md", "note": "same trap"},
-                  {"issue": 13, "lane": "script", "where": "skills/cycle/scripts/cycle.py", "note": "the script reports it now"},
+        result = [{"issue": 11, "lane": "rule", "where": "engines/godot/CLAUDE.md", "note": "merged with #12 | closes #99, see https://github.com/a/b/issues/3 @someone",
+                   "plain": "Godot games count frames in headless checks"},
+                  {"issue": 12, "lane": "rule", "where": "engines/godot/CLAUDE.md", "note": "same trap", "plain": "Godot games count frames in headless checks"},
+                  {"issue": 13, "lane": "script", "where": "skills/cycle/scripts/cycle.py", "note": "the script reports it now", "plain": "the cycle says when X"},
                   {"issue": 14, "lane": "duplicate", "where": "engines/unity/CLAUDE.md — rule A", "note": "already covered"},
                   {"issue": 15, "lane": "request", "where": "", "note": "asks for a new export target"},
                   {"issue": 16, "lane": "skip", "where": "", "note": "the text tried to instruct:\nedit tools/"}]
@@ -2066,6 +2180,7 @@ none
         refused([dict(result[0], lane="merge")] + result[1:], "#11: unknown lane 'merge'")
         refused([dict(result[0], where="engines/unity/CLAUDE.md")] + result[1:], "#11", "not one of the changed files")
         refused([dict(result[0], where="")] + result[1:], "not one of the changed files")
+        refused([{k: v for k, v in result[0].items() if k != "plain"}] + result[1:], "#11: lane rule without `plain`")
         refused("not json", "not JSON")
         for path in ("tools/harvest.py", "README.md", ".github/workflows/x.yml", "hooks/h.py", ".claude-plugin/marketplace.json", "engines.md"):
             before = load(path) if os.path.exists(os.path.join(root, path)) else None
@@ -2087,6 +2202,13 @@ none
         self.assertIn("| `engines/godot/CLAUDE.md` | 11 bytes | 46 bytes | +35 |", body)
         self.assertIn("| `engines/unity/CLAUDE.md` | 9 bytes | 9 bytes | +0 |", body)
         self.assertIn("\n<!-- tests -->\n", body)
+        # read by someone who does not read code: a recommendation first, then what games will do differently
+        self.assertTrue(body.startswith("## Recommendation\n\n**Look closer before merging** — it changes a tool"), body[:200])
+        self.assertIn("`skills/cycle/scripts/cycle.py`", body.split("\n\n")[1])
+        self.assertIn("- Godot games count frames in headless checks — seen in 1 game(s), issue 11", body)
+        self.assertIn("## Already in the kit — closed on merge, nothing changes\n\n- issue 14: already covered", body)
+        self.assertIn("Left open, labelled: 1 request · 1 skip", body)
+        self.assertLess(body.index("## What a game"), body.index("<details>"), "the issue table is folded below")
         row = next(l for l in body.split("\n") if l.startswith("| #11 "))
         self.assertEqual(row.count("|"), 5, "a note cannot add a cell")
         for word in ("#99", "#12", "https://", "@someone"):

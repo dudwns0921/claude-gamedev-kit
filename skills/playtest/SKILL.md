@@ -27,7 +27,8 @@ Fixing is done by a cheap-model agent per task — each reads only its own task 
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" status          # one line per document
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # questions to ask · next wave's tasks
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # the summary and one task only
-python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<reason>" · open
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<reason>" · open · dropped "<why>"
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" open            # every task still open, in every document
 python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped us → how to avoid it>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
@@ -56,6 +57,8 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
 4. **Record returned results with `mark`** (agents do not edit the document. Do not open the document and edit it by hand):
    - done → `mark T1,T3 done`. If there are "Deviations from the document", `mark T1 done "<what and why>"`.
    - blocked · failed → `mark T2 blocked "<reason>"`. **Do not re-analyze and fix it here yourself.**
+   - not to be done any more — merged into another task, folded, overtaken by a later round, its condition never came, the user said no →
+     `mark T4 dropped "<why>"`. **A task is never left open for that**: an open task stays a Problem on the board for every cycle after, and the board is how the user sees nothing was missed.
 5. **When all waves are done, once:**
    - if any task's Kind was balance (older: 밸런스), `export` with the balance-table skill (so the table does not hold old values)
    - if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`

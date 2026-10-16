@@ -45,6 +45,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -427,12 +428,24 @@ def cmd_push(quiet):
     tool = gh()
     if not tool:
         return None if quiet else print(f"{len(go)} rule(s) wait for gh — install it and `gh auth login`, then `push`")
-    repo, _version = kit()
-    issues = open_issues(repo) or []
-    for r in go:
-        same = next((n for s, n, _t in near(r, issues) if s >= SAME), None)
-        with contextlib.redirect_stdout(io.StringIO()) if quiet else contextlib.nullcontext():
-            cmd_send(r["id"], str(same) if same else "", False)
+    # One push at a time on this machine: two sessions ending their turns together would each find the same rule unsent and open it twice
+    lock = os.path.join(os.path.dirname(rules_file(None)), ".push.lock")
+    try:
+        if os.path.exists(lock) and time.time() - os.path.getmtime(lock) > 300:
+            os.remove(lock)  # left by a push that was killed
+        os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except FileExistsError:
+        return None if quiet else print("another push is running — it sends these")
+    try:
+        go = [r for r in waiting() if not leaks(r)]  # read again under the lock: the push before may have sent them
+        repo, _version = kit()
+        issues = open_issues(repo) or []
+        for r in go:
+            same = next((n for s, n, _t in near(r, issues) if s >= SAME), None)
+            with contextlib.redirect_stdout(io.StringIO()) if quiet else contextlib.nullcontext():
+                cmd_send(r["id"], str(same) if same else "", False)
+    finally:
+        os.remove(lock)
     sent = [r for r in rules() if r["issue"] and r["id"] in {g["id"] for g in go}]
     if sent:
         print(f"[gamedev-kit] sent {len(sent)} of the user's rules to the kit: " + " · ".join(f"{r['id']} → #{r['issue']}" for r in sent))

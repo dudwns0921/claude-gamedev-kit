@@ -42,8 +42,8 @@ Every state is read, never judged:
 | Meter | Done / Placeholder / Not made / Problem come from | Kept right by |
 |---|---|---|
 | Function | `docs/GDD.md` appendix A — synced / — / missing / mismatch | `/gamedev-kit:gdd-sync` |
-| Art · Sound | the files in the asset folders (a file in the game = done) and the `### Assets needed` table of each cycle document (Have: `none` = not made, `placeholder …` = placeholder) | `/gamedev-kit:asset`, the designer agent |
-| Verified | each cycle that touched the stage (Closed — closed by the next cycle — = done, Play = placeholder "your turn to play", earlier = not made); playtest tasks (`[ ]` = problem); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
+| Art · Sound | the files in the asset folders (a file in the game = done) and the `### Assets needed` table of each cycle document (Have: `none` = not made, `placeholder …` = placeholder, `dropped …` = not counted) | `cycle.py have`, the designer agent |
+| Verified | each cycle that touched the stage (Closed — closed by the next cycle — = done, Play = placeholder "your turn to play", earlier = not made); playtest tasks (`[ ]` · `[!]` = problem, `[-]` dropped with its reason = not counted); the user's notes | `cycle.py`, `/gamedev-kit:playtest` |
 | Undecided | unstruck bullets of the GDD section whose heading contains `Open questions`, and unanswered cycle decisions | the GDD, `cycle.py` |
 
 Documents written before the kit moved to English hold the Korean words (동기 · 미구현 · 불일치, `### 필요한 에셋` with `없음` · `임시`, 끝 · 플레이, `미정`) — the script reads both.
@@ -103,6 +103,7 @@ The hook brings the table up to the value file before it redraws the board.
 | Card | From | Buttons |
 |---|---|---|
 | Decision | every cycle's unanswered decisions (`[ ]`, the newest cycle first), and the newest cycle's decisions made for the user by the auto mode of older kits (`[~]`) — with the pictures kept for it: the cycle's sheet script, or `cycle.py ask --image` (`docs/cycle/sheets/*.json`, by cycle and decision) | one per option (the recommended one marked); Accept for a proxy decision |
+| For you | every cycle's open to-dos (`cycle.py todo`) — what only the user can do outside the chat, with its steps and the text to copy. One that waits for a file leaves the page the moment the file is there (the watcher redraws and sends the board, and wakes the session) | Done · Not needed |
 | Check | once the newest cycle is at Play: the spec's "To see by playing" and the design's "For a human to see" | OK · Problem (the note is what was seen) |
 
 The chart's "Review N →" tile and the undecided strip open it. Each card's key changes when its question does (another cycle, a redrawn image, reworded check),
@@ -141,8 +142,8 @@ When nothing is watching, the page says so and the answers stay saved for the ne
 
 1. ArtifactData `list`, `collection: "answers"`, the link as `url`, `out_dir: "docs/board/share/answers"`.
 2. `python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" answers docs/board/share/answers` — prints only answers not yet relayed, grouped:
-   decisions → record them through the cycle skill exactly as answers from the chat (its `decide` · `confirm` · `drop`);
-   checks marked Problem → the playtest skill, as one problem list. OK checks need nothing.
+   decisions → record them through the cycle skill exactly as answers from the chat (its `decide` · `confirm` · `drop`); to-dos → `did` · `drop` once the file is looked at;
+   every check → the cycle skill's `checked "<the check>" ok|problem "<what was seen>"` (so the card leaves and the cycle counts as played); those marked Problem also go to the playtest skill, as one problem list.
 3. Republish, so the answered cards leave the page.
 4. If a comment brought them, reply in its thread in one line — what was recorded and what runs next — and resolve it (ArtifactComments `reply` · `resolve`). The user reads that on the phone.
 

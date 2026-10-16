@@ -10,7 +10,8 @@
 # A pull request opened with the default token does not trigger other workflows, so the tests run here, before anything is pushed.
 #
 # Issue text is untrusted and a model reads it, so the work is split by what each job can do:
-#   pick     reads issues and pull requests, decides whether to run
+#   sort     as an issue arrives, no model: the same lesson already open from the same sender is closed as its duplicate
+#   pick     reads issues and pull requests, decides whether to run — and which sweep left open over three days the new one replaces
 #   harvest  the model edits files and runs the tests — code it could have changed. This job can read the repository and nothing more:
 #            no write permission, no credentials left by the checkout. It hands over a patch.
 #   publish  no model and none of the patched code runs here. A fresh checkout, the patch, a check of which paths it touches
@@ -35,7 +36,37 @@ concurrency:
 permissions: {}
 
 jobs:
+  sort:
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/harvest.py sort "$NUMBER"
+      - name: Close duplicates
+        run: |
+          jq -c '.[]' harvest-sort.json | while read -r row; do
+            issue=$(jq -r '.issue' <<<"$row")
+            jq -r '.comment' <<<"$row" > harvest-comment.txt
+            gh issue comment "$issue" --repo "$GITHUB_REPOSITORY" --body-file harvest-comment.txt
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --reason "not planned"
+          done
+
   pick:
+    needs: sort
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -43,6 +74,7 @@ jobs:
       pull-requests: read
     outputs:
       run: ${{ steps.pick.outputs.run }}
+      stale: ${{ steps.pick.outputs.stale }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,7 +92,8 @@ jobs:
 
   harvest:
     needs: pick
-    if: needs.pick.outputs.run == 'true'
+    # a skipped `sort` (a run by hand, a label) skips everything after it unless the condition says otherwise
+    if: ${{ !cancelled() && needs.pick.result == 'success' && needs.pick.outputs.run == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -150,7 +183,8 @@ jobs:
             harvest-labels.json
 
   publish:
-    needs: harvest
+    needs: [pick, harvest]
+    if: ${{ !cancelled() && needs.harvest.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -160,6 +194,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       BRANCH: harvest/${{ github.run_id }}
       BASE: ${{ github.event.repository.default_branch }}
+      STALE: ${{ needs.pick.outputs.stale }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -181,6 +216,13 @@ jobs:
           gh label create "harvest:request" --force --color 1d76db --description "Harvest: a feature request rather than a lesson"
           gh label create "harvest:skip" --force --color cfd3d7 --description "Harvest: too tied to one game to become a rule"
           gh label create "harvest:wait" --force --color fbca04 --description "Harvest: seen in one game so far — read again when another game reports it"
+
+      # numbers only — tools/harvest.py writes them
+      - name: Replace sweeps left open too long
+        run: |
+          for n in $STALE; do
+            gh pr close "$n" --delete-branch --comment "Replaced by a newer sweep, which read these issues again together with the new ones — this one was left open over three days." || true
+          done
 
       - name: Branch, commit, pull request
         run: |

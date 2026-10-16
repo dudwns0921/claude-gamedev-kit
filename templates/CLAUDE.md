@@ -46,6 +46,10 @@ An open question in the GDD is written the same way — one line the user can an
 **An answer from the dashboard is settled in the turn it arrives**, one of three ways: done (recorded); research it asks for ("look into it", "match reality") — research now and ask again with what was found as options and a recommendation;
 work for a later cycle — `cycle.py later "<their words>" --key <key>`, so its card reads waiting and the next cycle's start lists it. Left as it is, its card reads "the session is on it" with no one on it.
 Only the user can see and hear: after making an image, a sound or a clip, give the path and wait — do not say it came out well.
+**Every step only the user can take is a to-do** — making a file on a site, signing in, plugging in a phone: `cycle.py todo "<what>" --wait <the path to save it as> --why "<the steps>" --detail "<what to copy>"`,
+so it waits on the dashboard as a card and closes when the file is there. Steps given only in the chat are lost with the session, like questions.
+**Nothing is left open that is not open**: a task that will not be done is closed with its reason (`mark T4 dropped "<why>"`), an asset slot gets its state with `cycle.py have` —
+the board counts what the documents say, and is only worth looking at when what it counts is real.
 
 ## Keep sessions short
 

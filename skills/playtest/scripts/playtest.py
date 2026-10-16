@@ -6,6 +6,9 @@
   python3 playtest.py task T3                   The summary and one task only (what the developer agent reads)
   python3 playtest.py mark T1,T3 done           [x]. `blocked` is [!], `open` is [ ]
   python3 playtest.py mark T2 blocked "<reason>"  One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
+  python3 playtest.py mark T4 dropped "<why>"   [-] — not to be done any more: merged into another task, folded, its condition never came, the user said no.
+                                                It stops counting as an open problem on the board. The reason is required
+  python3 playtest.py open                      Every task still [ ] or [!] in every document, oldest first — what a playtest left behind
 
 The document is the newest one (last by name). For another, `--doc <path>`.
 Documents are written in English. Ones written before that use Korean words — both are read.
@@ -17,8 +20,8 @@ import sys
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "playtest")
-BOX = {"done": "x", "blocked": "!", "open": " "}
-NOTE = {"done": "Done", "blocked": "Blocked"}
+BOX = {"done": "x", "blocked": "!", "open": " ", "dropped": "-"}
+NOTE = {"done": "Done", "blocked": "Blocked", "dropped": "Dropped"}
 # The words of the document: written in English, read in English and in the Korean of older documents.
 KO = {"Summary": "요약", "Tasks": "작업", "Order": "순서", "Questions for the user": "사용자에게 물을 것"}
 NONE = ("none", "없음")
@@ -85,6 +88,7 @@ def summary(path):
     text = open(path, encoding="utf-8").read()
     marks = [t[0] for t in tasks(text).values()]
     return (f"{os.path.relpath(path, ROOT)} — tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · [!] {marks.count('!')}"
+            + (f" · [-] {marks.count('-')}" if "-" in marks else "")
             + (" · has questions for the user" if questions(text) else ""))
 
 
@@ -97,13 +101,18 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"status": (0,), "next": (0,), "task": (1,), "mark": (2, 3)}
+    need = {"status": (0,), "open": (0,), "next": (0,), "task": (1,), "mark": (2, 3)}
     if cmd not in need or len(rest) not in need[cmd]:
         sys.exit(__doc__)
     global ROOT
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
     if cmd == "status":
         return print("\n".join(summary(p) for p in docs()) or f"no analysis document in {DIR}/")
+    if cmd == "open":
+        left = [(p, num, m, title) for p in docs() for num, (m, title, _a, _b) in tasks(open(p, encoding="utf-8").read()).items() if m in " !"]
+        for p, num, m, title in left:
+            print(f"[{m}] {os.path.basename(p)} {num}. {title}")
+        return print(f"{len(left)} task(s) open — each is done, still to do, or dropped with its reason (mark … dropped \"<why>\")" if left else "no task left open")
     path = pick(opts.get("--doc"))
     text = open(path, encoding="utf-8").read()
     ts = tasks(text)
@@ -126,7 +135,9 @@ def main():
         print(f"{os.path.relpath(path, ROOT)}\n\n## Summary\n{section(text, 'Summary')}\n\n{text[ts[rest[0]][2]:ts[rest[0]][3]].rstrip()}")
     else:
         if rest[1] not in BOX:
-            sys.exit("the state is done · blocked · open")
+            sys.exit("the state is done · blocked · open · dropped")
+        if rest[1] == "dropped" and not (rest[2:] and rest[2].strip()):
+            sys.exit("say why it is dropped: mark T4 dropped \"<merged into T10 · folded · the condition never came · the user said no>\"")
         for num in rest[0].split(","):
             ts = tasks(text)
             if num not in ts:

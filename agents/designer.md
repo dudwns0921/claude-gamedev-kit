@@ -54,7 +54,8 @@ A cycle document path and one mode.
 <when nothing is needed: the header with no rows, and one sentence here saying so and why — never a row that says "none", every row is counted as an asset>
 
 ### For a human to see
-What to check by playing after implementation. What you could not settle in writing (legibility · intensity of effects · whether sounds overlap).
+What to check by playing after implementation: what you could not settle in writing (legibility · intensity of effects · whether sounds overlap).
+One thing per line, as a short question in plain words — the review card shows these lines as they are, so keep numbers, names and fix hints out of them.
 ```
 
 ### `review` — look at screenshots

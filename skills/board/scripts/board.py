@@ -22,10 +22,12 @@ Read-only towards the documents — it writes inside the folder of <out> (and, f
 
 Documents are read in both vocabularies: the English words the kit writes now and the Korean words older documents hold.
 """
+import contextlib
 import datetime
 import fnmatch
 import hashlib
 import html
+import io
 import json
 import mimetypes
 import os
@@ -80,16 +82,18 @@ STAGE_LINE = r"(?:\bStage|단계): *(\S+)"
 START_LINE = r"(?:\bStarted|시작): *(\d{4}-\d\d-\d\d)"
 WAVE_LINE = r"- *(?:Wave *(\d+)|(\d+) *차)[^:]*:(.*)"  # `Wave 1 (done):` · `1차 (끝):` too
 RECOMMENDED = r" · (?:recommended|권함):"
-SEC = {"goal": ("Goal", "목표"), "decisions": ("Decisions", "결정"), "order": ("Order", "순서")}
+SEC = {"goal": ("Goal", "목표"), "decisions": ("Decisions", "결정"), "order": ("Order", "순서"), "todo": ("For you",)}
 FIELD = {"blocked": "Blocked|막힘", "done": "Done|한 것"}
 NEEDS_HEAD = r"^### (?:Assets needed|필요한 에셋)[ \t]*$"
 HAVE_NONE = ("none", "없음")
 HAVE_TEMP = r"placeholder|임시"
+HAVE_DROPPED = r"^(?:dropped|not needed)\b"  # `cycle.py have <slot> "dropped — <why>"`: the slot is not needed — not counted at all
 SOUND_KIND = r"sound|music|소리|음악|효과음"
 ROW_RE = re.compile(r"^\|\s*([A-Z]+(?:\.[A-Z0-9_]+)+)\s*\|(.*)$")
 ID_RE = re.compile(r"[A-Z]+(?:\.[A-Z0-9_]+)+")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
+TODO_RE = re.compile(r"^- \[(.)\] (U\d+)\.(.*)$", re.M)  # what only the user can do outside the chat — `cycle.py todo`
 
 ROOT = ""
 CFG = dict(DEFAULTS)
@@ -186,6 +190,20 @@ def decisions_in(text):
     return out
 
 
+def todos_in(text):
+    """The to-dos of a cycle's "For you" section, with the lines under each (why: the steps · detail: what to copy)."""
+    out = []
+    for m in TODO_RE.finditer(text):
+        title = re.split(r" → (?:done|not needed)", m.group(3))[0].strip()
+        wait = re.search(r" — wait: `([^`]+)`", title)
+        d = {"num": m.group(2), "mark": m.group(1), "title": title[:wait.start()] if wait else title, "wait": wait.group(1) if wait else "", "why": "", "detail": ""}
+        under = UNDER_RE.match(text[m.end():])
+        for k, v in re.findall(r"\n[ \t]+- (why|detail): *([^\n]*)", under.group(0) if under else ""):
+            d[k] = v.strip()
+        out.append(d)
+    return out
+
+
 def decision(mark, num, rest):
     """Splits `question — ① … ② … · recommended: ① (Spec) → the user's answer (date)`."""
     proxy = PROXY_LINE.match(rest.strip()) if mark == "~" else None
@@ -255,7 +273,8 @@ def cycle(path):
     return {"needs": needs, "file": os.path.basename(path), "num": num, "name": head.group(2).strip() if head else os.path.basename(path)[:-3],
             "stage": stage.group(1) if stage else "?", "start": start.group(1) if start else "",
             "goal": " ".join(section(text, "goal").split()),
-            "decisions": decisions_in(section(text, "decisions")), "tasks": tasks}
+            "decisions": decisions_in(section(text, "decisions")), "todos": todos_in(section(text, "todo")), "tasks": tasks,
+            "not_played": bool(re.search(r"^- Not played:", text, re.M))}
 
 
 # ── The chart — in play order, one screen ─────────────────────────────
@@ -399,12 +418,13 @@ def asset_items(st, where, cycles, tasks):
             it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — the file named is missing" if cited and not there else "")
             it["tags"] = [f'Cycle {c["num"]}']
             it["audio"] = it["audio"] or sound(files.get(n["name"], ""))
+            it["dropped"] = bool(re.match(HAVE_DROPPED, have, re.I))  # the newest document listing it decides, like every other state
             found[n["name"]] = it
     for name, path in files.items():  # sounds and models in the game that no cycle listed count too
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
             found[name] = dict(item("done", name, "", audio=sound(path)), lane="sound" if sound(path) else "art")
     for name, it in found.items():
-        if any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
+        if it.pop("dropped", False) or any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
             continue
         s = next((s for s in st if any(fnmatch.fnmatchcase(name, g) for g in s["assets"])), None)
         if not s:
@@ -418,6 +438,9 @@ def check_items(st, where, cycles, playtests):
     for c in cycles:
         state = "done" if re.match(STAGE_DONE, c["stage"]) else "temp" if re.match(STAGE_PLAY, c["stage"]) else "none"
         said = {"done": "played", "temp": "your turn to play", "none": f'at {stage_word(c["stage"])}'}[state]
+        never = len(unchecked_lines(os.path.join(ROOT, CFG["cycles"], c["file"]))) if state == "done" and c["not_played"] else 0
+        if never:  # closed by the next cycle with checks never answered (`new` wrote so) — not counted as played until they are
+            state, said = "temp", f"closed — {never} check(s) never played"
         hit = {}
         for t in c["tasks"]:
             for i in {where[x] for x in t["ids"] if x in where}:
@@ -428,6 +451,8 @@ def check_items(st, where, cycles, playtests):
     for p in playtests:
         date = re.match(r"\d{4}-\d\d-\d\d", p["file"])
         for t in p["tasks"]:
+            if t["mark"] == "-":  # dropped with its reason (merged, folded, its condition never came) — nothing left to fix
+                continue
             s = place_ids(st, where, t["all_ids"]) or place_words(st, t["title"]) or st[-1]
             s["lanes"]["verified"].append(item("done" if t["mark"] == "x" else "bad", t["title"],
                                          f'Playtest {date.group(0) if date else ""} · {"fixed" if t["mark"] == "x" else "open"}'))
@@ -912,7 +937,7 @@ def stage_html(name, s, st):
                     for lane in LANES)
     asks = "".join(f'<div class="ask" style="margin-bottom:6px"><b style="white-space:normal">{md(q["title"])}</b>'
                    f'<span style="white-space:normal">{md(q["text"])} <em class="lab">{e(q["from"])}</em></span></div>' for q in s["open"])
-    mark = {"x": "", "!": " blocked"}
+    mark = {"x": "", "-": "", "!": " blocked"}
     work = "".join(f'<h4>Cycle {e(c["num"])} — {e(c["name"])} · {e(stage_word(c["stage"]))}</h4>'
                    + "".join(f'<span class="task{mark.get(t["mark"], " open")}" title="{e(t["did"])}"><b>{t["num"]}</b> {e(t["title"])}</span>' for t in ts)
                    for c, ts in reversed(s["work"]))
@@ -980,13 +1005,22 @@ def option_marks(text):
     return out
 
 
+CHECKED_LINE = re.compile(r"^- Checked \((?:ok|problem)\): (.+?)(?: — “.*”)? \(\d{4}-\d\d-\d\d\)$", re.M)  # `cycle.py checked`
+
+
+def unchecked_lines(path):
+    """The checks of a cycle no answer has been recorded for."""
+    done = {" ".join(c.split()) for c in CHECKED_LINE.findall(read(path))}
+    return [c for c in check_lines(path) if " ".join(c.split()) not in done]
+
+
 def check_lines(path):
     """The lines under the spec's "To see by playing" and the design's "For a human to see" — what to check by playing."""
     text, out = read(path), []
     for m in re.finditer(CHECK_HEADS, text, re.M):
         nxt = re.search(r"^#{1,3} ", text[m.end():], re.M)
         block = text[m.end():m.end() + nxt.start() if nxt else len(text)]
-        lines = [x.strip() for x in block.split("\n") if x.strip() and not x.strip().startswith(("<!--", "|"))]
+        lines = [x.strip() for x in block.split("\n") if x.strip() and not x.strip().startswith(("<!--", "|", "- Checked (", "- Not played:", "- Next:"))]
         bullets = [re.sub(r"^(?:[-*]|\d+[.)])\s+", "", x) for x in lines if re.match(r"^(?:[-*]|\d+[.)])\s+", x)]
         out += bullets or lines
     return out
@@ -1008,12 +1042,20 @@ def review_items(cycles, sheet, asks=()):
                           "who": d["who"], "options": opts, "recommend": rec, "proxy": re.sub(r"\s*· (?:proxy|대리) .*$", "", d["answer"]) if d["proxy"] else "",
                           "pictures": [i for i in q.get("images", []) if isinstance(i, dict)],
                           "why": d.get("why", ""), "detail": d.get("detail", ""), "reason": d.get("reason", "")})
+    for c in reversed(cycles):  # what only the user can do outside the chat — gone from the page the moment its file is there
+        for t in c["todos"]:
+            if t["mark"] != " " or t["wait"] and os.path.exists(os.path.join(ROOT, t["wait"])):
+                continue
+            q = pics.get((int(c["num"]) if str(c["num"]).isdigit() else None, t["num"]), {})
+            items.append({"key": f'c{c["num"]}-{t["num"]}', "kind": "todo", "ref": t["num"], "cycle": c["num"], "doc": c["file"], "latest": c is cycles[-1],
+                          "title": t["title"], "asked": short(t["title"] + "|" + t["wait"]), "wait": t["wait"], "why": t["why"], "detail": t["detail"],
+                          "pictures": [i for i in q.get("images", []) if isinstance(i, dict)]})
     for q in asks:
         if q["from"] == "GDD":
             items.append({"key": "q-" + short(q["title"]), "kind": "question", "ref": q["title"], "title": q["title"], "text": q["text"]})
     c = cycles[-1] if cycles else None
     if c and re.match(STAGE_PLAY, c["stage"]):
-        for line in check_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
+        for line in unchecked_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
             items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "title": line})
     later = parked()
     for i in items:  # put off to a later cycle — the card says so instead of reading as in hand
@@ -1023,6 +1065,9 @@ def review_items(cycles, sheet, asks=()):
 
 
 CLIPS = (".mp4", ".webm", ".m4v", ".mov")  # what a decision may show besides pictures: a short clip of play
+HEARD = (".mp3", ".m4a", ".wav")  # or a sound to hear — a voice line, an effect, a loop
+# what a phone is told each sound and clip is — Python 3.9's own table names some oddly or not at all, and Safari plays nothing it is not told
+SENT_AS = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".wav": "audio/wav", ".ogg": "audio/ogg", ".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime"}
 
 
 def picture(img):
@@ -1034,6 +1079,8 @@ def picture(img):
     src, crop = rel(path), img.get("crop")
     if path.lower().endswith(CLIPS):  # a clip of play — played where it stands
         return f'<figure style="grid-column:1/-1">{cap}<video src="{src}" controls muted loop playsinline preload="metadata" style="width:100%;border-radius:10px"></video></figure>'
+    if path.lower().endswith(HEARD):  # a sound — heard where it stands, one bar per sound so they are compared one after another
+        return f'<figure style="grid-column:1/-1">{cap}<audio src="{src}" controls preload="metadata" style="width:100%"></audio></figure>'
     size = png_size(path) if crop else None
     try:
         x, y, w, h = (float(v) for v in crop) if size else (0, 0, 0, 0)
@@ -1049,6 +1096,7 @@ def picture(img):
 def card(i):
     """One question, kept short — it is read on a phone."""
     label = {"decision": lambda: f'{i["ref"]}' + ("" if i["latest"] else f' (cycle {i["cycle"]})'), "asset": lambda: f'asset {i["ref"]}',
+             "todo": lambda: f'{i["ref"]}' + ("" if i["latest"] else f' (cycle {i["cycle"]})'),
              "question": lambda: f'GDD “{i["ref"][:40]}”', "check": lambda: f'check “{i["ref"][:40]}”'}[i["kind"]]()
     head = (f'<div class="card" data-key="{e(i["key"])}" data-label="{e(label)}">'
             + (f'<span class="lab">waiting — a later cycle: {e(i["later"])}</span>' if i.get("later") else ""))
@@ -1070,6 +1118,14 @@ def card(i):
                 + (f'<div class="sub">Recommended {e(i["recommend"])} — {md(i["reason"])}</div>' if i.get("reason") and i["recommend"] else "")
                 + (f'<details class="sub"><summary>Detail</summary>{md(i["detail"])}</details>' if i.get("detail") else "")
                 + note.format("Note (optional)"))
+    if i["kind"] == "todo":
+        figs = "".join(picture(p) for p in i["pictures"])
+        return (head + '<span class="lab">for you · outside the chat</span>' + f'<h3><code>{e(i["ref"])}</code>{md(i["title"])}</h3>'
+                + (f'<div class="sub">{md(i["why"])}</div>' if i["why"] else "") + (f'<div class="figs">{figs}</div>' if figs else "")
+                + (f'<details class="sub" open><summary>To copy</summary><pre style="white-space:pre-wrap">{e(i["detail"])}</pre></details>' if i["detail"] else "")
+                + (f'<div class="sub">Save it as <code>{e(i["wait"])}</code> — this card closes by itself once it is there.</div>' if i["wait"] else "")
+                + '<div class="opts pair"><button class="opt" data-pick="done">Done</button><button class="opt no" data-pick="drop">Not needed</button></div>'
+                + note.format("Note (optional)"))
     if i["kind"] == "question":
         return (head + '<span class="lab">GDD · open question</span>' + f'<h3>{md(i["title"])}</h3>' + (f'<div class="sub">{md(i["text"])}</div>' if i["text"] else "")
                 + '<div class="opts pair"><button class="opt" data-pick="answer">Answer (in the note)</button><button class="opt no" data-pick="drop">Not needed</button></div>'
@@ -1081,7 +1137,7 @@ def card(i):
 
 def review_html(name, items, stamp):
     cyc = next((i["cycle"] for i in items if i["kind"] == "check"), "")
-    groups = [("decision", "Decisions"), ("question", "Open questions in the GDD"), ("check", f"Check by playing · cycle {cyc}")]
+    groups = [("todo", "For you to do"), ("decision", "Decisions"), ("question", "Open questions in the GDD"), ("check", f"Check by playing · cycle {cyc}")]
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
                     for kind, title in groups for its in [[i for i in items if i["kind"] == kind]] for n in [len(its)] if its)
     body = ('<div class="bar"><a class="btn" href="index.html">← Chart</a><a class="btn go" href="assets.html">Asset sheet →</a></div>'
@@ -1122,6 +1178,9 @@ def review_data(i):
         out.update(why=i.get("why", ""), detail=i.get("detail", ""), reason=i.get("reason", ""))
         out.update(cycle=i["cycle"], doc=i["doc"], latest=i["latest"], who=i["who"], recommend=i["recommend"], proxy=i["proxy"],
                    options=[{"mark": m, "text": t} for m, t in i["options"]], pictures=[picture_data(p) for p in i["pictures"]])
+    elif i["kind"] == "todo":
+        out.update(cycle=i["cycle"], doc=i["doc"], latest=i["latest"], why=i["why"], detail=i["detail"], wait=i["wait"],
+                   pictures=[picture_data(p) for p in i["pictures"]])
     elif i["kind"] == "question":
         out.update(text=i["text"])
     else:
@@ -1239,7 +1298,7 @@ def keep_review(review):
     folder = os.path.dirname(os.path.join(ROOT, CFG["out"]))
     os.makedirs(folder, exist_ok=True)
     with open(os.path.join(folder, "review.json"), "w", encoding="utf-8") as f:
-        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "doc", "latest", "tool", "state", "proxy", "title", "asked")} for i in review], f, ensure_ascii=False, indent=1)
+        json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "doc", "latest", "tool", "state", "proxy", "title", "asked", "wait")} for i in review], f, ensure_ascii=False, indent=1)
 
 
 def draw(quiet):
@@ -1373,7 +1432,7 @@ def push(changed_only):
     for pub in missing:
         if pub in SHARED:
             call(base, "/file/" + urllib.parse.quote(pub.split("/", 1)[1]), token, open(SHARED[pub], "rb").read(),
-                 mimetypes.guess_type(pub)[0] or "application/octet-stream")
+                 SENT_AS.get(os.path.splitext(pub)[1]) or mimetypes.guess_type(pub)[0] or "application/octet-stream")
     if re.match(r"http://(localhost|127\.0\.0\.1)(:\d+)?$", url):
         # A dashboard on this machine puts the user's answers in this game's inbox — the only thing it writes here. Paths never leave the machine
         summary["local"] = {"root": ROOT, "board": board_folder()}
@@ -1656,6 +1715,31 @@ def unsettled():
     return list(dict.fromkeys(out))
 
 
+def arrived():
+    """To-dos on the drawn board whose file has just come (the user saved it): each is told once — kept in <board>/.arrived — and the board
+    is redrawn and sent at once, so the card leaves the dashboard while the session is still waking."""
+    folder = board_folder()
+    seen_path = os.path.join(folder, ".arrived")
+    seen = set(load_json(seen_path) or [])
+    new = [i for i in load_json(os.path.join(folder, "review.json")) or []
+           if isinstance(i, dict) and i.get("kind") == "todo" and i.get("wait") and i["key"] not in seen and os.path.exists(os.path.join(ROOT, i["wait"]))]
+    if not new:
+        return []
+    json.dump(sorted(seen | {i["key"] for i in new}), open(seen_path, "w"))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):  # the file is not a source of the board — redraw and send regardless
+            draw(False)
+            push(False)
+    except (Exception, SystemExit):  # the session's own hooks redraw and send it at the end of its turn anyway
+        pass
+    return new
+
+
+def told_files(new):
+    return ("The user saved what a to-do waited for: " + " · ".join(f'{i["ref"]} → {i["wait"]}' for i in new)
+            + " — look at each, go on with what waited for it, then `cycle.py did <U>` (cycle skill).")
+
+
 def told(n):
     return (f"{n} answer(s) from the board — the user sent them from the dashboard. Run "
             f"python3 \"{os.path.abspath(__file__)}\" answers --inbox and act on each as it says, then go on.")
@@ -1706,6 +1790,9 @@ def watch(mode):
         n = claim(stranded=True)
         if n:
             print(told(n))
+        got = arrived()
+        if got:
+            print(told_files(got))
         loose = unsettled()
         if loose:
             print(f"{len(loose)} answer(s) from the dashboard were taken but never settled ({' · '.join(loose)}) — their cards read \"the session is on it\". "
@@ -1747,6 +1834,10 @@ def watch(mode):
             if n:
                 print(told(n), file=sys.stderr)
                 ended("woke the session for the answers", 2, state="work")  # exit 2 wakes the session (asyncRewake)
+            got = arrived()
+            if got:
+                print(told_files(got), file=sys.stderr)
+                ended("woke the session for a file the user saved", 2, state="work")
             time.sleep(INBOX_POLL)
         ended("waited the hour a hook may — any message in the session reconnects it")
     os.makedirs(folder, exist_ok=True)
@@ -1760,6 +1851,9 @@ def watch(mode):
             n = claim()
             if n:
                 print(told(n), flush=True)
+            got = arrived()
+            if got:
+                print(told_files(got), flush=True)
         time.sleep(INBOX_POLL)
     say_session("off", "the session that started it has ended", None, only_if=os.getpid())
 
@@ -1792,7 +1886,7 @@ def answers(path):
         sys.exit(f"{path}: could not read — save the rows of the \"answers\" collection as JSON")
     seen_path = os.path.join(folder, "answered.json")
     seen = load_json(seen_path) or {}
-    groups, stale = {"decision": [], "question": [], "check": []}, 0
+    groups, stale = {"todo": [], "decision": [], "question": [], "check": []}, 0
     for r in rows_in(data):
         i = items.get(r["key"])
         mark = f'{r.get("pick", "")}|{r.get("note", "")}|{(i or {}).get("asked", "")}'  # the same answer to a question asked anew is a new answer
@@ -1813,13 +1907,21 @@ def answers(path):
                     else f"overturn → {pick}" if i.get("proxy") and pick else pick or "(no option)")
             where = "" if i.get("latest", True) else f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]'
             out.append(f'  {i["ref"]}{was} → {what}{note(n)}{where}')
+    if groups["todo"]:
+        out.append("For you — what the user did outside the chat (cycle skill: did · drop):")
+        for i, pick, n in groups["todo"]:
+            where = "" if i.get("latest", True) else f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]'
+            what = ("not needed (drop)" if pick == "drop" else
+                    f'done — look at {i["wait"]}' + ("" if os.path.exists(os.path.join(ROOT, i["wait"])) else " (NOT there yet — say so, and reopen the card)") if i.get("wait") else "done")
+            out.append(f'  {i["ref"]} {i["title"][:60]} → {what}{note(n)}{where}')
     if groups["question"]:
         out.append("Open questions in the GDD — write an answer where it belongs in the GDD and strike the question (~~…~~); a not needed one is struck only:")
         out += [f'  “{i["ref"]}” → {"not needed" if pick == "drop" else "answer"}{note(n)}' for i, pick, n in groups["question"]]
     if groups["check"]:
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
-        out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem' + (" (hand the problems to the playtest skill as one list):" if bad else ""))
-        out += [f'  ✗ {i["ref"]}{note(n)}' for i, n in bad]
+        out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem — record each with the cycle skill '
+                   '(`checked "<the check>" ok|problem "<what was seen>"`)' + ("; hand the problems to the playtest skill as one list:" if bad else ":"))
+        out += [f'  {"✗" if pick == "problem" else "✓"} {i["ref"]}{note(n)}' for i, pick, n in groups["check"]]
     if stale:
         out.append(f"{stale} saved answer(s) are to questions no longer on the page (answered, or the question changed) — ignored")
     json.dump(seen, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

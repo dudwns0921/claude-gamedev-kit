@@ -77,6 +77,16 @@ The script creates `docs/cycle/NN-<short-name>.md` from the template below and r
 **`new` also closes the previous cycle** — there is no closing stage. A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
 
+**What earlier work left is settled before the goal moves on — the board is how the user sees nothing was forgotten, and it counts only what is still real.**
+`new` also prints every playtest task still open, every asset slot still empty, and every slot whose file is in the game while its "Have" cell says none. Take them in this order:
+- **Bookkeeping, done here at once:** a slot whose file is there → `have <slot> "<path>"`; a playtest task its own line says was merged, folded, or done by a later one
+  → the playtest skill's `mark T4 dropped "<what the line says>"`.
+- **The rest is the user's, as decisions** (`ask Spec …`, one per group, not one per line): the playtest tasks still worth doing — ① into this goal ② a later cycle ③ dropped
+  (`mark … dropped`); the empty slots — ① made in this cycle ② kept on the placeholder (`have <slot> "placeholder (kept — Dn)"`) ③ not needed (`have <slot> "dropped — <why>"`).
+  What the user put off (`deferred:` lines) is in the same decision as the playtest tasks: one still for later is written again with `later` in the new document —
+  `new` reads only the cycle it closes, so a line not carried forward is gone after one cycle. To-dos not done and checks never answered come with the rest.
+  Put the lines in `--detail`. A condition a task waits on ("only if fps drops") is checked, not asked, when it can be.
+
 ### 2. Spec · 3. Design · 4. Plan
 
 Who owns what: the **systems designer** owns how the game works (rules · balance numbers · structure and dimensions of spaces), the **designer** owns how it looks and sounds
@@ -116,6 +126,8 @@ Pictures made after the question was asked go on with `attach D3 --image "<label
 **A clip, when stills cannot show it.** A choice about motion, timing or feel (how a jump lands, how fast a door opens, whether a hit reads) is judged from a few seconds of play:
 the agent that raised it records one with what the engine offers (a movie-writing run, a browser's screen recording), cut to the seconds that matter, as mp4 or webm under 25 MB,
 and it goes with `--image` like a picture — played on the card. Whether a decision needs one is the asking agent's call; most do not.
+**A sound, when it is chosen by ear.** A voice line, a hit, a jingle, a loop — the candidates go on the card as files, one per option (`--image "① low=sfx/hit_a.mp3"`),
+as mp3 · m4a · wav under 25 MB (not ogg: a phone's Safari plays none), each played on its own bar. Only the user can hear them — do not describe how they sound in place of the file.
 
 **A decision chosen by eye is asked with a picture, one per question.** Candidates the user picks from (logo drafts, two looks of one screen) are the options of one decision, each with its picture —
 not a page of their own. A screen, a pose, a grip, a colour: text plus a wide comparison image handed over separately cannot be chosen from (least of all on a phone),
@@ -157,7 +169,7 @@ A blocked task or a returned "Deviations from the document" may be something lea
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
 the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
 If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
-The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving.
+The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving (the spec's "Tuning notes").
 
 **Assets — after the build, all at once.** The cycle owns each asset's slot — name, path, size — not how it gets made. Only now, with every wave done and the verification passed, fill the slots the user said to fill. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
 and the user looks once, not every few tasks.
@@ -170,9 +182,16 @@ and the user looks once, not every few tasks.
 2. **Show the user all of them in one sitting** — as decisions with the pictures attached (`ask Asset … --image`), or the board's asset sheet (`docs/board/assets.html`),
    which lays every file in a slot side by side — and take approvals and redraws together.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.
-4. Write each path in the table's "Have" cell, run the verification again, and only then tell the user what to play.
+4. Write each path in the table's "Have" cell with `have <slot> "<path>"` (and `have <slot> "placeholder (kept — Dn)"` for one the user leaves as it is), run the verification again,
+   and only then tell the user what to play. A cell left `none` stays "Not made" on the board — for every cycle after.
 
 If the user would rather play on placeholders first and make assets after that round, do it in that order — say the choice in one line when the build ends.
+
+**What only the user can do goes on the board, not only in the chat.** A step outside this conversation — making a file on a site because no tool here can,
+signing in, plugging in a phone, recording a voice — is a to-do: `todo "<what, in a line>" --wait <the path to save it as> --why "<the steps>" --detail "<the prompt and settings to copy>" [--image …]`.
+The dashboard shows it as a card with the text to copy; with `--wait` the card closes by itself when the file is there, and the dashboard's watcher wakes this session for it.
+Then say it in the chat in a line — the card holds the rest. When the file comes (or the user says done): look at it, go on with what waited for it, then `did U1`.
+Not needed any more → `drop U1 "<why>"`. A choice is not a to-do — that is `ask`.
 
 ### 6. Play
 
@@ -180,6 +199,8 @@ If the user would rather play on placeholders first and make assets after that r
 and do not write a wrap-up: the cycle is closed by the next one (`new`).
 
 If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section.
+Each check by playing the user answers (in the chat or on the dashboard) is recorded: `checked "<the check>" ok|problem "<what they saw>"` — the start of the line is enough.
+A cycle the next one closes with checks never answered is written "Not played" and stays so on the board until they are (`checked … --doc <that document>`); `new` lists them.
 If given screenshots, you may call the designer with `review` (without a model — Opus — in either mode; checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
 When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
@@ -211,6 +232,9 @@ In the user's own words (verbatim).
 ## Decisions
 - [ ] D1. <question> — ① … ② … · recommended: ① (who recommended it: Spec | Design | Plan)
 - [x] D2. <question> → <the user's answer verbatim> (<date>)
+
+## For you            ← added by the first `todo`
+- [ ] U1. <what the user does> — wait: `<path>`
 
 ## Spec
 ## Design
@@ -244,6 +268,7 @@ Before the first cycle there is no document to carry in, and none is needed: `/g
 
 Run `cycle.py next` and continue from there — do not read the document. If the board is shared, read the answers tapped on it first (the board skill's "Reading the answers").
 **If it lists "carried over" lines, those come first**: they are what the last session had in hand.
+A "for the user" line whose file is there now is next: look at it and go on with what waited for it, then `did U1`.
 If their commit differs from the current one, say so — the lines are a snapshot of when they were left. Run `carry done` at once (what is still unfinished when this session ends is carried again),
 ask the questions among them, and start from them — **do not scan the project to find out what the lines do not say**; open only the files that work needs.
 A "handoff note not resumed" line is a note from before `carry` existed: read that one file and treat it the same way. If it lists "proxy decision (unconfirmed)", those come first: show each with what was chosen and on what basis, and take the user's accept or overturn before anything else.

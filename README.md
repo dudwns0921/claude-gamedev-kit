@@ -46,7 +46,7 @@ Making a game with AI is easy. The trouble starts when making it takes weeks: yo
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The dashboard of a sample game: stage cards in play order with completion rings and meters for function, art, sound and verification; beside them the current cycle, the undecided questions and the cycles so far" width="860"></picture></p>
 
-A dashboard on your machine shows each game as the player meets it, stage by stage — what is done, a placeholder, not made, or a problem. Every question the agents have for you is a decision there, with the pictures (or a clip of play) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening.
+A dashboard on your machine shows each game as the player meets it, stage by stage — what is done, a placeholder, not made, or a problem. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening.
 
 ### The design and the code stay one thing
 
