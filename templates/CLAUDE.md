@@ -59,5 +59,5 @@ Do not read cycle · playtest documents whole — that skill's script extracts t
 ## What was learned, and what goes outside
 
 - A pitfall or a way to verify is sorted when it happens, not saved up: specific to this game → this file's "Pitfalls"; would trip this user again in another game → one of the user's own rules (`add` of the feedback skill — it holds from the next session, in every game of theirs). The feedback skill sends those rules on to the kit, as the user has said they should go.
-- How the user wants things made — the tools, services or MCP servers for models, sprites, sounds, clips — is not a rule but a way of working: `way` of the feedback skill keeps it, for every game of theirs, and it never goes to the kit. The kit makes no assets itself.
+- How the user wants things made — the tools, services or MCP servers for models, sprites, sounds, clips — is not a rule but a way of working: one of the user's own skills (`~/.claude/skills/` — the feedback skill makes it), for every game of theirs, and it never goes to the kit. The kit makes no assets itself.
 - Before anything goes outside (a build uploaded to a store, an issue posted), say what goes where and get consent. Logins and API keys live outside the repository — do not write them in any file.

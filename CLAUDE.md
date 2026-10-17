@@ -61,7 +61,8 @@ What comes out of making a game falls into these kinds. This repository is publi
 |---|---|
 | Individual records — what was made in which game and how many, measured figures, dates, cycle · playtest documents, **what was actually used and what was not** | That game's repository; what spans games goes in the user's private folder (`records.md` under `~/.config/gamedev-kit/`) |
 | What holds only in that game — its own traps and ways to verify | That game's CLAUDE.md |
-| What holds in this user's next game too — traps, ways to verify, ways of working tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in `~/.config/gamedev-kit/rules/` — on their machine; every game imports them, so they hold from the next session) |
+| What holds in this user's next game too — traps, ways to verify tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in `~/.config/gamedev-kit/rules/` — on their machine; every game imports them, so they hold from the next session) |
+| How this user has things made — the tools, services and steps for models · sprites · sounds · clips | The user's own skills (`~/.claude/skills/` — on their machine, never sent) |
 | What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules sent as issues |
 
 So the README and documents here state **only what the kit does** — the one exception is the README's list of the engines games have been made with (names only). Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
