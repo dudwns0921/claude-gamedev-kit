@@ -1,8 +1,8 @@
 ---
 name: board
 description: >-
-  Draws the game's status board — HTML pages made by a script. First screen: the stages of play in the order the player meets them,
-  one card each, with how complete it is across function · art · sound · verification (done · placeholder · not made · problem). A card opens that stage's page: GDD rows,
+  Draws the game's status board — HTML pages made by a script. First screen: the cycle in hand (its goal in one line, where it stands, its tasks, what waits on the user),
+  then the stages of play in the order the player meets them, each as its newest screen with what is still open in it (problem · not made · placeholder · to check), counts of what is left, the cycles as pictures. A card opens that stage's page: GDD rows,
   art, sounds, checks, open questions, the cycle tasks that touched it. Everything is read from the GDD table, the asset folders, cycle and playtest
   documents. Once drawn, it redraws itself as the documents change — a hook runs the script, no model involved.
   Use when the user says "현황판" (status board), "보드 보여줘" (show me the board), "지금 어디까지 됐어" (how far along are we),
@@ -31,8 +31,12 @@ read the GDD or cycle documents to describe the board.** The page is for the use
 
 Two kinds of page, written next to each other in `docs/board/`:
 
-- `index.html` — **the chart.** One screen: the stages of play in the order the player meets them, one card each, with a completion ring
-  and four meters. Nothing else. A card links to its stage page.
+- `index.html` — **the first screen**, built around the cycle in hand:
+  - **Now** — the newest cycle: its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks, and how many things wait on the user (→ review).
+  - **The game** — the stages of play in the order the player meets them, each card the stage's newest screen (`cycle.py shot`, stamped with its cycle; marked when two or more cycles old;
+    "no screen yet" when none) and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page.
+  - **What is left** — counts, not a percentage: waiting on you · problems · not made · placeholders, one bar of everything, and what belongs to no stage yet.
+  - **Cycles** — one picture per cycle (its first screen).
 - `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, and the cycle tasks that touched it.
 
 The board shows the flow, not the history: answered decisions and the per-cycle record stay in the cycle documents.
@@ -78,12 +82,12 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 - `sections` — GDD sections whose table rows belong here. `ids` — row IDs (globs) that belong here whatever their section; wins over `sections`.
 - `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "Unsorted".
 - `words` — words that pull playtest tasks and open questions without a table ID to this stage.
-- `image` — the card's picture (a capture). Without it the first art thumbnail is used. `loop` — consecutive stages that repeat get one bracket.
+- `image` — the card's picture when no cycle has shot the stage yet (a screen a cycle records with `cycle.py shot` wins — the newest one). Without either, the first art thumbnail. `loop` — consecutive stages that repeat get one bracket.
 - Rows, assets and questions no stage claims are shown under "Unsorted" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
 
 - `"ignore"` (beside `flow`) — asset names (globs) not to count: planned in a cycle document, then dropped.
-- "Unsorted" is not part of the completion %. It is a to-do for the flow: place what is there, or ignore it. Because it is outside the %, its count is shown beside it —
-  a tile on the first screen, the bar under the stages, and the line the script prints ("Unsorted N (assets M — outside the %)"). When relaying the %, relay that count with it.
+- "Unsorted" is a to-do for the flow: place what is there, or ignore it. Its count is shown beside what is left — on the first screen and in the line the script prints
+  ("Unsorted N (assets M — in no stage)"). When relaying the counts, relay it with them.
 
 Other keys: `"out"`, `"gdd"`, `"cycles"`, `"playtests"`, `"gen"`, `"notes"`, `"reload_sec"`.
 

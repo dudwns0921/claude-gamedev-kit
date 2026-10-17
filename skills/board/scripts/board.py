@@ -82,7 +82,12 @@ STAGE_LINE = r"(?:\bStage|단계): *(\S+)"
 START_LINE = r"(?:\bStarted|시작): *(\d{4}-\d\d-\d\d)"
 WAVE_LINE = r"- *(?:Wave *(\d+)|(\d+) *차)[^:]*:(.*)"  # `Wave 1 (done):` · `1차 (끝):` too
 RECOMMENDED = r" · (?:recommended|권함):"
-SEC = {"goal": ("Goal", "목표"), "decisions": ("Decisions", "결정"), "order": ("Order", "순서"), "todo": ("For you",)}
+SEC = {"goal": ("Goal", "목표"), "decisions": ("Decisions", "결정"), "order": ("Order", "순서"), "todo": ("For you",), "play": ("Play", "플레이"),
+       "spec": ("Spec", "기획"), "design": ("Design", "디자인")}
+LINE_RE = re.compile(r"^In one line: *(.+)$", re.M)  # `cycle.py line` — the goal as the board shows it
+SHOT_RE = re.compile(r"^- (.+?) — `([^`]+)`$")  # `cycle.py shot` — under "### Screens" in Play: the screen of a stage of play as the cycle left it
+SKIPPED_RE = re.compile(r"^_Skipped: (.+)_$", re.M)
+STEPS = ["Goal", "Spec", "Design", "Plan", "Build", "Play"]
 FIELD = {"blocked": "Blocked|막힘", "done": "Done|한 것"}
 NEEDS_HEAD = r"^### (?:Assets needed|필요한 에셋)[ \t]*$"
 HAVE_NONE = ("none", "없음")
@@ -270,9 +275,22 @@ def cycle(path):
             name = cells[0].split(" — ")[0].strip("` ") if cells else ""
             if len(cells) >= 4 and re.fullmatch(r"[a-z][a-z0-9_]*", name) and cells[1].strip("—–- "):  # no Kind: a row saying nothing is needed
                 needs.append({"name": name, "what": cells[0].partition(" — ")[2], "kind": cells[1], "have": cells[3]})
-    return {"needs": needs, "file": os.path.basename(path), "num": num, "name": head.group(2).strip() if head else os.path.basename(path)[:-3],
+    goal = section(text, "goal")
+    line = LINE_RE.search(goal)
+    shots, under = [], False
+    for row in section(text, "play").split("\n"):
+        if row.strip() == "### Screens":
+            under = True
+        elif under:
+            m = SHOT_RE.fullmatch(row.strip())
+            if not m:
+                break
+            shots.append((m.group(1), m.group(2)))
+    return {"needs": needs, "file": os.path.basename(path), "num": num,
+            "line": line.group(1).strip() if line else "", "shots": shots,
+            "skipped": [k.title() for k in ("spec", "design") if SKIPPED_RE.search(section(text, k))], "name": head.group(2).strip() if head else os.path.basename(path)[:-3],
             "stage": stage.group(1) if stage else "?", "start": start.group(1) if start else "",
-            "goal": " ".join(section(text, "goal").split()),
+            "goal": " ".join(LINE_RE.sub("", goal).split()),
             "decisions": decisions_in(section(text, "decisions")), "todos": todos_in(section(text, "todo")), "tasks": tasks,
             "not_played": bool(re.search(r"^- Not played:", text, re.M))}
 
@@ -518,7 +536,46 @@ def ring(p, cls=""):
     return f'<div class="ring {cls}" style="--p:{p or 0}"><b>{"—" if p is None else p}</b></div>'
 
 
+def fits(said, name):
+    """A stage named in `cycle.py shot` — its name on the board, or a part of it."""
+    a, b = " ".join(said.casefold().split()), " ".join(name.casefold().split())
+    return bool(a) and (a == b or a in b or b in a)
+
+
+def attach_shots(st, cycles):
+    """Each stage's screen: the newest cycle that shot it, and how many cycles behind the newest one that is."""
+    for s in st:
+        s["shot"] = None
+        for back, c in enumerate(reversed(cycles)):
+            hit = "" if s["common"] else next((p for said, p in c["shots"] if fits(said, s["name"]) and os.path.isfile(os.path.join(ROOT, p))), "")
+            if hit:
+                s["shot"] = {"img": hit, "cycle": c["num"], "behind": back}
+                break
+
+
+def cycle_shot(c):
+    return next((rel(os.path.join(ROOT, p)) for _, p in c["shots"] if os.path.isfile(os.path.join(ROOT, p))), "")
+
+
+def opens(s):
+    """What is still open in a stage, in words a card can carry: problems · not made · placeholders · not yet checked by playing."""
+    made = [i for lane in ("function", "art", "sound") for i in s["lanes"][lane]]
+    return {"bad": sum(1 for lane in LANES for i in s["lanes"][lane] if i["st"] == "bad"), "none": sum(1 for i in made if i["st"] == "none"),
+            "temp": sum(1 for i in made if i["st"] == "temp"), "check": sum(1 for i in s["lanes"]["verified"] if i["st"] in ("temp", "none")),
+            "all": sum(len(v) for v in s["lanes"].values())}
+
+
+def open_chips(o, undecided=0):
+    chips = [("bad", f'{o["bad"]} problem{"s" if o["bad"] > 1 else ""}', o["bad"]), ("bad", f"{undecided} undecided", undecided),
+             ("", f'{o["none"]} not made', o["none"]), ("temp", f'{o["temp"]} placeholder{"s" if o["temp"] > 1 else ""}', o["temp"]),
+             ("you", f'{o["check"]} to check', o["check"])]
+    shown = [f'<span class="chip{" " + cls if cls else ""}">{e(word)}</span>' for cls, word, n in chips if n]
+    return "".join(shown) or ('<span class="chip ok">✓ all made and checked</span>' if o["all"] else '<span class="chip">nothing counted yet</span>')
+
+
 def hero_of(s):
+    if s.get("shot"):
+        return rel(os.path.join(ROOT, s["shot"]["img"]))
     if s["image"]:
         return rel(os.path.join(ROOT, s["image"]))
     return next((rel(i["img"]) for i in s["lanes"]["art"] if i["img"]), "")
@@ -685,6 +742,28 @@ a.tile.go{flex:1 1 40%}a.tile.go b{font-size:15px;white-space:normal}.tile{overf
 .it .t small{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.opt{padding:9px 11px;font-size:13.5px}.rvs{grid-template-columns:minmax(0,1fr)}.card{min-width:0}.rest{flex-wrap:wrap}footer{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .still *{animation:none!important}
+/* first screen — the cycle in hand, the game as screens */
+.page>*{min-width:0;max-width:100%}
+.now{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:18px;background:var(--card);border:1px solid var(--line2);border-radius:20px;padding:16px 18px}
+.now .what{display:flex;flex-direction:column;gap:8px;min-width:0}.now h2{margin:0;font-size:22px;line-height:1.3;text-wrap:balance}.now p{margin:0;font-size:12.5px;color:var(--tx2)}
+.steps{display:flex;gap:4px;flex-wrap:wrap}.step{font:10.5px var(--mono);padding:2px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--tx3)}
+.step.past{color:var(--mint);border-color:rgba(61,255,176,.4)}.step.on{background:var(--sky);border-color:var(--sky);color:#04202B;font-weight:700}.step.skip{text-decoration:line-through;opacity:.6}
+.tasks{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:2px 16px;font-size:12.5px}
+.tasks li{display:flex;gap:7px;align-items:baseline;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tasks i{font-style:normal;width:12px;color:var(--tx3)}
+.tasks b{font:11px var(--mono);color:var(--tx3)}.tasks .done{color:var(--tx2)}.tasks .done i{color:var(--mint)}.tasks .blocked i,.tasks .blocked{color:var(--red2)}.tasks .more{color:var(--tx3)}
+.turn{display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:16px;padding:14px 16px;border:1px solid var(--sky);background:rgba(138,216,255,.12)}
+.turn b{font:800 34px var(--mono);color:var(--sky);line-height:1}.turn span{font-size:13px}.turn small{display:block;color:var(--tx3);font-size:11px}.turn em{font-style:normal;color:var(--sky);font-weight:700;margin-top:4px}
+.turn.calm{border-color:var(--line2);background:transparent}.turn.calm b{color:var(--tx3)}
+.hero .age{position:absolute;left:10px;top:10px;z-index:1;font:10px var(--mono);padding:2px 8px;border-radius:6px;background:rgba(0,0,0,.65);color:#fff}
+.hero .age.old{background:var(--sun);color:#1b1500}
+.hero.none{display:grid;place-items:center}.hero.none span{position:relative;z-index:1;text-align:center;font:10.5px var(--mono);color:var(--tx3)}
+.flow{flex:none}.flow .node{min-height:0}.flow .hero{flex:none;aspect-ratio:16/9;min-height:0}.node .body{margin-top:-18px;flex:1}.node .chips{margin-top:auto}.chip.temp{border-color:var(--sun);color:var(--sun)}.chip.you{border-color:var(--sky);color:var(--sky)}.chip.ok{border-color:var(--mint);color:var(--mint)}
+.left{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);gap:10px}.left .tile{min-width:0}
+.whole{display:flex;flex-direction:column;justify-content:center;gap:8px;border:1px solid var(--line2);border-radius:14px;padding:10px 14px;background:var(--card)}
+.whole .seg{height:10px}.stray{color:var(--sun)}
+.cycles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.cyc{display:flex;flex-direction:column;gap:3px;font-size:12.5px;min-width:0}
+.cyc .hero{flex:none;aspect-ratio:16/9;min-height:0;border-radius:12px;overflow:hidden;border:1px solid var(--line2)}.cyc .hero::after{display:none}
+@media(max-width:760px){.now{grid-template-columns:1fr}.left{grid-template-columns:1fr 1fr}.whole{grid-column:1/-1}.cycles{grid-template-columns:repeat(5,minmax(150px,1fr));overflow-x:auto}}
 """
 CHART_JS = """
 let a=null,on=null;document.querySelectorAll('.play').forEach(b=>b.onclick=()=>{if(a){a.pause();on.classList.remove('on');on.textContent='▶';if(on===b){a=on=null;return}}
@@ -783,28 +862,47 @@ def stray_of(st):
     return sum(len(v) for v in lanes.values()), len(lanes["art"]) + len(lanes["sound"])
 
 
-def index_html(name, st, asks, now, stamp, sheet, review):
+def index_html(name, st, asks, cycles, stamp, sheet, review):
+    """The first screen: the cycle in hand (what it is for · where it stands · its tasks · what waits on the user), then the game in the order
+    the player meets it — each stage as its latest screen with what is still open in it — then what is left, in counts, and the cycles as pictures."""
     flow = [s for s in st if not s["common"]]
     stray, stray_assets = stray_of(st)
     everything = [i for s in st for lane in LANES for i in s["lanes"][lane]]
     c = tally(everything)
     pcts = [p for p in (stage_pct(s) for s in flow) if p is not None]
     total = round(sum(pcts) / len(pcts)) if pcts else 0
-    tiles = [("gold", "Complete", f"{total}%"), (("warn" if stray else "") + " minor", f'{CFG["common"]} · outside %', stray),
-             ("", "Now", f'{now["num"]} · {stage_word(now["stage"])}' if now else "—"), ("minor", "Placeholders", c["temp"]),
-             ("minor", "Not made", c["none"]), ("red" if c["bad"] else "", "Problems", c["bad"]), ("red" if asks else "", "Undecided", len(asks))]
+    now = cycles[-1] if cycles else None
+    waiting = len(now_asked(review))
+    head_lab = f'Cycle {e(now["num"])} · {e(stage_word(now["stage"]))}' if now else "No cycle yet"
+    now_html = ""
+    if now:
+        at = stage_word(now["stage"])
+        steps = "".join(f'<span class="step{" on" if k == at else " skip" if k in now["skipped"] else " past" if at == "Closed" or (at in STEPS and STEPS.index(k) < STEPS.index(at)) else ""}">{k}</span>'
+                        for k in STEPS)
+        ts = now["tasks"]
+        mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○")}
+        shown = [t for t in ts if t["mark"] != "-"]
+        task_html = "".join(f'<li class="{mark.get(t["mark"], mark[" "])[0]}"><i>{mark.get(t["mark"], mark[" "])[1]}</i><b>{e(t["num"])}</b>{md(t["title"])}</li>' for t in shown[:8])
+        task_html += f'<li class="more">+{len(shown) - 8} more</li>' if len(shown) > 8 else ""
+        done = sum(1 for t in shown if t["mark"] == "x")
+        line = now["line"] or now["name"]
+        words = now["goal"] if now["line"] else ""
+        turn = (f'<a class="turn" href="review.html"><b>{waiting}</b><span>waiting on you<small>decisions · checks by playing · to-dos</small></span><em>Review →</em></a>'
+                if waiting else '<div class="turn calm"><b>0</b><span>nothing waits on you<small>the session is on it</small></span></div>')
+        now_html = (f'<section class="now"><div class="what"><span class="lab">Now · cycle {e(now["num"])} — {e(now["name"])}</span>'
+                    f'<div class="steps">{steps}</div><h2>{md(line)}</h2>' + (f'<p class="clamp">{md(words)}</p>' if words else "")
+                    + (f'<div class="lab">Tasks {done}/{len(shown)}</div><ul class="tasks">{task_html}</ul>' if shown else "")
+                    + f'</div>{turn}</section>')
     cards = []
     for s in flow:
-        p, items = stage_pct(s), [i for lane in LANES for i in s["lanes"][lane]]
-        t, pic = tally(items), hero_of(s)
-        chips = "".join(f'<span class="chip{cls}">{label} {n}</span>' for label, n, cls in
-                        (("Problem", t["bad"], " bad"), ("Not made", t["none"], ""), ("Placeholder", t["temp"], ""), ("Undecided", len(s["open"]), " bad")) if n)
-        cls = " warn" if t["bad"] else " low" if (p or 0) < 50 else ""
-        cards.append(
-            f'<div class="slot" style="--i:{s["i"]}"><a class="node{cls}" href="stage-{s["i"] + 1}.html">'
-            + (f'<div class="hero" style="background-image:url({pic})"></div>' if pic else '<div class="hero none"></div>')
-            + f'<span class="ghost">{s["i"] + 1:02d}</span>{ring(p)}<div class="body"><span class="lab">{stage_label(s)}</span>'
-            f'<h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>{lane_rows(s)}<div class="chips">{chips}<span class="chip go">Details →</span></div></div></a></div>')
+        o, pic, shot = opens(s), hero_of(s), s.get("shot")
+        age = (f'<span class="age{" old" if shot["behind"] >= 2 else ""}">cycle {e(shot["cycle"])}'
+               + (f' · {shot["behind"]} cycles old' if shot["behind"] >= 2 else "") + "</span>") if shot else ""
+        hero = (f'<div class="hero" style="background-image:url({pic})">{age}</div>' if pic
+                else '<div class="hero none"><span>No screen yet<br>shot at the next Play</span></div>')
+        cards.append(f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}" href="stage-{s["i"] + 1}.html">{hero}'
+                     f'<div class="body"><span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
+                     f'<div class="chips">{open_chips(o, len(s["open"]))}</div></div></a></div>')
     loops = [s["i"] for s in flow if s["loop"]]
     loop = (f'<div class="loop" style="--a:{loops[0]};--c:{loops[-1] - loops[0] + 1}"><span class="lab">{e(str(CFG.get("loop_label", "loop")))}</span></div>'
             if loops else "")
@@ -813,21 +911,30 @@ def index_html(name, st, asks, now, stamp, sheet, review):
                     f'<b>{md(q["title"])}</b><span>{md(q["text"]) or "&nbsp;"}</span></a>' for q in shown)
     strip += f'<span class="ask more">+{len(asks) - len(shown)}</span>' if len(asks) > len(shown) else ""
     rest = st[-1]
-    rest_html = (f'<a class="rest" href="stage-{rest["i"] + 1}.html"><span class="lab">In no stage — not counted in the %</span>'
-                 f'<b>{e(rest["name"])} {stray}</b><span>assets {stray_assets}</span>{lane_rows(rest)}'
-                 f'<span class="chip go" style="margin-left:auto">Details →</span></a>') if any(rest["lanes"].values()) or rest["open"] else ""
-    outside = f" · of these, {e(CFG['common'])} {stray} (assets {stray_assets}) is outside the %" if stray else ""  # 3.9 cannot reuse the same quote inside an f-string
-    body = (f'<header><div><div class="lab">Chart · in the order the player meets it</div><h1>{e(name)} <span>to completion</span></h1>'
-            f'<div class="sub">{len(everything)} things the player meets — done {c["done"]} · placeholder {c["temp"]} · not made {c["none"]} · problem {c["bad"]}{outside}</div></div>'
-            '<div class="tiles">' + "".join(f'<div class="tile {cls}"><span class="lab">{k}</span><b>{e(str(v))}</b></div>' for cls, k, v in tiles) + review_link(review) + sheet_link(sheet) + table_link() + "</div></header>"
-            '<div class="total">' + "".join(f'<div style="flex:1" title="{e(s["name"])}"><i style="width:{stage_pct(s) or 0}%"></i></div>' for s in flow) + "</div>"
-            '<div class="legend"><span><i class="s-done"></i>Done</span><span><i class="s-temp"></i>Placeholder — works, to be remade</span>'
-            '<span><i class="s-none"></i>Not made</span><span><i class="s-bad"></i>Problem · undecided</span></div>'
+    left = [("rv" if waiting else "", "Waiting on you", waiting, "review.html"), ("red" if c["bad"] else "", "Problems", c["bad"], ""),
+            ("", "Not made", c["none"], ""), ("warn", "Placeholders", c["temp"], "")]
+    left_html = ('<section class="left">' + "".join(
+        f'<{"a" if href else "div"} class="tile {cls}"{f" href={chr(34)}{href}{chr(34)}" if href else ""}><span class="lab">{k}</span><b>{v}</b></{"a" if href else "div"}>'
+        for cls, k, v, href in left)
+        + '<div class="whole"><div class="seg">' + "".join(f'<i class="s-{k}" style="flex:{c[k]}"></i>' for k in ("done", "temp", "none", "bad") if c[k]) + "</div>"
+        f'<div class="legend"><span><i class="s-done"></i>{c["done"]} done</span><span><i class="s-temp"></i>{c["temp"]} placeholder</span>'
+        f'<span><i class="s-none"></i>{c["none"]} not made</span><span><i class="s-bad"></i>{c["bad"]} problem</span></div>'
+        + (f'<a class="lab stray" href="stage-{rest["i"] + 1}.html">{stray} in no stage yet (assets {stray_assets}) — place them →</a>' if stray else "")
+        + "</div></section>")
+    strip_cycles = "".join(f'<div class="cyc"><div class="hero{"" if cycle_shot(k) else " none"}"' + (f' style="background-image:url({cycle_shot(k)})"' if cycle_shot(k) else "")
+                           + f'>{"" if cycle_shot(k) else "<span>no screen kept</span>"}</div><b>{e(k["num"])} · {e(k["name"])}</b>'
+                           f'<span class="lab">{e(stage_word(k["stage"]))} · tasks {sum(1 for t in k["tasks"] if t["mark"] == "x")}/{sum(1 for t in k["tasks"] if t["mark"] != "-")}</span></div>'
+                           for k in list(reversed(cycles))[:5])
+    body = (f'<header><div><div class="lab">{head_lab}</div><h1>{e(name)}</h1></div>'
+            '<div class="tiles">' + review_link(review) + sheet_link(sheet) + table_link() + "</div></header>"
+            + now_html
             + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">Undecided {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
-            + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>{rest_html}'
-            f'<footer><span>Drawn {stamp} · every state is read as written in the GDD table · the asset folders · cycle · playtest documents</span>'
-            '</footer>')
-    return (f"{name} — chart", body), total
+            + '<div class="lab">The game, in the order the player meets it — each stage as its latest screen</div>'
+            + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>'
+            + '<div class="lab">What is left — counts of what is still open</div>' + left_html
+            + (f'<div class="lab">Cycles — what each looked like</div><div class="cycles">{strip_cycles}</div>' if len(cycles) > 1 else "")
+            + f'<footer><span>Drawn {stamp} · every state is read as written in the GDD table · the asset folders · cycle · playtest documents</span></footer>')
+    return (f"{name} — board", body), total
 
 
 def it_html(i):
@@ -1198,7 +1305,7 @@ def review_data(i):
 
 def chart_data(st, asks, cycles, sheet, review):
     stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "loop": s["loop"], "complete": stage_pct(s),
-               "image": hero_of(s), "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
+               "image": hero_of(s), "shot": {"cycle": s["shot"]["cycle"], "behind": s["shot"]["behind"]} if s.get("shot") else None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
                "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
                          "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}
@@ -1208,7 +1315,10 @@ def chart_data(st, asks, cycles, sheet, review):
     return {"lanes": [{"key": k, "label": LANE_LABEL[k]} for k in LANES],
             "stages": stages,
             "asks": [dict({"title": q["title"], "text": q["text"], "from": q["from"], "stage": q["stage"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in asks],
+            "steps": STEPS,
             "cycles": [{"num": c["num"], "name": c["name"], "stage": stage_word(c["stage"]), "start": c["start"], "goal": c["goal"],
+                        "line": c["line"], "shot": cycle_shot(c), "skipped": c["skipped"],
+                        "list": [{"num": t["num"], "title": t["title"], "mark": t["mark"]} for t in c["tasks"]] if c is cycles[-1] else [],
                         "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"))},
                         "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
             "review": [review_data(i) for i in review],
@@ -1250,13 +1360,14 @@ def build(outdir, index_name):
             where[r["id"]] = s["i"]
             s["lanes"]["function"].append(item({"synced": "done", "mismatch": "bad"}.get(r["state"], "none"), r["value"], r["note"], code=r["id"], src="gdd",
                                          tags=touched.get(r["id"], [])[-3:]))
+    attach_shots(st, cycles)
     asset_items(st, where, cycles, [t for d in cycles + playtests for t in d["tasks"]])
     check_items(st, where, cycles, playtests)
     asks = open_questions(st, cycles)
     stamp = f"{datetime.datetime.now():%Y-%m-%d %H:%M}"
     sheet = sheet_data()
     review = review_items(cycles, sheet, asks)
-    index, total = index_html(name, st, asks, cycles[-1] if cycles else None, stamp, sheet, review)
+    index, total = index_html(name, st, asks, cycles, stamp, sheet, review)
     pages = {index_name: index, "assets.html": sheet_html(name, sheet), "review.html": review_html(name, review, stamp)}
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     stray, stray_assets = stray_of(st)
@@ -1267,13 +1378,13 @@ def build(outdir, index_name):
     summary = {"name": name, "drawn": stamp, "complete": total, "share": CFG["share"] or None,
                # pause: the game's session told the user to /clear, and no later answer of it took that back — the session judges, the board only says it.
                # context: that conversation's size. Both as the context hook kept them
-               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]), "context": talk,
+               "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]), "line": now["line"], "context": talk,
                        "pause": bool(kept.get("pause")) and kept.get("pause") == kept.get("session")} if now else None,
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(now_asked(review)), "later": len(review) - len(now_asked(review)),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
                "board": chart_data(st, asks, cycles, sheet, review)}
-    return pages, review, summary, (f"{line} · complete {total}%" + (f' · {CFG["common"]} {stray} (assets {stray_assets} — outside the %)' if stray else "")
+    return pages, review, summary, (f'{line} · open: problems {c["bad"]} · not made {c["none"]} · placeholders {c["temp"]}' + (f' · {CFG["common"]} {stray} (assets {stray_assets} — in no stage)' if stray else "")
                                     + f" · review {len(now_asked(review))}" + (f" (later {len(review) - len(now_asked(review))})" if len(review) != len(now_asked(review)) else ""))
 
 

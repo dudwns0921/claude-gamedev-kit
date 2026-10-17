@@ -32,6 +32,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer ver
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # a document from the time of auto mode: the user accepts what was decided in their place (`all`). To overturn: decide
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" drop D4,D12 "<why>"         # the user says a decision is not needed any more — [-], nothing waits on it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" line "<the goal in one line>"                    # what the board's "Now" shows
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" shot "<stage of play>" <picture>                 # that stage's screen as it stands now — the board's card shows it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry "<what the next session must know>"       # work in hand that the document does not hold — `next` shows it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry done                                      # picked up — not shown again
@@ -73,6 +75,8 @@ this skill collects and asks them, and writes the answers in the document's "Dec
 ### 1. Goal
 
 Create the document with `new` — pass the goal in the user's words as-is, unpolished. Even if the goal looks several cycles big, do not shrink it — whether to shrink is asked as an option at the Plan stage.
+Then give it one line with `line` — what the cycle does, in what the player meets, in the user's language (at most 120 characters): it heads the board's "Now",
+above the user's own words. When the goal changes under way, write the line again.
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
 **`new` also closes the previous cycle** — there is no closing stage. A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
@@ -181,7 +185,11 @@ Before the first wave on a machine that has not run this project (a fresh clone)
 A blocked task or a returned "Deviations from the document" may be something learned — see "What was learned" below.
 
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
-the project's full verification (CLAUDE.md "Verification"). Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
+the project's full verification (CLAUDE.md "Verification").
+**Shoot the screens.** For each stage of play (the board's stages, `board.flow`) this cycle changed — and each that has no screen yet — capture it as the player sees it,
+the way the engine's rules say ("Screen … by capture"), into `docs/capture/cycle<NN>/`, and record it with `shot "<stage>" <picture>`. The board's cards show the newest screen of each stage
+with the cycle it came from, so the user sees the game, not a percentage. Do not Read the captures for this — they are for the board. An engine with no way to capture: leave it; the card says so.
+Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
 If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
 The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving (the spec's "Tuning notes").
 

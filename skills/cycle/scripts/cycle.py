@@ -29,6 +29,9 @@
   python3 cycle.py decide D2 "<the user's answer, as said>"
   python3 cycle.py confirm D2,D5                A document from the time of auto mode: the user accepted what was decided in their place ([~]) — it becomes [x]. `confirm all` for all of them. To overturn: `decide D2 "<the user's answer>"`
   python3 cycle.py drop D4,D12 "<why, as said>"   The user says the decision (or the to-do, U3) is not needed any more — [-]. Nothing waits on it; it is no longer asked
+  python3 cycle.py line "<the goal in one line>"   The goal as the board shows it — one line in what the player meets, under the user's own words in "Goal"
+  python3 cycle.py shot "<stage of play>" <picture>   The screen of that stage of play as it stands now (a capture, from the game root) — one line under "Screens"
+                                                in the "Play" section, replacing that stage's line. The board shows the newest one on the stage's card, and the cycle's first one on the cycle
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
   python3 cycle.py skip Spec|Design "<why, in a line>"   The goal does not touch that section's owner (no rule or number changes · nothing seen or heard changes):
                                                 its agent is not called, and the section says so. `next` and `status` show it
@@ -93,6 +96,10 @@ CARRY_RE = re.compile(r"^- \[ \] (.+)$", re.M)
 RESUMED_RE = re.compile(r"^(?:Resumed|이어받음):", re.M)
 LATER_RE = re.compile(r"^- (?:Next|다음에): *(.+)$", re.M)
 CHECKED_RE = re.compile(r"^- Checked \((ok|problem)\): (.+?)(?: — “.*”)? \(\d{4}-\d\d-\d\d\)$", re.M)
+LINE_RE = re.compile(r"^In one line: *(.*)$", re.M)
+SCREENS = "### Screens"
+SHOT_RE = re.compile(r"^- (.+?) — `([^`]+)`$", re.M)
+SHOT_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 CHECK_HEADS = re.compile(r"^###\s+(?:To see by playing|For a human to see)[ \t]*$", re.M)
 PROXY_RE = re.compile(r"^(.*) → (.*?) · (?:proxy|대리) (.*?) \(\d{4}-\d\d-\d\d\)$")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
@@ -651,6 +658,46 @@ def cmd_skip(path, name, why):
     print(f"{name}: skipped — {why}. If the developer comes back with questions for {name.lower()}, its agent is called after all")
 
 
+def cmd_line(path, said):
+    said = " ".join(said.split())
+    if not said:
+        sys.exit('the goal in one line: line "the bow alone — walk slow, roll away, drop them one by one"')
+    if len(said) > 120:
+        sys.exit(f"{len(said)} characters — one line is at most 120; the rest stays in the user's own words below it")
+    text = read(path)
+    span = section(text, "Goal") or sys.exit("the document has no `## Goal` section")
+    body = LINE_RE.sub("", text[span[0]:span[1]], count=1).strip("\n")
+    write(path, text[:span[0]] + f"\nIn one line: {said}\n" + (body + "\n" if body else "") + "\n" + text[span[1]:].lstrip("\n"))
+    print(f"in one line: {said}")
+
+
+def cmd_shot(path, stage, picture):
+    stage = " ".join(stage.split())
+    pic = os.path.relpath(os.path.realpath(picture), os.path.realpath(ROOT)) if os.path.isabs(picture) else os.path.normpath(picture)
+    if not stage or "`" in stage or " — " in stage:
+        sys.exit("the stage of play by its name on the board")
+    if not pic.lower().endswith(SHOT_EXT):
+        sys.exit(f"{pic}: a picture (" + " · ".join(SHOT_EXT) + ")")
+    if pic.startswith("..") or not os.path.isfile(os.path.join(ROOT, pic)):
+        sys.exit(f"{pic}: no such picture in the game")
+    text = read(path)
+    span = section(text, "Play") or sys.exit("the document has no `## Play` section")
+    body = text[span[0]:span[1]].rstrip("\n")
+    line = f"- {stage} — `{pic}`"
+    lines = body.split("\n")
+    if SCREENS not in lines:
+        body += f"\n\n{SCREENS}\n{line}"
+    else:  # the list is the lines of screens right under the heading — whatever follows them (a later line, a check) stays
+        at = lines.index(SCREENS) + 1
+        end = at
+        while end < len(lines) and SHOT_RE.fullmatch(lines[end]):
+            end += 1
+        kept = [x for x in lines[at:end] if SHOT_RE.fullmatch(x).group(1).casefold() != stage.casefold()]
+        body = "\n".join(lines[:at] + kept + [line] + lines[end:])
+    write(path, text[:span[0]] + body + "\n\n" + text[span[1]:].lstrip("\n"))
+    print(f"screen of {stage}: {pic}")
+
+
 def cmd_later(path, said, key=""):
     text = read(path)
     span = section(text, "Play") or sys.exit("the document has no `## Play` section")
@@ -770,7 +817,7 @@ def main():
         sys.exit("--why and --detail go with ask, reask or todo")
     if "--wait" in opts and cmd != "todo":
         sys.exit("--wait goes with todo")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -814,6 +861,10 @@ def main():
         cmd_confirm(path, rest[0])
     elif cmd == "drop":
         cmd_drop(path, *rest)
+    elif cmd == "line":
+        cmd_line(path, rest[0])
+    elif cmd == "shot":
+        cmd_shot(path, *rest)
     elif cmd == "later":
         cmd_later(path, rest[0], opts.get("--key", ""))
     elif cmd == "carry":
