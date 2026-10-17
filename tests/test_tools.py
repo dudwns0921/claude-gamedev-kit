@@ -2040,6 +2040,14 @@ none
         self.assertIn("tasks [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
         self.assertIn("python3 playtest.py status", run(PLAYTEST, root, "lesson", "x", ok=False).stderr, "a lesson is one of the user's rules now — the feedback skill's `add`")
 
+        # two documents on the newest day: the script does not guess which is newer
+        twin = os.path.join(root, "docs/playtest/2026-10-08-b.md")
+        shutil.copy(doc, twin)
+        err = run(PLAYTEST, root, "mark", "T1", "done", ok=False).stderr
+        self.assertIn("--doc", err)
+        run(PLAYTEST, root, "mark", "T1", "done", "--doc", "docs/playtest/2026-10-08-b.md")
+        os.remove(twin)
+
         # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English
         old = os.path.join(root, "docs/playtest/2026-10-09-b.md")
         open(old, "w", encoding="utf-8").write("""# 플레이테스트 분석 — 걷기와 문

@@ -10,7 +10,7 @@
                                                 It stops counting as an open problem on the board. The reason is required
   python3 playtest.py open                      Every task still [ ] or [!] in every document, oldest first — what a playtest left behind
 
-The document is the newest one (last by name). For another, `--doc <path>`.
+The document is the newest one (last by name). For another, `--doc <path>`. When several carry the newest day, the script stops and asks for `--doc`.
 Documents are written in English. Ones written before that use Korean words — both are read.
 """
 import json
@@ -27,7 +27,8 @@ KO = {"Summary": "요약", "Tasks": "작업", "Order": "순서", "Questions for 
 NONE = ("none", "없음")
 WAVE_RE = re.compile(r"- *(?:Wave *(\d+)|(\d+) *차):(.*)")
 KIND_RE = re.compile(r"\*\*(?:Kind|분류)\*\*: *(\S+)")
-TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
+DAY_RE = re.compile(r"\d{4}-\d\d-\d\d")
+TASK_RE =re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
 
 ROOT = ""
 
@@ -57,7 +58,12 @@ def pick(path):
         return path
     if not docs():
         sys.exit(f"no analysis document in {DIR}/")
-    return docs()[-1]
+    newest = docs()[-1]
+    day = DAY_RE.match(os.path.basename(newest))
+    same = [p for p in docs() if day and os.path.basename(p).startswith(day.group())]
+    if len(same) > 1:   # names only order by day — which of several the same day is newest is not known
+        sys.exit("several documents carry the newest day — say which with --doc <path>:\n" + "\n".join(os.path.relpath(p, ROOT) for p in same))
+    return newest
 
 
 def section(text, title):
