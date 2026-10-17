@@ -711,6 +711,7 @@ class Tools(unittest.TestCase):
         self.assertIn("<h2>pick coins up</h2>", chart, "the one line heads Now")
         self.assertIn('<span class="step on">Play</span>', chart)
         self.assertIn('url(../capture/cycle01/rules.png)"><span class="age">cycle 01</span>', chart, "the stage's card is its newest screen, with the cycle it came from")
+        self.assertIn('<span class="busy">in cycle 01 · T1 · T2</span>', chart, "a stage the cycle in hand works on says so, with its tasks")
         data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
         self.assertEqual(data["now"]["line"], "pick coins up")
         self.assertEqual(data["board"]["stages"][0]["shot"], {"cycle": "01", "behind": 0})

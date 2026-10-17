@@ -756,6 +756,8 @@ a.tile.go{flex:1 1 40%}a.tile.go b{font-size:15px;white-space:normal}.tile{overf
 .turn.calm{border-color:var(--line2);background:transparent}.turn.calm b{color:var(--tx3)}
 .hero .age{position:absolute;left:10px;top:10px;z-index:1;font:10px var(--mono);padding:2px 8px;border-radius:6px;background:rgba(0,0,0,.65);color:#fff}
 .hero .age.old{background:var(--sun);color:#1b1500}
+.node.busy{border-color:var(--sky);box-shadow:0 0 0 2px rgba(138,216,255,.35),0 0 22px rgba(138,216,255,.3)}
+.node .busy{align-self:flex-start;position:relative;z-index:2;font:700 10px var(--mono);padding:2px 8px;border-radius:6px;background:var(--sky);color:#04202B}
 .hero.none{display:grid;place-items:center}.hero.none span{position:relative;z-index:1;text-align:center;font:10.5px var(--mono);color:var(--tx3)}
 .flow{flex:none}.flow .node{min-height:0}.flow .hero{flex:none;aspect-ratio:16/9;min-height:0}.node .body{margin-top:-18px;flex:1}.node .chips{margin-top:auto}.chip.temp{border-color:var(--sun);color:var(--sun)}.chip.you{border-color:var(--sky);color:var(--sky)}.chip.ok{border-color:var(--mint);color:var(--mint)}
 .left{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);gap:10px}.left .tile{min-width:0}
@@ -896,12 +898,14 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
     cards = []
     for s in flow:
         o, pic, shot = opens(s), hero_of(s), s.get("shot")
+        busy = [t for c, ts in s["work"] if now and c["num"] == now["num"] for t in ts]  # what the cycle in hand does in this stage
         age = (f'<span class="age{" old" if shot["behind"] >= 2 else ""}">cycle {e(shot["cycle"])}'
                + (f' · {shot["behind"]} cycles old' if shot["behind"] >= 2 else "") + "</span>") if shot else ""
         hero = (f'<div class="hero" style="background-image:url({pic})">{age}</div>' if pic
                 else '<div class="hero none"><span>No screen yet<br>shot at the next Play</span></div>')
-        cards.append(f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}" href="stage-{s["i"] + 1}.html">{hero}'
-                     f'<div class="body"><span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
+        busy_html = (f'<span class="busy">in cycle {e(now["num"])} · ' + " · ".join(e(t["num"]) for t in busy) + "</span>" if busy else "")
+        cards.append(f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}{" busy" if busy else ""}" href="stage-{s["i"] + 1}.html">{hero}'
+                     f'<div class="body">{busy_html}<span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
                      f'<div class="chips">{open_chips(o, len(s["open"]))}</div></div></a></div>')
     loops = [s["i"] for s in flow if s["loop"]]
     loop = (f'<div class="loop" style="--a:{loops[0]};--c:{loops[-1] - loops[0] + 1}"><span class="lab">{e(str(CFG.get("loop_label", "loop")))}</span></div>'
