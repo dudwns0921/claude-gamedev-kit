@@ -568,11 +568,23 @@ def attach_parts(st):
                           or (lane != "function" and any(fnmatch.fnmatchcase(i["title"], g) for g in p["assets"]))
                           or any(w.lower() in text for w in p["words"])), None)
                 i["part"] = p["name"] if p else part_key(i, lane)
+                i["lane"] = lane
                 hits.setdefault(i["part"], []).append(i)
         about = {p["name"]: p["about"] for p in named}
         order = [p["name"] for p in named] + sorted((k for k in hits if k not in about), key=lambda k: -len(hits[k]))
-        s["part_list"] = [{"name": k, "about": about.get(k, ""), "named": k in about,
-                           "complete": round(score(hits[k]) * 100) if hits[k] else None} for k in order if hits[k] or k in about]
+        s["part_list"] = [dict({"name": k, "about": about.get(k, ""), "named": k in about,
+                                "complete": round(score(hits[k]) * 100) if hits[k] else None}, **halves(hits.get(k, [])))
+                          for k in order if hits[k] or k in about]
+
+
+def halves(items):
+    """How far the function (rules and numbers in the code) and the assets (looks and sounds) are, apart — a % each (None when there are none),
+    and the assets still open by name."""
+    fn = [i for i in items if i.get("lane") == "function"]
+    made = [i for i in items if i.get("lane") in ("art", "sound")]
+    pct = lambda xs: round(score(xs) * 100) if xs else None
+    return {"function": pct(fn), "assets": pct(made), "functions": len(fn), "asset_count": len(made),
+            "open_assets": [{"name": i["title"], "st": i["st"], "kind": i["lane"]} for i in made if i["st"] != "done"]}
 
 
 def link_tasks(st, cycles, where):
@@ -1385,6 +1397,7 @@ def chart_data(st, asks, cycles, sheet, review):
     stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "loop": s["loop"], "complete": stage_pct(s),
                "image": hero_of(s), "shot": {"cycle": s["shot"]["cycle"], "behind": s["shot"]["behind"]} if s.get("shot") else None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
                "parts": s.get("part_list", []),
+               "halves": halves([dict(i, lane=lane) for lane in ("function", "art", "sound") for i in s["lanes"][lane]]),
                "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
                          "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}

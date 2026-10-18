@@ -88,7 +88,7 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 - `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "Unsorted".
 - `words` — words that pull playtest tasks and open questions without a table ID to this stage.
 - `parts` — what the player meets in the stage (an enemy, a weapon, the room), each `{ "name", "about", "ids", "assets", "words" }` like a stage's own keys.
-  The stage page shows one row per part — its rules · looks · sound and how complete it is. What no part names falls in a part made from its name
+  The stage page shows one row per part — how far its function is (its rules and numbers in the code) and how far its assets are (looks and sounds), each a %, and the assets still to make. What no part names falls in a part made from its name
   (a GDD id's second word, an asset's first word). Write them with the user when the stage page reads by names rather than by the game — in the user's language.
 - `image` — the card's picture when no cycle has shot the stage yet (a screen a cycle records with `cycle.py shot` wins — the newest one). Without either, the first art thumbnail. `loop` — consecutive stages that repeat get one bracket.
 - Rows, assets and questions no stage claims are shown under "Unsorted" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
