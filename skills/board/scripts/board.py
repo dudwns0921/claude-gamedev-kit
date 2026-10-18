@@ -274,7 +274,8 @@ def cycle(path):
             cells = [c.strip() for c in row.strip().strip("|").split("|")] if row.startswith("|") else []
             name = cells[0].split(" — ")[0].strip("` ") if cells else ""
             if len(cells) >= 4 and re.fullmatch(r"[a-z][a-z0-9_]*", name) and cells[1].strip("—–- "):  # no Kind: a row saying nothing is needed
-                needs.append({"name": name, "what": cells[0].partition(" — ")[2], "kind": cells[1], "have": cells[3]})
+                what = cells[0].partition(" — ")[2] or (cells[4].partition(" — ")[2] if len(cells) > 4 else "")  # older tables describe it in "If missing"
+                needs.append({"name": name, "what": what.strip(), "kind": cells[1], "have": cells[3]})
     goal = section(text, "goal")
     line = LINE_RE.search(goal)
     shots, under = [], False
@@ -374,7 +375,7 @@ def make_stages(titles, rows):
     if not flow:
         srcs = sorted({r["src"] for r in rows if r["src"]}, key=lambda s: [int(x) for x in s.split(".")])
         flow = [{"name": titles.get(s, s), "sections": [s]} for s in srcs]
-    blank = {"about": "", "sections": [], "ids": [], "assets": [], "words": [], "image": "", "loop": False}
+    blank = {"about": "", "sections": [], "ids": [], "assets": [], "words": [], "image": "", "loop": False, "parts": []}
     out = [dict(blank, **f, common=False) for f in flow] + [dict(blank, name=CFG["common"], common=True)]
     for i, s in enumerate(out):
         s.update(i=i, lanes={lane: [] for lane in LANES}, open=[], work=[])
@@ -437,12 +438,15 @@ def asset_items(st, where, cycles, tasks):
             it["st"] = "temp" if re.search(HAVE_TEMP, have) else "done" if there else "none"
             it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — the file named is missing" if cited and not there else "")
             it["tags"] = [f'Cycle {c["num"]}']
+            it["what"], it["cycle"] = n["what"], it.get("cycle") or c["num"]  # what it is (the newest description) · the cycle that first listed it
+            it["file"] = os.path.relpath(files[n["name"]], ROOT).replace(os.sep, "/") if n["name"] in files else ""
             it["audio"] = it["audio"] or sound(files.get(n["name"], ""))
             it["dropped"] = bool(re.match(HAVE_DROPPED, have, re.I))  # the newest document listing it decides, like every other state
             found[n["name"]] = it
     for name, path in files.items():  # sounds and models in the game that no cycle listed count too
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
-            found[name] = dict(item("done", name, "", audio=sound(path), src="file"), lane="sound" if sound(path) else "art")
+            found[name] = dict(item("done", name, "", audio=sound(path), src="file"), lane="sound" if sound(path) else "art",
+                               what="", cycle="", file=os.path.relpath(path, ROOT).replace(os.sep, "/"))
     for name, it in found.items():
         if it.pop("dropped", False) or any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
             continue
@@ -540,6 +544,45 @@ def fits(said, name):
     """A stage named in `cycle.py shot` — its name on the board, or a part of it."""
     a, b = " ".join(said.casefold().split()), " ".join(name.casefold().split())
     return bool(a) and (a == b or a in b or b in a)
+
+
+def part_key(i, lane):
+    """The part an item falls in when the flow names none for it: a rule by the second word of its GDD id (BAL.SUITOR.HP → suitor),
+    an asset by the first word of its name (suitor_sword → suitor)."""
+    if lane == "function":
+        bits = i["code"].split(".")
+        return bits[1].lower() if len(bits) > 2 else "rules"
+    return i["title"].split("_")[0].lower() or "other"
+
+
+def attach_parts(st):
+    """Each stage's parts — what the player meets in it (a kind of enemy, a weapon, the room). board.flow names them per stage
+    (`parts`: name · about · ids · assets · words); what no part names falls in one by its name (part_key). Each part says how far it is."""
+    for s in st:
+        named = [dict({"about": "", "ids": [], "assets": [], "words": []}, **p) for p in s.get("parts") or []]
+        hits = {p["name"]: [] for p in named}
+        for lane in ("function", "art", "sound"):
+            for i in s["lanes"][lane]:
+                text = " ".join((i["title"], i["sub"], i["note"])).lower()
+                p = next((p for p in named if (lane == "function" and any(fnmatch.fnmatchcase(i["code"], g) for g in p["ids"]))
+                          or (lane != "function" and any(fnmatch.fnmatchcase(i["title"], g) for g in p["assets"]))
+                          or any(w.lower() in text for w in p["words"])), None)
+                i["part"] = p["name"] if p else part_key(i, lane)
+                hits.setdefault(i["part"], []).append(i)
+        about = {p["name"]: p["about"] for p in named}
+        order = [p["name"] for p in named] + sorted((k for k in hits if k not in about), key=lambda k: -len(hits[k]))
+        s["part_list"] = [{"name": k, "about": about.get(k, ""), "named": k in about,
+                           "complete": round(score(hits[k]) * 100) if hits[k] else None} for k in order if hits[k] or k in about]
+
+
+def link_tasks(st, cycles, where):
+    """Which stages each cycle task worked in (by its GDD ids) and which assets it names — the cycle page puts them on the task's line."""
+    names = sorted({i["title"] for s in st for lane in ("art", "sound") for i in s["lanes"][lane]}, key=len, reverse=True)
+    pats = {n: re.compile(rf"(?<![a-z0-9_]){re.escape(n)}(?![a-z0-9_])") for n in names}
+    for c in cycles:
+        for t in c["tasks"]:
+            t["stages"] = sorted({where[x] for x in t["ids"] if x in where})
+            t["assets"] = [n for n in names if pats[n].search(t["block"])]
 
 
 def attach_shots(st, cycles):
@@ -1334,16 +1377,19 @@ def review_data(i):
 
 
 def chart_data(st, asks, cycles, sheet, review):
+    owned = {i["title"]: (x, i) for x in st for lane in ("art", "sound") for i in x["lanes"][lane]}  # an asset → (its stage, its item)
+    files = [m["name"] for m in sheet["models"] + sheet["loose"]] + [os.path.basename(x["audio"]) for x in sheet["sounds"] if x["audio"]]
+    refs = code_refs(sorted(set(files) | {os.path.basename(i["file"]) for _x, i in owned.values() if i.get("file")}))
+    for _x, i in owned.values():
+        i["used_in"] = refs.get(os.path.basename(i["file"]), []) if i.get("file") else []
     stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "loop": s["loop"], "complete": stage_pct(s),
                "image": hero_of(s), "shot": {"cycle": s["shot"]["cycle"], "behind": s["shot"]["behind"]} if s.get("shot") else None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
+               "parts": s.get("part_list", []),
                "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
                          "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}
               for s in st if not s["common"] or any(s["lanes"].values()) or s["open"]]
-    placed = {i["title"]: s["name"] for s in st for lane in ("art", "sound") for i in s["lanes"][lane]}  # asset name → the stage it was placed in
-    files = [m["name"] for m in sheet["models"] + sheet["loose"]] + [os.path.basename(x["audio"]) for x in sheet["sounds"] if x["audio"]]
-    refs = code_refs(files)
-    used = lambda fn: {"stage": placed.get(fn.split(".")[0], ""), "code": refs.get(fn, [])}
+    used = lambda fn: {"stage": owned[fn.split(".")[0]][0]["name"] if fn.split(".")[0] in owned else "", "code": refs.get(fn, [])}
     model = lambda m: {"name": m["name"], "img": rel(m["img"]), "tool": m["tool"], "st": m["st"], "state": m["state"], "old": m["old"],
                        "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"]), "used": used(m["name"])}
     touched = {}
@@ -1356,7 +1402,13 @@ def chart_data(st, asks, cycles, sheet, review):
             "steps": STEPS,
             "cycles": [{"num": c["num"], "name": c["name"], "stage": stage_word(c["stage"]), "start": c["start"], "goal": c["goal"],
                         "line": c["line"], "shot": cycle_shot(c), "skipped": c["skipped"],
-                        "list": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"], "blocked": t["blocked"], "wave": t["wave"]} for t in c["tasks"]],
+                        "list": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"], "blocked": t["blocked"], "wave": t["wave"],
+                                  "stages": t.get("stages", []), "assets": t.get("assets", [])} for t in c["tasks"]],
+                        "assets": [{"name": n["name"], "kind": n["kind"], "what": n["what"], "st": owned[n["name"]][1]["st"] if n["name"] in owned else "none",
+                                    "stage": owned[n["name"]][0]["i"] if n["name"] in owned else None,
+                                    "img": rel(owned[n["name"]][1]["img"]) if n["name"] in owned else "", "audio": rel(owned[n["name"]][1]["audio"]) if n["name"] in owned else "",
+                                    "tasks": [t["num"] for t in c["tasks"] if n["name"] in t.get("assets", [])]}
+                                   for n in c["needs"] if not re.match(HAVE_DROPPED, n["have"].strip(), re.I)],
                         "stages": touched.get(c["num"], []),
                         "shots": [{"stage": said, "img": rel(os.path.join(ROOT, pic))} for said, pic in c["shots"] if os.path.isfile(os.path.join(ROOT, pic))],
                         "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"), ("doing", ">"))},
@@ -1402,6 +1454,8 @@ def build(outdir, index_name):
                                          tags=touched.get(r["id"], [])[-3:]))
     attach_shots(st, cycles)
     asset_items(st, where, cycles, [t for d in cycles + playtests for t in d["tasks"]])
+    attach_parts(st)
+    link_tasks(st, cycles, where)
     check_items(st, where, cycles, playtests)
     asks = open_questions(st, cycles)
     stamp = f"{datetime.datetime.now():%Y-%m-%d %H:%M}"

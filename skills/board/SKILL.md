@@ -38,7 +38,8 @@ Two kinds of page, written next to each other in `docs/board/`:
   - **What is left** — how complete the game is (the stages' average %), then counts: waiting on you · problems · not made · placeholders, one bar of everything, and what belongs to no stage yet.
   - **Cycles** — one picture per cycle (its first screen).
 
-The data the dashboard draws from (`board.json`) also carries every cycle's tasks (with what was written under each), the stages it worked in and the screens it shot — the dashboard's Cycles tab —
+The data the dashboard draws from (`board.json`) also carries each stage's parts, every cycle's tasks (with what was written under each, the stages each went into and the assets each names),
+the cycle's assets with what each is, the stages it worked in and the screens it shot — the dashboard's Stages and Cycles tabs —
 and, for each asset, where it is used: the stage it was placed in, and the code files that name it (by file name, or by its name as a string or a path; the files the gdd-sync skill reads).
 - `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, and the cycle tasks that touched it.
 
@@ -77,7 +78,8 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
     { "name": "The sirens", "about": "one line the card shows", "loop": true,
       "sections": ["4.1", "4.2"],            "ids": ["HUD.ROPE", "RULE.FAIL.*"],
       "assets": ["siren*", "wax_*"],         "words": ["wax", "crew"],
-      "image": "docs/capture/siren.png" }
+      "image": "docs/capture/siren.png",
+      "parts": [{ "name": "The song", "about": "pulls the crew to the rail", "ids": ["RULE.SONG.*"], "assets": ["siren_song*"] }] }
   ]
 }
 ```
@@ -85,6 +87,9 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 - `sections` — GDD sections whose table rows belong here. `ids` — row IDs (globs) that belong here whatever their section; wins over `sections`.
 - `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "Unsorted".
 - `words` — words that pull playtest tasks and open questions without a table ID to this stage.
+- `parts` — what the player meets in the stage (an enemy, a weapon, the room), each `{ "name", "about", "ids", "assets", "words" }` like a stage's own keys.
+  The stage page shows one row per part — its rules · looks · sound and how complete it is. What no part names falls in a part made from its name
+  (a GDD id's second word, an asset's first word). Write them with the user when the stage page reads by names rather than by the game — in the user's language.
 - `image` — the card's picture when no cycle has shot the stage yet (a screen a cycle records with `cycle.py shot` wins — the newest one). Without either, the first art thumbnail. `loop` — consecutive stages that repeat get one bracket.
 - Rows, assets and questions no stage claims are shown under "Unsorted" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
 

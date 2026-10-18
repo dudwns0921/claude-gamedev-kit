@@ -737,6 +737,11 @@ class Tools(unittest.TestCase):
         data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
         ping = next(x for x in data["board"]["assets"]["sounds"] if x["title"] == "coin_ping")
         self.assertEqual(ping["used"], {"stage": "Rules <b>", "code": ["player" + ext]})
+        st0 = data["board"]["stages"][0]
+        self.assertTrue(st0["parts"], "a stage's parts — made from names while the flow names none")
+        coin = next(i for i in st0["lanes"]["sound"] if i["title"] == "coin_ping")
+        self.assertEqual((coin["part"], coin["used_in"]), ("coin", ["player" + ext]))
+        self.assertTrue(any(p["name"] == "coin" for p in st0["parts"]))
         os.remove(os.path.join(root, "assets/sounds/coin_ping.mp3"))
         os.remove(os.path.join(root, "player" + ext))
         del cfg["gdd-sync"]
