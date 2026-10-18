@@ -750,7 +750,7 @@ a.tile.go{flex:1 1 40%}a.tile.go b{font-size:15px;white-space:normal}.tile{overf
 .step.past{color:var(--mint);border-color:rgba(61,255,176,.4)}.step.on{background:var(--sky);border-color:var(--sky);color:#04202B;font-weight:700}.step.skip{text-decoration:line-through;opacity:.6}
 .tasks{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:2px 16px;font-size:12.5px}
 .tasks li{display:flex;gap:7px;align-items:baseline;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tasks i{font-style:normal;width:12px;color:var(--tx3)}
-.tasks b{font:11px var(--mono);color:var(--tx3)}.tasks .done{color:var(--tx2)}.tasks .done i{color:var(--mint)}.tasks .blocked i,.tasks .blocked{color:var(--red2)}.tasks .more{color:var(--tx3)}
+.tasks b{font:11px var(--mono);color:var(--tx3)}.tasks .doing{color:var(--sky);font-weight:700}.tasks .doing i{color:var(--sky)}.tasks .done{color:var(--tx2)}.tasks .done i{color:var(--mint)}.tasks .blocked i,.tasks .blocked{color:var(--red2)}.tasks .more{color:var(--tx3)}
 .turn{display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:16px;padding:14px 16px;border:1px solid var(--sky);background:rgba(138,216,255,.12)}
 .turn b{font:800 34px var(--mono);color:var(--sky);line-height:1}.turn span{font-size:13px}.turn small{display:block;color:var(--tx3);font-size:11px}.turn em{font-style:normal;color:var(--sky);font-weight:700;margin-top:4px}
 .turn.calm{border-color:var(--line2);background:transparent}.turn.calm b{color:var(--tx3)}
@@ -760,7 +760,7 @@ a.tile.go{flex:1 1 40%}a.tile.go b{font-size:15px;white-space:normal}.tile{overf
 .node .busy{align-self:flex-start;position:relative;z-index:2;font:700 10px var(--mono);padding:2px 8px;border-radius:6px;background:var(--sky);color:#04202B}
 .hero.none{display:grid;place-items:center}.hero.none span{position:relative;z-index:1;text-align:center;font:10.5px var(--mono);color:var(--tx3)}
 .flow{flex:none}.flow .node{min-height:0}.flow .hero{flex:none;aspect-ratio:16/9;min-height:0}.node .body{margin-top:-18px;flex:1}.node .chips{margin-top:auto}.chip.temp{border-color:var(--sun);color:var(--sun)}.chip.you{border-color:var(--sky);color:var(--sky)}.chip.ok{border-color:var(--mint);color:var(--mint)}
-.left{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);gap:10px}.left .tile{min-width:0}
+.left{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) minmax(0,1.6fr);gap:10px}.left .tile{min-width:0}
 .whole{display:flex;flex-direction:column;justify-content:center;gap:8px;border:1px solid var(--line2);border-radius:14px;padding:10px 14px;background:var(--card)}
 .whole .seg{height:10px}.stray{color:var(--sun)}
 .cycles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.cyc{display:flex;flex-direction:column;gap:3px;font-size:12.5px;min-width:0}
@@ -882,7 +882,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
         steps = "".join(f'<span class="step{" on" if k == at else " skip" if k in now["skipped"] else " past" if at == "Closed" or (at in STEPS and STEPS.index(k) < STEPS.index(at)) else ""}">{k}</span>'
                         for k in STEPS)
         ts = now["tasks"]
-        mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○")}
+        mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○"), ">": ("doing", "▶")}
         shown = [t for t in ts if t["mark"] != "-"]
         task_html = "".join(f'<li class="{mark.get(t["mark"], mark[" "])[0]}"><i>{mark.get(t["mark"], mark[" "])[1]}</i><b>{e(t["num"])}</b>{md(t["title"])}</li>' for t in shown[:8])
         task_html += f'<li class="more">+{len(shown) - 8} more</li>' if len(shown) > 8 else ""
@@ -905,7 +905,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
                 else '<div class="hero none"><span>No screen yet<br>shot at the next Play</span></div>')
         busy_html = (f'<span class="busy">in cycle {e(now["num"])} · ' + " · ".join(e(t["num"]) for t in busy) + "</span>" if busy else "")
         cards.append(f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}{" busy" if busy else ""}" href="stage-{s["i"] + 1}.html">{hero}'
-                     f'<div class="body">{busy_html}<span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
+                     f'<div class="body">{busy_html}<span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}{f" · {stage_pct(s)}%" if stage_pct(s) is not None else ""}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
                      f'<div class="chips">{open_chips(o, len(s["open"]))}</div></div></a></div>')
     loops = [s["i"] for s in flow if s["loop"]]
     loop = (f'<div class="loop" style="--a:{loops[0]};--c:{loops[-1] - loops[0] + 1}"><span class="lab">{e(str(CFG.get("loop_label", "loop")))}</span></div>'
@@ -915,7 +915,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
                     f'<b>{md(q["title"])}</b><span>{md(q["text"]) or "&nbsp;"}</span></a>' for q in shown)
     strip += f'<span class="ask more">+{len(asks) - len(shown)}</span>' if len(asks) > len(shown) else ""
     rest = st[-1]
-    left = [("rv" if waiting else "", "Waiting on you", waiting, "review.html"), ("red" if c["bad"] else "", "Problems", c["bad"], ""),
+    left = [("gold", "Complete", f"{total}%", ""), ("rv" if waiting else "", "Waiting on you", waiting, "review.html"), ("red" if c["bad"] else "", "Problems", c["bad"], ""),
             ("", "Not made", c["none"], ""), ("warn", "Placeholders", c["temp"], "")]
     left_html = ('<section class="left">' + "".join(
         f'<{"a" if href else "div"} class="tile {cls}"{f" href={chr(34)}{href}{chr(34)}" if href else ""}><span class="lab">{k}</span><b>{v}</b></{"a" if href else "div"}>'
@@ -1022,6 +1022,32 @@ def sheet_link(d):
         return ""
     return (f'<a class="tile go" href="assets.html"><span class="lab">models · images {len(d["models"])} · sounds {len(d["sounds"])}'
             "</span><b>Asset sheet →</b></a>")
+
+
+def code_refs(names):
+    """Where each asset is named in the game's code — the files the gdd-sync skill reads (its section of the config: code_ext · skip_dirs).
+    {file name: [paths]}. An engine that points at assets by id rather than name (a scene file's guid) finds nothing here."""
+    section = (load_json(os.path.join(ROOT, CONFIG_NAME)) or {}).get("gdd-sync", {})
+    ext, skip = tuple(section.get("code_ext") or ()), set(section.get("skip_dirs") or ()) | {".git", "docs", os.path.normpath(CFG["assets"]).split(os.sep)[0]}
+    out = {n: [] for n in names}
+    if not ext or not names:
+        return out
+    # the file's name, or its name without the extension written as a string or a path ("coin_ping", res://…/coin_ping) — not as a word in code
+    pats = {n: re.compile(r"[\"'/]" + re.escape(n.split(".")[0]) + r"[\"'.]") for n in names}
+    for base, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in skip and not d.startswith(".")]
+        for fn in files:
+            if not fn.endswith(ext):
+                continue
+            path = os.path.join(base, fn)
+            try:
+                text = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            for n, pat in pats.items():
+                if len(out[n]) < 6 and (n in text or pat.search(text)):
+                    out[n].append(os.path.relpath(path, ROOT).replace(os.sep, "/"))
+    return out
 
 
 def table_files():
@@ -1314,21 +1340,31 @@ def chart_data(st, asks, cycles, sheet, review):
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
                          "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}
               for s in st if not s["common"] or any(s["lanes"].values()) or s["open"]]
+    placed = {i["title"]: s["name"] for s in st for lane in ("art", "sound") for i in s["lanes"][lane]}  # asset name → the stage it was placed in
+    files = [m["name"] for m in sheet["models"] + sheet["loose"]] + [os.path.basename(x["audio"]) for x in sheet["sounds"] if x["audio"]]
+    refs = code_refs(files)
+    used = lambda fn: {"stage": placed.get(fn.split(".")[0], ""), "code": refs.get(fn, [])}
     model = lambda m: {"name": m["name"], "img": rel(m["img"]), "tool": m["tool"], "st": m["st"], "state": m["state"], "old": m["old"],
-                       "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"])}
+                       "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"]), "used": used(m["name"])}
+    touched = {}
+    for x in st:
+        for c, _ts in x["work"]:
+            touched.setdefault(c["num"], []).append(x["i"])
     return {"lanes": [{"key": k, "label": LANE_LABEL[k]} for k in LANES],
             "stages": stages,
             "asks": [dict({"title": q["title"], "text": q["text"], "from": q["from"], "stage": q["stage"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in asks],
             "steps": STEPS,
             "cycles": [{"num": c["num"], "name": c["name"], "stage": stage_word(c["stage"]), "start": c["start"], "goal": c["goal"],
                         "line": c["line"], "shot": cycle_shot(c), "skipped": c["skipped"],
-                        "list": [{"num": t["num"], "title": t["title"], "mark": t["mark"]} for t in c["tasks"]] if c is cycles[-1] else [],
-                        "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"))},
+                        "list": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"], "blocked": t["blocked"], "wave": t["wave"]} for t in c["tasks"]],
+                        "stages": touched.get(c["num"], []),
+                        "shots": [{"stage": said, "img": rel(os.path.join(ROOT, pic))} for said, pic in c["shots"] if os.path.isfile(os.path.join(ROOT, pic))],
+                        "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"), ("doing", ">"))},
                         "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
             "review": [review_data(i) for i in review],
             "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
                        "models": [model(m) for m in sheet["models"]], "loose": [model(m) for m in sheet["loose"]],
-                       "sounds": [data_item(x) for x in sheet["sounds"]]}}
+                       "sounds": [dict(data_item(x), used=used(os.path.basename(x["audio"]))) for x in sheet["sounds"]]}}
 
 
 def now_asked(items):

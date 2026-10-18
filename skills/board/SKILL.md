@@ -32,11 +32,14 @@ read the GDD or cycle documents to describe the board.** The page is for the use
 Two kinds of page, written next to each other in `docs/board/`:
 
 - `index.html` — **the first screen**, built around the cycle in hand:
-  - **Now** — the newest cycle: its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks, and how many things wait on the user (→ review).
+  - **Now** — the newest cycle: its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks — the ones being worked on now marked (`cycle.py mark … doing`) — and how many things wait on the user (→ review).
   - **The game** — the stages of play in the order the player meets them, each card the stage's newest screen (`cycle.py shot`, stamped with its cycle; marked when two or more cycles old;
-    "no screen yet" when none) and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page.
-  - **What is left** — counts, not a percentage: waiting on you · problems · not made · placeholders, one bar of everything, and what belongs to no stage yet.
+    "no screen yet" when none), how complete it is (%), which of the cycle's tasks are in it, and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page.
+  - **What is left** — how complete the game is (the stages' average %), then counts: waiting on you · problems · not made · placeholders, one bar of everything, and what belongs to no stage yet.
   - **Cycles** — one picture per cycle (its first screen).
+
+The data the dashboard draws from (`board.json`) also carries every cycle's tasks (with what was written under each), the stages it worked in and the screens it shot — the dashboard's Cycles tab —
+and, for each asset, where it is used: the stage it was placed in, and the code files that name it (by file name, or by its name as a string or a path; the files the gdd-sync skill reads).
 - `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, and the cycle tasks that touched it.
 
 The board shows the flow, not the history: answered decisions and the per-cycle record stay in the cycle documents.

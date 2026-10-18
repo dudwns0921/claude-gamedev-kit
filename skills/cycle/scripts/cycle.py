@@ -6,7 +6,7 @@
   python3 cycle.py status                       Per document: stage · task counts · open decisions
   python3 cycle.py next                         Current stage, open decisions, the tasks of the next wave to run
   python3 cycle.py task T3                      One task and only the decisions it depends on (what the developer agent reads)
-  python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
+  python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ], `doing` is [>] — the task an agent is on now (the board shows it)
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 cycle.py mark T4 dropped "<why>"      [-] — not to be done (merged into another, overtaken, the user said no). The reason is required
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
@@ -80,7 +80,8 @@ Started: {date} · Commit {commit} · Stage: Goal
 
 ## Play
 """
-BOX = {"done": "x", "blocked": "!", "open": " ", "dropped": "-"}
+BOX = {"done": "x", "blocked": "!", "open": " ", "dropped": "-", "doing": ">"}
+OPEN = " >"  # a task not finished: not started, or one an agent is on
 NOTE = {"done": "Done", "blocked": "Blocked", "dropped": "Dropped"}
 # The words of the document: written in English, read in English and in the Korean of older documents.
 KO = {"Goal": "목표", "Decisions": "결정", "Spec": "기획", "Design": "디자인", "Plan": "계획", "Build": "구현", "Tasks": "작업",
@@ -263,7 +264,8 @@ def summary(path):
     yours = sum(1 for t in todos(text).values() if t[0] == " ")
     skips = skipped(text)
     return (f"{os.path.relpath(path, ROOT)} — stage: {stage_of(text)} · tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
-            f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
+            + (f"[>] {marks.count('>')} · " if '>' in marks else "")
+            + f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
             + (f" · carried over {left}" if left else "") + (f" · for the user {yours}" if yours else "")
             + "".join(f" · {k} skipped" for k in skips))
 
@@ -288,8 +290,10 @@ def cmd_next(path):
     for num, (mark, title, a, b) in ts.items():
         if mark == "!":
             print(f"blocked task: {num}. {title}")
+        elif mark == ">":
+            print(f"in progress: {num}. {title} — an agent was on it; if none is now, run it again")
     for n, names in waves(text):
-        left = [t for t in names if t in ts and ts[t][0] == " "]
+        left = [t for t in names if t in ts and ts[t][0] in OPEN]
         if not left:
             continue
         print(f"next wave: {n}")
@@ -298,7 +302,7 @@ def cmd_next(path):
             print(f"  {t}. {ts[t][1]}" + (f" — waiting on {' · '.join(hold)} (not run for now)" if hold else ""))
         break
     else:
-        if ts and all(t[0] != " " for t in ts.values()):
+        if ts and all(t[0] not in OPEN for t in ts.values()):
             print("no tasks left")
 
 
@@ -833,7 +837,7 @@ def main():
         cmd_task(path, rest[0])
     elif cmd == "mark":
         if rest[1] not in BOX:
-            sys.exit("the state is done · blocked · open · dropped")
+            sys.exit("the state is done · doing · blocked · open · dropped")
         if rest[1] == "dropped" and not (rest[2:] and rest[2].strip()):
             sys.exit("say why it is dropped: mark T4 dropped \"<why>\"")
         cmd_mark(path, rest[0], rest[1], rest[2] if len(rest) > 2 else "")

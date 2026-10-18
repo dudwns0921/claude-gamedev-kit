@@ -178,6 +178,7 @@ a task if it belongs to this cycle (call `plan`), `later` if it does not.
 **Call `build` with `model: sonnet`** — the task says where and how, so the build does not need the model that planned it (`plan` runs on the agent's own model; do not pass one).
 Pass three lines — `build T<n>`, the document path, and the task-extraction command (`python3 <absolute path to this skill's cycle.py> task T<n> --doc <document>`). **Do not copy out the task content.**
 Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
+In the same message that calls the wave, `mark T1,T3 doing` — the board and the dashboard show which tasks are being worked on now.
 Record returned results with `mark` (agents do not edit the document): done → `mark T1,T3 done`, blocked · failed → `mark T2 blocked "<reason>"`.
 Do not fix a blocked task here yourself — ask the user whether to call `plan` again with "Why blocked" attached.
 **While `plan` is running, do not run `mark` · `ask` · `decide`** — it is rewriting the same document (and may set a blocked task back to open). Record them all after it returns.
