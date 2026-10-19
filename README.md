@@ -63,6 +63,20 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 
 What tripped you becomes one of your rules, loaded into every game you make next. Once you say so, rules go to this repository as issues, and the ones that hold for anyone become the kit's rules for everybody.
 
+## What it runs and sends
+
+The scripts are plain Python (standard library only) and run on your machine. Hooks run them when a session starts, after edits and when a turn ends, to keep the status board, the balance table and the kit's rules in your game's CLAUDE.md up to date. Everything they write stays in your game's folder and in `~/.config/gamedev-kit/`.
+
+What leaves your machine, and only then:
+
+- **Your rules, as GitHub issues on this repository** — only after you say yes once (`/gamedev-kit:feedback`), or when you send them yourself. They go through your own [GitHub CLI](https://cli.github.com) login (`gh issue create` · `gh issue comment`). Each issue holds the rule's text, the engine, the kit's version and an eight-digit id salted on your machine; the game's name is not sent, and a rule that names your game or a date is held back. The open issues of this repository are read from `api.github.com` (no login) to find one the rule matches.
+- **The dashboard** — when you start it, it is cloned from [gamedev-kit-board](https://github.com/dudwns0921/gamedev-kit-board) into `~/.config/gamedev-kit/board-app`, installed with `npm install`, built and run on `127.0.0.1`. It is not reachable from other machines.
+- **Your own board service, if you set one up** — the board is sent to the HTTPS address and with the token you put in `~/.config/gamedev-kit/board.env`. Nothing is sent when that file has none.
+- **A private claude.ai link, when you ask for one** — the board and the review page, published by Claude Code to your own account so you can open them on a phone.
+- **A font** — the board's pages load the Pretendard font from `cdn.jsdelivr.net`.
+
+The kit makes no assets and calls no AI or asset services of its own.
+
 ## License
 
 MIT
