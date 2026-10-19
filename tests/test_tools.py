@@ -2470,6 +2470,30 @@ none
         self.assertIn("harvest-title.txt", harvest("check").stderr)
         save("harvest-title.txt", "1.2.10 — harvest: lessons from issues #11 #12\n")
         self.assertEqual(harvest("check").returncode, 0)
+
+        # decide — after the pull request opens: the sweep merges itself on the review's word, never a script change from an outsider's issue
+        def decide(review, who=("OWNER", "OWNER")):
+            if review is None:
+                if os.path.exists(os.path.join(root, "harvest-review.json")):
+                    os.remove(os.path.join(root, "harvest-review.json"))
+            else:
+                save("harvest-review.json", review)
+            save("authors.json", [{"number": 11, "author_association": who[0]}, {"number": 12, "author_association": who[1]}])
+            p = harvest("decide", "--issues", "authors.json")
+            self.assertEqual(p.returncode, 0, p.stderr)
+            return json.loads(load("harvest-decision.json"))
+        self.assertFalse(decide(None)["merge"], "no verdict, no merge")
+        self.assertIn("the review did not finish", decide(None)["comment"])
+        got = decide({"merge": True, "reason": "Games stop seeing a false mismatch."})
+        self.assertTrue(got["merge"])
+        self.assertIn("**Merged by the sweep** — Games stop seeing a false mismatch.", got["comment"])
+        got = decide({"merge": False, "reason": "It would refuse older documents. See #3 @x"})
+        self.assertFalse(got["merge"])
+        self.assertIn("the review found a problem: It would refuse older documents. See issue 3 @", got["comment"], "the reason is plain text — it closes and mentions nothing")
+        got = decide({"merge": True, "reason": "fine"}, who=("OWNER", "CONTRIBUTOR"))
+        self.assertFalse(got["merge"], "a script change that came from an outsider's issue waits for the owner")
+        self.assertIn("issue 12", got["comment"])
+        self.assertFalse(decide({"merge": "yes"})["merge"], "only a verdict of true merges")
         save("tools/harvest.py", "changed\n")
         git("add", "tools/harvest.py")
         p = harvest("check")

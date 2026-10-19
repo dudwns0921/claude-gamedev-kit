@@ -7,10 +7,13 @@
       after the model: check its result and the files it changed, bump the version → harvest-pr.md · harvest-title.txt · harvest-labels.json
   python3 tools/harvest.py check
       before anything is pushed: the staged paths, the title and the labels are what `apply` would have written
+  python3 tools/harvest.py decide [--review FILE] [--issues FILE]
+      after the pull request is open: merge it or leave it open — from the second model's review and what the change touches → harvest-decision.json
   python3 tools/harvest.py sort <issue number> [--issues FILE]
       as an issue arrives, no model: the same lesson already open from the same sender is closed as its duplicate → harvest-sort.json
 
-The owner is not expected to read a diff. The pull request opens with a recommendation worked out here, not by the model —
+The owner is not expected to read a diff — nor to merge. A second model reads the change (never the issues) and says whether it would break a game;
+`decide` merges on its word, except when an outsider's issue changed a script: that one waits for the owner. The pull request still opens with a recommendation worked out here, not by the model —
 merge when only the words games read changed and the rule files did not grow much; look closer (with Claude Code, in this repository)
 when a script changed or a rule file grew — and then says, change by change, what a game made with the kit will do differently, in plain words.
 A sweep's pull request left open longer than STALE_DAYS no longer holds the next sweep back: it is replaced (closed), and its issues are read again.
@@ -60,6 +63,7 @@ TESTS = "<!-- tests -->"  # the workflow puts the test results here
 STALE_DAYS = 3  # a sweep nobody merged or closed in this long is replaced by the next one, so lessons never wait on a pull request forever
 GROWTH = 600    # bytes the engine rule files may grow in one sweep before the recommendation asks for a closer look
 SORT = "harvest-sort.json"
+REVIEW, DECISION = "harvest-review.json", "harvest-decision.json"
 
 
 def read_json(path):
@@ -344,6 +348,55 @@ def cmd_check(_):
     print(f"{len(staged)} staged files, all within the allowed folders")
 
 
+def authors(numbers, given=None):
+    """Who opened each issue the sweep read — from a file (tests) or the API, never from anything the model wrote."""
+    if given:
+        return {int(i["number"]): str(i.get("author_association") or "") for i in read_json(given)}
+    repo, token = os.environ.get("GITHUB_REPOSITORY"), os.environ.get("GITHUB_TOKEN")
+    if not repo or not token:
+        sys.exit("GITHUB_REPOSITORY and GITHUB_TOKEN are needed to read who opened the issues (or give --issues)")
+    api, out = os.environ.get("GITHUB_API_URL") or "https://api.github.com", {}
+    for n in numbers:
+        req = urllib.request.Request(f"{api}/repos/{repo}/issues/{n}", headers={"Accept": "application/vnd.github+json",
+                                                                              "Authorization": f"Bearer {token}", "User-Agent": "gamedev-kit"})
+        out[n] = str(json.load(urllib.request.urlopen(req, timeout=30)).get("author_association") or "")
+    return out
+
+
+def cmd_decide(args):
+    """Merge, or leave open — run where the patch is staged, by the script as it is on the default branch.
+    Merges only when the second model said so, and never a script change that came from an outsider's issue."""
+    title = open(TITLE, encoding="utf-8").read().rstrip("\n")
+    if not TITLE_RE.match(title):
+        sys.exit(f"{TITLE}: not a title `apply` writes")
+    numbers = [int(n) for n in re.findall(r"#(\d+)", title)]
+    staged = [p for p in git("diff", "--cached", "--name-only", "--no-renames", "-z").decode().split("\0") if p]
+    code = [p for p in staged if not p.endswith(".md") and p != MANIFEST]
+    try:
+        review = read_json(args.review)
+    except (OSError, ValueError):
+        review = None
+    said = plain(review.get("reason", "") if isinstance(review, dict) else "", 600)
+    who = authors(numbers, args.issues)
+    strangers = [n for n in numbers if who.get(n) not in TRUSTED]
+    if not isinstance(review, dict) or review.get("merge") is not True:
+        merge, why = False, (f"the review found a problem: {said}" if isinstance(review, dict) and said else "the review did not finish")
+    elif code and strangers:
+        merge, why = False, ("it changes a script (" + ", ".join(code[:3]) + ") and it came partly from an outsider's issue ("
+                             + ", ".join(f"issue {n}" for n in strangers) + ") — that one waits for the owner")
+    else:
+        merge, why = True, said or "the review found nothing that would break a game"
+    comment = ((f"**Merged by the sweep** — {why}\n\nThe tests passed, and a second model read the change itself (not the issues) before this merge."
+                " If a game behaves worse after it, say so in an issue — the next sweep reads it.") if merge else
+               (f"**Left open** — {why}.\n\nAsk Claude Code in this repository to look at it, then merge or close; a sweep left open over "
+                f"{STALE_DAYS} days is replaced by the next one, which reads these issues again."))
+    write(DECISION, json.dumps({"merge": merge, "comment": comment}, ensure_ascii=False, indent=2) + "\n")
+    print(f"merge: {'yes' if merge else 'no'} — {why}")
+    if os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+            f.write(f"merge={'true' if merge else 'false'}\n")
+
+
 def cmd_sort(args):
     """An issue just opened: the same lesson already open from the same sender (one game sending twice — two sessions ending at once)
     is closed as its duplicate. From another sender it is left alone: that is a second game, and the sweep reads it with the first."""
@@ -375,13 +428,16 @@ def main():
     p.add_argument("--result", default=RESULT)
     p.add_argument("--issues", default=ISSUES_JSON)
     sub.add_parser("check")
+    p = sub.add_parser("decide")
+    p.add_argument("--review", default=REVIEW)
+    p.add_argument("--issues")
     p = sub.add_parser("sort")
     p.add_argument("number", type=int)
     p.add_argument("--issues")
     args = ap.parse_args()
     if not args.cmd:
         sys.exit(__doc__)
-    {"pick": cmd_pick, "apply": cmd_apply, "check": cmd_check, "sort": cmd_sort}[args.cmd](args)
+    {"pick": cmd_pick, "apply": cmd_apply, "check": cmd_check, "decide": cmd_decide, "sort": cmd_sort}[args.cmd](args)
 
 
 if __name__ == "__main__":

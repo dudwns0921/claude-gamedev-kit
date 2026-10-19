@@ -89,11 +89,12 @@ Turning the issues into rules is a sweep, not a chore per issue — seeing them 
 `tools/harvest.py pick` chooses the issues (from the owner · members · collaborators; an outsider's only once the owner labels it `harvest:ok`), a model reads them
 with `.github/harvest.md` as its instructions and edits the files, `tools/harvest.py apply` · `check` refuse any change outside `engines/` · `skills/` · `agents/` · `templates/` · `tests/`
 and bump the version, and the run ends with **one pull request** — never a push to main, and no second sweep while that one is open (one left open over three days is replaced by the next sweep, which reads its issues again).
+**The sweep merges that pull request itself** when a second model, reading the change and never the issues (`.github/harvest-review.md`), runs the tests and says it would not break a game —
+`tools/harvest.py decide`, run by the default branch's copy, merges on that word, except a script change that came from an outsider's issue, which waits for the owner. A refusal leaves it open with its reason as a comment.
 As each issue arrives, the same lesson already open from the same sender (one machine sending twice) is closed as its duplicate — no model is involved.
-Issue text is untrusted: the job the model runs in can only read the repository; the job that pushes runs no model and none of the changed code.
-The owner's part: label outsiders' issues worth reading `harvest:ok`, and merge or close each sweep's pull request. **It is written to be decided without reading code**:
-it opens with a recommendation the script works out (merge — only words games read changed, the rule files hardly grew, tests passed; look closer — a script changed or a rule file grew),
-then one plain sentence per change saying what a game will do differently and in how many games it was seen. "Look closer" means: ask Claude Code in this repository to review that pull request first.
+Issue text is untrusted: the jobs the models run in can only read the repository; the job that pushes runs no model and none of the changed code.
+The owner's part: label outsiders' issues worth reading `harvest:ok`, and look at a pull request the sweep left open (ask Claude Code in this repository to review it). **None of it needs reading code**:
+each pull request opens with a recommendation the script works out, then one plain sentence per change saying what a game will do differently and in how many games it was seen.
 The table of issue → lane → where and the rule file sizes are folded below it.
 Merging closes the issues that became rules or were already covered; feature requests and lessons too tied to one game stay open, labelled `harvest:request` · `harvest:skip` (remove the label to have the next sweep read it again).
 
