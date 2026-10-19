@@ -1,7 +1,7 @@
 {
   "name": "gamedev-kit",
   "description": "Game development workflow — choosing the engine · the start up to the first cycle (GDD · concept · first goal), one cycle (spec · design · build · play), GDD ↔ code sync · status board and dashboard, an Excel balance table, the user's own rules (sent to the kit as issues) and ways of working (Godot · Unity · web).",
-  "version": "0.75.0",
+  "version": "0.75.1",
   "author": { "name": "dudwns0921" },
   "homepage": "https://gamedev-kit-site.vercel.app",
   "repository": "https://github.com/dudwns0921/claude-gamedev-kit",
