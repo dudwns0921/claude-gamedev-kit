@@ -2217,6 +2217,10 @@ none
         self.assertEqual(epic["Title screen"]["backlog"], ["B2"])
         self.assertTrue(next(s for s in board["stages"] if s["name"] == "Foundation")["foundation"])
         self.assertEqual([(t["key"], t["epic"]) for t in board["cycles"][0]["list"]], [("C1-T1", "Title screen"), ("C1-T2", "Foundation")])
+        detail = board["tasks"]["C1-T1"]
+        self.assertEqual((detail["title"], detail["mark"], detail["epic"], detail["fields"]), ("Draw", "x", 0, [{"k": "Where", "v": "a.gd"}]),
+                         "each task by its key, with the lines under it (not its epic line) — the dashboard's task panel")
+        self.assertEqual(board["tasks"]["first T1"]["fields"], [{"k": "Kind", "v": "bug"}], "a playtest's task too")
         chart = page(root, "index.html")
         self.assertIn("Under every stage", chart, "Foundation is shown apart from the order of play")
         self.assertIn('<span class="lab">Backlog</span><b>2</b>', chart)

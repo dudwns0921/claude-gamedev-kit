@@ -265,6 +265,25 @@ def decision(mark, num, rest):
             "date": date.group(1) if date else ""}
 
 
+FIELD_EN = {"고칠 곳": "Where", "확인": "Check", "위험": "Risk", "건드리지 말 것": "Do not touch", "기획 · 디자인": "Spec · Design", "문제": "Problems",
+            "분류": "Kind", "원인": "Cause", "한 것": "Done", "대기": "Waiting", "막힘": "Blocked"}  # a task's lines, in the Korean of older documents
+
+
+def fields_of(block):
+    """A task's `- **Key**: value` lines (and the indented lines under each), keyed in English — what the dashboard's task panel shows."""
+    out, cur = [], None
+    for line in block.split("\n"):
+        m = re.match(r"^- \*\*([^*]+)\*\*: ?(.*)$", line)
+        if m:
+            cur = {"k": FIELD_EN.get(m.group(1).strip(), m.group(1).strip()), "v": m.group(2)}
+            out.append(cur)
+        elif cur and line.startswith("  "):
+            cur["v"] += "\n" + line.strip()
+        elif line.strip():
+            cur = None
+    return [dict(f, v=f["v"].strip()) for f in out if f["k"] != "Epic"]
+
+
 def cycle(path):
     text = read(path)
     head = re.search(CYCLE_HEAD, text, re.M)
@@ -282,7 +301,7 @@ def cycle(path):
         line = lambda key: (re.search(rf"^- \*\*(?:{key})\*\*:(.*)$", block, re.M) or [None, ""])[1].strip()  # key: one name, or alternatives
         tasks.append({"num": m.group(2), "mark": m.group(1), "title": m.group(3).strip(), "wave": waves.get(m.group(2), 0),
                       "ids": ID_RE.findall(line("GDD")), "blocked": line(FIELD["blocked"]), "did": line(FIELD["done"]), "epic": line("Epic"),
-                      "all_ids": ID_RE.findall(block), "block": block})
+                      "all_ids": ID_RE.findall(block), "block": block, "fields": fields_of(block)})
     num = head.group(1) if head else os.path.basename(path).split("-")[0]
     needs = []
     nm = re.search(NEEDS_HEAD, text, re.M)
@@ -642,6 +661,22 @@ def epic_tasks(st, cycles, playtests):
             if epic and t["mark"] != "-":
                 epic["tasks"].append({"key": f'C{int(d["num"])}-{t["num"]}' if kind == "cycle" and d["num"].isdigit() else f'{d["file"][:-3]} {t["num"]}',
                                       "kind": kind, "title": t["title"], "mark": t["mark"], "cycle": d["num"] if kind == "cycle" else ""})
+
+
+def task_details(st, cycles, playtests):
+    """Every task by its key, with what is written under it and the decisions it names — the dashboard opens one in a panel."""
+    out = {}
+    for d, kind in [(c, "cycle") for c in cycles] + [(p, "playtest") for p in playtests]:
+        ds = {x["num"]: x for x in d["decisions"]}
+        for t in d["tasks"]:
+            key = f'C{int(d["num"])}-{t["num"]}' if kind == "cycle" and d["num"].isdigit() else f'{d["file"][:-3]} {t["num"]}'
+            epic = epic_stage(st, t["epic"])
+            refs = [n for n in dict.fromkeys(re.findall(r"D\d+", t["block"])) if n in ds]
+            out[key] = {"kind": kind, "num": t["num"], "title": t["title"], "mark": t["mark"], "epic": epic["i"] if epic else None,
+                        "cycle": d["num"] if kind == "cycle" else "", "doc": d["file"], "wave": t["wave"], "fields": t["fields"],
+                        "assets": t.get("assets", []),
+                        "decisions": [{"num": n, "title": ds[n]["title"], "answer": ds[n]["answer"], "done": ds[n]["done"]} for n in refs]}
+    return out
 
 
 def task_counts(ts):
@@ -1457,7 +1492,7 @@ def review_data(i):
     return out
 
 
-def chart_data(st, asks, cycles, sheet, review):
+def chart_data(st, asks, cycles, sheet, review, playtests=()):
     queue = backlog()
     owned = {i["title"]: (x, i) for x in st for lane in ("art", "sound") for i in x["lanes"][lane]}  # an asset → (its stage, its item)
     files = [m["name"] for m in sheet["models"] + sheet["loose"]] + [os.path.basename(x["audio"]) for x in sheet["sounds"] if x["audio"]]
@@ -1501,6 +1536,7 @@ def chart_data(st, asks, cycles, sheet, review):
                         "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
             "review": [review_data(i) for i in review],
             "backlog": [dict(b, stage=(epic_stage(st, b["epic"]) or {}).get("i")) for b in queue],
+            "tasks": task_details(st, cycles, playtests),
             "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
                        "models": [model(m) for m in sheet["models"]], "loose": [model(m) for m in sheet["loose"]],
                        "sounds": [dict(data_item(x), used=used(os.path.basename(x["audio"]))) for x in sheet["sounds"]]}}
@@ -1565,7 +1601,7 @@ def build(outdir, index_name):
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(now_asked(review)), "later": len(review) - len(now_asked(review)),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"] and not s["foundation"]],
-               "board": chart_data(st, asks, cycles, sheet, review)}
+               "board": chart_data(st, asks, cycles, sheet, review, playtests)}
     return pages, review, summary, (f'{line} · open: problems {c["bad"]} · not made {c["none"]} · placeholders {c["temp"]}' + (f' · {CFG["common"]} {stray} (assets {stray_assets} — in no stage)' if stray else "")
                                     + f" · review {len(now_asked(review))}" + (f" (later {len(review) - len(now_asked(review))})" if len(review) != len(now_asked(review)) else ""))
 
