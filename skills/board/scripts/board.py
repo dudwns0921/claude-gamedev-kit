@@ -500,11 +500,11 @@ def asset_items(st, where, cycles, tasks):
         s = next((s for s in st if any(fnmatch.fnmatchcase(name, g) for g in s["assets"])), None)
         if not s:  # the epic of the tasks that name it
             pat = re.compile(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])")
-            hits = [x for x in (epic_stage(st, t.get("epic", "")) for t in tasks if pat.search(t["block"])) if x]
+            hits = [x for x in (epic_stage(st, t.get("epic", "")) for t in tasks if name in t["block"] and pat.search(t["block"])) if x]
             s = max(hits, key=lambda x: (hits.count(x), -x["i"])) if hits else None
         if not s:
             pat = re.compile(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])")
-            s = (place_ids(st, where, [i for t in tasks if pat.search(t["block"]) for i in t["all_ids"]])
+            s = (place_ids(st, where, [i for t in tasks if name in t["block"] and pat.search(t["block"]) for i in t["all_ids"]])
                  or place_words(st, name + " " + it["note"]) or st[-1])
         s["lanes"][it.pop("lane")].append(it)
 
@@ -648,7 +648,7 @@ def link_tasks(st, cycles, where):
             epic = epic_stage(st, t["epic"])
             t["epic_i"] = epic["i"] if epic else None
             t["stages"] = sorted({where[x] for x in t["ids"] if x in where} | ({epic["i"]} if epic else set()))
-            t["assets"] = [n for n in names if pats[n].search(t["block"])]
+            t["assets"] = [n for n in names if n in t["block"] and pats[n].search(t["block"])]  # the plain test first: the pattern only where the name is
 
 
 def epic_tasks(st, cycles, playtests):
@@ -1196,6 +1196,9 @@ def sheet_link(d):
             "</span><b>Asset sheet →</b></a>")
 
 
+QUOTED_RE = re.compile(r"(?<=[\"'/])[^\"'/.\n]+(?=[\"'.])")  # a word between a quote or slash and a quote or dot — `code_refs`
+
+
 def code_refs(names):
     """Where each asset is named in the game's code — the files the gdd-sync skill reads (its section of the config: code_ext · skip_dirs).
     {file name: [paths]}. An engine that points at assets by id rather than name (a scene file's guid) finds nothing here."""
@@ -1204,8 +1207,9 @@ def code_refs(names):
     out = {n: [] for n in names}
     if not ext or not names:
         return out
-    # the file's name, or its name without the extension written as a string or a path ("coin_ping", res://…/coin_ping) — not as a word in code
-    pats = {n: re.compile(r"[\"'/]" + re.escape(n.split(".")[0]) + r"[\"'.]") for n in names}
+    # the file's name, or its name without the extension written as a string or a path ("coin_ping", res://…/coin_ping) — not as a word in code.
+    # Each file is read for those words once (one pattern), not once per asset: a game with many assets and files took most of a minute here
+    stems = {n: n.split(".")[0] for n in names}
     for base, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs if d not in skip and not d.startswith(".")]
         for fn in files:
@@ -1216,8 +1220,9 @@ def code_refs(names):
                 text = open(path, encoding="utf-8", errors="ignore").read()
             except OSError:
                 continue
-            for n, pat in pats.items():
-                if len(out[n]) < 6 and (n in text or pat.search(text)):
+            quoted = set(QUOTED_RE.findall(text))
+            for n, stem in stems.items():
+                if len(out[n]) < 6 and (stem in quoted or n in text):
                     out[n].append(os.path.relpath(path, ROOT).replace(os.sep, "/"))
     return out
 
@@ -1662,6 +1667,40 @@ def keep_review(review):
         json.dump([{k: v for k, v in i.items() if k in ("key", "kind", "ref", "cycle", "doc", "latest", "tool", "state", "proxy", "title", "asked", "wait")} for i in review], f, ensure_ascii=False, indent=1)
 
 
+HOLD_AGE = 600  # seconds — a slot held longer is from a run that was stopped; the push hook's timeout is the same
+
+
+def hold(name):
+    """Takes a slot beside the board: `.drawing` — the one run that draws and sends; `.queued` — the one run waiting for it.
+    False while another run that is alive holds it. Hooks run on every tool call, and drawing takes seconds: without the slots they piled up, each slowing the rest."""
+    path = os.path.join(board_folder(), name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    for _ in range(2):
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            try:
+                said, age = open(path, encoding="utf-8").read().strip(), time.time() - os.path.getmtime(path)
+            except OSError:
+                continue  # let go of just now
+            if age < HOLD_AGE and running(int(said) if said.isdigit() else None):
+                return False
+            with contextlib.suppress(OSError):
+                os.remove(path)
+            continue
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        return True
+    return False
+
+
+def let_go(name):
+    path = os.path.join(board_folder(), name)
+    with contextlib.suppress(OSError, ValueError):
+        if open(path, encoding="utf-8").read().strip() == str(os.getpid()):
+            os.remove(path)
+
+
 def draw(quiet):
     out = os.path.join(ROOT, CFG["out"])
     if quiet and not os.path.exists(out):
@@ -1682,6 +1721,7 @@ def draw(quiet):
     with open(os.path.join(folder, "board.json"), "w", encoding="utf-8") as f:  # the board as data — what a page elsewhere draws from
         json.dump(summary, f, ensure_ascii=False, indent=1)
     keep_review(review)
+    os.utime(out, (newest, newest))  # the time of the newest source it was drawn from: an edit made while drawing is still newer, and is drawn next
     if not quiet:
         print(f"{os.path.relpath(out, ROOT)} — {line}")
 
@@ -1801,6 +1841,7 @@ def push(changed_only):
     tidy_inbox({i["key"]: i.get("asked", "") for i in review})  # only now: the dashboard has a board that no longer asks them — before, the card would open again
     os.makedirs(folder, exist_ok=True)
     open(stamp_path, "w").write(summary["drawn"])
+    os.utime(stamp_path, (newest, newest))  # as the page's time in draw: an edit made while sending is sent next
     if not changed_only:  # the hook says nothing
         print(f"pushed to {url}/g/{game} — {line} · files sent {len(missing)}")
 
@@ -2372,9 +2413,15 @@ def main():
     try:
         if not args or args == ["--if-stale"]:
             setup(root)
-            if args:  # run by the hooks after a tool, a subagent, a turn: the session is at work
+            if not args:
+                draw(False)
+            else:  # run by the hooks after a tool, a subagent, a turn: the session is at work
                 at_work()
-            draw(quiet)
+                if hold(".drawing"):  # one held: the run that has it looks at the documents again when it ends
+                    try:
+                        draw(True)
+                    finally:
+                        let_go(".drawing")
         elif args[0] == "share" and (len(args) == 1 or (len(args) == 3 and args[1] == "--done")):
             share(setup(root), args[2] if len(args) == 3 else "")
         elif args[0] == "push" and args[1:] in ([], ["--if-changed"]):
@@ -2382,9 +2429,22 @@ def main():
             svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
             if args[1:] and not (svc.get("game") and (svc.get("url") or secret("GAMEDEV_BOARD_URL")) and secret("GAMEDEV_BOARD_TOKEN")):
                 return  # the hook: no service set up here — nothing to do, nothing said
-            if args[1:]:
-                draw(True)
-            push(bool(args[1:]))
+            if not args[1:]:
+                push(False)
+            elif hold(".queued"):  # one run waits for the one drawing; more would only wait to find nothing left
+                try:
+                    until = time.time() + HOLD_AGE - 60
+                    while not hold(".drawing"):
+                        if time.time() > until:
+                            return
+                        time.sleep(0.5)
+                finally:
+                    let_go(".queued")
+                try:  # taken only now, so what changed while it waited is in it
+                    draw(True)
+                    push(True)
+                finally:
+                    let_go(".drawing")
         elif args[0] == "watch" and args[1:] in ([], ["--rewake"], ["--notice"]):
             setup(root)
             watch(args[1] if args[1:] else "")

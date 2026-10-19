@@ -58,7 +58,7 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" push --if-changed",
-            "timeout": 120,
+            "timeout": 600,
             "async": true
           },
           {
@@ -93,7 +93,7 @@
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" push --if-changed",
-            "timeout": 120,
+            "timeout": 600,
             "async": true
           }
         ]

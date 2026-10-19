@@ -674,9 +674,17 @@ class Tools(unittest.TestCase):
             "# Playtest — first\n\n## Summary\n\n## Tasks\n\n### [ ] T1. The coin sticks\n- **Kind**: bug\n- **GDD**: RULE.COIN.PICKUP\n\n## Order\n- Wave 1: T1\n")
         before = os.path.getmtime(out)
         os.utime(out, (before - 10, before - 10))
+        drawing = os.path.join(root, "docs/board/.drawing")
+        open(drawing, "w").write(str(os.getpid()))  # another run is drawing
         self.assertEqual(run(BOARD, root, "--if-stale").stdout, "")
+        self.assertEqual(os.path.getmtime(out), before - 10, "one run draws at a time — the hook leaves it to the run already drawing")
+        open(drawing, "w").write("999999")  # left by a run that was stopped
+        self.assertEqual(run(BOARD, root, "--if-stale").stdout, "")
+        self.assertFalse(os.path.exists(drawing), "a slot left by a stopped run is taken, and let go after")
         chart = open(out, encoding="utf-8").read()
         self.assertGreater(os.path.getmtime(out), before - 10, "a newer source redraws it")
+        self.assertEqual(os.path.getmtime(out), max(os.path.getmtime(p) for p in (doc, BOARD, os.path.join(root, "docs/playtest/first.md"), os.path.join(root, "docs/GDD.md"))),
+                         "the page carries the time of the newest source it was drawn from — an edit made while drawing is newer still")
         self.assertIn("<title>Game — board</title>", chart)
         self.assertIn('href="stage-1.html"', chart, "a card on the first screen goes to the stage's page")
         stage = page(root, "stage-1.html")
@@ -901,6 +909,15 @@ class Tools(unittest.TestCase):
         got.clear()
         push("--if-changed")
         self.assertEqual(got, [], "and only once")
+        queued = os.path.join(root, "docs/board/.queued")
+        open(queued, "w").write(str(os.getpid()))  # a run already waits for the one drawing
+        os.utime(os.path.join(root, "docs/board/share/pushed"), (earlier, earlier))
+        push("--if-changed")
+        self.assertEqual(got, [], "a run already waits — this one leaves at once, and the waiting one sends what changed")
+        open(queued, "w").write("999999")  # left by a run that was stopped
+        push("--if-changed")
+        self.assertIn(("PUT", "/api/ingest/sample/summary"), [g[:2] for g in got], "a slot left by a stopped run does not hold sending up")
+        self.assertEqual([n for n in (".queued", ".drawing") if os.path.exists(os.path.join(root, "docs/board", n))], [], "both slots let go after")
 
     def test_board_serve(self):
         """`serve` runs the dashboard on this machine: cloned and built once per version, started on localhost, its token made once (no password — it listens on this machine only)
