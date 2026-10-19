@@ -39,7 +39,7 @@ Two kinds of page, written next to each other in `docs/board/`:
   - **What is left** — how complete the game is (the stages' average %), then counts: waiting on you · problems · not made · placeholders · the backlog, one bar of everything, and what belongs to no stage yet.
   - **Cycles** — one picture per cycle (its first screen).
 
-The data the dashboard draws from (`board.json`) also carries each stage's parts and its epic (its tasks across cycles and playtests, their counts, its backlog lines), the backlog (`docs/backlog.md`),
+The data the dashboard draws from (`board.json`) also carries each stage's parts, its screens (the ones every cycle shot of it, newest first — the epic's Screens tab) and its epic (its tasks across cycles and playtests, their counts, its backlog lines), the backlog (`docs/backlog.md`),
 every cycle's tasks (with their game-wide key `C16-T3`, their epic, what was written under each, the stages each went into and the assets each names),
 every task of every cycle and playtest by its key (`tasks` — the lines under it and the decisions it names: the dashboard's task panel),
 the cycle's assets with what each is, the stages it worked in and the screens it shot — the dashboard's Epics and Cycle tabs —

@@ -202,7 +202,8 @@ When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-syn
 the project's full verification (CLAUDE.md "Verification").
 **Shoot the screens.** For each stage of play (the board's stages, `board.flow`) this cycle changed — and each that has no screen yet — capture it as the player sees it,
 the way the engine's rules say ("Screen … by capture"), into `docs/capture/cycle<NN>/`, and record it with `shot "<stage>" <picture>`. The board's cards show the newest screen of each stage
-with the cycle it came from, so the user sees the game, not a percentage. Do not Read the captures for this — they are for the board. An engine with no way to capture: leave it; the card says so.
+with the cycle it came from, so the user sees the game, not a percentage, and each epic's Screens tab on the dashboard keeps one per cycle — so frame the moment that shows the epic best
+(the player in it, not a menu or a loading screen). Do not Read the captures for this — they are for the board. An engine with no way to capture: leave it; the card says so.
 Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
 If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
 The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving (the spec's "Tuning notes").

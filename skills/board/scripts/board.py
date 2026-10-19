@@ -694,6 +694,23 @@ def attach_shots(st, cycles):
                 break
 
 
+SCREENS_MAX = 6  # an epic's screens on the dashboard: enough to show it, newest first
+
+
+def screens_of(s, cycles):
+    """The screens every cycle shot of this stage (`cycle.py shot`), newest cycle first — one per cycle, the same picture once."""
+    if s["common"] or s["foundation"]:
+        return []
+    out, seen = [], set()
+    for c in reversed(cycles):
+        for said, pic in c["shots"]:
+            path = os.path.join(ROOT, pic)
+            if fits(said, s["name"]) and os.path.isfile(path) and pic not in seen:
+                seen.add(pic)
+                out.append({"img": rel(path), "cycle": c["num"], "name": c["name"]})
+    return out[:SCREENS_MAX]
+
+
 def cycle_shot(c):
     return next((rel(os.path.join(ROOT, p)) for _, p in c["shots"] if os.path.isfile(os.path.join(ROOT, p))), "")
 
@@ -1503,7 +1520,7 @@ def chart_data(st, asks, cycles, sheet, review, playtests=()):
                "epic": {"tasks": s["tasks"], "counts": task_counts(s["tasks"]),
                         "backlog": [b["num"] for b in queue if b["mark"] == " " and epic_stage(st, b["epic"]) is s]},
                "image": hero_of(s), "shot": {"cycle": s["shot"]["cycle"], "behind": s["shot"]["behind"]} if s.get("shot") else None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
-               "parts": s.get("part_list", []),
+               "parts": s.get("part_list", []), "screens": screens_of(s, cycles),
                "halves": halves([dict(i, lane=lane) for lane in ("function", "art", "sound") for i in s["lanes"][lane]]),
                "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),

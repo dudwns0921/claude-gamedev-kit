@@ -44,7 +44,7 @@ Making a game with AI is easy. The trouble starts when making it takes weeks: yo
 
 ### See where every game stands — and decide there
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The Epics tab of a sample game: epic cards with their screens and task counts, and one epic opened below with its cycles in a row and that cycle's tasks" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The Epics tab of a sample game: epic cards with their task counts, and one epic opened below with its cycles in a row and that cycle's tasks" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-cycle-dark.png"><img src="assets/dashboard-cycle-light.png" alt="The Cycle tab: the cycle's goal and stages on top, its tasks in four columns — to do, in hand, blocked, done" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-task-dark.png"><img src="assets/dashboard-task-light.png" alt="A task opened: what it is, how the game will change, and what changed, a sentence each" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-decide-dark.png"><img src="assets/dashboard-decide-light.png" alt="A decision on the Review tab: three wing drafts to compare above the options, one of them recommended" width="860"></picture></p>

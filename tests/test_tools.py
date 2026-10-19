@@ -2264,6 +2264,17 @@ none
         self.assertRegex(backlog, r"- \[>\] B1\. a boss, some day — epic: Draw the bow \(from Cycle 01 · \d{4}-\d\d-\d\d\) → Cycle 02 \(")
         self.assertIn("- [-] B2. music — epic: Title screen (from Cycle 01 · ", backlog)
 
+        # each epic keeps the screens its cycles shot — newest first, one per cycle; Foundation has none
+        os.makedirs(os.path.join(root, "docs/capture"))
+        for n in ("a", "b"):
+            open(os.path.join(root, f"docs/capture/{n}.png"), "wb").write(b"\x89PNG\r\n\x1a\n")
+        run(CYCLE, root, "shot", "Title screen", "docs/capture/a.png", "--doc", "docs/cycle/01-bow.md")
+        run(CYCLE, root, "shot", "Title", "docs/capture/b.png")
+        run(BOARD, root)
+        stages = {x["name"]: x for x in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["stages"]}
+        self.assertEqual([(x["cycle"], x["img"].split("/")[-1]) for x in stages["Title screen"]["screens"]], [("02", "b.png"), ("01", "a.png")])
+        self.assertEqual(stages["Foundation"]["screens"], [])
+
     def test_cycle_skip(self):
         """A goal that does not touch an owner's part skips that agent: the section says why, status shows it, and a section that ran cannot be skipped."""
         root = tempfile.mkdtemp(prefix="kit-skip-")
