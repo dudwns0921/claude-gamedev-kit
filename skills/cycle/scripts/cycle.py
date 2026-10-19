@@ -774,7 +774,7 @@ def cmd_line(path, said):
 def cmd_shot(path, stage, picture):
     stage = " ".join(stage.split())
     pic = os.path.relpath(os.path.realpath(picture), os.path.realpath(ROOT)) if os.path.isabs(picture) else os.path.normpath(picture)
-    if not stage or "`" in stage or " — " in stage:
+    if not stage or "`" in stage:
         sys.exit("the stage of play by its name on the board")
     if not pic.lower().endswith(SHOT_EXT):
         sys.exit(f"{pic}: a picture (" + " · ".join(SHOT_EXT) + ")")
