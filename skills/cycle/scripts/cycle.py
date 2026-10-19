@@ -6,7 +6,8 @@
   python3 cycle.py status                       Per document: stage · task counts · open decisions
   python3 cycle.py next                         Current stage, open decisions, the tasks of the next wave to run
   python3 cycle.py task T3                      One task and only the decisions it depends on (what the developer agent reads)
-  python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ], `doing` is [>] — the task an agent is on now (the board shows it)
+  python3 cycle.py mark T1 done "<what changed>"   [x], with one `- **Done**:` line — what changed, for the user: one plain sentence (the dashboard shows it),
+                                                no code names, under 120 characters. `blocked` is [!], `open` is [ ], `doing` is [>] — the task an agent is on now (the board shows it)
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 cycle.py mark T4 dropped "<why>"      [-] — not to be done (merged into another, overtaken, the user said no). The reason is required
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
@@ -123,6 +124,8 @@ PLAYTEST_TASK = re.compile(r"^### \[([ !])\] (T\d+)\.(.*)$", re.M)
 NEEDS_RE = re.compile(r"^### (?:Assets needed|필요한 에셋)[ \t]*$", re.M)
 HAVE_EMPTY = re.compile(r"^(?:none|없음|—|-)?\s*$|^(?:none|없음)\b", re.I)
 EPIC_RE = re.compile(r"^- \*\*Epic\*\*: *(.*)$", re.M)
+WHAT_RE = re.compile(r"^- \*\*What\*\*: *\S", re.M)      # what the task is, for the user
+CHANGE_RE = re.compile(r"^- \*\*Change\*\*: *\S", re.M)  # how the game will be different
 KEY_RE = re.compile(r"^C(\d+)-(T\d+)$")  # a task across the game: cycle 16's T3 is C16-T3
 FOUNDATION = "Foundation"  # the epic for what no stage of play owns — the board's `foundation` names it otherwise
 BACKLOG = os.path.join("docs", "backlog.md")
@@ -370,6 +373,9 @@ def cmd_next(path):
     else:
         if ts and all(t[0] not in OPEN for t in ts.values()):
             print("no tasks left")
+    unsaid = [n for n, (mark, _t, a, b) in ts.items() if mark in OPEN and not (WHAT_RE.search(text[a:b]) and CHANGE_RE.search(text[a:b]))]
+    if unsaid:
+        print(f"tasks with no plain \"What\" or \"Change\" line: {' · '.join(unsaid)} — call `plan` again for them before the build (the dashboard shows those two)")
     bare = [n for n, (mark, _t, a, b) in ts.items() if mark != "-" and not epic_of(text[a:b])]
     if bare:
         print(f"tasks with no epic: {' · '.join(bare)} — `epic {','.join(bare)} \"<epic>\"` (" + " · ".join(epic_names()) + ")")
@@ -392,7 +398,25 @@ def cmd_task(path, num):
             print(ds[d][1])
 
 
+DONE_MAX = 120  # what changed, read on the dashboard at a glance
+
+
+def plain(line, most):
+    """What keeps a line the user reads from reading at a glance — empty when it reads."""
+    code = sorted(set(m.group(0) for m in CODE_WORDS.finditer(line)))
+    return ((["code names, files or section numbers (" + " · ".join(code) + ")"] if code else [])
+            + ([f"{len(line)} characters — one plain sentence, under {most}"] if len(line) > most else []))
+
+
 def cmd_mark(path, names, state, note):
+    if state == "done":
+        if "," in names:
+            sys.exit('one task per call, each with what changed: mark T1 done "<what changed, one plain line>"')
+        if not note.strip():
+            sys.exit('say what changed, for the user — one plain line: mark T1 done "<what the player meets now>" (the developer returns it as "Changed")')
+        bad = plain(" ".join(note.split()), DONE_MAX)
+        if bad:
+            sys.exit("Not marked — the dashboard shows this as what changed, read by the user:\n- " + "\n- ".join(bad))
     text = read(path)
     for num in names.split(","):
         ts = tasks(text)

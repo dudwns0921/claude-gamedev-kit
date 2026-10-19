@@ -26,7 +26,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" new <short-name> "<goal — in th
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" status          # one line per document
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" next            # stage · unanswered decisions · next wave's tasks
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" task T3         # one task and only the decisions it hangs on
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1,T3 done # blocked "<reason>" · open
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" mark T1 done "<what changed, one plain line>"   # blocked "<reason>" · open · doing
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" ask <stage> "<question — ① … ② … · recommended: ①>"   # any stage — Build · Play too
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer verbatim>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # a document from the time of auto mode: the user accepts what was decided in their place (`all`). To overturn: decide
@@ -190,7 +190,9 @@ a task if it belongs to this cycle (call `plan`), `later` if it does not.
 Pass three lines — `build T<n>`, the document path, and the task-extraction command (`python3 <absolute path to this skill's cycle.py> task T<n> --doc <document>`). **Do not copy out the task content.**
 Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
 In the same message that calls the wave, `mark T1,T3 doing` — the board and the dashboard show which tasks are being worked on now.
-Record returned results with `mark` (agents do not edit the document): done → `mark T1,T3 done`, blocked · failed → `mark T2 blocked "<reason>"`.
+Record returned results with `mark` (agents do not edit the document): done → `mark T1 done "<its Changed line>"`, one task per call — the dashboard shows that line
+as what changed, so it stays one plain sentence (the script refuses code names and long lines); blocked · failed → `mark T2 blocked "<reason>"`.
+`next` lists tasks without a "What" or a "Change" line — call `plan` again for them before the build.
 Do not fix a blocked task here yourself — ask the user whether to call `plan` again with "Why blocked" attached.
 **While `plan` is running, do not run `mark` · `ask` · `decide`** — it is rewriting the same document (and may set a blocked task back to open). Record them all after it returns.
 Before the first wave on a machine that has not run this project (a fresh clone), check that the engine executable written in CLAUDE.md exists — without it a whole wave comes back unverified.

@@ -48,6 +48,8 @@ Exactly as the user wrote it, numbered.
 
 ### [ ] T1. <what it does — as a verb>
 - **Epic**: the one stage of play where the player meets this problem, by its name in `board.flow` (`kit.config.json`) — or `Foundation` when no stage owns it.
+- **What**: the problem, for the user — one plain sentence in what the player meets, no file, code or constant names (the dashboard shows it).
+- **Change**: how the game will be different once it is fixed — one plain sentence, the same way.
 - **Problems**: #1, #4 (numbers from the original list)
 - **Kind**: bug | balance | design | presentation
 - **Cause**: confirmed facts. `file:line`. If a guess, start with "guess:".

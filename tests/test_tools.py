@@ -1634,13 +1634,18 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertNotIn("T1", out, "other tasks are not pulled out")
         self.assertNotIn("D2", out, "decisions it does not depend on are not pulled out")
 
-        run(CYCLE, root, "mark", "T1,T2", "done")
+        self.assertIn("one task per call", run(CYCLE, root, "mark", "T1,T2", "done", ok=False).stderr)
+        self.assertIn("say what changed", run(CYCLE, root, "mark", "T1", "done", ok=False).stderr, "what changed is what the dashboard shows")
+        self.assertIn("code names, files or section numbers (shop.gd)", run(CYCLE, root, "mark", "T1", "done", "built shop.gd", ok=False).stderr)
+        self.assertIn("one plain sentence, under 120", run(CYCLE, root, "mark", "T1", "done", "x" * 121, ok=False).stderr)
+        run(CYCLE, root, "mark", "T1", "done", "the shop screen opens from the counter")
+        run(CYCLE, root, "mark", "T2", "done", "each item shows its price")
         run(CYCLE, root, "mark", "T3", "blocked", "sign.gd is missing")
         self.assertIn("### [x] T2. Attach the prices", text())
         self.assertIn("### [!] T3. Hang the sign\n- **Where**: sign.gd\n- **Blocked**: sign.gd is missing\n\n## Order", text())
         self.assertIn("blocked task: T3", run(CYCLE, root, "next").stdout)
-        run(CYCLE, root, "mark", "T3", "done", "hung on sign.tscn")
-        self.assertIn("- **Blocked**: sign.gd is missing\n- **Done**: hung on sign.tscn\n\n## Order", text())
+        run(CYCLE, root, "mark", "T3", "done", "the sign hangs over the door")
+        self.assertIn("- **Blocked**: sign.gd is missing\n- **Done**: the sign hangs over the door\n\n## Order", text())
         self.assertIn("no tasks left", run(CYCLE, root, "next").stdout)
         self.assertEqual(run(CYCLE, root, "stage", "플레이").stdout.strip(), "stage: Play", "a stage named in Korean is written in English")
         out = run(CYCLE, root, "status").stdout.strip().split("\n")
@@ -2066,6 +2071,7 @@ none
         out = run(PLAYTEST, root, "task", "T2").stdout
         self.assertIn("\n\n## Summary\nWalking speed matters most.\n\n### [ ] T2. Fix the door", out)
         self.assertNotIn("T1", out)
+        self.assertIn("code names or files (walk_speed)", run(PLAYTEST, root, "mark", "T1", "done", "walk_speed set to 4.5", ok=False).stderr)
         run(PLAYTEST, root, "mark", "T1", "done", "set to 4.5")
         run(PLAYTEST, root, "mark", "T2", "blocked", "there is no door")
         text = open(doc, encoding="utf-8").read()
@@ -2187,7 +2193,8 @@ none
         self.assertIn("  T1. Draw [Title screen]", out)
         self.assertNotIn("no epic", out)
         self.assertIn("C1-T1 · stage: Goal", run(CYCLE, root, "task", "C1-T1").stdout, "a task across the game by its key")
-        run(CYCLE, root, "mark", "C1-T1", "done")
+        self.assertIn('tasks with no plain "What" or "Change" line: T1 · T2', run(CYCLE, root, "next").stdout, "the two lines the dashboard shows")
+        run(CYCLE, root, "mark", "C1-T1", "done", "the bow draws")
         self.assertIn("### [x] T1. Draw", text())
         self.assertIn("C9: no such cycle", run(CYCLE, root, "mark", "C9-T1", "done", ok=False).stderr)
 
@@ -2218,7 +2225,7 @@ none
         self.assertTrue(next(s for s in board["stages"] if s["name"] == "Foundation")["foundation"])
         self.assertEqual([(t["key"], t["epic"]) for t in board["cycles"][0]["list"]], [("C1-T1", "Title screen"), ("C1-T2", "Foundation")])
         detail = board["tasks"]["C1-T1"]
-        self.assertEqual((detail["title"], detail["mark"], detail["epic"], detail["fields"]), ("Draw", "x", 0, [{"k": "Where", "v": "a.gd"}]),
+        self.assertEqual((detail["title"], detail["mark"], detail["epic"], detail["fields"]), ("Draw", "x", 0, [{"k": "Where", "v": "a.gd"}, {"k": "Done", "v": "the bow draws"}]),
                          "each task by its key, with the lines under it (not its epic line) — the dashboard's task panel")
         self.assertEqual(board["tasks"]["first T1"]["fields"], [{"k": "Kind", "v": "bug"}], "a playtest's task too")
         chart = page(root, "index.html")

@@ -4,7 +4,8 @@
   python3 playtest.py status                    Per document: task counts and whether questions are still open
   python3 playtest.py next                      The tasks of the next wave to run
   python3 playtest.py task T3                   The summary and one task only (what the developer agent reads)
-  python3 playtest.py mark T1,T3 done           [x]. `blocked` is [!], `open` is [ ]
+  python3 playtest.py mark T1 done "<what changed>"   [x], with one `- **Done**:` line — what changed, for the user: one plain sentence (the dashboard shows it),
+                                                no code names, under 120 characters. `blocked` is [!], `open` is [ ]
   python3 playtest.py mark T2 blocked "<reason>"  One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 playtest.py mark T4 dropped "<why>"   [-] — not to be done any more: merged into another task, folded, its condition never came, the user said no.
                                                 It stops counting as an open problem on the board. The reason is required
@@ -31,6 +32,11 @@ WAVE_RE = re.compile(r"- *(?:Wave *(\d+)|(\d+) *차):(.*)")
 KIND_RE = re.compile(r"\*\*(?:Kind|분류)\*\*: *(\S+)")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
 EPIC_RE = re.compile(r"^- \*\*Epic\*\*: *(.*)$", re.M)
+DONE_MAX = 120  # what changed, read on the dashboard at a glance
+CODE_WORDS = re.compile(
+    r"\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\b[a-z][a-z0-9]*_[a-z0-9_]+\b"        # a constant's or a variable's name
+    r"|[\w-]+/[\w./-]*\.[A-Za-z]{1,5}\b"                                # a path
+    r"|\b[\w-]+\.(?:gd|cs|js|ts|py|tscn|tres|json|md|xlsx|unity|prefab)\b")  # a file
 FOUNDATION = "Foundation"  # the epic for what no stage of play owns — the board's `foundation` names it otherwise
 
 ROOT = ""
@@ -178,6 +184,14 @@ def main():
     else:
         if rest[1] not in BOX:
             sys.exit("the state is done · blocked · open · dropped")
+        if rest[1] == "done":
+            said = " ".join((rest[2] if len(rest) > 2 else "").split())
+            if "," in rest[0] or not said:
+                sys.exit('one task per call, each with what changed, for the user: mark T1 done "<what the player meets now — one plain line>"')
+            code = sorted(set(m.group(0) for m in CODE_WORDS.finditer(said)))
+            if code or len(said) > DONE_MAX:
+                sys.exit("Not marked — the dashboard shows this as what changed, read by the user:"
+                         + (f"\n- code names or files ({' · '.join(code)})" if code else "") + (f"\n- {len(said)} characters — one plain sentence, under {DONE_MAX}" if len(said) > DONE_MAX else ""))
         if rest[1] == "dropped" and not (rest[2:] and rest[2].strip()):
             sys.exit("say why it is dropped: mark T4 dropped \"<merged into T10 · folded · the condition never came · the user said no>\"")
         for num in rest[0].split(","):
