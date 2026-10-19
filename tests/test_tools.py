@@ -214,6 +214,18 @@ class Tools(unittest.TestCase):
                              "## Orphan markers — "):
                     self.assertIn(line, out)
 
+    def test_gdd_numbers(self):
+        """A value's number is read past a reference written before it (`D24 — 120 px`), and ranges and decimals still read."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("sync_report", os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertEqual(mod.gdd_numbers("D24 — 120 px from the bottom"), (120.0, 120.0), "a decision's number is not the value")
+        self.assertEqual(mod.gdd_numbers("20~25"), (20.0, 25.0))
+        self.assertEqual(mod.gdd_numbers("-1.5 m/s"), (-1.5, -1.5))
+        self.assertEqual(mod.gdd_numbers("4x"), (4.0, 4.0))
+        self.assertIsNone(mod.gdd_numbers("HUD.TOP"))
+
     def test_balance_table(self):
         for _engine, root, code, table, _rel in self.each():
             before = open(code, encoding="utf-8").read()
@@ -2079,6 +2091,14 @@ none
         self.assertIn("### [!] T2. Fix the door\n- **Kind**: bug\n- **Blocked**: there is no door\n\n## Order", text)
         self.assertIn("tasks [x] 1 · [ ] 0 · [!] 1", run(PLAYTEST, root, "status").stdout)
         self.assertIn("python3 playtest.py status", run(PLAYTEST, root, "lesson", "x", ok=False).stderr, "a lesson is one of the user's rules now — the feedback skill's `add`")
+
+        # two documents on the newest day: the script does not guess which is newer
+        twin = os.path.join(root, "docs/playtest/2026-10-08-b.md")
+        shutil.copy(doc, twin)
+        err = run(PLAYTEST, root, "mark", "T1", "done", ok=False).stderr
+        self.assertIn("--doc", err)
+        run(PLAYTEST, root, "mark", "T1", "done", "set to 4.5", "--doc", "docs/playtest/2026-10-08-b.md")
+        os.remove(twin)
 
         # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English
         old = os.path.join(root, "docs/playtest/2026-10-09-b.md")

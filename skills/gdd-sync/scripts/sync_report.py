@@ -33,7 +33,7 @@ DEFAULTS = {
 
 ROW_RE = re.compile(r"^\|\s*([A-Z]+(?:\.[A-Z0-9_]+)+)\s*\|(.*)$")
 MARK_RE = re.compile(r"GDD:\s*([A-Z]+(?:\.[A-Z0-9_]+)+)")
-NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+NUM_RE = re.compile(r"(?<![A-Z_\d.])-?\d+(?:\.\d+)?")   # not the digits of a reference such as `D24`
 
 # The document's words: written in English, read in both forms.
 APPENDIX = ("## Appendix A", "## 부록 A")   # with the default config both headings are found
