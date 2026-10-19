@@ -42,7 +42,7 @@ Two kinds of page, written next to each other in `docs/board/`:
 The data the dashboard draws from (`board.json`) also carries each stage's parts and its epic (its tasks across cycles and playtests, their counts, its backlog lines), the backlog (`docs/backlog.md`),
 every cycle's tasks (with their game-wide key `C16-T3`, their epic, what was written under each, the stages each went into and the assets each names),
 every task of every cycle and playtest by its key (`tasks` — the lines under it and the decisions it names: the dashboard's task panel),
-the cycle's assets with what each is, the stages it worked in and the screens it shot — the dashboard's Stages and Cycles tabs —
+the cycle's assets with what each is, the stages it worked in and the screens it shot — the dashboard's Epics and Cycle tabs —
 and, for each asset, where it is used: the stage it was placed in, and the code files that name it (by file name, or by its name as a string or a path; the files the gdd-sync skill reads).
 - `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, the cycle tasks that touched it, and its backlog.
 
