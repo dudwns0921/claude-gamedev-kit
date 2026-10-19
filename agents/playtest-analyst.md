@@ -47,6 +47,7 @@ Exactly as the user wrote it, numbered.
 ## Tasks
 
 ### [ ] T1. <what it does — as a verb>
+- **Epic**: the one stage of play where the player meets this problem, by its name in `board.flow` (`kit.config.json`) — or `Foundation` when no stage owns it.
 - **Problems**: #1, #4 (numbers from the original list)
 - **Kind**: bug | balance | design | presentation
 - **Cause**: confirmed facts. `file:line`. If a guess, start with "guess:".

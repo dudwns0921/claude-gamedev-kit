@@ -8,6 +8,8 @@
   python3 playtest.py mark T2 blocked "<reason>"  One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 playtest.py mark T4 dropped "<why>"   [-] — not to be done any more: merged into another task, folded, its condition never came, the user said no.
                                                 It stops counting as an open problem on the board. The reason is required
+  python3 playtest.py epic T3,T4 "<epic>"       The epic a task belongs to — one stage of play (board.flow in kit.config.json, a part of its name is enough),
+                                                or Foundation for what no stage owns. One `- **Epic**:` line under the task — the board counts the task there
   python3 playtest.py open                      Every task still [ ] or [!] in every document, oldest first — what a playtest left behind
 
 The document is the newest one (last by name). For another, `--doc <path>`.
@@ -28,6 +30,8 @@ NONE = ("none", "없음")
 WAVE_RE = re.compile(r"- *(?:Wave *(\d+)|(\d+) *차):(.*)")
 KIND_RE = re.compile(r"\*\*(?:Kind|분류)\*\*: *(\S+)")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
+EPIC_RE = re.compile(r"^- \*\*Epic\*\*: *(.*)$", re.M)
+FOUNDATION = "Foundation"  # the epic for what no stage of play owns — the board's `foundation` names it otherwise
 
 ROOT = ""
 
@@ -78,6 +82,23 @@ def tasks(text):
     return found
 
 
+def epic_names():
+    """The epics a task can belong to: the stages of play (board.flow), then Foundation."""
+    try:
+        cfg = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("board", {}) or {}
+    except (OSError, ValueError):
+        cfg = {}
+    return [f["name"] for f in cfg.get("flow") or [] if f.get("name")] + [cfg.get("foundation") or FOUNDATION]
+
+
+def resolve_epic(said):
+    said, names = " ".join(said.split()), epic_names()
+    hit = [n for n in names if n.casefold() == said.casefold()] or [n for n in names if said and said.casefold() in n.casefold()]
+    if len(hit) != 1:
+        sys.exit(f"{said!r}: " + ("names more than one epic" if hit else "no such epic") + " — " + " · ".join(names))
+    return hit[0]
+
+
 def questions(text):
     """What the document asks the user — empty when the section is absent or says none."""
     ask = section(text, "Questions for the user")
@@ -101,7 +122,7 @@ def main():
             opts[flag] = args[i + 1]
             del args[i:i + 2]
     cmd, rest = (args[0] if args else ""), args[1:]
-    need = {"status": (0,), "open": (0,), "next": (0,), "task": (1,), "mark": (2, 3)}
+    need = {"status": (0,), "open": (0,), "next": (0,), "task": (1,), "mark": (2, 3), "epic": (2,)}
     if cmd not in need or len(rest) not in need[cmd]:
         sys.exit(__doc__)
     global ROOT
@@ -127,12 +148,33 @@ def main():
                 print(f"next wave: {m.group(1) or m.group(2)}")
                 for t in left:
                     kind = KIND_RE.search(text[ts[t][2]:ts[t][3]])
-                    print(f"  {t}. {ts[t][1]}" + (f" ({kind.group(1)})" if kind else ""))
+                    epic = EPIC_RE.search(text[ts[t][2]:ts[t][3]])
+                    print(f"  {t}. {ts[t][1]}" + (f" ({kind.group(1)})" if kind else "") + (f" [{epic.group(1).strip()}]" if epic else ""))
                 break
+        bare = [n for n, (m, _t, a, b) in ts.items() if m != "-" and not EPIC_RE.search(text[a:b])]
+        if bare:
+            print(f"tasks with no epic: {' · '.join(bare)} — `epic {','.join(bare)} \"<epic>\"` (" + " · ".join(epic_names()) + ")")
     elif cmd == "task":
         if rest[0] not in ts:
             sys.exit(f"{rest[0]}: no such task — " + " · ".join(ts))
         print(f"{os.path.relpath(path, ROOT)}\n\n## Summary\n{section(text, 'Summary')}\n\n{text[ts[rest[0]][2]:ts[rest[0]][3]].rstrip()}")
+    elif cmd == "epic":
+        epic = resolve_epic(rest[1])
+        for num in rest[0].split(","):
+            ts = tasks(text)
+            if num not in ts:
+                sys.exit(f"{num}: no such task — " + " · ".join(ts))
+            a, b = ts[num][2], ts[num][3]
+            block = text[a:b]
+            if EPIC_RE.search(block):
+                block = EPIC_RE.sub(f"- **Epic**: {epic}", block, count=1)
+            else:
+                cut = block.find("\n") + 1 or len(block)
+                block = block[:cut] + ("" if block[cut - 1:cut] == "\n" else "\n") + f"- **Epic**: {epic}\n" + block[cut:]
+            text = text[:a] + block + text[b:]
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"{rest[0].replace(',', ' · ')} → {epic}")
     else:
         if rest[1] not in BOX:
             sys.exit("the state is done · blocked · open · dropped")

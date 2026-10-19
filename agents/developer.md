@@ -43,6 +43,8 @@ Documents written before the kit wrote English use the Korean words for all of t
 ## Tasks
 
 ### [ ] T1. <what it does — as a verb>
+- **Epic**: the one stage of play this task is for, by its name in `board.flow` (`kit.config.json`) — or `Foundation` when no stage owns it (save, input, shared UI).
+  One, even when it reaches into others; those show through its GDD ids.
 - **Where**: file and function. What changes and how — enough that the implementer does not have to redo the design.
 - **Spec · Design**: which lines of the "Spec" and "Design" sections this builds. Omit if none.
 - **Do not touch**: things one would be tempted to fix along the way but must not, and why. Omit if none.

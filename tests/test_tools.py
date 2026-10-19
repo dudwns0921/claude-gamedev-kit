@@ -705,7 +705,7 @@ class Tools(unittest.TestCase):
         run(CYCLE, root, "shot", "rules", "docs/capture/cycle01/rules.png")
         text = open(doc, encoding="utf-8").read()
         self.assertEqual(text.count("- rules — `docs/capture/cycle01/rules.png`"), 1, "a stage shot again replaces its line")
-        self.assertIn("- Next: a boss, some day", text, "what follows the screens stays")
+        self.assertIn("- [ ] B1. a boss, some day (from Cycle 01 · ", open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read(), "put off goes in the backlog")
         run(BOARD, root)
         chart = page(root, "index.html")
         self.assertIn("<h2>pick coins up</h2>", chart, "the one line heads Now")
@@ -786,6 +786,7 @@ class Tools(unittest.TestCase):
             "### [!] T2. 소리를 낸다\n- **GDD**: BAL.COIN.VALUE\n- **막힘**: coin_ping 이 없다\n\n## 순서\n- 1차 (끝): T1\n- 2차: T2 — T1 뒤\n\n## 플레이\n")
         open(os.path.join(old, "docs/playtest/first.md"), "w", encoding="utf-8").write(
             "# 플레이테스트 — first\n\n## 요약\n\n## 작업\n\n### [ ] T1. 동전이 붙는다\n- **분류**: 버그\n- **GDD**: RULE.COIN.PICKUP\n\n## 순서\n- 1차: T1\n")
+        shutil.copy(os.path.join(root, "docs/backlog.md"), os.path.join(old, "docs/backlog.md"))  # the backlog came after the Korean words
         self.assertEqual(shape(old), shape(root), "a document in the old words draws the same board as one in the new")
         chart, stage = page(old, "index.html"), page(old, "stage-1.html")
         self.assertIn("<title>게임 — board</title>", chart)
@@ -1273,7 +1274,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn(f"1 answer(s) from the dashboard were taken but never settled ({q['key']})", notice(), "taken, then left — the next session is told")
 
         self.assertIn(f"the card {q['key']} shows it waiting", run(CYCLE, root, "later", "find what people count as success", "--key", q["key"]).stdout)
-        self.assertIn(f"- Next: find what people count as success (board: {q['key']})", open(os.path.join(root, "docs/cycle/01-day.md"), encoding="utf-8").read())
+        self.assertIn(f"- [ ] B1. find what people count as success (board: {q['key']}) (from Cycle 01 · ", open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read())
         self.assertIn("a b: a review key", run(CYCLE, root, "later", "x", "--key", "a b", ok=False).stderr)
         run(BOARD, root)
         item = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["key"] == q["key"])
@@ -1622,7 +1623,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("open decisions 2", out)
         self.assertIn("next wave: 1\n", out)
         self.assertIn("T2. Attach the prices — waiting on D1", out)
-        self.assertNotIn("T3", out)
+        self.assertNotIn("  T3.", out)
         run(CYCLE, root, "decide", "D1", "고정으로 가자")
         self.assertRegex(text(), r"- \[x\] D1\. How the price moves — ① fixed ② floating · recommended: ① \(Spec\) → 고정으로 가자 \(\d{4}-\d\d-\d\d\)")
         self.assertNotIn("waiting on D1", run(CYCLE, root, "next").stdout)
@@ -1668,11 +1669,12 @@ if sys.argv[1:3] == ["run", "start"]:
 
         # there is no closing stage — a cycle standing at Play becomes Closed when the next cycle is made, and what is left · deferred is reported
         run(CYCLE, root, "later", "간판에  불을 켜는 건 다음에")
-        self.assertIn("## Play\n- Next: 간판에 불을 켜는 건 다음에\n", text())
+        self.assertIn("- [ ] B1. 간판에 불을 켜는 건 다음에 (from Cycle 02 · ", open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read())
         out = run(CYCLE, root, "new", "auto", "알아서").stdout
         self.assertIn("closed: docs/cycle/02-shop.md", out)
         self.assertIn("left in the previous cycle: open decisions 1", out)
-        self.assertIn("deferred: 간판에 불을 켜는 건 다음에", out)
+        self.assertIn("backlog: 1 waiting", out)
+        self.assertIn("  B1. 간판에 불을 켜는 건 다음에\n", out, "the next cycle's start lists the backlog")
         self.assertIn("carried over, not picked up: art style still to fill in (", out)
         self.assertIn("Stage: Closed", text())
 
@@ -1762,7 +1764,7 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, old, "mark", "T3", "blocked", "sign.gd 가 없다")
         self.assertIn("- **대기**: D2\n- **Blocked**: sign.gd 가 없다\n\n## 순서", otext())
         run(CYCLE, old, "later", "문도 단다")
-        self.assertIn("- 다음에: 간판에 불을 켠다\n- Next: 문도 단다\n", otext())
+        self.assertIn("- 다음에: 간판에 불을 켠다\n", otext(), "an older document's own deferred line stays")
         self.assertEqual(run(CYCLE, old, "stage", "Play").stdout.strip(), "stage: Play")
         self.assertIn("단계: Play\n", otext(), "the head keeps its own label; the stage written is English")
         at = "Play"
@@ -1772,7 +1774,8 @@ if sys.argv[1:3] == ["run", "start"]:
             out = run(CYCLE, old, "new", "next", "다음").stdout
             os.remove(os.path.join(old, "docs/cycle/02-next.md"))
             self.assertIn("left in the previous cycle: [ ] 1 · [!] 1 · open decisions 2", out)
-            self.assertIn("deferred: 간판에 불을 켠다\ndeferred: 문도 단다\n", out)
+            self.assertIn("deferred: 간판에 불을 켠다\n", out)
+            self.assertIn("  B1. 문도 단다\n", out)
             if stage == "끝":
                 self.assertNotIn("01-shop.md", out.split("\n", 1)[1], "a cycle already at 끝 is neither closed again nor reported as still open")
                 self.assertIn("단계: 끝\n", otext())
@@ -2160,6 +2163,75 @@ none
         self.assertEqual(run_id()[0], a1, "the salt is kept — the id holds across runs")
         os.remove(os.path.join(home, ".game-salt"))
         self.assertNotEqual(run_id()[0], a1, "and without that salt the name gives another id — a guessed name cannot be checked")
+
+    def test_epics(self):
+        """The game laid out as epics: each stage of play (and Foundation) holds the tasks that name it, across cycles and playtests;
+        what is put off waits in the backlog until a cycle takes it or the user drops it."""
+        root = tempfile.mkdtemp(prefix="kit-epics-")
+        self.addCleanup(shutil.rmtree, root, True)
+        json.dump({"board": {"flow": [{"name": "Title screen"}, {"name": "Draw the bow"}]}}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "bow", "the bow")
+        doc = os.path.join(root, "docs/cycle/01-bow.md")
+        text = lambda: open(doc, encoding="utf-8").read()
+        filled = text()
+        open(doc, "w", encoding="utf-8").write(filled.replace("## Tasks\n", "## Tasks\n\n### [ ] T1. Draw\n- **Where**: a.gd\n\n### [ ] T2. Save\n- **Where**: b.gd\n")
+                                               .replace("## Order\n", "## Order\n- Wave 1: T1, T2\n"))
+        self.assertIn("tasks with no epic: T1 · T2", run(CYCLE, root, "next").stdout, "a task without an epic is pointed out")
+        self.assertIn("no such epic — Title screen · Draw the bow · Foundation", run(CYCLE, root, "epic", "T1", "the shop", ok=False).stderr)
+        self.assertIn("C1-T1 → Draw the bow", run(CYCLE, root, "epic", "T1", "bow").stdout, "a part of the name is enough")
+        run(CYCLE, root, "epic", "C1-T2", "foundation")
+        run(CYCLE, root, "epic", "T1", "Title")
+        self.assertIn("### [ ] T1. Draw\n- **Epic**: Title screen\n- **Where**: a.gd\n", text(), "set again, the line is replaced")
+        self.assertIn("### [ ] T2. Save\n- **Epic**: Foundation\n", text())
+        out = run(CYCLE, root, "next").stdout
+        self.assertIn("  T1. Draw [Title screen]", out)
+        self.assertNotIn("no epic", out)
+        self.assertIn("C1-T1 · stage: Goal", run(CYCLE, root, "task", "C1-T1").stdout, "a task across the game by its key")
+        run(CYCLE, root, "mark", "C1-T1", "done")
+        self.assertIn("### [x] T1. Draw", text())
+        self.assertIn("C9: no such cycle", run(CYCLE, root, "mark", "C9-T1", "done", ok=False).stderr)
+
+        self.assertIn("B1: in the backlog", run(CYCLE, root, "later", "a boss, some day", "--epic", "bow").stdout)
+        self.assertIn("no epic yet", run(CYCLE, root, "later", "music").stdout)
+        self.assertIn("--epic goes with later", run(CYCLE, root, "next", "--epic", "bow", ok=False).stderr)
+        run(CYCLE, root, "backlog", "epic", "B2", "title")
+        out = run(CYCLE, root, "backlog").stdout
+        self.assertIn("Title screen — 1\n  B2. music\nDraw the bow — 1\n  B1. a boss, some day\n", out, "by epic, in play order")
+        out = run(CYCLE, root, "epics").stdout
+        self.assertIn("Title screen — tasks 1/1 done · backlog 1", out)
+        self.assertIn("Foundation — tasks 0/1 done · open 1", out)
+
+        os.makedirs(os.path.join(root, "docs/playtest"))
+        open(os.path.join(root, "docs/playtest/first.md"), "w", encoding="utf-8").write(
+            "# Playtest — first\n\n## Summary\n\n## Tasks\n\n### [ ] T1. The string sticks\n- **Kind**: bug\n\n## Order\n- Wave 1: T1\n")
+        self.assertIn("tasks with no epic: T1", run(PLAYTEST, root, "next").stdout)
+        run(PLAYTEST, root, "epic", "T1", "bow")
+        self.assertIn("### [ ] T1. The string sticks\n- **Epic**: Draw the bow\n- **Kind**: bug", open(os.path.join(root, "docs/playtest/first.md"), encoding="utf-8").read())
+
+        run(BOARD, root)
+        page = lambda root, name: open(os.path.join(root, "docs/board", name), encoding="utf-8").read()
+        board = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]
+        epic = {s["name"]: s["epic"] for s in board["stages"]}
+        self.assertEqual(epic["Draw the bow"]["counts"], {"done": 0, "doing": 0, "open": 1, "blocked": 0}, "the playtest task counts in its epic")
+        self.assertEqual([t["key"] for t in epic["Title screen"]["tasks"]], ["C1-T1"])
+        self.assertEqual(epic["Title screen"]["backlog"], ["B2"])
+        self.assertTrue(next(s for s in board["stages"] if s["name"] == "Foundation")["foundation"])
+        self.assertEqual([(t["key"], t["epic"]) for t in board["cycles"][0]["list"]], [("C1-T1", "Title screen"), ("C1-T2", "Foundation")])
+        chart = page(root, "index.html")
+        self.assertIn("Under every stage", chart, "Foundation is shown apart from the order of play")
+        self.assertIn('<span class="lab">Backlog</span><b>2</b>', chart)
+        self.assertIn("a boss, some day", page(root, "stage-2.html"), "a stage page lists its backlog")
+
+        out = run(CYCLE, root, "new", "next", "the next one").stdout
+        self.assertIn("backlog: 2 waiting", out)
+        self.assertIn("  B1. a boss, some day [Draw the bow]", out)
+        self.assertIn("B1 → Cycle 02: a boss, some day", run(CYCLE, root, "backlog", "take", "B1").stdout)
+        run(CYCLE, root, "backlog", "drop", "B2", "not needed")
+        self.assertIn("no longer waiting", run(CYCLE, root, "backlog", "take", "B1", ok=False).stderr)
+        self.assertEqual(run(CYCLE, root, "backlog").stdout.strip(), "the backlog is empty")
+        backlog = open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read()
+        self.assertRegex(backlog, r"- \[>\] B1\. a boss, some day — epic: Draw the bow \(from Cycle 01 · \d{4}-\d\d-\d\d\) → Cycle 02 \(")
+        self.assertIn("- [-] B2. music — epic: Title screen (from Cycle 01 · ", backlog)
 
     def test_cycle_skip(self):
         """A goal that does not touch an owner's part skips that agent: the section says why, status shows it, and a section that ran cannot be skipped."""

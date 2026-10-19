@@ -34,13 +34,16 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" drop D4,D12 "<why>"         # the
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" line "<the goal in one line>"                    # what the board's "Now" shows
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" shot "<stage of play>" <picture>                 # that stage's screen as it stands now — the board's card shows it
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>"                      # something put off — shown when the next cycle starts
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>" [--epic <epic>]       # something put off — into the backlog (docs/backlog.md), kept until taken or dropped
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" backlog                                         # what waits, by epic · `backlog take B2,B5` · `backlog drop B3 "<why>"` · `backlog epic B3 "<epic>"`
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" epic T3,T4 "<epic>"                              # the stage of play a task is for (or Foundation) — the developer writes it at Plan
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" epics                                           # per epic: its tasks across every cycle and playtest, and its backlog
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry "<what the next session must know>"       # work in hand that the document does not hold — `next` shows it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry done                                      # picked up — not shown again
 python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped us → how to avoid it>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
-These act on the newest document (for another, `--doc <path>`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
+These act on the newest document (for another, `--doc <path>`, or name a task across the game as `C16-T3`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
 
 **Clear the context at the breaks — in the same session.** All state is in the document, so a cleared session continues with one `next`. There are three places to break —
 where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
@@ -60,6 +63,13 @@ this skill collects and asks them, and writes the answers in the document's "Dec
 | `/gamedev-kit:cycle <goal>` | New cycle. Runs through spec · design · plan, then asks the decisions |
 | `/gamedev-kit:cycle next` | Next stage of the newest cycle |
 | `/gamedev-kit:cycle status` | Per cycle: current stage · remaining tasks · unanswered decisions |
+
+## How the work is laid out
+
+The game is the project. Its **epics** are the stages of play (`board.flow` — the board skill writes them once) and one more, **Foundation**, for what no stage owns (save, input, shared UI).
+A **cycle** is a sprint: a goal, the tasks that build it, a Play that closes it. Every task belongs to one epic — its `- **Epic**:` line, which the developer writes at Plan
+and the analyst writes for a playtest's tasks; one that comes back without it is given one with `epic` before the build. A task is `T3` inside its cycle and `C16-T3` across the game.
+The **backlog** (`docs/backlog.md`) holds what is put off, each line with its epic, until a cycle takes it or the user drops it. The board counts each epic's tasks and backlog.
 
 ## Stages
 
@@ -87,8 +97,9 @@ unanswered decisions, and what the user put off (`later`). Relay those lines as 
   → the playtest skill's `mark T4 dropped "<what the line says>"`.
 - **The rest is the user's, as decisions** (`ask Spec …`, one per group, not one per line): the playtest tasks still worth doing — ① into this goal ② a later cycle ③ dropped
   (`mark … dropped`); the empty slots — ① made in this cycle ② kept on the placeholder (`have <slot> "placeholder (kept — Dn)"`) ③ not needed (`have <slot> "dropped — <why>"`).
-  What the user put off (`deferred:` lines) is in the same decision as the playtest tasks: one still for later is written again with `later` in the new document —
-  `new` reads only the cycle it closes, so a line not carried forward is gone after one cycle. To-dos not done and checks never answered come with the rest.
+  What waits in the backlog (`backlog:` lines) is in the same decision as the playtest tasks: ① into this goal → `backlog take B2` ② still later → nothing to do, it stays
+  ③ not needed → `backlog drop B3 "<why>"`. (`deferred:` lines are from a document written before the backlog — one still for later goes in with `later`.)
+  To-dos not done and checks never answered come with the rest.
   Put the lines in `--detail`. A condition a task waits on ("only if fps drops") is checked, not asked, when it can be.
 
 ### 2. Spec · 3. Design · 4. Plan
@@ -229,7 +240,7 @@ Each check by playing the user answers (in the chat or on the dashboard) is reco
 A cycle the next one closes with checks never answered is written "Not played" and stays so on the board until they are (`checked … --doc <that document>`); `new` lists them.
 If given screenshots, you may call the designer with `review` (without a model — Opus — in either mode; checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
-When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>"` — `new` shows it when the next cycle starts.
+When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>" --epic <epic>` — it waits in the backlog, and `new` lists it as each cycle starts.
 **Shipping is not a stage.** A build goes out when the user asks for one, usually after several cycles — do not ask about it or offer it here.
 
 ## What was learned — when it happens

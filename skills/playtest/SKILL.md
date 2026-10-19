@@ -29,6 +29,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" next            # questions to
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" task T3         # the summary and one task only
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" mark T1,T3 done # blocked "<reason>" · open · dropped "<why>"
 python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" open            # every task still open, in every document
+python3 "${CLAUDE_SKILL_DIR}/scripts/playtest.py" epic T3,T4 "<epic>"   # the stage of play a task is for (or Foundation) — `next` lists tasks the analyst left without one
 python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped us → how to avoid it>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
