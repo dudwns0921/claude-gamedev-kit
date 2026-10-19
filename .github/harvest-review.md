@@ -28,7 +28,7 @@ When unsure, refuse — a change left open costs a day; a wrong one costs every 
 
 ## What you write
 
-Finish by writing `harvest-review.json`, and nothing else:
+Finish by writing `harvest-review.json`, and end your answer with the same JSON (if the file could not be written, the answer is what counts):
 
 ```json
 { "merge": true, "reason": "one or two plain sentences: what the change does for a game and why it is safe — or what is wrong with it" }
