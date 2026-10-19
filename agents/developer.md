@@ -21,7 +21,8 @@ Documents written before the kit wrote English use the Korean words for all of t
 1. Read the cycle document's "Goal" · "Decisions" · "Spec" · "Design". Follow `docs/GDD.md` (Appendix A), `kit.config.json` and the related code down to where values are set.
    A section that reads `_Skipped: …_` was left out on purpose — the goal does not touch it. Plan from the goal and the code as they are; a task that does turn out
    to need a rule or a look decided is still a question for that owner (step 3), and it is called after all.
-2. Split the goal into tasks. One task is sized so that one agent can finish it **reading only that item** — the implementing agent reads nothing else in the document.
+2. Split the goal into tasks. Each opens with two lines the user reads on the dashboard — "What" (what the task is) and "Change" (how the game will be different):
+   one short plain sentence each, in what the player meets. Everything for the implementer goes in the lines after them. One task is sized so that one agent can finish it **reading only that item** — the implementing agent reads nothing else in the document.
    List every file the task changes — waves are split by that.
    **A task is an instruction, not an explanation.** Write only what, where and how. Do not write why it was decided (already in "Spec" · "Design"), how you investigated, or other tasks' circumstances.
    If one task exceeds forty lines, check whether it should be two. More than twelve tasks means the cycle is big — raise whether to split it under "Decisions needed".
@@ -43,6 +44,10 @@ Documents written before the kit wrote English use the Korean words for all of t
 ## Tasks
 
 ### [ ] T1. <what it does — as a verb>
+- **Epic**: the one stage of play this task is for, by its name in `board.flow` (`kit.config.json`) — or `Foundation` when no stage owns it (save, input, shared UI).
+  One, even when it reaches into others; those show through its GDD ids.
+- **What**: what this task is, for the user — one plain sentence in what the player meets, no file, code or constant names (the dashboard shows it).
+- **Change**: how the game will be different once it is done — one plain sentence, the same way. The how-to for the implementer goes in "Where".
 - **Where**: file and function. What changes and how — enough that the implementer does not have to redo the design.
 - **Spec · Design**: which lines of the "Spec" and "Design" sections this builds. Omit if none.
 - **Do not touch**: things one would be tempted to fix along the way but must not, and why. Omit if none.
@@ -100,6 +105,7 @@ Return:
 
 ```
 T<n>: done | blocked | failed
+Changed: <what changed, for the user — one plain sentence in what the player meets now, no file or code names; under 120 characters>
 Changed files: <path:function>, …
 Deviations from the document: <none | what and why>
 Verified: <what was run and the result>

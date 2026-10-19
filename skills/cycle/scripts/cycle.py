@@ -6,7 +6,8 @@
   python3 cycle.py status                       Per document: stage · task counts · open decisions
   python3 cycle.py next                         Current stage, open decisions, the tasks of the next wave to run
   python3 cycle.py task T3                      One task and only the decisions it depends on (what the developer agent reads)
-  python3 cycle.py mark T1,T3 done              [x]. `blocked` is [!], `open` is [ ]
+  python3 cycle.py mark T1 done "<what changed>"   [x], with one `- **Done**:` line — what changed, for the user: one plain sentence (the dashboard shows it),
+                                                no code names, under 120 characters. `blocked` is [!], `open` is [ ], `doing` is [>] — the task an agent is on now (the board shows it)
   python3 cycle.py mark T2 blocked "<reason>"   One `- **Blocked**:` line under the task. Text after done goes in `- **Done**:`
   python3 cycle.py mark T4 dropped "<why>"      [-] — not to be done (merged into another, overtaken, the user said no). The reason is required
   python3 cycle.py ask <stage> "<question — ① … ② … · recommended: ①>"   Adds a decision and prints its number (D4). Any stage: Spec · Design · Plan · Build · Play, or Playtest · Asset
@@ -35,8 +36,18 @@
   python3 cycle.py stage <stage>                Changes `Stage:` in the head (Goal · Spec · Design · Plan · Build · Play)
   python3 cycle.py skip Spec|Design "<why, in a line>"   The goal does not touch that section's owner (no rule or number changes · nothing seen or heard changes):
                                                 its agent is not called, and the section says so. `next` and `status` show it
-  python3 cycle.py later "<in the user's own words>" [--key <review key>]   One `- Next:` line in the "Play" section for something deferred. `new` shows it when the next cycle is made.
-                                                With --key (an answer from the dashboard that is work for later), the line names the card — the board shows it waiting, not in hand
+  python3 cycle.py epic T3,T4 "<epic>"          The epic a task belongs to — one stage of play (board.flow in kit.config.json, a part of its name is enough),
+                                                or Foundation for what no stage owns (save, input, shared UI). One `- **Epic**:` line under the task
+  python3 cycle.py epics                        Per epic: the tasks of every cycle and playtest in it (done · in hand · open · blocked) and what waits in the backlog;
+                                                then the tasks with no epic yet
+  python3 cycle.py later "<in the user's own words>" [--epic <epic>] [--key <review key>]   Puts it in the backlog (docs/backlog.md) — it stays there until a cycle takes it
+                                                or the user drops it. With --key (an answer from the dashboard that is work for later), the line names the card — the board shows it waiting, not in hand
+  python3 cycle.py backlog                      What waits in the backlog, by epic
+  python3 cycle.py backlog take B2,B5           Taken into the newest cycle — [>] with its number. Its work is planned there as tasks
+  python3 cycle.py backlog drop B3 "<why>"      Not to be done after all — [-] with the reason
+  python3 cycle.py backlog epic B3 "<epic>"     The epic it belongs to
+
+Tasks are named T3 inside their cycle, and C16-T3 across the game — every command that takes a task takes either (C16-T3 picks cycle 16's document).
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
   python3 cycle.py checked "<the check, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves,
                                                 and the cycle counts as played. A cycle closed with checks never answered stays "not played" on the board
@@ -80,7 +91,8 @@ Started: {date} · Commit {commit} · Stage: Goal
 
 ## Play
 """
-BOX = {"done": "x", "blocked": "!", "open": " ", "dropped": "-"}
+BOX = {"done": "x", "blocked": "!", "open": " ", "dropped": "-", "doing": ">"}
+OPEN = " >"  # a task not finished: not started, or one an agent is on
 NOTE = {"done": "Done", "blocked": "Blocked", "dropped": "Dropped"}
 # The words of the document: written in English, read in English and in the Korean of older documents.
 KO = {"Goal": "목표", "Decisions": "결정", "Spec": "기획", "Design": "디자인", "Plan": "계획", "Build": "구현", "Tasks": "작업",
@@ -111,6 +123,16 @@ PLAYTESTS = os.path.join("docs", "playtest")
 PLAYTEST_TASK = re.compile(r"^### \[([ !])\] (T\d+)\.(.*)$", re.M)
 NEEDS_RE = re.compile(r"^### (?:Assets needed|필요한 에셋)[ \t]*$", re.M)
 HAVE_EMPTY = re.compile(r"^(?:none|없음|—|-)?\s*$|^(?:none|없음)\b", re.I)
+EPIC_RE = re.compile(r"^- \*\*Epic\*\*: *(.*)$", re.M)
+WHAT_RE = re.compile(r"^- \*\*What\*\*: *\S", re.M)      # what the task is, for the user
+CHANGE_RE = re.compile(r"^- \*\*Change\*\*: *\S", re.M)  # how the game will be different
+KEY_RE = re.compile(r"^C(\d+)-(T\d+)$")  # a task across the game: cycle 16's T3 is C16-T3
+FOUNDATION = "Foundation"  # the epic for what no stage of play owns — the board's `foundation` names it otherwise
+BACKLOG = os.path.join("docs", "backlog.md")
+BACKLOG_HEAD = ("# Backlog\n\nWhat is put off for a later cycle — one line each, kept until a cycle takes it (`[>]`) or the user drops it (`[-]`).\n"
+                "Written by `cycle.py later` · `backlog` — do not edit by hand.\n\n")
+BACKLOG_RE = re.compile(r"^- \[(.)\] (B\d+)\. (.*)$", re.M)
+BL_EPIC = re.compile(r" — epic: ([^()]+?)(?= \(|$)")
 
 ROOT = ""
 
@@ -215,12 +237,59 @@ def leftovers():
     return tests, [n for n in empty if n not in made], [n for n in empty if n in made]
 
 
+def board_cfg():
+    try:
+        return json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("board", {}) or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def epic_names():
+    """The epics a task can belong to: the stages of play (board.flow), then Foundation."""
+    cfg = board_cfg()
+    return [f["name"] for f in cfg.get("flow") or [] if f.get("name")] + [cfg.get("foundation") or FOUNDATION]
+
+
+def resolve_epic(said):
+    """An epic by its name, or a part of it that names only one."""
+    said, names = " ".join(said.split()), epic_names()
+    hit = [n for n in names if n.casefold() == said.casefold()] or [n for n in names if said and said.casefold() in n.casefold()]
+    if len(hit) != 1:
+        sys.exit(f"{said!r}: " + ("names more than one epic" if hit else "no such epic") + " — " + " · ".join(names)
+                 + ("" if board_cfg().get("flow") else "  (no stages of play yet: the board skill writes board.flow)"))
+    return hit[0]
+
+
+def epic_of(block):
+    m = EPIC_RE.search(block)
+    return m.group(1).strip() if m else ""
+
+
+def doc_of(num):
+    """The document of a cycle by its number."""
+    hit = [p for p in docs() if int(os.path.basename(p).split("-")[0]) == int(num)]
+    return hit[0] if hit else sys.exit(f"C{num}: no such cycle — " + " · ".join("C%d" % int(os.path.basename(p).split("-")[0]) for p in docs()))
+
+
+def keyed(path, names):
+    """Task names given as T3 (in the document picked) or C16-T3 (in cycle 16's) → (the document, [T3, …]). One document per call."""
+    found, out = set(), []
+    for n in names.split(","):
+        m = KEY_RE.match(n.strip())
+        found.add(doc_of(m.group(1)) if m else path)
+        out.append(m.group(2) if m else n.strip())
+    if len(found) > 1:
+        sys.exit("tasks of one cycle per call")
+    return found.pop(), ",".join(out)
+
+
+def cycle_no(path):
+    return int(os.path.basename(path).split("-")[0])
+
+
 def asset_files():
     """Names of the files in the game's asset folder (the board's `assets`, without its work folder `gen`) — a slot whose file is there is made."""
-    try:
-        cfg = json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("board", {})
-    except (OSError, ValueError):
-        cfg = {}
+    cfg = board_cfg()
     adir, gen = os.path.join(ROOT, cfg.get("assets", "assets")), os.path.abspath(os.path.join(ROOT, cfg.get("gen", "assets/_gen")))
     return {n.split(".")[0] for base, _dirs, names in os.walk(adir) if not os.path.abspath(base).startswith(gen) for n in names}
 
@@ -263,7 +332,8 @@ def summary(path):
     yours = sum(1 for t in todos(text).values() if t[0] == " ")
     skips = skipped(text)
     return (f"{os.path.relpath(path, ROOT)} — stage: {stage_of(text)} · tasks [x] {marks.count('x')} · [ ] {marks.count(' ')} · "
-            f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
+            + (f"[>] {marks.count('>')} · " if '>' in marks else "")
+            + f"[!] {marks.count('!')} · open decisions {open_d}" + (f" · proxy decisions {proxy} (unconfirmed)" if proxy else "")
             + (f" · carried over {left}" if left else "") + (f" · for the user {yours}" if yours else "")
             + "".join(f" · {k} skipped" for k in skips))
 
@@ -288,18 +358,30 @@ def cmd_next(path):
     for num, (mark, title, a, b) in ts.items():
         if mark == "!":
             print(f"blocked task: {num}. {title}")
+        elif mark == ">":
+            print(f"in progress: {num}. {title} — an agent was on it; if none is now, run it again")
     for n, names in waves(text):
-        left = [t for t in names if t in ts and ts[t][0] == " "]
+        left = [t for t in names if t in ts and ts[t][0] in OPEN]
         if not left:
             continue
         print(f"next wave: {n}")
         for t in left:
             hold = waiting(text[ts[t][2]:ts[t][3]], ds)
-            print(f"  {t}. {ts[t][1]}" + (f" — waiting on {' · '.join(hold)} (not run for now)" if hold else ""))
+            epic = epic_of(text[ts[t][2]:ts[t][3]])
+            print(f"  {t}. {ts[t][1]}" + (f" [{epic}]" if epic else "") + (f" — waiting on {' · '.join(hold)} (not run for now)" if hold else ""))
         break
     else:
-        if ts and all(t[0] != " " for t in ts.values()):
+        if ts and all(t[0] not in OPEN for t in ts.values()):
             print("no tasks left")
+    unsaid = [n for n, (mark, _t, a, b) in ts.items() if mark in OPEN and not (WHAT_RE.search(text[a:b]) and CHANGE_RE.search(text[a:b]))]
+    if unsaid:
+        print(f"tasks with no plain \"What\" or \"Change\" line: {' · '.join(unsaid)} — call `plan` again for them before the build (the dashboard shows those two)")
+    bare = [n for n, (mark, _t, a, b) in ts.items() if mark != "-" and not epic_of(text[a:b])]
+    if bare:
+        print(f"tasks with no epic: {' · '.join(bare)} — `epic {','.join(bare)} \"<epic>\"` (" + " · ".join(epic_names()) + ")")
+    open_b = [b for b in backlog() if b[0] == " "]
+    if open_b:
+        print(f"backlog: {len(open_b)} waiting (`backlog`)")
 
 
 def cmd_task(path, num):
@@ -308,7 +390,7 @@ def cmd_task(path, num):
     if num not in ts:
         sys.exit(f"{num}: no such task — " + " · ".join(ts))
     block = text[ts[num][2]:ts[num][3]].rstrip()
-    print(f"{os.path.relpath(path, ROOT)} · stage: {stage_of(text)}\n\n{block}")
+    print(f"{os.path.relpath(path, ROOT)} · C{cycle_no(path)}-{num} · stage: {stage_of(text)}\n\n{block}")
     refs = [d for d in dict.fromkeys(re.findall(r"D\d+", block)) if d in ds]
     if refs:
         print("\ndecisions it depends on:")
@@ -316,7 +398,25 @@ def cmd_task(path, num):
             print(ds[d][1])
 
 
+DONE_MAX = 120  # what changed, read on the dashboard at a glance
+
+
+def plain(line, most):
+    """What keeps a line the user reads from reading at a glance — empty when it reads."""
+    code = sorted(set(m.group(0) for m in CODE_WORDS.finditer(line)))
+    return ((["code names, files or section numbers (" + " · ".join(code) + ")"] if code else [])
+            + ([f"{len(line)} characters — one plain sentence, under {most}"] if len(line) > most else []))
+
+
 def cmd_mark(path, names, state, note):
+    if state == "done":
+        if "," in names:
+            sys.exit('one task per call, each with what changed: mark T1 done "<what changed, one plain line>"')
+        if not note.strip():
+            sys.exit('say what changed, for the user — one plain line: mark T1 done "<what the player meets now>" (the developer returns it as "Changed")')
+        bad = plain(" ".join(note.split()), DONE_MAX)
+        if bad:
+            sys.exit("Not marked — the dashboard shows this as what changed, read by the user:\n- " + "\n- ".join(bad))
     text = read(path)
     for num in names.split(","):
         ts = tasks(text)
@@ -698,14 +798,133 @@ def cmd_shot(path, stage, picture):
     print(f"screen of {stage}: {pic}")
 
 
-def cmd_later(path, said, key=""):
-    text = read(path)
-    span = section(text, "Play") or sys.exit("the document has no `## Play` section")
+def backlog():
+    """The backlog's lines: (mark, B number, the rest of the line, the whole line)."""
+    p = os.path.join(ROOT, BACKLOG)
+    return [(m.group(1), m.group(2), m.group(3), m.group(0)) for m in BACKLOG_RE.finditer(read(p))] if os.path.exists(p) else []
+
+
+def backlog_text(rest):
+    """What was put off, without the epic, the card and where it came from."""
+    return re.split(r" — epic: | \(board: | \(from | → ", rest)[0].strip()
+
+
+def cmd_later(path, said, key="", epic=""):
+    """Something put off goes in the backlog, where it stays until a cycle takes it or the user drops it."""
+    said = " ".join(said.split())
+    if not said:
+        sys.exit("say what is put off, in the user's words")
     if key and not re.fullmatch(r"[\w.-]+", key):
         sys.exit(f"{key}: a review key, as `board.py answers` lists them")
-    body = text[span[0]:span[1]].rstrip("\n")
-    write(path, text[:span[0]] + body + f"\n- Next: {' '.join(said.split())}" + (f" (board: {key})" if key else "") + "\n\n" + text[span[1]:])
-    print("deferred" + (f" — the card {key} shows it waiting for a later cycle" if key else ""))
+    epic = resolve_epic(epic) if epic else ""
+    p = os.path.join(ROOT, BACKLOG)
+    text = read(p) if os.path.exists(p) else BACKLOG_HEAD
+    num = "B%d" % (max([int(b[1][1:]) for b in backlog()] or [0]) + 1)
+    line = (f"- [ ] {num}. {said}" + (f" — epic: {epic}" if epic else "") + (f" (board: {key})" if key else "")
+            + f" (from Cycle {cycle_no(path):02d} · {datetime.date.today()})")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    write(p, text.rstrip("\n") + ("\n" if BACKLOG_RE.search(text) else "\n\n") + line + "\n")
+    print(f"{num}: in the backlog" + (f" — the card {key} shows it waiting for a later cycle" if key else "")
+          + ("" if epic else " — no epic yet (`backlog epic " + num + " \"<epic>\"`)"))
+
+
+def cmd_backlog(path, rest):
+    """backlog · backlog take B2,B5 · backlog drop B3 "<why>" · backlog epic B3 "<epic>"."""
+    items = backlog()
+    if not rest:
+        open_b = [b for b in items if b[0] == " "]
+        if not open_b:
+            return print("the backlog is empty")
+        by = {}
+        for b in open_b:
+            m = BL_EPIC.search(b[2])
+            by.setdefault(m.group(1).strip() if m else "", []).append(b)
+        for epic in [n for n in epic_names() if n in by] + [n for n in by if n not in epic_names()]:
+            print(f"{epic or 'no epic yet'} — {len(by[epic])}")
+            for b in by[epic]:
+                print(f"  {b[1]}. {backlog_text(b[2])[:110]}")
+        return
+    verb, names = rest[0], rest[1] if len(rest) > 1 else ""
+    if verb not in ("take", "drop", "epic") or not names or (verb != "take" and len(rest) < 3):
+        sys.exit('backlog · backlog take B2,B5 · backlog drop B3 "<why>" · backlog epic B3 "<epic>"')
+    have = {b[1]: b for b in items}
+    p = os.path.join(ROOT, BACKLOG)
+    text = read(p)
+    epic = resolve_epic(rest[2]) if verb == "epic" else ""
+    for num in names.split(","):
+        if num not in have:
+            sys.exit(f"{num}: not in the backlog — " + (" · ".join(have) or "it is empty"))
+        mark, _n, line_rest, line = have[num]
+        if verb == "epic":
+            new = BL_EPIC.sub("", line)
+            cut = re.search(r" \((?:board|from) ", new)
+            at = cut.start() if cut else len(new)
+            new = new[:at] + f" — epic: {epic}" + new[at:]
+        elif mark != " ":
+            sys.exit(f"{num}: no longer waiting — {line}")
+        elif verb == "take":
+            new = line.replace("- [ ]", "- [>]", 1) + f" → Cycle {cycle_no(path):02d} ({datetime.date.today()})"
+        else:
+            new = line.replace("- [ ]", "- [-]", 1) + f" → dropped: {' '.join(rest[2].split())} ({datetime.date.today()})"
+        text = text.replace(line, new, 1)
+        if verb == "take":
+            print(f"{num} → Cycle {cycle_no(path):02d}: {backlog_text(line_rest)}")
+    write(p, text)
+    if verb != "take":
+        print(f"{verb}: {names.replace(',', ' · ')}" + (f" → {epic}" if epic else ""))
+
+
+def cmd_epic(path, names, said):
+    epic = resolve_epic(said)
+    path, names = keyed(path, names)
+    text = read(path)
+    for num in names.split(","):
+        ts = tasks(text)
+        if num not in ts:
+            sys.exit(f"{num}: no such task — " + " · ".join(ts))
+        a, b = ts[num][2], ts[num][3]
+        block = text[a:b]
+        if EPIC_RE.search(block):
+            block = EPIC_RE.sub(f"- **Epic**: {epic}", block, count=1)
+        else:
+            cut = block.find("\n") + 1 or len(block)
+            block = block[:cut] + ("" if cut <= len(block) and block[cut - 1:cut] == "\n" else "\n") + f"- **Epic**: {epic}\n" + block[cut:]
+        text = text[:a] + block + text[b:]
+    write(path, text)
+    print(f"C{cycle_no(path)}-{names.replace(',', f' · C{cycle_no(path)}-')} → {epic}")
+
+
+def cmd_epics():
+    """Each epic: its tasks across every cycle and playtest, and what waits for it in the backlog."""
+    names = epic_names()
+    rows, bare = {n: {"x": 0, ">": 0, " ": 0, "!": 0} for n in names}, []
+    found = [(f"C{cycle_no(p)}", p) for p in docs()]
+    d = os.path.join(ROOT, PLAYTESTS)
+    found += [(f"playtest {n[:-3]}", os.path.join(d, n)) for n in (sorted(os.listdir(d)) if os.path.isdir(d) else []) if n.endswith(".md")]
+    for label, p in found:
+        text = read(p)
+        for num, (mark, _t, a, b) in tasks(text).items():
+            if mark == "-":
+                continue
+            epic = epic_of(text[a:b])
+            if epic:
+                rows.setdefault(epic, {"x": 0, ">": 0, " ": 0, "!": 0})[mark if mark in "x> !" else " "] += 1
+            elif mark != "x" or label.startswith("C"):
+                bare.append(f"{label}-{num}" if label.startswith("C") else f"{label} {num}")
+    waiting = {}
+    for b in backlog():
+        if b[0] == " ":
+            m = BL_EPIC.search(b[2])
+            waiting[m.group(1).strip() if m else ""] = waiting.get(m.group(1).strip() if m else "", 0) + 1
+    for n, c in rows.items():
+        total = sum(c.values())
+        print(f"{n} — tasks {c['x']}/{total} done" + "".join(f" · {k} {c[m]}" for k, m in (("in hand", ">"), ("open", " "), ("blocked", "!")) if c[m])
+              + (f" · backlog {waiting[n]}" if waiting.get(n) else "") + ("" if n in names else "  (to sort — `epic <task> \"<epic>\"`)" if n == (board_cfg().get("common") or "Unsorted")
+                 else "  (not an epic now — `epic <task> \"<epic>\"`)"))
+    if waiting.get(""):
+        print(f"backlog with no epic: {waiting['']} (`backlog`)")
+    if bare:
+        print(f"tasks with no epic: {len(bare)} — " + " · ".join(bare[:30]) + (" …" if len(bare) > 30 else ""))
 
 
 def cmd_carry(path, said):
@@ -744,7 +963,7 @@ def close(path):
                                             ("open decisions", sum(1 for m in ds if m not in "x~-")), ("proxy decisions", ds.count("~"))) if n]
     if left:
         print("left in the previous cycle: " + " · ".join(left))
-    for said in LATER_RE.findall(text):
+    for said in LATER_RE.findall(text):  # put off in the document itself, by kits before the backlog
         print(f"deferred: {said}")
     for line in carried(text):
         print(f"carried over, not picked up: {line}")
@@ -775,6 +994,12 @@ def report_leftovers():
               "(`have <slot> \"placeholder (kept — Dn)\"`), or dropped (`have <slot> \"dropped — <why>\"`): " + " · ".join(empty))
     if unwritten:
         print(f"asset slots with their file in the game but \"Have\" still empty: {len(unwritten)} — write each with `have <slot> \"<path>\"`: " + " · ".join(unwritten))
+    waiting = [b for b in backlog() if b[0] == " "]
+    if waiting:
+        print(f"backlog: {len(waiting)} waiting — what goes into this goal is taken (`backlog take B2`), what is not needed dropped (`backlog drop B3 \"<why>\"`), the rest stays:")
+        for _m, num, rest, _line in waiting:
+            epic = BL_EPIC.search(rest)
+            print(f"  {num}. {backlog_text(rest)[:110]}" + (f" [{epic.group(1).strip()}]" if epic else ""))
 
 
 def cmd_new(name, goal):
@@ -799,7 +1024,7 @@ def cmd_new(name, goal):
 def main():
     args = sys.argv[1:]
     opts, images = {}, []
-    for flag in ("--root", "--doc", "--key", "--why", "--detail", "--wait"):
+    for flag in ("--root", "--doc", "--key", "--why", "--detail", "--wait", "--epic"):
         if flag in args:
             i = args.index(flag)
             opts[flag] = args[i + 1]
@@ -817,7 +1042,9 @@ def main():
         sys.exit("--why and --detail go with ask, reask or todo")
     if "--wait" in opts and cmd != "todo":
         sys.exit("--wait goes with todo")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2}
+    if "--epic" in opts and cmd != "later":
+        sys.exit("--epic goes with later")
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3)}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     global ROOT
@@ -826,14 +1053,18 @@ def main():
         return cmd_new(*rest)
     if cmd == "status":
         return print("\n".join(summary(p) for p in docs()) or f"no cycle document in {DIR}/")
+    if cmd == "epics":
+        return cmd_epics()
     path = pick(opts.get("--doc"))
+    if cmd in ("task", "mark") and KEY_RE.match(rest[0].split(",")[0]):
+        path, rest[0] = keyed(path, rest[0])
     if cmd == "next":
         cmd_next(path)
     elif cmd == "task":
         cmd_task(path, rest[0])
     elif cmd == "mark":
         if rest[1] not in BOX:
-            sys.exit("the state is done · blocked · open · dropped")
+            sys.exit("the state is done · doing · blocked · open · dropped")
         if rest[1] == "dropped" and not (rest[2:] and rest[2].strip()):
             sys.exit("say why it is dropped: mark T4 dropped \"<why>\"")
         cmd_mark(path, rest[0], rest[1], rest[2] if len(rest) > 2 else "")
@@ -866,7 +1097,11 @@ def main():
     elif cmd == "shot":
         cmd_shot(path, *rest)
     elif cmd == "later":
-        cmd_later(path, rest[0], opts.get("--key", ""))
+        cmd_later(path, rest[0], opts.get("--key", ""), opts.get("--epic", ""))
+    elif cmd == "backlog":
+        cmd_backlog(path, rest)
+    elif cmd == "epic":
+        cmd_epic(path, *rest)
     elif cmd == "carry":
         cmd_carry(path, rest[0])
     else:

@@ -60,6 +60,8 @@ DEFAULTS = {
     "notes": "docs/board-notes.md",  # what the user notes after playing: `- stage | lane | problem | text`
     "open_heading": "Open questions",  # words in the heading of the GDD section that lists what is not decided yet
     "common": "Unsorted",          # where things that fit no stage gather — not counted in the %
+    "foundation": "Foundation",    # the epic for what no stage of play owns (save, input, shared UI) — tasks name it; not in the play order
+    "backlog": "docs/backlog.md",  # what is put off for a later cycle — `cycle.py later` · `backlog`
     "ignore": [],                  # asset names not to count (glob) — planned, then dropped
     "flow": [],                    # the stages of play, in order. Empty = one per GDD section
     "sheets": "docs/cycle/sheets", # the question files of the cycle's sheet script — the pictures of a decision chosen by eye
@@ -135,11 +137,27 @@ def cycle_docs():
 
 
 LATER_KEY = re.compile(r"^- (?:Next|다음에): *(.+?) \(board: ([\w.-]+)\)\s*$", re.M)
+BACKLOG_RE = re.compile(r"^- \[(.)\] (B\d+)\. (.*)$", re.M)
+
+
+def backlog():
+    """The backlog's lines (`cycle.py later` · `backlog`): what was put off, its epic, the card it answers, the cycle it came from, and where it went."""
+    out = []
+    for m in BACKLOG_RE.finditer(read(os.path.join(ROOT, CFG["backlog"]))):
+        rest = m.group(3)
+        grab = lambda pat: (re.search(pat, rest) or [None, ""])[1].strip()
+        out.append({"num": m.group(2), "mark": m.group(1), "text": re.split(r" — epic: | \(board: | \(from | → ", rest)[0].strip(),
+                    "epic": grab(r" — epic: ([^()]+?)(?= \(|$)"), "key": grab(r"\(board: ([\w.-]+)\)"), "from": grab(r"\(from Cycle (\d+)"),
+                    "to": grab(r"→ Cycle (\d+)"), "dropped": grab(r"→ dropped: (.*?) \(\d{4}"), "date": grab(r"\(from Cycle \d+ · (\d{4}-\d\d-\d\d)\)")})
+    return out
 
 
 def parked():
-    """Answers from the dashboard that are work for later — `cycle.py later … --key` names the card: {key: what was put off}."""
-    return {key: said for p in cycle_docs() for said, key in LATER_KEY.findall(read(p))}
+    """Answers from the dashboard that are work for later — `cycle.py later … --key` names the card: {key: what was put off}.
+    The backlog holds them now; older kits wrote them into the cycle document."""
+    out = {key: said for p in cycle_docs() for said, key in LATER_KEY.findall(read(p))}
+    out.update({b["key"]: b["text"] for b in backlog() if b["key"] and b["mark"] == " "})
+    return out
 
 
 # ── Reading ───────────────────────────────────────────────────────────
@@ -247,6 +265,25 @@ def decision(mark, num, rest):
             "date": date.group(1) if date else ""}
 
 
+FIELD_EN = {"고칠 곳": "Where", "확인": "Check", "위험": "Risk", "건드리지 말 것": "Do not touch", "기획 · 디자인": "Spec · Design", "문제": "Problems",
+            "분류": "Kind", "원인": "Cause", "한 것": "Done", "대기": "Waiting", "막힘": "Blocked"}  # a task's lines, in the Korean of older documents
+
+
+def fields_of(block):
+    """A task's `- **Key**: value` lines (and the indented lines under each), keyed in English — what the dashboard's task panel shows."""
+    out, cur = [], None
+    for line in block.split("\n"):
+        m = re.match(r"^- \*\*([^*]+)\*\*: ?(.*)$", line)
+        if m:
+            cur = {"k": FIELD_EN.get(m.group(1).strip(), m.group(1).strip()), "v": m.group(2)}
+            out.append(cur)
+        elif cur and line.startswith("  "):
+            cur["v"] += "\n" + line.strip()
+        elif line.strip():
+            cur = None
+    return [dict(f, v=f["v"].strip()) for f in out if f["k"] != "Epic"]
+
+
 def cycle(path):
     text = read(path)
     head = re.search(CYCLE_HEAD, text, re.M)
@@ -263,8 +300,8 @@ def cycle(path):
         block = text[m.end():m.end() + nxt.start() if nxt else len(text)]
         line = lambda key: (re.search(rf"^- \*\*(?:{key})\*\*:(.*)$", block, re.M) or [None, ""])[1].strip()  # key: one name, or alternatives
         tasks.append({"num": m.group(2), "mark": m.group(1), "title": m.group(3).strip(), "wave": waves.get(m.group(2), 0),
-                      "ids": ID_RE.findall(line("GDD")), "blocked": line(FIELD["blocked"]), "did": line(FIELD["done"]),
-                      "all_ids": ID_RE.findall(block), "block": block})
+                      "ids": ID_RE.findall(line("GDD")), "blocked": line(FIELD["blocked"]), "did": line(FIELD["done"]), "epic": line("Epic"),
+                      "all_ids": ID_RE.findall(block), "block": block, "fields": fields_of(block)})
     num = head.group(1) if head else os.path.basename(path).split("-")[0]
     needs = []
     nm = re.search(NEEDS_HEAD, text, re.M)
@@ -274,7 +311,8 @@ def cycle(path):
             cells = [c.strip() for c in row.strip().strip("|").split("|")] if row.startswith("|") else []
             name = cells[0].split(" — ")[0].strip("` ") if cells else ""
             if len(cells) >= 4 and re.fullmatch(r"[a-z][a-z0-9_]*", name) and cells[1].strip("—–- "):  # no Kind: a row saying nothing is needed
-                needs.append({"name": name, "what": cells[0].partition(" — ")[2], "kind": cells[1], "have": cells[3]})
+                what = cells[0].partition(" — ")[2] or (cells[4].partition(" — ")[2] if len(cells) > 4 else "")  # older tables describe it in "If missing"
+                needs.append({"name": name, "what": what.strip(), "kind": cells[1], "have": cells[3]})
     goal = section(text, "goal")
     line = LINE_RE.search(goal)
     shots, under = [], False
@@ -374,8 +412,9 @@ def make_stages(titles, rows):
     if not flow:
         srcs = sorted({r["src"] for r in rows if r["src"]}, key=lambda s: [int(x) for x in s.split(".")])
         flow = [{"name": titles.get(s, s), "sections": [s]} for s in srcs]
-    blank = {"about": "", "sections": [], "ids": [], "assets": [], "words": [], "image": "", "loop": False}
-    out = [dict(blank, **f, common=False) for f in flow] + [dict(blank, name=CFG["common"], common=True)]
+    blank = {"about": "", "sections": [], "ids": [], "assets": [], "words": [], "image": "", "loop": False, "parts": []}
+    out = ([dict(blank, **f, common=False, foundation=False) for f in flow] + [dict(blank, name=CFG["foundation"], common=False, foundation=True)]
+           + [dict(blank, name=CFG["common"], common=True, foundation=False)])
     for i, s in enumerate(out):
         s.update(i=i, lanes={lane: [] for lane in LANES}, open=[], work=[])
     return out
@@ -391,6 +430,15 @@ def place_row(st, r):
             if (r["src"] == sec or r["src"].startswith(sec + ".")) and len(sec) > n:
                 best, n = s, len(sec)
     return best
+
+
+def epic_stage(st, said):
+    """The stage a task's `Epic:` line names — its name, or a part of it that names only one. None when it names none."""
+    said = " ".join(said.casefold().split())
+    if not said:
+        return None
+    hit = [s for s in st if " ".join(s["name"].casefold().split()) == said] or [s for s in st if said in " ".join(s["name"].casefold().split())]
+    return hit[0] if len(hit) == 1 else None
 
 
 def place_words(st, text):
@@ -437,16 +485,23 @@ def asset_items(st, where, cycles, tasks):
             it["st"] = "temp" if re.search(HAVE_TEMP, have) else "done" if there else "none"
             it["note"] = n["what"] + (f" — {have}" if it["st"] == "temp" else " — the file named is missing" if cited and not there else "")
             it["tags"] = [f'Cycle {c["num"]}']
+            it["what"], it["cycle"] = n["what"], it.get("cycle") or c["num"]  # what it is (the newest description) · the cycle that first listed it
+            it["file"] = os.path.relpath(files[n["name"]], ROOT).replace(os.sep, "/") if n["name"] in files else ""
             it["audio"] = it["audio"] or sound(files.get(n["name"], ""))
             it["dropped"] = bool(re.match(HAVE_DROPPED, have, re.I))  # the newest document listing it decides, like every other state
             found[n["name"]] = it
     for name, path in files.items():  # sounds and models in the game that no cycle listed count too
         if name not in found and path.lower().endswith(SOUND_EXT + MODEL_EXT):
-            found[name] = dict(item("done", name, "", audio=sound(path), src="file"), lane="sound" if sound(path) else "art")
+            found[name] = dict(item("done", name, "", audio=sound(path), src="file"), lane="sound" if sound(path) else "art",
+                               what="", cycle="", file=os.path.relpath(path, ROOT).replace(os.sep, "/"))
     for name, it in found.items():
         if it.pop("dropped", False) or any(fnmatch.fnmatchcase(name, g) for g in CFG["ignore"]):
             continue
         s = next((s for s in st if any(fnmatch.fnmatchcase(name, g) for g in s["assets"])), None)
+        if not s:  # the epic of the tasks that name it
+            pat = re.compile(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])")
+            hits = [x for x in (epic_stage(st, t.get("epic", "")) for t in tasks if pat.search(t["block"])) if x]
+            s = max(hits, key=lambda x: (hits.count(x), -x["i"])) if hits else None
         if not s:
             pat = re.compile(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])")
             s = (place_ids(st, where, [i for t in tasks if pat.search(t["block"]) for i in t["all_ids"]])
@@ -463,7 +518,8 @@ def check_items(st, where, cycles, playtests):
             state, said = "temp", f"closed — {never} check(s) never played"
         hit = {}
         for t in c["tasks"]:
-            for i in {where[x] for x in t["ids"] if x in where}:
+            epic = epic_stage(st, t["epic"])  # its epic first, then the stages its GDD ids are in
+            for i in ([epic["i"]] if epic else []) + sorted({where[x] for x in t["ids"] if x in where} - ({epic["i"]} if epic else set())):
                 hit.setdefault(i, []).append(t)
         for i, ts in hit.items():
             st[i]["lanes"]["verified"].append(item(state, f'Cycle {c["num"]} — {c["name"]}', said, src="cycle"))
@@ -472,7 +528,7 @@ def check_items(st, where, cycles, playtests):
         for t in p["tasks"]:
             if t["mark"] == "-":  # dropped with its reason (merged, folded, its condition never came) — nothing left to fix
                 continue
-            s = place_ids(st, where, t["all_ids"]) or place_words(st, t["title"]) or st[-1]
+            s = epic_stage(st, t["epic"]) or place_ids(st, where, t["all_ids"]) or place_words(st, t["title"]) or st[-1]
             s["lanes"]["verified"].append(item("done" if t["mark"] == "x" else "bad", t["title"],
                                          f'Playtest {p["file"][:-3]} · {"fixed" if t["mark"] == "x" else "blocked" if t["mark"] == "!" else "open"}',
                                          t["blocked"], code=t["num"], src="playtest"))
@@ -540,6 +596,91 @@ def fits(said, name):
     """A stage named in `cycle.py shot` — its name on the board, or a part of it."""
     a, b = " ".join(said.casefold().split()), " ".join(name.casefold().split())
     return bool(a) and (a == b or a in b or b in a)
+
+
+def part_key(i, lane):
+    """The part an item falls in when the flow names none for it: a rule by the second word of its GDD id (BAL.SUITOR.HP → suitor),
+    an asset by the first word of its name (suitor_sword → suitor)."""
+    if lane == "function":
+        bits = i["code"].split(".")
+        return bits[1].lower() if len(bits) > 2 else "rules"
+    return i["title"].split("_")[0].lower() or "other"
+
+
+def attach_parts(st):
+    """Each stage's parts — what the player meets in it (a kind of enemy, a weapon, the room). board.flow names them per stage
+    (`parts`: name · about · ids · assets · words); what no part names falls in one by its name (part_key). Each part says how far it is."""
+    for s in st:
+        named = [dict({"about": "", "ids": [], "assets": [], "words": []}, **p) for p in s.get("parts") or []]
+        hits = {p["name"]: [] for p in named}
+        for lane in ("function", "art", "sound"):
+            for i in s["lanes"][lane]:
+                text = " ".join((i["title"], i["sub"], i["note"])).lower()
+                p = next((p for p in named if (lane == "function" and any(fnmatch.fnmatchcase(i["code"], g) for g in p["ids"]))
+                          or (lane != "function" and any(fnmatch.fnmatchcase(i["title"], g) for g in p["assets"]))
+                          or any(w.lower() in text for w in p["words"])), None)
+                i["part"] = p["name"] if p else part_key(i, lane)
+                i["lane"] = lane
+                hits.setdefault(i["part"], []).append(i)
+        about = {p["name"]: p["about"] for p in named}
+        order = [p["name"] for p in named] + sorted((k for k in hits if k not in about), key=lambda k: -len(hits[k]))
+        s["part_list"] = [dict({"name": k, "about": about.get(k, ""), "named": k in about,
+                                "complete": round(score(hits[k]) * 100) if hits[k] else None}, **halves(hits.get(k, [])))
+                          for k in order if hits[k] or k in about]
+
+
+def halves(items):
+    """How far the function (rules and numbers in the code) and the assets (looks and sounds) are, apart — a % each (None when there are none),
+    and the assets still open by name."""
+    fn = [i for i in items if i.get("lane") == "function"]
+    made = [i for i in items if i.get("lane") in ("art", "sound")]
+    pct = lambda xs: round(score(xs) * 100) if xs else None
+    return {"function": pct(fn), "assets": pct(made), "functions": len(fn), "asset_count": len(made),
+            "open_assets": [{"name": i["title"], "st": i["st"], "kind": i["lane"]} for i in made if i["st"] != "done"]}
+
+
+def link_tasks(st, cycles, where):
+    """Which stages each cycle task worked in (by its GDD ids) and which assets it names — the cycle page puts them on the task's line."""
+    names = sorted({i["title"] for s in st for lane in ("art", "sound") for i in s["lanes"][lane]}, key=len, reverse=True)
+    pats = {n: re.compile(rf"(?<![a-z0-9_]){re.escape(n)}(?![a-z0-9_])") for n in names}
+    for c in cycles:
+        for t in c["tasks"]:
+            epic = epic_stage(st, t["epic"])
+            t["epic_i"] = epic["i"] if epic else None
+            t["stages"] = sorted({where[x] for x in t["ids"] if x in where} | ({epic["i"]} if epic else set()))
+            t["assets"] = [n for n in names if pats[n].search(t["block"])]
+
+
+def epic_tasks(st, cycles, playtests):
+    """Each epic's tasks — every cycle's and playtest's task whose `Epic:` line names the stage."""
+    for s in st:
+        s["tasks"] = []
+    for d, kind in [(c, "cycle") for c in cycles] + [(p, "playtest") for p in playtests]:
+        for t in d["tasks"]:
+            epic = epic_stage(st, t["epic"])
+            if epic and t["mark"] != "-":
+                epic["tasks"].append({"key": f'C{int(d["num"])}-{t["num"]}' if kind == "cycle" and d["num"].isdigit() else f'{d["file"][:-3]} {t["num"]}',
+                                      "kind": kind, "title": t["title"], "mark": t["mark"], "cycle": d["num"] if kind == "cycle" else ""})
+
+
+def task_details(st, cycles, playtests):
+    """Every task by its key, with what is written under it and the decisions it names — the dashboard opens one in a panel."""
+    out = {}
+    for d, kind in [(c, "cycle") for c in cycles] + [(p, "playtest") for p in playtests]:
+        ds = {x["num"]: x for x in d["decisions"]}
+        for t in d["tasks"]:
+            key = f'C{int(d["num"])}-{t["num"]}' if kind == "cycle" and d["num"].isdigit() else f'{d["file"][:-3]} {t["num"]}'
+            epic = epic_stage(st, t["epic"])
+            refs = [n for n in dict.fromkeys(re.findall(r"D\d+", t["block"])) if n in ds]
+            out[key] = {"kind": kind, "num": t["num"], "title": t["title"], "mark": t["mark"], "epic": epic["i"] if epic else None,
+                        "cycle": d["num"] if kind == "cycle" else "", "doc": d["file"], "wave": t["wave"], "fields": t["fields"],
+                        "assets": t.get("assets", []),
+                        "decisions": [{"num": n, "title": ds[n]["title"], "answer": ds[n]["answer"], "done": ds[n]["done"]} for n in refs]}
+    return out
+
+
+def task_counts(ts):
+    return {k: sum(1 for t in ts if t["mark"] == m) for k, m in (("done", "x"), ("doing", ">"), ("open", " "), ("blocked", "!"))}
 
 
 def attach_shots(st, cycles):
@@ -750,7 +891,7 @@ a.tile.go{flex:1 1 40%}a.tile.go b{font-size:15px;white-space:normal}.tile{overf
 .step.past{color:var(--mint);border-color:rgba(61,255,176,.4)}.step.on{background:var(--sky);border-color:var(--sky);color:#04202B;font-weight:700}.step.skip{text-decoration:line-through;opacity:.6}
 .tasks{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:2px 16px;font-size:12.5px}
 .tasks li{display:flex;gap:7px;align-items:baseline;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tasks i{font-style:normal;width:12px;color:var(--tx3)}
-.tasks b{font:11px var(--mono);color:var(--tx3)}.tasks .done{color:var(--tx2)}.tasks .done i{color:var(--mint)}.tasks .blocked i,.tasks .blocked{color:var(--red2)}.tasks .more{color:var(--tx3)}
+.tasks b{font:11px var(--mono);color:var(--tx3)}.tasks .doing{color:var(--sky);font-weight:700}.tasks .doing i{color:var(--sky)}.tasks .done{color:var(--tx2)}.tasks .done i{color:var(--mint)}.tasks .blocked i,.tasks .blocked{color:var(--red2)}.tasks .more{color:var(--tx3)}
 .turn{display:flex;flex-direction:column;justify-content:center;gap:4px;border-radius:16px;padding:14px 16px;border:1px solid var(--sky);background:rgba(138,216,255,.12)}
 .turn b{font:800 34px var(--mono);color:var(--sky);line-height:1}.turn span{font-size:13px}.turn small{display:block;color:var(--tx3);font-size:11px}.turn em{font-style:normal;color:var(--sky);font-weight:700;margin-top:4px}
 .turn.calm{border-color:var(--line2);background:transparent}.turn.calm b{color:var(--tx3)}
@@ -760,7 +901,7 @@ a.tile.go{flex:1 1 40%}a.tile.go b{font-size:15px;white-space:normal}.tile{overf
 .node .busy{align-self:flex-start;position:relative;z-index:2;font:700 10px var(--mono);padding:2px 8px;border-radius:6px;background:var(--sky);color:#04202B}
 .hero.none{display:grid;place-items:center}.hero.none span{position:relative;z-index:1;text-align:center;font:10.5px var(--mono);color:var(--tx3)}
 .flow{flex:none}.flow .node{min-height:0}.flow .hero{flex:none;aspect-ratio:16/9;min-height:0}.node .body{margin-top:-18px;flex:1}.node .chips{margin-top:auto}.chip.temp{border-color:var(--sun);color:var(--sun)}.chip.you{border-color:var(--sky);color:var(--sky)}.chip.ok{border-color:var(--mint);color:var(--mint)}
-.left{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) minmax(0,1.6fr);gap:10px}.left .tile{min-width:0}
+.left{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) minmax(0,1.6fr);gap:10px}.left .tile{min-width:0}
 .whole{display:flex;flex-direction:column;justify-content:center;gap:8px;border:1px solid var(--line2);border-radius:14px;padding:10px 14px;background:var(--card)}
 .whole .seg{height:10px}.stray{color:var(--sun)}
 .cycles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.cyc{display:flex;flex-direction:column;gap:3px;font-size:12.5px;min-width:0}
@@ -858,6 +999,11 @@ def ask_href(q):
     return "review.html" if q["from"].startswith("Cycle") else "stage-%d.html" % (q["stage"] + 1)
 
 
+def shown_stage(s):
+    """A stage of play always; Foundation and Unsorted only when something is in them."""
+    return not (s["common"] or s["foundation"]) or any(s["lanes"].values()) or bool(s["open"]) or bool(s.get("tasks"))
+
+
 def stray_of(st):
     """How many things fit no stage — they are outside the %, so they are shown apart or they get missed. (all, the assets among them)"""
     lanes = st[-1]["lanes"]
@@ -867,7 +1013,8 @@ def stray_of(st):
 def index_html(name, st, asks, cycles, stamp, sheet, review):
     """The first screen: the cycle in hand (what it is for · where it stands · its tasks · what waits on the user), then the game in the order
     the player meets it — each stage as its latest screen with what is still open in it — then what is left, in counts, and the cycles as pictures."""
-    flow = [s for s in st if not s["common"]]
+    flow = [s for s in st if not s["common"] and not s["foundation"]]
+    base = next((s for s in st if s["foundation"] and (any(s["lanes"].values()) or s["tasks"])), None)
     stray, stray_assets = stray_of(st)
     everything = [i for s in st for lane in LANES for i in s["lanes"][lane]]
     c = tally(everything)
@@ -882,7 +1029,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
         steps = "".join(f'<span class="step{" on" if k == at else " skip" if k in now["skipped"] else " past" if at == "Closed" or (at in STEPS and STEPS.index(k) < STEPS.index(at)) else ""}">{k}</span>'
                         for k in STEPS)
         ts = now["tasks"]
-        mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○")}
+        mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○"), ">": ("doing", "▶")}
         shown = [t for t in ts if t["mark"] != "-"]
         task_html = "".join(f'<li class="{mark.get(t["mark"], mark[" "])[0]}"><i>{mark.get(t["mark"], mark[" "])[1]}</i><b>{e(t["num"])}</b>{md(t["title"])}</li>' for t in shown[:8])
         task_html += f'<li class="more">+{len(shown) - 8} more</li>' if len(shown) > 8 else ""
@@ -895,18 +1042,25 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
                     f'<div class="steps">{steps}</div><h2>{md(line)}</h2>' + (f'<p class="clamp">{md(words)}</p>' if words else "")
                     + (f'<div class="lab">Tasks {done}/{len(shown)}</div><ul class="tasks">{task_html}</ul>' if shown else "")
                     + f'</div>{turn}</section>')
-    cards = []
-    for s in flow:
+    cards, base_html = [], ""
+    for s in flow + ([base] if base else []):
         o, pic, shot = opens(s), hero_of(s), s.get("shot")
         busy = [t for c, ts in s["work"] if now and c["num"] == now["num"] for t in ts]  # what the cycle in hand does in this stage
         age = (f'<span class="age{" old" if shot["behind"] >= 2 else ""}">cycle {e(shot["cycle"])}'
                + (f' · {shot["behind"]} cycles old' if shot["behind"] >= 2 else "") + "</span>") if shot else ""
         hero = (f'<div class="hero" style="background-image:url({pic})">{age}</div>' if pic
+                else '<div class="hero none"><span>Under every stage<br>no screen of its own</span></div>' if s["foundation"]
                 else '<div class="hero none"><span>No screen yet<br>shot at the next Play</span></div>')
         busy_html = (f'<span class="busy">in cycle {e(now["num"])} · ' + " · ".join(e(t["num"]) for t in busy) + "</span>" if busy else "")
-        cards.append(f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}{" busy" if busy else ""}" href="stage-{s["i"] + 1}.html">{hero}'
-                     f'<div class="body">{busy_html}<span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
-                     f'<div class="chips">{open_chips(o, len(s["open"]))}</div></div></a></div>')
+        n = task_counts(s["tasks"])
+        count = f' · tasks {n["done"]}/{sum(n.values())}' if s["tasks"] else ""
+        card = (f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}{" busy" if busy else ""}" href="stage-{s["i"] + 1}.html">{hero}'
+                f'<div class="body">{busy_html}<span class="lab">{stage_label(s)}{" · loop" if s["loop"] else ""}{f" · {stage_pct(s)}%" if stage_pct(s) is not None else ""}{count}</span><h2>{e(s["name"])}</h2><p>{e(s["about"])}</p>'
+                f'<div class="chips">{open_chips(o, len(s["open"]))}</div></div></a></div>')
+        if s is base:
+            base_html = f'<div class="lab">Under every stage — what no stage of play owns</div><div class="flow" style="--n:1">{card}</div>'
+        else:
+            cards.append(card)
     loops = [s["i"] for s in flow if s["loop"]]
     loop = (f'<div class="loop" style="--a:{loops[0]};--c:{loops[-1] - loops[0] + 1}"><span class="lab">{e(str(CFG.get("loop_label", "loop")))}</span></div>'
             if loops else "")
@@ -915,8 +1069,9 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
                     f'<b>{md(q["title"])}</b><span>{md(q["text"]) or "&nbsp;"}</span></a>' for q in shown)
     strip += f'<span class="ask more">+{len(asks) - len(shown)}</span>' if len(asks) > len(shown) else ""
     rest = st[-1]
-    left = [("rv" if waiting else "", "Waiting on you", waiting, "review.html"), ("red" if c["bad"] else "", "Problems", c["bad"], ""),
-            ("", "Not made", c["none"], ""), ("warn", "Placeholders", c["temp"], "")]
+    queued = sum(1 for b in backlog() if b["mark"] == " ")
+    left = [("gold", "Complete", f"{total}%", ""), ("rv" if waiting else "", "Waiting on you", waiting, "review.html"), ("red" if c["bad"] else "", "Problems", c["bad"], ""),
+            ("", "Not made", c["none"], ""), ("warn", "Placeholders", c["temp"], "")] + ([("", "Backlog", queued, "")] if queued else [])
     left_html = ('<section class="left">' + "".join(
         f'<{"a" if href else "div"} class="tile {cls}"{f" href={chr(34)}{href}{chr(34)}" if href else ""}><span class="lab">{k}</span><b>{v}</b></{"a" if href else "div"}>'
         for cls, k, v, href in left)
@@ -934,7 +1089,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
             + now_html
             + (f'<div><div class="lab" style="color:var(--red2);margin-bottom:5px">Undecided {len(asks)}</div><div class="asks">{strip}</div></div>' if asks else "")
             + '<div class="lab">The game, in the order the player meets it — each stage as its latest screen</div>'
-            + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>'
+            + f'<div class="flow" style="--n:{len(flow) or 1}">{loop}{"".join(cards)}</div>' + base_html
             + '<div class="lab">What is left — counts of what is still open</div>' + left_html
             + (f'<div class="lab">Cycles — what each looked like</div><div class="cycles">{strip_cycles}</div>' if len(cycles) > 1 else "")
             + f'<footer><span>Drawn {stamp} · every state is read as written in the GDD table · the asset folders · cycle · playtest documents</span></footer>')
@@ -1024,6 +1179,32 @@ def sheet_link(d):
             "</span><b>Asset sheet →</b></a>")
 
 
+def code_refs(names):
+    """Where each asset is named in the game's code — the files the gdd-sync skill reads (its section of the config: code_ext · skip_dirs).
+    {file name: [paths]}. An engine that points at assets by id rather than name (a scene file's guid) finds nothing here."""
+    section = (load_json(os.path.join(ROOT, CONFIG_NAME)) or {}).get("gdd-sync", {})
+    ext, skip = tuple(section.get("code_ext") or ()), set(section.get("skip_dirs") or ()) | {".git", "docs", os.path.normpath(CFG["assets"]).split(os.sep)[0]}
+    out = {n: [] for n in names}
+    if not ext or not names:
+        return out
+    # the file's name, or its name without the extension written as a string or a path ("coin_ping", res://…/coin_ping) — not as a word in code
+    pats = {n: re.compile(r"[\"'/]" + re.escape(n.split(".")[0]) + r"[\"'.]") for n in names}
+    for base, dirs, files in os.walk(ROOT):
+        dirs[:] = [d for d in dirs if d not in skip and not d.startswith(".")]
+        for fn in files:
+            if not fn.endswith(ext):
+                continue
+            path = os.path.join(base, fn)
+            try:
+                text = open(path, encoding="utf-8", errors="ignore").read()
+            except OSError:
+                continue
+            for n, pat in pats.items():
+                if len(out[n]) < 6 and (n in text or pat.search(text)):
+                    out[n].append(os.path.relpath(path, ROOT).replace(os.sep, "/"))
+    return out
+
+
 def table_files():
     """(the balance table, the value file) — the paths the balance-table skill keeps in its section of the config. This script only looks at the files."""
     section = (load_json(os.path.join(ROOT, CONFIG_NAME)) or {}).get("balance-table", {})
@@ -1044,8 +1225,9 @@ def table_link():
 
 def stage_html(name, s, st):
     p, pic = stage_pct(s), hero_of(s)
+    queued = [b for b in backlog() if b["mark"] == " " and epic_stage(st, b["epic"]) is s]
     tabs = "".join(f'<a class="btn{" on" if x is s else ""}" href="stage-{x["i"] + 1}.html">{x["i"] + 1:02d} {e(x["name"])}</a>'
-                   for x in st if not x["common"] or any(x["lanes"].values()) or x["open"])
+                   for x in st if shown_stage(x))
     tiles = "".join(f'<div class="tile"><span class="lab">{LANE_LABEL[lane]}</span><b>{"—" if score(s["lanes"][lane]) is None else str(round(score(s["lanes"][lane]) * 100)) + "%"}</b></div>'
                     for lane in LANES)
     asks = "".join(f'<div class="ask" style="margin-bottom:6px"><b style="white-space:normal">{md(q["title"])}</b>'
@@ -1061,7 +1243,10 @@ def stage_html(name, s, st):
             f'<div class="cols">{"".join(col_html(lane, s["lanes"][lane]) for lane in LANES)}</div>'
             '<div class="under">'
             f'<section class="col"><h3 style="color:var(--red2)">Undecided<small>{len(s["open"])}</small></h3>{asks or "<p class=sub>None.</p>"}</section>'
-            f'<section class="col"><h3>Tasks that touched this stage</h3>{work or "<p class=sub>None.</p>"}</section></div>')
+            f'<section class="col"><h3>Tasks that touched this stage</h3>{work or "<p class=sub>None.</p>"}</section>'
+            + (f'<section class="col"><h3>Backlog<small>{len(queued)}</small></h3>'
+               + "".join(f'<span class="task open"><b>{e(b["num"])}</b> {md(b["text"])}</span>' for b in queued) + "</section>" if queued else "")
+            + "</div>")
     return f'{s["name"]} · {name} — chart', body
 
 
@@ -1307,28 +1492,54 @@ def review_data(i):
     return out
 
 
-def chart_data(st, asks, cycles, sheet, review):
-    stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "loop": s["loop"], "complete": stage_pct(s),
+def chart_data(st, asks, cycles, sheet, review, playtests=()):
+    queue = backlog()
+    owned = {i["title"]: (x, i) for x in st for lane in ("art", "sound") for i in x["lanes"][lane]}  # an asset → (its stage, its item)
+    files = [m["name"] for m in sheet["models"] + sheet["loose"]] + [os.path.basename(x["audio"]) for x in sheet["sounds"] if x["audio"]]
+    refs = code_refs(sorted(set(files) | {os.path.basename(i["file"]) for _x, i in owned.values() if i.get("file")}))
+    for _x, i in owned.values():
+        i["used_in"] = refs.get(os.path.basename(i["file"]), []) if i.get("file") else []
+    stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "foundation": s["foundation"], "loop": s["loop"], "complete": stage_pct(s),
+               "epic": {"tasks": s["tasks"], "counts": task_counts(s["tasks"]),
+                        "backlog": [b["num"] for b in queue if b["mark"] == " " and epic_stage(st, b["epic"]) is s]},
                "image": hero_of(s), "shot": {"cycle": s["shot"]["cycle"], "behind": s["shot"]["behind"]} if s.get("shot") else None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
+               "parts": s.get("part_list", []),
+               "halves": halves([dict(i, lane=lane) for lane in ("function", "art", "sound") for i in s["lanes"][lane]]),
                "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
                "work": [{"cycle": c["num"], "name": c["name"], "stage": stage_word(c["stage"]),
                          "tasks": [{"num": t["num"], "title": t["title"], "mark": t["mark"], "did": t["did"]} for t in ts]} for c, ts in reversed(s["work"])]}
-              for s in st if not s["common"] or any(s["lanes"].values()) or s["open"]]
+              for s in st if shown_stage(s)]
+    used = lambda fn: {"stage": owned[fn.split(".")[0]][0]["name"] if fn.split(".")[0] in owned else "", "code": refs.get(fn, [])}
     model = lambda m: {"name": m["name"], "img": rel(m["img"]), "tool": m["tool"], "st": m["st"], "state": m["state"], "old": m["old"],
-                       "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"])}
+                       "sample": m["ref"], "reference": bool(m["from"]), "what": m["what"], "rejected": len(m["said"]), "used": used(m["name"])}
+    touched = {}
+    for x in st:
+        for c, _ts in x["work"]:
+            touched.setdefault(c["num"], []).append(x["i"])
     return {"lanes": [{"key": k, "label": LANE_LABEL[k]} for k in LANES],
             "stages": stages,
             "asks": [dict({"title": q["title"], "text": q["text"], "from": q["from"], "stage": q["stage"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in asks],
             "steps": STEPS,
             "cycles": [{"num": c["num"], "name": c["name"], "stage": stage_word(c["stage"]), "start": c["start"], "goal": c["goal"],
                         "line": c["line"], "shot": cycle_shot(c), "skipped": c["skipped"],
-                        "list": [{"num": t["num"], "title": t["title"], "mark": t["mark"]} for t in c["tasks"]] if c is cycles[-1] else [],
-                        "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"))},
+                        "list": [{"num": t["num"], "key": f'C{int(c["num"])}-{t["num"]}' if c["num"].isdigit() else t["num"], "title": t["title"], "mark": t["mark"],
+                                  "did": t["did"], "blocked": t["blocked"], "wave": t["wave"], "epic": st[t["epic_i"]]["name"] if t.get("epic_i") is not None else "",
+                                  "stages": t.get("stages", []), "assets": t.get("assets", [])} for t in c["tasks"]],
+                        "assets": [{"name": n["name"], "kind": n["kind"], "what": n["what"], "st": owned[n["name"]][1]["st"] if n["name"] in owned else "none",
+                                    "stage": owned[n["name"]][0]["i"] if n["name"] in owned else None,
+                                    "img": rel(owned[n["name"]][1]["img"]) if n["name"] in owned else "", "audio": rel(owned[n["name"]][1]["audio"]) if n["name"] in owned else "",
+                                    "tasks": [t["num"] for t in c["tasks"] if n["name"] in t.get("assets", [])]}
+                                   for n in c["needs"] if not re.match(HAVE_DROPPED, n["have"].strip(), re.I)],
+                        "stages": touched.get(c["num"], []),
+                        "shots": [{"stage": said, "img": rel(os.path.join(ROOT, pic))} for said, pic in c["shots"] if os.path.isfile(os.path.join(ROOT, pic))],
+                        "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"), ("doing", ">"))},
                         "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
             "review": [review_data(i) for i in review],
+            "backlog": [dict(b, stage=(epic_stage(st, b["epic"]) or {}).get("i")) for b in queue],
+            "tasks": task_details(st, cycles, playtests),
             "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
                        "models": [model(m) for m in sheet["models"]], "loose": [model(m) for m in sheet["loose"]],
-                       "sounds": [data_item(x) for x in sheet["sounds"]]}}
+                       "sounds": [dict(data_item(x), used=used(os.path.basename(x["audio"]))) for x in sheet["sounds"]]}}
 
 
 def now_asked(items):
@@ -1366,6 +1577,9 @@ def build(outdir, index_name):
                                          tags=touched.get(r["id"], [])[-3:]))
     attach_shots(st, cycles)
     asset_items(st, where, cycles, [t for d in cycles + playtests for t in d["tasks"]])
+    attach_parts(st)
+    link_tasks(st, cycles, where)
+    epic_tasks(st, cycles, playtests)
     check_items(st, where, cycles, playtests)
     asks = open_questions(st, cycles)
     stamp = f"{datetime.datetime.now():%Y-%m-%d %H:%M}"
@@ -1386,8 +1600,8 @@ def build(outdir, index_name):
                        "pause": bool(kept.get("pause")) and kept.get("pause") == kept.get("session")} if now else None,
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(now_asked(review)), "later": len(review) - len(now_asked(review)),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
-               "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"]],
-               "board": chart_data(st, asks, cycles, sheet, review)}
+               "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"] and not s["foundation"]],
+               "board": chart_data(st, asks, cycles, sheet, review, playtests)}
     return pages, review, summary, (f'{line} · open: problems {c["bad"]} · not made {c["none"]} · placeholders {c["temp"]}' + (f' · {CFG["common"]} {stray} (assets {stray_assets} — in no stage)' if stray else "")
                                     + f" · review {len(now_asked(review))}" + (f" (later {len(review) - len(now_asked(review))})" if len(review) != len(now_asked(review)) else ""))
 
@@ -1402,7 +1616,7 @@ def sources():
     return ([os.path.join(ROOT, CFG["gdd"]), os.path.join(ROOT, CONFIG_NAME), os.path.join(ROOT, CFG["notes"]), os.path.join(ROOT, CFG["design"]), sheets]
             + ([os.path.join(sheets, n) for n in os.listdir(sheets)] if os.path.isdir(sheets) else [])
             + [p for p in table_files() if p]
-            + cycle_docs() + playtest_docs() + [os.path.join(ROOT, CFG["assets"])]
+            + cycle_docs() + playtest_docs() + [os.path.join(ROOT, CFG["backlog"]), os.path.join(ROOT, CFG["assets"])]
             + [context_kept()])
 
 

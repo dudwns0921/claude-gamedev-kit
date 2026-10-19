@@ -44,12 +44,13 @@ Making a game with AI is easy. The trouble starts when making it takes weeks: yo
 
 ### See where every game stands — and decide there
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The dashboard of a sample game: stage cards in play order, each with a completion ring, its first picture and meters for function, art, sound and verification; beside them the current cycle and the undecided questions" width="860"></picture></p>
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-stage-dark.png"><img src="assets/dashboard-stage-light.png" alt="One stage opened: the GDD rows it is built from, its three pictures and a sound you can play" width="860"></picture></p>
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-decide-dark.png"><img src="assets/dashboard-decide-light.png" alt="A decision on the Review tab: three concept pictures to compare above the options, one of them recommended" width="860"></picture></p>
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-assets-dark.png"><img src="assets/dashboard-assets-light.png" alt="The assets tab: every picture and sound of the game side by side" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The Epics tab of a sample game: epic cards with their screens and task counts, and one epic opened below with its cycles in a row and that cycle's tasks" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-cycle-dark.png"><img src="assets/dashboard-cycle-light.png" alt="The Cycle tab: the cycle's goal and stages on top, its tasks in four columns — to do, in hand, blocked, done" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-task-dark.png"><img src="assets/dashboard-task-light.png" alt="A task opened: what it is, how the game will change, and what changed, a sentence each" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-decide-dark.png"><img src="assets/dashboard-decide-light.png" alt="A decision on the Review tab: three wing drafts to compare above the options, one of them recommended" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-assets-dark.png"><img src="assets/dashboard-assets-light.png" alt="The assets tab: every picture and sound of the game, grouped by epic, each with its state" width="860"></picture></p>
 
-A dashboard on your machine shows each game as the player meets it, stage by stage — what is done, a placeholder, not made, or a problem. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening.
+A dashboard on your machine lays each game out like a tracker. Every part the player meets is an epic; each cycle is a board of its tasks; what you put off waits in a backlog. Open a task and it says what it is, how the game will change and what changed. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening.
 
 ### The design and the code stay one thing
 
@@ -62,6 +63,20 @@ Every number and rule in the GDD has an ID, and the code that implements it carr
 <p align="center"><img src="assets/compounds.svg" alt="Three games in a row; the stack of your own rules under each one grows, with what came before carried over" width="860"></p>
 
 What tripped you becomes one of your rules, loaded into every game you make next. Once you say so, rules go to this repository as issues, and the ones that hold for anyone become the kit's rules for everybody.
+
+## What it runs and sends
+
+The scripts are plain Python (standard library only) and run on your machine. Hooks run them when a session starts, after edits and when a turn ends, to keep the status board, the balance table and the kit's rules in your game's CLAUDE.md up to date. Everything they write stays in your game's folder and in `~/.config/gamedev-kit/`.
+
+What leaves your machine, and only then:
+
+- **Your rules, as GitHub issues on this repository** — only after you say yes once (`/gamedev-kit:feedback`), or when you send them yourself. They go through your own [GitHub CLI](https://cli.github.com) login (`gh issue create` · `gh issue comment`). Each issue holds the rule's text, the engine, the kit's version and an eight-digit id salted on your machine; the game's name is not sent, and a rule that names your game or a date is held back. The open issues of this repository are read from `api.github.com` (no login) to find one the rule matches.
+- **The dashboard** — when you start it, it is cloned from [gamedev-kit-board](https://github.com/dudwns0921/gamedev-kit-board) into `~/.config/gamedev-kit/board-app`, installed with `npm install`, built and run on `127.0.0.1`. It is not reachable from other machines.
+- **Your own board service, if you set one up** — the board is sent to the HTTPS address and with the token you put in `~/.config/gamedev-kit/board.env`. Nothing is sent when that file has none.
+- **A private claude.ai link, when you ask for one** — the board and the review page, published by Claude Code to your own account so you can open them on a phone.
+- **A font** — the board's pages load the Pretendard font from `cdn.jsdelivr.net`.
+
+The kit makes no assets and calls no AI or asset services of its own.
 
 ## License
 

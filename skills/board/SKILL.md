@@ -32,12 +32,19 @@ read the GDD or cycle documents to describe the board.** The page is for the use
 Two kinds of page, written next to each other in `docs/board/`:
 
 - `index.html` — **the first screen**, built around the cycle in hand:
-  - **Now** — the newest cycle: its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks, and how many things wait on the user (→ review).
+  - **Now** — the newest cycle: its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks — the ones being worked on now marked (`cycle.py mark … doing`) — and how many things wait on the user (→ review).
   - **The game** — the stages of play in the order the player meets them, each card the stage's newest screen (`cycle.py shot`, stamped with its cycle; marked when two or more cycles old;
-    "no screen yet" when none) and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page.
-  - **What is left** — counts, not a percentage: waiting on you · problems · not made · placeholders, one bar of everything, and what belongs to no stage yet.
+    "no screen yet" when none), how complete it is (%), its tasks done of all (each stage is an epic: every task whose `Epic:` line names it), which of the cycle's tasks are in it,
+    and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page. Foundation — what no stage owns — follows under them, once a task names it.
+  - **What is left** — how complete the game is (the stages' average %), then counts: waiting on you · problems · not made · placeholders · the backlog, one bar of everything, and what belongs to no stage yet.
   - **Cycles** — one picture per cycle (its first screen).
-- `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, and the cycle tasks that touched it.
+
+The data the dashboard draws from (`board.json`) also carries each stage's parts and its epic (its tasks across cycles and playtests, their counts, its backlog lines), the backlog (`docs/backlog.md`),
+every cycle's tasks (with their game-wide key `C16-T3`, their epic, what was written under each, the stages each went into and the assets each names),
+every task of every cycle and playtest by its key (`tasks` — the lines under it and the decisions it names: the dashboard's task panel),
+the cycle's assets with what each is, the stages it worked in and the screens it shot — the dashboard's Epics and Cycle tabs —
+and, for each asset, where it is used: the stage it was placed in, and the code files that name it (by file name, or by its name as a string or a path; the files the gdd-sync skill reads).
+- `stage-N.html` — one stage: its GDD rows, art thumbnails (click to enlarge), sounds (playable), checks, open questions, the cycle tasks that touched it, and its backlog.
 
 The board shows the flow, not the history: answered decisions and the per-cycle record stay in the cycle documents.
 
@@ -74,18 +81,24 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
     { "name": "The sirens", "about": "one line the card shows", "loop": true,
       "sections": ["4.1", "4.2"],            "ids": ["HUD.ROPE", "RULE.FAIL.*"],
       "assets": ["siren*", "wax_*"],         "words": ["wax", "crew"],
-      "image": "docs/capture/siren.png" }
+      "image": "docs/capture/siren.png",
+      "parts": [{ "name": "The song", "about": "pulls the crew to the rail", "ids": ["RULE.SONG.*"], "assets": ["siren_song*"] }] }
   ]
 }
 ```
 
 - `sections` — GDD sections whose table rows belong here. `ids` — row IDs (globs) that belong here whatever their section; wins over `sections`.
-- `assets` — asset names (globs). An asset no stage names goes to the stage whose tasks mention it, else to "Unsorted".
+- `assets` — asset names (globs). An asset no stage names goes to the epic of the tasks that mention it, then to the stage their GDD ids are in, else to "Unsorted".
 - `words` — words that pull playtest tasks and open questions without a table ID to this stage.
+- `parts` — what the player meets in the stage (an enemy, a weapon, the room), each `{ "name", "about", "ids", "assets", "words" }` like a stage's own keys.
+  The stage page shows one row per part — how far its function is (its rules and numbers in the code) and how far its assets are (looks and sounds), each a %, and the assets still to make. What no part names falls in a part made from its name
+  (a GDD id's second word, an asset's first word). Write them with the user when the stage page reads by names rather than by the game — in the user's language.
 - `image` — the card's picture when no cycle has shot the stage yet (a screen a cycle records with `cycle.py shot` wins — the newest one). Without either, the first art thumbnail. `loop` — consecutive stages that repeat get one bracket.
 - Rows, assets and questions no stage claims are shown under "Unsorted" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
 
 - `"ignore"` (beside `flow`) — asset names (globs) not to count: planned in a cycle document, then dropped.
+- The stages are also the game's epics — a task's `Epic:` line names one, or `"foundation"` (beside `flow`, default `Foundation`) for what no stage owns. Renaming a stage leaves
+  the tasks that named it under its old name: `cycle.py epics` lists them as "not an epic now".
 - "Unsorted" is a to-do for the flow: place what is there, or ignore it. Its count is shown beside what is left — on the first screen and in the line the script prints
   ("Unsorted N (assets M — in no stage)"). When relaying the counts, relay it with them.
 
@@ -200,7 +213,7 @@ answer or strike GDD open questions in the GDD; hand problems seen by playing to
 **Every answer is settled in the turn it arrives** — `answers` ends by saying how. Done: recorded as above. **It asks for research** ("look into it", "match reality",
 "find what people consider success"): do the research now — a few searches, not a cycle — and ask again with what was found as the options and a recommendation
 (`reask` for a decision; for a GDD open question, `cycle.py ask` a decision and strike the question → "asked as Dn"). **Work for a later cycle**:
-`cycle.py later "<the user's words>" --key <key>` — the card reads "waiting — a later cycle" instead of in hand, its batch is settled, and the next cycle's `new` lists it
+`cycle.py later "<the user's words>" --key <key>` — it goes in the backlog, the card reads "waiting — a later cycle" instead of in hand, its batch is settled, and the next cycle's `new` lists it
 for the user to pick as a goal (recommend; do not choose). An answer left in none of these reads "the session is on it" with no one on it; a session starting with one is told so.
 **An answer that asks back** (a question in the note, a wish the options do not cover): answer it and ask it again with the cycle skill's `reask` —
 the old card leaves and a new decision takes its place. **An answer you do not act on** as it is — unclear, mistyped — is released with `board.py reopen <key>`

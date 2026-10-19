@@ -214,6 +214,18 @@ class Tools(unittest.TestCase):
                              "## Orphan markers — "):
                     self.assertIn(line, out)
 
+    def test_gdd_numbers(self):
+        """A value's number is read past a reference written before it (`D24 — 120 px`), and ranges and decimals still read."""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("sync_report", os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        self.assertEqual(mod.gdd_numbers("D24 — 120 px from the bottom"), (120.0, 120.0), "a decision's number is not the value")
+        self.assertEqual(mod.gdd_numbers("20~25"), (20.0, 25.0))
+        self.assertEqual(mod.gdd_numbers("-1.5 m/s"), (-1.5, -1.5))
+        self.assertEqual(mod.gdd_numbers("4x"), (4.0, 4.0))
+        self.assertIsNone(mod.gdd_numbers("HUD.TOP"))
+
     def test_balance_table(self):
         for _engine, root, code, table, _rel in self.each():
             before = open(code, encoding="utf-8").read()
@@ -705,7 +717,7 @@ class Tools(unittest.TestCase):
         run(CYCLE, root, "shot", "rules", "docs/capture/cycle01/rules.png")
         text = open(doc, encoding="utf-8").read()
         self.assertEqual(text.count("- rules — `docs/capture/cycle01/rules.png`"), 1, "a stage shot again replaces its line")
-        self.assertIn("- Next: a boss, some day", text, "what follows the screens stays")
+        self.assertIn("- [ ] B1. a boss, some day (from Cycle 01 · ", open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read(), "put off goes in the backlog")
         run(BOARD, root)
         chart = page(root, "index.html")
         self.assertIn("<h2>pick coins up</h2>", chart, "the one line heads Now")
@@ -716,6 +728,37 @@ class Tools(unittest.TestCase):
         self.assertEqual(data["now"]["line"], "pick coins up")
         self.assertEqual(data["board"]["stages"][0]["shot"], {"cycle": "01", "behind": 0})
         self.assertEqual([t["num"] for t in data["board"]["cycles"][-1]["list"]], ["T1", "T2"], "the newest cycle's tasks go to the dashboard's Now")
+        self.assertEqual(data["board"]["cycles"][-1]["stages"], [0], "the stages a cycle worked in")
+        self.assertEqual(data["board"]["cycles"][-1]["shots"], [{"stage": "rules", "img": "../capture/cycle01/rules.png"}])
+        run(CYCLE, root, "mark", "T2", "doing")
+        self.assertIn("[>] 1", run(CYCLE, root, "status").stdout)
+        self.assertIn("in progress: T2.", run(CYCLE, root, "next").stdout)
+        run(BOARD, root)
+        self.assertIn('<li class="doing"><i>▶</i><b>T2</b>', page(root, "index.html"), "the task an agent is on now")
+        data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
+        self.assertEqual(data["board"]["cycles"][-1]["tasks"]["doing"], 1)
+        # where an asset is used: the stage it was placed in, and the code files that name it
+        cfg = json.load(open(os.path.join(root, "kit.config.json")))
+        cfg["gdd-sync"] = {"code_ext": [".gd"]}
+        json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+        ext = ".gd"
+        os.makedirs(os.path.join(root, "assets/sounds"), exist_ok=True)
+        open(os.path.join(root, "assets/sounds/coin_ping.mp3"), "w").write("x")
+        open(os.path.join(root, "player" + ext), "w").write('play("assets/sounds/coin_ping.mp3")\n')
+        run(BOARD, root)
+        data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
+        ping = next(x for x in data["board"]["assets"]["sounds"] if x["title"] == "coin_ping")
+        self.assertEqual(ping["used"], {"stage": "Rules <b>", "code": ["player" + ext]})
+        st0 = data["board"]["stages"][0]
+        self.assertTrue(st0["parts"], "a stage's parts — made from names while the flow names none")
+        coin = next(i for i in st0["lanes"]["sound"] if i["title"] == "coin_ping")
+        self.assertEqual((coin["part"], coin["used_in"]), ("coin", ["player" + ext]))
+        self.assertTrue(any(p["name"] == "coin" for p in st0["parts"]))
+        os.remove(os.path.join(root, "assets/sounds/coin_ping.mp3"))
+        os.remove(os.path.join(root, "player" + ext))
+        del cfg["gdd-sync"]
+        json.dump(cfg, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "mark", "T2", "blocked")
         run(BOARD, root)
         stamp = os.path.getmtime(out)
         run(BOARD, root, "--if-stale")
@@ -755,6 +798,7 @@ class Tools(unittest.TestCase):
             "### [!] T2. 소리를 낸다\n- **GDD**: BAL.COIN.VALUE\n- **막힘**: coin_ping 이 없다\n\n## 순서\n- 1차 (끝): T1\n- 2차: T2 — T1 뒤\n\n## 플레이\n")
         open(os.path.join(old, "docs/playtest/first.md"), "w", encoding="utf-8").write(
             "# 플레이테스트 — first\n\n## 요약\n\n## 작업\n\n### [ ] T1. 동전이 붙는다\n- **분류**: 버그\n- **GDD**: RULE.COIN.PICKUP\n\n## 순서\n- 1차: T1\n")
+        shutil.copy(os.path.join(root, "docs/backlog.md"), os.path.join(old, "docs/backlog.md"))  # the backlog came after the Korean words
         self.assertEqual(shape(old), shape(root), "a document in the old words draws the same board as one in the new")
         chart, stage = page(old, "index.html"), page(old, "stage-1.html")
         self.assertIn("<title>게임 — board</title>", chart)
@@ -1242,7 +1286,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn(f"1 answer(s) from the dashboard were taken but never settled ({q['key']})", notice(), "taken, then left — the next session is told")
 
         self.assertIn(f"the card {q['key']} shows it waiting", run(CYCLE, root, "later", "find what people count as success", "--key", q["key"]).stdout)
-        self.assertIn(f"- Next: find what people count as success (board: {q['key']})", open(os.path.join(root, "docs/cycle/01-day.md"), encoding="utf-8").read())
+        self.assertIn(f"- [ ] B1. find what people count as success (board: {q['key']}) (from Cycle 01 · ", open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read())
         self.assertIn("a b: a review key", run(CYCLE, root, "later", "x", "--key", "a b", ok=False).stderr)
         run(BOARD, root)
         item = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["key"] == q["key"])
@@ -1591,7 +1635,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("open decisions 2", out)
         self.assertIn("next wave: 1\n", out)
         self.assertIn("T2. Attach the prices — waiting on D1", out)
-        self.assertNotIn("T3", out)
+        self.assertNotIn("  T3.", out)
         run(CYCLE, root, "decide", "D1", "고정으로 가자")
         self.assertRegex(text(), r"- \[x\] D1\. How the price moves — ① fixed ② floating · recommended: ① \(Spec\) → 고정으로 가자 \(\d{4}-\d\d-\d\d\)")
         self.assertNotIn("waiting on D1", run(CYCLE, root, "next").stdout)
@@ -1602,13 +1646,18 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertNotIn("T1", out, "other tasks are not pulled out")
         self.assertNotIn("D2", out, "decisions it does not depend on are not pulled out")
 
-        run(CYCLE, root, "mark", "T1,T2", "done")
+        self.assertIn("one task per call", run(CYCLE, root, "mark", "T1,T2", "done", ok=False).stderr)
+        self.assertIn("say what changed", run(CYCLE, root, "mark", "T1", "done", ok=False).stderr, "what changed is what the dashboard shows")
+        self.assertIn("code names, files or section numbers (shop.gd)", run(CYCLE, root, "mark", "T1", "done", "built shop.gd", ok=False).stderr)
+        self.assertIn("one plain sentence, under 120", run(CYCLE, root, "mark", "T1", "done", "x" * 121, ok=False).stderr)
+        run(CYCLE, root, "mark", "T1", "done", "the shop screen opens from the counter")
+        run(CYCLE, root, "mark", "T2", "done", "each item shows its price")
         run(CYCLE, root, "mark", "T3", "blocked", "sign.gd is missing")
         self.assertIn("### [x] T2. Attach the prices", text())
         self.assertIn("### [!] T3. Hang the sign\n- **Where**: sign.gd\n- **Blocked**: sign.gd is missing\n\n## Order", text())
         self.assertIn("blocked task: T3", run(CYCLE, root, "next").stdout)
-        run(CYCLE, root, "mark", "T3", "done", "hung on sign.tscn")
-        self.assertIn("- **Blocked**: sign.gd is missing\n- **Done**: hung on sign.tscn\n\n## Order", text())
+        run(CYCLE, root, "mark", "T3", "done", "the sign hangs over the door")
+        self.assertIn("- **Blocked**: sign.gd is missing\n- **Done**: the sign hangs over the door\n\n## Order", text())
         self.assertIn("no tasks left", run(CYCLE, root, "next").stdout)
         self.assertEqual(run(CYCLE, root, "stage", "플레이").stdout.strip(), "stage: Play", "a stage named in Korean is written in English")
         out = run(CYCLE, root, "status").stdout.strip().split("\n")
@@ -1637,11 +1686,12 @@ if sys.argv[1:3] == ["run", "start"]:
 
         # there is no closing stage — a cycle standing at Play becomes Closed when the next cycle is made, and what is left · deferred is reported
         run(CYCLE, root, "later", "간판에  불을 켜는 건 다음에")
-        self.assertIn("## Play\n- Next: 간판에 불을 켜는 건 다음에\n", text())
+        self.assertIn("- [ ] B1. 간판에 불을 켜는 건 다음에 (from Cycle 02 · ", open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read())
         out = run(CYCLE, root, "new", "auto", "알아서").stdout
         self.assertIn("closed: docs/cycle/02-shop.md", out)
         self.assertIn("left in the previous cycle: open decisions 1", out)
-        self.assertIn("deferred: 간판에 불을 켜는 건 다음에", out)
+        self.assertIn("backlog: 1 waiting", out)
+        self.assertIn("  B1. 간판에 불을 켜는 건 다음에\n", out, "the next cycle's start lists the backlog")
         self.assertIn("carried over, not picked up: art style still to fill in (", out)
         self.assertIn("Stage: Closed", text())
 
@@ -1731,7 +1781,7 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, old, "mark", "T3", "blocked", "sign.gd 가 없다")
         self.assertIn("- **대기**: D2\n- **Blocked**: sign.gd 가 없다\n\n## 순서", otext())
         run(CYCLE, old, "later", "문도 단다")
-        self.assertIn("- 다음에: 간판에 불을 켠다\n- Next: 문도 단다\n", otext())
+        self.assertIn("- 다음에: 간판에 불을 켠다\n", otext(), "an older document's own deferred line stays")
         self.assertEqual(run(CYCLE, old, "stage", "Play").stdout.strip(), "stage: Play")
         self.assertIn("단계: Play\n", otext(), "the head keeps its own label; the stage written is English")
         at = "Play"
@@ -1741,7 +1791,8 @@ if sys.argv[1:3] == ["run", "start"]:
             out = run(CYCLE, old, "new", "next", "다음").stdout
             os.remove(os.path.join(old, "docs/cycle/02-next.md"))
             self.assertIn("left in the previous cycle: [ ] 1 · [!] 1 · open decisions 2", out)
-            self.assertIn("deferred: 간판에 불을 켠다\ndeferred: 문도 단다\n", out)
+            self.assertIn("deferred: 간판에 불을 켠다\n", out)
+            self.assertIn("  B1. 문도 단다\n", out)
             if stage == "끝":
                 self.assertNotIn("01-shop.md", out.split("\n", 1)[1], "a cycle already at 끝 is neither closed again nor reported as still open")
                 self.assertIn("단계: 끝\n", otext())
@@ -2032,6 +2083,7 @@ none
         out = run(PLAYTEST, root, "task", "T2").stdout
         self.assertIn("\n\n## Summary\nWalking speed matters most.\n\n### [ ] T2. Fix the door", out)
         self.assertNotIn("T1", out)
+        self.assertIn("code names or files (walk_speed)", run(PLAYTEST, root, "mark", "T1", "done", "walk_speed set to 4.5", ok=False).stderr)
         run(PLAYTEST, root, "mark", "T1", "done", "set to 4.5")
         run(PLAYTEST, root, "mark", "T2", "blocked", "there is no door")
         text = open(doc, encoding="utf-8").read()
@@ -2045,7 +2097,7 @@ none
         shutil.copy(doc, twin)
         err = run(PLAYTEST, root, "mark", "T1", "done", ok=False).stderr
         self.assertIn("--doc", err)
-        run(PLAYTEST, root, "mark", "T1", "done", "--doc", "docs/playtest/2026-10-08-b.md")
+        run(PLAYTEST, root, "mark", "T1", "done", "set to 4.5", "--doc", "docs/playtest/2026-10-08-b.md")
         os.remove(twin)
 
         # a document from before the kit wrote English keeps working: its Korean words are read, and what is added to it is English
@@ -2137,6 +2189,80 @@ none
         self.assertEqual(run_id()[0], a1, "the salt is kept — the id holds across runs")
         os.remove(os.path.join(home, ".game-salt"))
         self.assertNotEqual(run_id()[0], a1, "and without that salt the name gives another id — a guessed name cannot be checked")
+
+    def test_epics(self):
+        """The game laid out as epics: each stage of play (and Foundation) holds the tasks that name it, across cycles and playtests;
+        what is put off waits in the backlog until a cycle takes it or the user drops it."""
+        root = tempfile.mkdtemp(prefix="kit-epics-")
+        self.addCleanup(shutil.rmtree, root, True)
+        json.dump({"board": {"flow": [{"name": "Title screen"}, {"name": "Draw the bow"}]}}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "bow", "the bow")
+        doc = os.path.join(root, "docs/cycle/01-bow.md")
+        text = lambda: open(doc, encoding="utf-8").read()
+        filled = text()
+        open(doc, "w", encoding="utf-8").write(filled.replace("## Tasks\n", "## Tasks\n\n### [ ] T1. Draw\n- **Where**: a.gd\n\n### [ ] T2. Save\n- **Where**: b.gd\n")
+                                               .replace("## Order\n", "## Order\n- Wave 1: T1, T2\n"))
+        self.assertIn("tasks with no epic: T1 · T2", run(CYCLE, root, "next").stdout, "a task without an epic is pointed out")
+        self.assertIn("no such epic — Title screen · Draw the bow · Foundation", run(CYCLE, root, "epic", "T1", "the shop", ok=False).stderr)
+        self.assertIn("C1-T1 → Draw the bow", run(CYCLE, root, "epic", "T1", "bow").stdout, "a part of the name is enough")
+        run(CYCLE, root, "epic", "C1-T2", "foundation")
+        run(CYCLE, root, "epic", "T1", "Title")
+        self.assertIn("### [ ] T1. Draw\n- **Epic**: Title screen\n- **Where**: a.gd\n", text(), "set again, the line is replaced")
+        self.assertIn("### [ ] T2. Save\n- **Epic**: Foundation\n", text())
+        out = run(CYCLE, root, "next").stdout
+        self.assertIn("  T1. Draw [Title screen]", out)
+        self.assertNotIn("no epic", out)
+        self.assertIn("C1-T1 · stage: Goal", run(CYCLE, root, "task", "C1-T1").stdout, "a task across the game by its key")
+        self.assertIn('tasks with no plain "What" or "Change" line: T1 · T2', run(CYCLE, root, "next").stdout, "the two lines the dashboard shows")
+        run(CYCLE, root, "mark", "C1-T1", "done", "the bow draws")
+        self.assertIn("### [x] T1. Draw", text())
+        self.assertIn("C9: no such cycle", run(CYCLE, root, "mark", "C9-T1", "done", ok=False).stderr)
+
+        self.assertIn("B1: in the backlog", run(CYCLE, root, "later", "a boss, some day", "--epic", "bow").stdout)
+        self.assertIn("no epic yet", run(CYCLE, root, "later", "music").stdout)
+        self.assertIn("--epic goes with later", run(CYCLE, root, "next", "--epic", "bow", ok=False).stderr)
+        run(CYCLE, root, "backlog", "epic", "B2", "title")
+        out = run(CYCLE, root, "backlog").stdout
+        self.assertIn("Title screen — 1\n  B2. music\nDraw the bow — 1\n  B1. a boss, some day\n", out, "by epic, in play order")
+        out = run(CYCLE, root, "epics").stdout
+        self.assertIn("Title screen — tasks 1/1 done · backlog 1", out)
+        self.assertIn("Foundation — tasks 0/1 done · open 1", out)
+
+        os.makedirs(os.path.join(root, "docs/playtest"))
+        open(os.path.join(root, "docs/playtest/first.md"), "w", encoding="utf-8").write(
+            "# Playtest — first\n\n## Summary\n\n## Tasks\n\n### [ ] T1. The string sticks\n- **Kind**: bug\n\n## Order\n- Wave 1: T1\n")
+        self.assertIn("tasks with no epic: T1", run(PLAYTEST, root, "next").stdout)
+        run(PLAYTEST, root, "epic", "T1", "bow")
+        self.assertIn("### [ ] T1. The string sticks\n- **Epic**: Draw the bow\n- **Kind**: bug", open(os.path.join(root, "docs/playtest/first.md"), encoding="utf-8").read())
+
+        run(BOARD, root)
+        page = lambda root, name: open(os.path.join(root, "docs/board", name), encoding="utf-8").read()
+        board = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]
+        epic = {s["name"]: s["epic"] for s in board["stages"]}
+        self.assertEqual(epic["Draw the bow"]["counts"], {"done": 0, "doing": 0, "open": 1, "blocked": 0}, "the playtest task counts in its epic")
+        self.assertEqual([t["key"] for t in epic["Title screen"]["tasks"]], ["C1-T1"])
+        self.assertEqual(epic["Title screen"]["backlog"], ["B2"])
+        self.assertTrue(next(s for s in board["stages"] if s["name"] == "Foundation")["foundation"])
+        self.assertEqual([(t["key"], t["epic"]) for t in board["cycles"][0]["list"]], [("C1-T1", "Title screen"), ("C1-T2", "Foundation")])
+        detail = board["tasks"]["C1-T1"]
+        self.assertEqual((detail["title"], detail["mark"], detail["epic"], detail["fields"]), ("Draw", "x", 0, [{"k": "Where", "v": "a.gd"}, {"k": "Done", "v": "the bow draws"}]),
+                         "each task by its key, with the lines under it (not its epic line) — the dashboard's task panel")
+        self.assertEqual(board["tasks"]["first T1"]["fields"], [{"k": "Kind", "v": "bug"}], "a playtest's task too")
+        chart = page(root, "index.html")
+        self.assertIn("Under every stage", chart, "Foundation is shown apart from the order of play")
+        self.assertIn('<span class="lab">Backlog</span><b>2</b>', chart)
+        self.assertIn("a boss, some day", page(root, "stage-2.html"), "a stage page lists its backlog")
+
+        out = run(CYCLE, root, "new", "next", "the next one").stdout
+        self.assertIn("backlog: 2 waiting", out)
+        self.assertIn("  B1. a boss, some day [Draw the bow]", out)
+        self.assertIn("B1 → Cycle 02: a boss, some day", run(CYCLE, root, "backlog", "take", "B1").stdout)
+        run(CYCLE, root, "backlog", "drop", "B2", "not needed")
+        self.assertIn("no longer waiting", run(CYCLE, root, "backlog", "take", "B1", ok=False).stderr)
+        self.assertEqual(run(CYCLE, root, "backlog").stdout.strip(), "the backlog is empty")
+        backlog = open(os.path.join(root, "docs/backlog.md"), encoding="utf-8").read()
+        self.assertRegex(backlog, r"- \[>\] B1\. a boss, some day — epic: Draw the bow \(from Cycle 01 · \d{4}-\d\d-\d\d\) → Cycle 02 \(")
+        self.assertIn("- [-] B2. music — epic: Title screen (from Cycle 01 · ", backlog)
 
     def test_cycle_skip(self):
         """A goal that does not touch an owner's part skips that agent: the section says why, status shows it, and a section that ran cannot be skipped."""
