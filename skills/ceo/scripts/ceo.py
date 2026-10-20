@@ -107,7 +107,8 @@ def stage_of(text):
 
 def store():
     """Who holds which cycle and whose build has the turn — the cycle script's record, read only."""
-    s = load(os.path.join(kept(), "sessions.json"), {}).get(os.path.realpath(ROOT)) or {}
+    path = os.path.join(kept(), "sessions.json") if kept().endswith(os.sep + "gamedev-kit") else os.path.join(ROOT, DIR, ".sessions.json")  # where the cycle script keeps it
+    s = load(path, {}).get(os.path.realpath(ROOT)) or {}
     held = {int(h.get("cycle", 0)): int(p) for p, h in (s.get("held") or {}).items() if str(p).isdigit() and alive(p)}
     b = s.get("build")
     return held, b if b and alive(b.get("pid")) else None

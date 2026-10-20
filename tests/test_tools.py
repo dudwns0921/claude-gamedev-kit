@@ -2401,6 +2401,11 @@ else:
         self.assertIn("Spec written.", ceo("workers", "1").stdout, "the last words, for what to tell the user")
         out = ceo("run", "new", "A shop").stdout
         self.assertIn("C02 worker ended — STOP decisions: what the shop sells", out, "a new cycle's worker is known by the document it made")
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        run(BOARD, root)
+        work = json.load(open(os.path.join(root, "docs/board/board.json")))["work"]
+        self.assertEqual([(w["cycle"], w["stop"]) for w in work["ended"]], [(2, "decisions"), (1, "decisions")], "the Now tab: how the last workers ended, newest first")
+        self.assertEqual((work["workers"], work["build"]), ([], None), "nothing running now")
 
     def test_cycle_commit(self):
         """A build is committed the moment it is done, and each round of fixes after it: what changed since the build turn was taken and

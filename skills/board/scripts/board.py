@@ -1632,6 +1632,7 @@ def build(outdir, index_name):
                            "building": build == str(int(h["num"])),
                            "review": sum(1 for i in now_asked(review) if str(i.get("cycle", "")) == str(h["num"]) or h is now and not i.get("cycle"))}
                           for h in in_hand(cycles)] if all(str(x["num"]).isdigit() for x in cycles) else [],
+               "work": work_data(),
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(now_asked(review)), "later": len(review) - len(now_asked(review)),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"] and not s["foundation"]],
@@ -1651,7 +1652,14 @@ def sources():
             + ([os.path.join(sheets, n) for n in os.listdir(sheets)] if os.path.isdir(sheets) else [])
             + [p for p in table_files() if p]
             + cycle_docs() + playtest_docs() + [os.path.join(ROOT, CFG["backlog"]), os.path.join(ROOT, CFG["assets"])]
-            + [context_kept()])
+            + [context_kept()] + work_files())
+
+
+def work_files():
+    """Who holds which cycle and the CEO's workers — a change in either redraws the board, so the Now tab follows."""
+    store()
+    base = os.path.dirname(_STORE[0])
+    return [_STORE[0], os.path.join(base if base.endswith("gamedev-kit") else os.path.join(ROOT, "docs", "cycle", ".gamedev-kit"), "workers.json")]
 
 
 PART_FILES = 200            # files per publish — the link takes up to 255 in one go
@@ -2213,6 +2221,22 @@ def holding():
     """Cycle number → the pid of the open session working on it."""
     held = store().get("held") or {}
     return {str(int(h.get("cycle", 0))): int(p) for p, h in held.items() if str(p).isdigit() and running(int(p))}
+
+
+def work_data():
+    """What is in motion now — the Now tab: the workers the CEO runs (the ceo skill keeps them beside the store), who holds each cycle
+    (a worker, or a window of the user's), whose build has the turn, and how the last workers ended."""
+    store()
+    git_dir = os.path.dirname(_STORE[0]) if _STORE[0].endswith(os.path.join("gamedev-kit", "sessions.json")) else os.path.join(ROOT, "docs", "cycle", ".gamedev-kit")
+    rows = [w for w in load_json(os.path.join(git_dir, "workers.json")) or [] if isinstance(w, dict)]
+    live = [w for w in rows if not w.get("ended") and running(w.get("pid"))]
+    pids = {w.get("pid") for w in live}
+    b = store().get("build") or {}
+    pick = lambda w, keys: {k: w.get(k, "") for k in keys}
+    return {"workers": [pick(w, ("cycle", "kind", "what", "started")) for w in live],
+            "ended": [pick(w, ("cycle", "kind", "started", "ended", "stop", "said", "cost")) for w in rows if w.get("ended")][-8:][::-1],
+            "held": [{"cycle": c, "by": "worker" if p in pids else "window"} for c, p in sorted(holding().items(), key=lambda x: int(x[0]))],
+            "build": {"cycle": building(), "what": b.get("what", ""), "at": b.get("at", "")} if building() else None}
 
 
 def building():
