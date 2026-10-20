@@ -10,6 +10,7 @@ It coordinates and decides nothing: every question stays a decision for the user
   python3 ceo.py run <NN> playtest "<the user's problem list>"   a worker turns the list into a playtest document and stops at what is the user's
   python3 ceo.py run <NN> implement [<document>]                 a worker builds a playtest document's tasks and commits the round
   python3 ceo.py workers [<NN>]         the workers of this game — running, or how each ended (its STOP line and its last words), cost
+  python3 ceo.py --notice               at session start (a hook): in a game the CEO runs, a window opened or cleared is told it is the CEO's — so "go on" picks it up
   python3 ceo.py setup --mode <permission mode> [--tools "<tool,…>"] [--budget <usd>] [--parallel <n>] [--model <model>]
                                         how workers run — "ceo" in kit.config.json. The user says it once: a worker runs with no one to ask
 """
@@ -204,6 +205,10 @@ def cmd_status():
         shown += 1
     if not shown:
         print("no cycle is open — propose goals (the skill's \"New goals\")")
+    played = [p for p in docs() if PLAY.match(stage_of(open(p, encoding="utf-8").read())) and num(p) not in running()]
+    if len(played) > 1:
+        print(f"{len(played)} cycles stand at Play — ask the user once which of them they have played and are done with; "
+              "those close (`cycle.py close --doc <document>`), and what they bring about a closed one is a new cycle's")
     held, build = store()
     if isinstance((whole().get("cycle") or {}).get("worktree"), dict):
         print("builds: each cycle in a folder of its own — several build at once; only a merge into the game takes the turn, for a moment. "
@@ -244,6 +249,9 @@ def cmd_run(target, kind, said=""):
     n = 0 if kind == "new" else int(str(target).lstrip("Cc"))
     if n:
         path = doc_of(n)
+        if stage_of(open(path, encoding="utf-8").read()) in CLOSED:
+            sys.exit(f"C{n:02d} is closed — the user played it and was done with it. What they bring about it now is a new cycle's: "
+                     f"`run new \"<their words>\"` (or later: `cycle.py later \"…\"`)")
         stage, what, ready = state(path)
         if kind == "next" and not ready:
             sys.exit(f"C{n:02d} — {what}")
@@ -326,8 +334,32 @@ def cmd_setup(opts):
           + (f" · model {c['model']}" if c["model"] else ""))
 
 
+NOTICE = ("This game is run by the CEO (`ceo` in kit.config.json). Unless the user asks to work on one cycle by hand in this window, this window is the CEO's: "
+          "load the ceo skill (/gamedev-kit:ceo) before anything else and go on from its `status` — \"go on\", \"계속\", \"이어서\" mean that. "
+          "Nothing needs carrying over: the cycles, the workers and the answers are all in files.")
+
+
+def notice():
+    """At session start (a hook): one paragraph, only in a game the CEO runs, never in a worker — it is quiet everywhere else and never fails."""
+    if os.environ.get("KIT_WORKER"):
+        return
+    d = os.getcwd()
+    while not os.path.exists(os.path.join(d, CONFIG_NAME)):
+        if os.path.dirname(d) == d:
+            return
+        d = os.path.dirname(d)
+    try:
+        mode = (json.load(open(os.path.join(d, CONFIG_NAME), encoding="utf-8")).get(SECTION) or {}).get("mode")
+    except (OSError, ValueError, AttributeError):
+        return
+    if mode:
+        print(NOTICE)
+
+
 def main():
     args = sys.argv[1:]
+    if args == ["--notice"]:
+        return notice()
     opts = {}
     for flag in ("--root", "--mode", "--tools", "--budget", "--parallel", "--model"):
         if flag in args:

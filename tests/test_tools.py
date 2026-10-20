@@ -588,7 +588,7 @@ class Tools(unittest.TestCase):
         self.assertTrue(out.strip().endswith(os.path.join("stages", "goal.md")))
         run(CYCLE, root, "new", "first", "한 바퀴를 돈다")
         out = run(START, root, "status").stdout
-        self.assertIn("the start is over — a cycle document exists (docs/cycle/01-first.md). Continue with `/gamedev-kit:cycle`", out)
+        self.assertIn("the start is over — a cycle document exists (docs/cycle/01-first.md). Continue with `/gamedev-kit:ceo`", out)
         self.assertNotIn("next:", out)
 
         # a game that keeps the GDD elsewhere · a GDD rewritten away from the template — a missing title is not called empty
@@ -2407,6 +2407,83 @@ else:
         work = json.load(open(os.path.join(root, "docs/board/board.json")))["work"]
         self.assertEqual([(w["cycle"], w["stop"]) for w in work["ended"]], [(2, "decisions"), (1, "decisions")], "the Now tab: how the last workers ended, newest first")
         self.assertEqual((work["workers"], work["build"]), ([], None), "nothing running now")
+
+    def test_cycle_close(self):
+        """A played cycle is done and closes: every check answered ok, a playtest round that leaves no task open, or `close` on the user's word.
+        Only a cycle at Play closes; what comes about a closed one is a new cycle's — the CEO refuses a round on it."""
+        root = tempfile.mkdtemp(prefix="kit-close-")
+        self.addCleanup(shutil.rmtree, root, True)
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        for k, v in (("user.email", "t@t"), ("user.name", "t")):
+            subprocess.run(["git", "config", k, v], cwd=root, check=True)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        stage = lambda doc: re.search(r"Stage: *(\S+)", open(os.path.join(root, doc), encoding="utf-8").read()).group(1)
+
+        # checks answered ok, all of them → closed
+        run(CYCLE, root, "new", "door", "A door")
+        with open(os.path.join(root, "docs/cycle/01-door.md"), "a", encoding="utf-8") as f:
+            f.write("\n### To see by playing\n- The door creaks once when opened\n- Steps sound on stone\n")
+        self.assertIn("only a cycle at Play closes", run(CYCLE, root, "close", ok=False).stderr, "a build not in the user's hands does not close")
+        run(CYCLE, root, "stage", "Play")
+        self.assertNotIn("closed:", run(CYCLE, root, "checked", "The door creaks", "ok").stdout, "one check still open")
+        self.assertIn("closed: docs/cycle/01-door.md", run(CYCLE, root, "checked", "Steps sound on", "ok").stdout)
+        self.assertEqual(stage("docs/cycle/01-door.md"), "Closed")
+
+        # a check answered "problem" keeps it open; the playtest round that leaves no task open closes it with its commit
+        run(CYCLE, root, "new", "shop", "A shop")
+        with open(os.path.join(root, "docs/cycle/02-shop.md"), "a", encoding="utf-8") as f:
+            f.write("\n### To see by playing\n- The price reads at a glance\n")
+        run(CYCLE, root, "stage", "Play")
+        self.assertNotIn("closed:", run(CYCLE, root, "checked", "The price reads", "problem", "too small").stdout)
+        os.makedirs(os.path.join(root, "docs/playtest"))
+        test = os.path.join(root, "docs/playtest/2026-01-01-price.md")
+        open(test, "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Bigger price\n\n### [ ] T2. Price colour\n")
+        open(os.path.join(root, "price.txt"), "w").write("big")
+        out = run(CYCLE, root, "commit", "playtest", "docs/playtest/2026-01-01-price.md").stdout
+        self.assertNotIn("closed:", out, "a task still open — the next round is still this cycle's")
+        self.assertEqual(stage("docs/cycle/02-shop.md"), "Play")
+        open(test, "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Bigger price\n\n### [-] T2. Price colour\n")
+        open(os.path.join(root, "price.txt"), "w").write("bigger")
+        out = run(CYCLE, root, "commit", "playtest", "2026-01-01-price.md").stdout
+        self.assertIn("closed: docs/cycle/02-shop.md", out)
+        self.assertIn("committed", out)
+        self.assertEqual(stage("docs/cycle/02-shop.md"), "Closed")
+        self.assertEqual(subprocess.run(["git", "status", "--porcelain", "docs/cycle"], cwd=root, capture_output=True, text=True).stdout, "",
+                         "the closed document goes in the round's commit")
+
+        # `close` on the user's word; the CEO says when several stand at Play, and refuses a round on a closed one
+        run(CYCLE, root, "new", "map", "A map")
+        run(CYCLE, root, "stage", "Play")
+        run(CYCLE, root, "new", "bag", "A bag")
+        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/04-bag.md")
+        self.assertIn("closed: docs/cycle/03-map.md", run(CYCLE, root, "close", "--doc", "docs/cycle/03-map.md").stdout)
+        self.assertIn("already closed", run(CYCLE, root, "close", "--doc", "docs/cycle/03-map.md").stdout)
+        run(CEO, root, "setup", "--mode", "acceptEdits")
+        self.assertNotIn("stand at Play", run(CEO, root, "status").stdout, "one at Play — nothing to ask")
+        run(CYCLE, root, "new", "rain", "Rain")
+        run(CYCLE, root, "stage", "Play")
+        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/04-bag.md")  # `new` closed it — as if another window had held it open
+        self.assertIn("2 cycles stand at Play", run(CEO, root, "status").stdout)
+        self.assertIn("C03 is closed", run(CEO, root, "run", "3", "playtest", "the map is blurry", ok=False).stderr)
+
+    def test_ceo_notice(self):
+        """A window opened or cleared in a game the CEO runs is told it is the CEO's — quiet in a worker, before setup, and outside a game."""
+        root = tempfile.mkdtemp(prefix="kit-notice-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "sub"))
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        notice = lambda cwd, **e: subprocess.run([sys.executable, CEO, "--notice"], cwd=cwd, capture_output=True, text=True,
+                                                 env=dict({k: v for k, v in os.environ.items() if k != "KIT_WORKER"}, **e))
+        self.assertEqual(notice(root).stdout, "", "not set up — not the CEO's")
+        run(CEO, root, "setup", "--mode", "acceptEdits")
+        got = notice(os.path.join(root, "sub"))
+        self.assertEqual(got.returncode, 0)
+        self.assertIn("this window is the CEO's", got.stdout)
+        self.assertEqual(notice(root, KIT_WORKER="1").stdout, "", "a worker is not the CEO")
+        away = tempfile.mkdtemp(prefix="kit-away-")
+        self.addCleanup(shutil.rmtree, away, True)
+        got = notice(away)
+        self.assertEqual((got.returncode, got.stdout), (0, ""), "outside a game: quiet, never a failed hook")
 
     def test_cycle_wave_check(self):
         """Where the engine runs one at a time in a project folder, the engine's config has a wave checked together — `next` says so."""

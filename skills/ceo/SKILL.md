@@ -5,7 +5,8 @@ description: >-
   This window coordinates: it proposes the next goals, starts workers for the cycles that can move, takes the dashboard's answers, and keeps the build turn and the commits in order.
   It decides nothing: every question stays a decision for the user, on the dashboard. Use when the user says "CEO", "알아서 돌려줘" (run it for me),
   "사이클 자동으로" (cycles automatically), "병렬로 돌려" (run them in parallel), "뒤에서 진행해" (go on in the background), "다음 뭐 하지" (what next) in a game
-  where they want the cycles run for them; or when this window was started for it and is woken by answers or by a worker ending.
+  where they want the cycles run for them; when the first cycle's goal is agreed (the start skill hands over here); when a session starts in a game the CEO runs
+  (its session-start notice says so) and the user says "계속" · "이어서" (go on); or when this window was started for it and is woken by answers or by a worker ending.
   Not for working on one cycle by hand in this window (→ cycle).
 ---
 
@@ -67,10 +68,17 @@ A goal the user gives directly goes the same way. A goal too big for one cycle: 
 
 ## Play and problems
 
-A cycle at Play is the user's. When they bring problems — here, or as "problem" on the dashboard's checks — hand the list verbatim: `run <NN> playtest "<list>"`;
-once its decisions are answered, `run <NN> implement`. Each round commits itself.
+A cycle at Play is the user's. When they bring problems about what it built — here, or as "problem" on the dashboard's checks — hand the list verbatim:
+`run <NN> playtest "<list>"`; once its decisions are answered, `run <NN> implement`. Each round commits itself.
+
+**A cycle closes once it is done** — every check answered ok, its playtest round built with no task left open, or the user saying they are done with it
+(`cycle.py close --doc <document>`). `status` says when several stand at Play: ask once which are done.
+**What the user brings about a closed cycle is a new cycle**, never a round on the old one (`run` refuses it): a fault found later, or more of the same →
+`run new "<their words>"` (small fixes skip Spec and Design there by themselves); something new that is not for now → `cycle.py later "<their words>"`.
+Problems that are partly about an open cycle and partly about closed ones are split: the open one's go to its playtest, the rest to a new cycle.
 
 ## Keep this window light
 
 Everything is in files — the cycle documents, the board, `workers`. Look with `status`; do not re-read worker output or documents to know where things stand.
-At a quiet moment (nothing running, nothing to relay) say once that `/clear`, then `/gamedev-kit:ceo`, is lighter — the dashboard stays connected to this window.
+At a quiet moment (nothing running, nothing to relay) say once that `/clear` is lighter — then any message ("계속") brings the CEO back:
+in a game set up for it, a session-start notice tells a new or cleared window that it is the CEO's. Workers in the background run on; the dashboard stays connected.

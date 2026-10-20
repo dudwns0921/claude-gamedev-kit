@@ -9,6 +9,7 @@ description: >-
   "새 세션에서 이어가자", "인계 메모 남겨줘", "여기까지 정리해줘" ("let's switch sessions", "let's continue in a new session", "leave a handoff note",
   "wrap up where we are"), or in a new session "이어서 하자", "아까 하던 거" ("let's continue", "what we were doing"). And several cycles at once, one per session —
   "다른 세션에서 사이클 하나 더", "동시에 돌리자", "병렬로" ("another cycle in another session", "run them at the same time", "in parallel"). Not for one-line fixes.
+  Not in a game the CEO runs (its session-start notice says so) — there "이어서" · "계속" go to the ceo skill, unless the user asks to work on a cycle by hand.
 ---
 
 # cycle
@@ -83,7 +84,7 @@ The **backlog** (`docs/backlog.md`) holds what is put off, each line with its ep
 | 3 | Design | `gamedev-kit:designer` `design` | Design | |
 | 4 | Plan | `gamedev-kit:developer` `plan` | Tasks · Order | **ask the decisions** |
 | 5 | Build | `gamedev-kit:developer` `build T<n>`, one per task | task checkboxes | |
-| 6 | Play | user (problems go to `/gamedev-kit:playtest`) | Play | **stays here** — the next cycle closes it |
+| 6 | Play | user (problems go to `/gamedev-kit:playtest`) | Play | **stays here** until it closes (below) |
 
 ### 1. Goal
 
@@ -93,6 +94,8 @@ above the user's own words. When the goal changes under way, write the line agai
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
 **`new` also closes the previous cycle** — there is no closing stage — unless another session works on it ("Several sessions at once"). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
+**A cycle at Play closes on its own too** — when every check by playing is answered ok, when its playtest round leaves no task open, or with `close` when the user says they are done with it.
+**A closed cycle is done**: what the user brings about it afterwards — a fault found later, more of the same — is a new cycle's goal (`new`) or the backlog's (`later`), never a round on the old one.
 
 **A game with no play route yet** (`new` says so): it is made in this cycle, without asking — `later "Make the play route" --epic Foundation`, then `backlog take` it.
 Its plan proposes the stops as a decision (one to three per stage of play, in play order); the build writes the harness and `board.play` (the board skill's "Play route").

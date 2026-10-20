@@ -91,7 +91,7 @@ def skipped():
 
 def cmd_skip(stage, on):
     if stage not in SKIPPABLE:
-        sys.exit(f"stages that can be skipped: {' · '.join(SKIPPABLE)}" + (" — the goal has nothing to skip. Go straight to `/gamedev-kit:cycle`" if stage == "goal" else ""))
+        sys.exit(f"stages that can be skipped: {' · '.join(SKIPPABLE)}" + (" — the goal has nothing to skip. Go straight to the hand-over (stages/goal.md)" if stage == "goal" else ""))
     have = [s for s in skipped() if s != stage] + ([stage] if on else [])
     path = os.path.join(ROOT, STATE)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -122,7 +122,7 @@ def cmd_status():
     plural = lambda n: "" if n == 1 else "s"
 
     if cycles:
-        print(f"the start is over — a cycle document exists ({CYCLE}/{cycles[-1]}). Continue with `/gamedev-kit:cycle`")
+        print(f"the start is over — a cycle document exists ({CYCLE}/{cycles[-1]}). Continue with `/gamedev-kit:ceo` — or `/gamedev-kit:cycle` to work on one cycle by hand")
     words = [("empty sections", name(empty)), ("sections with text", name(k for k in MUST if state[k])),
              ("sections that may stay empty", name(k for k in MAY if state[k] is False)),
              ("sections not checked for lack of the template's title", name(gone))]

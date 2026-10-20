@@ -23,6 +23,8 @@ Write document content in the language the user's existing documents use. The fi
    What can only be known by seeing the screen (color · feel · timing) you cannot verify — turn it into a question for the user.
 4. **Classify the problems.** bug (does not work as the GDD says) · balance (a value problem — fixed in the table) · design (the GDD must change) · presentation (effects · UI · sound) · question (not enough information).
    You do not decide design problems. Write the options and what each touches, and leave it as a user decision.
+   **new** — something the game does not have yet (more events, a new screen, a new mechanic), not a fault in what was built: it is no task here.
+   Put it under "Not this time" as `- new: <the user's words>` — it goes to the backlog, and a later cycle takes it.
 5. **Group common roots.** If three problems come from one cause, that is one task. Also note fixes that would collide with each other.
 6. **Write the tasks.** One task is sized so that one agent can finish it reading only that task item — it must not require reading other tasks to understand.
    List every file each task changes. Waves (groups that can be done together) are split by that.

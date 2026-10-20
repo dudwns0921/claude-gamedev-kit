@@ -51,6 +51,9 @@ Tasks are named T3 inside their cycle, and C16-T3 across the game — every comm
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
   python3 cycle.py checked "<the check, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves,
                                                 and the cycle counts as played. A cycle closed with checks never answered stays "not played" on the board
+  python3 cycle.py close                        The user has played it and is done with it — a cycle at Play becomes `Closed`. It closes by itself too:
+                                                once every check by playing is answered ok, and when a playtest round's commit leaves its document with no task open.
+                                                What the user brings about a closed cycle afterwards is a new cycle's (`new`) or the backlog's (`later`)
   python3 cycle.py checks                       The checks by playing that do not read at a glance (a name from the code or the documents, too long) — `stage Play` says the same
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
@@ -421,6 +424,12 @@ def cmd_commit(path, kind, said=""):
     if mine and "before" not in mine:
         sys.exit("the build turn was taken by an older kit, which kept no record of what was changed before it — this build's files are not told apart. "
                  "Commit them by naming them (git add <files>; git commit), then `turn done` — the next turn keeps the record")
+    if kind == "playtest" and OPEN_STAGE.match(stage_of(read(path))):  # the round on a played cycle is its last: it closes with this commit
+        test = next((t for t in (said, os.path.join(ROOT, said), os.path.join(ROOT, "docs", "playtest", os.path.basename(said)),
+                                 os.path.join(ROOT, "docs", "playtest", os.path.basename(said) + ".md")) if os.path.isfile(t)), "")
+        if test and not OPEN_TASK.search(read(test)):
+            print("the playtest round leaves no task open — the cycle is done, and closes with this commit:")
+            close(path)
     before = (mine or {}).get("before")
     others = {os.path.realpath(os.path.join(ROOT, d)) for d in holders()}  # another session's cycle document is its own to commit
     now = tree_state()
@@ -1158,6 +1167,24 @@ def cmd_checked(path, line, result, seen=""):
     write(path, text[:span[0]] + body + f"\n- Checked ({result}): {' '.join(hit.split())}" + (f" — “{' '.join(seen.split())}”" if seen.strip() else "")
           + f" ({datetime.date.today()})\n\n" + text[span[1]:])
     print(f"checked ({result}): {hit[:80]}" + (" — the problem goes to the playtest skill with the others" if result == "problem" else ""))
+    text = read(path)
+    if result == "ok" and OPEN_STAGE.match(stage_of(text)) and not unchecked(text) and "- Checked (problem)" not in text:
+        print("every check answered ok — the cycle is done:")
+        close(path)
+
+
+def cmd_close(path):
+    """The user has played the cycle and is done with it. Only a played build closes — one before Play is not in their hands yet."""
+    stage = stage_of(read(path))
+    if stage in CLOSED:
+        return print(f"already closed: {os.path.relpath(path, ROOT)}")
+    if not OPEN_STAGE.match(stage):
+        sys.exit(f"{os.path.relpath(path, ROOT)} stands at {stage} — only a cycle at Play closes (its build is not in the user's hands yet)")
+    close(path)
+    print("what the user brings about it from now on is a new cycle's (`new`) or the backlog's (`later`)")
+
+
+OPEN_TASK = re.compile(r"^### \[[ !>]\] T\d+", re.M)
 
 
 SKIP_RE = re.compile(r"^_Skipped: (.+)_$", re.M)
@@ -1493,7 +1520,7 @@ def main():
     if "--epic" in opts and cmd != "later":
         sys.exit("--epic goes with later")
     need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3),
-            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0, "commit": (1, 2), "worktree": (1, 2)}
+            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0, "commit": (1, 2), "worktree": (1, 2), "close": 0}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     if force and cmd != "take":
@@ -1560,6 +1587,8 @@ def main():
         cmd_checked(path, *rest)
     elif cmd == "checks":
         cmd_checks(path)
+    elif cmd == "close":
+        cmd_close(path)
     elif cmd == "skip":
         cmd_skip(path, *rest)
     elif cmd == "decide":

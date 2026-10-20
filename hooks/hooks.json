@@ -33,6 +33,11 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/board/scripts/board.py\" watch --notice",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/ceo/scripts/ceo.py\" --notice",
+            "timeout": 5
           }
         ]
       }

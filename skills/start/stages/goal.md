@@ -23,8 +23,10 @@ If the user wants more in, do not argue — say what it adds to the first playab
 
 ## Hand over
 
-When the user agrees on the goal, in their words:
+When the user agrees on the goal, in their words, **the CEO runs it from here** — the cycles go on in the background and the user only decides and plays:
 
-- Say that the next step is `/gamedev-kit:cycle` with that goal, **and recommend `/clear` first** — this conversation carries the interview; the cycle skill reads the GDD and DESIGN.md from the files.
-- Give the goal as one line they can paste: `/gamedev-kit:cycle <the goal, in the user's words>`.
-- If the user wants to go on in this session, invoke the cycle skill with that goal. Do not create the cycle document yourself — `cycle.py new` does, and from then on `start.py status` says the start is over.
+- Invoke the ceo skill with that goal. It asks once how its workers may run (its "Setting up"), then starts a worker on the goal (`run new`).
+  Do not create the cycle document yourself — the worker's `cycle.py new` does, and from then on `start.py status` says the start is over.
+- When that worker has stopped and its line is relayed, recommend `/clear` (not while it runs — its ending wakes this window): this conversation carries the interview,
+  and a cleared window is the CEO's again at any message ("계속").
+- If the user would rather drive the cycle themselves in this window, invoke the cycle skill with the goal instead — say this in one line, once, with the hand-over.

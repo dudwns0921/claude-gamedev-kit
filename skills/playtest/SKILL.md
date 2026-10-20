@@ -44,7 +44,9 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    context the user added (which scene · which device · how many tries). **Do not pass your guesses** — an analyst handed a hypothesis comes back having confirmed it.
 3. When it returns, write each of its "Questions for the user" as a decision in this session's cycle document — the one `cycle.py` acts on
    (`python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" ask Playtest "<question — ① … ② … · recommended: ①>"` — the board's review and the dashboard show only decisions),
-   then relay the document path, the task count and the questions with their numbers. For `plan`, stop here. When answered, `cycle.py decide` records it as for any decision.
+   Each line of its "Not this time" marked **new** (something the game does not have yet, not a fix of what the cycle built) goes to the backlog,
+   in the user's words — `cycle.py later "<it>"` — where a later cycle takes it; a cycle's playtest fixes what that cycle built.
+   Then relay the document path, the task count and the questions with their numbers. For `plan`, stop here. When answered, `cycle.py decide` records it as for any decision.
 
 ## 2. Build
 
@@ -77,7 +79,9 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    - **shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play playtest <document>` (the cycle skill's "Shoot the play route");
      the dashboard's Play tab shows the run beside the ones before
    - **commit the round** — `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" commit playtest <document>`: what this round changed, nothing another session has in hand.
-     Each round of fixes is its own commit, so what the user plays next is one
+     Each round of fixes is its own commit, so what the user plays next is one.
+     **The round that leaves the document with no task open closes the cycle** (the commit says so): the cycle is done, and what the user brings about it
+     afterwards is a new cycle's — not another round on this one
 6. **Report:**
 
    ```
