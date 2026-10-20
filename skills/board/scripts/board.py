@@ -1027,6 +1027,32 @@ def stray_of(st):
     return sum(len(v) for v in lanes.values()), len(lanes["art"]) + len(lanes["sound"])
 
 
+def now_section(now, review, several, newest):
+    """One cycle in hand, as the board's first screen shows it: its stages, its line, its tasks, what of it waits on the user.
+    several: more than one is in hand (several sessions at once) — each says whose it is."""
+    at = stage_word(now["stage"])
+    steps = "".join(f'<span class="step{" on" if k == at else " skip" if k in now["skipped"] else " past" if at == "Closed" or (at in STEPS and STEPS.index(k) < STEPS.index(at)) else ""}">{k}</span>'
+                    for k in STEPS)
+    ts = now["tasks"]
+    mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○"), ">": ("doing", "▶")}
+    shown = [t for t in ts if t["mark"] != "-"]
+    task_html = "".join(f'<li class="{mark.get(t["mark"], mark[" "])[0]}"><i>{mark.get(t["mark"], mark[" "])[1]}</i><b>{e(t["num"])}</b>{md(t["title"])}</li>' for t in shown[:8])
+    task_html += f'<li class="more">+{len(shown) - 8} more</li>' if len(shown) > 8 else ""
+    done = sum(1 for t in shown if t["mark"] == "x")
+    line = now["line"] or now["name"]
+    words = now["goal"] if now["line"] else ""
+    mine = [i for i in now_asked(review) if str(i.get("cycle", "")) == str(now["num"]) or newest and not i.get("cycle")]  # the GDD's questions go with the newest
+    waiting = len(mine) if several else len(now_asked(review))
+    held, build = holding(), building()
+    who = (" · building now" if build == str(int(now["num"])) else "") + (" · a session is on it" if str(int(now["num"])) in held else " · no session open") if several else ""
+    turn = (f'<a class="turn" href="review.html"><b>{waiting}</b><span>waiting on you<small>decisions · checks by playing · to-dos</small></span><em>Review →</em></a>'
+            if waiting else '<div class="turn calm"><b>0</b><span>nothing waits on you<small>the session is on it</small></span></div>')
+    return (f'<section class="now"><div class="what"><span class="lab">Now · cycle {e(now["num"])} — {e(now["name"])}{e(who)}</span>'
+                f'<div class="steps">{steps}</div><h2>{md(line)}</h2>' + (f'<p class="clamp">{md(words)}</p>' if words else "")
+                + (f'<div class="lab">Tasks {done}/{len(shown)}</div><ul class="tasks">{task_html}</ul>' if shown else "")
+                + f'</div>{turn}</section>')
+
+
 def index_html(name, st, asks, cycles, stamp, sheet, review):
     """The first screen: the cycle in hand (what it is for · where it stands · its tasks · what waits on the user), then the game in the order
     the player meets it — each stage as its latest screen with what is still open in it — then what is left, in counts, and the cycles as pictures."""
@@ -1038,37 +1064,22 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
     pcts = [p for p in (stage_pct(s) for s in flow) if p is not None]
     total = round(sum(pcts) / len(pcts)) if pcts else 0
     now = cycles[-1] if cycles else None
+    hand = in_hand(cycles)
     waiting = len(now_asked(review))
-    head_lab = f'Cycle {e(now["num"])} · {e(stage_word(now["stage"]))}' if now else "No cycle yet"
-    now_html = ""
-    if now:
-        at = stage_word(now["stage"])
-        steps = "".join(f'<span class="step{" on" if k == at else " skip" if k in now["skipped"] else " past" if at == "Closed" or (at in STEPS and STEPS.index(k) < STEPS.index(at)) else ""}">{k}</span>'
-                        for k in STEPS)
-        ts = now["tasks"]
-        mark = {"x": ("done", "✓"), "!": ("blocked", "!"), "-": ("dropped", "–"), " ": ("open", "○"), ">": ("doing", "▶")}
-        shown = [t for t in ts if t["mark"] != "-"]
-        task_html = "".join(f'<li class="{mark.get(t["mark"], mark[" "])[0]}"><i>{mark.get(t["mark"], mark[" "])[1]}</i><b>{e(t["num"])}</b>{md(t["title"])}</li>' for t in shown[:8])
-        task_html += f'<li class="more">+{len(shown) - 8} more</li>' if len(shown) > 8 else ""
-        done = sum(1 for t in shown if t["mark"] == "x")
-        line = now["line"] or now["name"]
-        words = now["goal"] if now["line"] else ""
-        turn = (f'<a class="turn" href="review.html"><b>{waiting}</b><span>waiting on you<small>decisions · checks by playing · to-dos</small></span><em>Review →</em></a>'
-                if waiting else '<div class="turn calm"><b>0</b><span>nothing waits on you<small>the session is on it</small></span></div>')
-        now_html = (f'<section class="now"><div class="what"><span class="lab">Now · cycle {e(now["num"])} — {e(now["name"])}</span>'
-                    f'<div class="steps">{steps}</div><h2>{md(line)}</h2>' + (f'<p class="clamp">{md(words)}</p>' if words else "")
-                    + (f'<div class="lab">Tasks {done}/{len(shown)}</div><ul class="tasks">{task_html}</ul>' if shown else "")
-                    + f'</div>{turn}</section>')
+    head_lab = (" · ".join(f'Cycle {e(c["num"])} · {e(stage_word(c["stage"]))}' for c in hand) if hand else "No cycle yet")
+    now_html = "".join(now_section(c, review, len(hand) > 1, c is now) for c in reversed(hand))
     cards, base_html = [], ""
     for s in flow + ([base] if base else []):
         o, pic, shot = opens(s), hero_of(s), s.get("shot")
-        busy = [t for c, ts in s["work"] if now and c["num"] == now["num"] for t in ts]  # what the cycle in hand does in this stage
+        nums = {c["num"] for c in hand}
+        busy = [(c, t) for c, ts in s["work"] if c["num"] in nums for t in ts]  # what the cycles in hand do in this stage
         age = (f'<span class="age{" old" if shot["behind"] >= 2 else ""}">cycle {e(shot["cycle"])}'
                + (f' · {shot["behind"]} cycles old' if shot["behind"] >= 2 else "") + "</span>") if shot else ""
         hero = (f'<div class="hero" style="background-image:url({pic})">{age}</div>' if pic
                 else '<div class="hero none"><span>Under every stage<br>no screen of its own</span></div>' if s["foundation"]
                 else '<div class="hero none"><span>No screen yet<br>shot at the next Play</span></div>')
-        busy_html = (f'<span class="busy">in cycle {e(now["num"])} · ' + " · ".join(e(t["num"]) for t in busy) + "</span>" if busy else "")
+        busy_html = ('<span class="busy">' + " · ".join(f'in cycle {e(n)} · ' + " · ".join(e(t["num"]) for c, t in busy if c["num"] == n)
+                                                         for n in dict.fromkeys(c["num"] for c, _t in busy)) + "</span>" if busy else "")
         n = task_counts(s["tasks"])
         count = f' · tasks {n["done"]}/{sum(n.values())}' if s["tasks"] else ""
         card = (f'<div class="slot" style="--i:{s["i"]}"><a class="node{" warn" if o["bad"] else ""}{" busy" if busy else ""}" href="stage-{s["i"] + 1}.html">{hero}'
@@ -1612,6 +1623,7 @@ def build(outdir, index_name):
     pages.update({f'stage-{s["i"] + 1}.html': stage_html(name, s, st) for s in st})
     stray, stray_assets = stray_of(st)
     now = cycles[-1] if cycles else None
+    held, build = holding(), building()
     kept = load_json(context_kept()) or {}
     talk = int(kept.get("size") or 0)
     c = tally([i for s in st for lane in LANES for i in s["lanes"][lane]])
@@ -1620,6 +1632,11 @@ def build(outdir, index_name):
                # context: that conversation's size. Both as the context hook kept them
                "now": {"cycle": now["num"], "name": now["name"], "stage": stage_word(now["stage"]), "line": now["line"], "context": talk,
                        "pause": bool(kept.get("pause")) and kept.get("pause") == kept.get("session")} if now else None,
+               # every cycle in hand, oldest first — more than one while several sessions each work on one (the cycle skill's "Several sessions at once")
+               "active": [{"cycle": h["num"], "name": h["name"], "stage": stage_word(h["stage"]), "line": h["line"], "session": str(int(h["num"])) in held,
+                           "building": build == str(int(h["num"])),
+                           "review": sum(1 for i in now_asked(review) if str(i.get("cycle", "")) == str(h["num"]) or h is now and not i.get("cycle"))}
+                          for h in in_hand(cycles)] if all(str(x["num"]).isdigit() for x in cycles) else [],
                "counts": {"problems": c["bad"], "not_made": c["none"], "placeholders": c["temp"], "done": c["done"], "undecided": len(asks), "review": len(now_asked(review)), "later": len(review) - len(now_asked(review)),
                           "old_style": sum(1 for m in sheet["models"] if m["old"])},
                "stages": [{"name": s["name"], "complete": stage_pct(s)} for s in st if not s["common"] and not s["foundation"]],
@@ -2107,14 +2124,32 @@ TAKER_RE = re.compile(r"\.s(\d+)\.taken$")
 _STORE = []
 
 
-def holding():
-    """Cycle number → the pid of the open session working on it."""
+def store():
+    """This game's entry in the cycle script's store: {"held": {pid: {cycle, …}}, "build": {pid, what, at} | None}."""
     if not _STORE:
         p = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True, text=True)
         _STORE.append(os.path.join(ROOT, p.stdout.strip(), "gamedev-kit", "sessions.json") if p.returncode == 0 and p.stdout.strip()
                       else os.path.join(ROOT, "docs", "cycle", ".sessions.json"))  # where the cycle script keeps it outside git
-    held = ((load_json(_STORE[0]) or {}).get(os.path.realpath(ROOT)) or {}).get("held") or {}
+    return (load_json(_STORE[0]) or {}).get(os.path.realpath(ROOT)) or {}
+
+
+def holding():
+    """Cycle number → the pid of the open session working on it."""
+    held = store().get("held") or {}
     return {str(int(h.get("cycle", 0))): int(p) for p, h in held.items() if str(p).isdigit() and running(int(p))}
+
+
+def building():
+    """The cycle number whose build has the turn — None when no open session is building."""
+    b, held = store().get("build") or {}, holding()
+    return next((c for c, p in held.items() if p == b.get("pid")), None) if b and running(b.get("pid")) else None
+
+
+def in_hand(cycles):
+    """The cycles in hand, oldest first: every one an open session works on (several sessions at once), and the newest — as before, the one in hand."""
+    held = holding()
+    out = [c for c in cycles if str(int(c["num"])) in held and stage_word(c["stage"]) != "Closed"] if all(str(c["num"]).isdigit() for c in cycles) else []
+    return out + ([cycles[-1]] if cycles and cycles[-1] not in out else [])
 
 
 def cycle_of(key):

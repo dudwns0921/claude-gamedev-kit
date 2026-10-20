@@ -32,7 +32,7 @@ read the GDD or cycle documents to describe the board.** The page is for the use
 Two kinds of page, written next to each other in `docs/board/`:
 
 - `index.html` — **the first screen**, built around the cycle in hand:
-  - **Now** — the newest cycle: its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks — the ones being worked on now marked (`cycle.py mark … doing`) — and how many things wait on the user (→ review).
+  - **Now** — the cycle in hand (with several sessions at once, one such section per cycle a session works on, each saying whether its session is open and whether it is building — `active` in `board.json`): its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks — the ones being worked on now marked (`cycle.py mark … doing`) — and how many things wait on the user (→ review).
   - **The game** — the stages of play in the order the player meets them, each card the stage's newest screen (`cycle.py shot`, stamped with its cycle; marked when two or more cycles old;
     "no screen yet" when none), how complete it is (%), its tasks done of all (each stage is an epic: every task whose `Epic:` line names it), which of the cycle's tasks are in it,
     and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page. Foundation — what no stage owns — follows under them, once a task names it.

@@ -2366,8 +2366,15 @@ none
         self.assertIn("this session's", as_(b, CYCLE, "turn", "take", "C2").stdout)
         self.assertIn("the build turn is free", as_(b, CYCLE, "stage", "Play").stdout, "Play — the build, its checks and screens are done")
 
-        # answers from the dashboard: each to the session working on that cycle
+        # the board's first screen: every cycle in hand, not only the newest
         as_(a, BOARD)
+        active = json.load(open(os.path.join(root, "docs/board/board.json")))["active"]
+        self.assertEqual([(x["cycle"], x["session"], x["review"]) for x in active], [("01", True, 1), ("02", True, 1)],
+                         "each cycle a session works on, with what of it waits on the user")
+        index = open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read()
+        self.assertIn("Now · cycle 01 — combat · a session is on it", index)
+        self.assertIn("Now · cycle 02 — shop · a session is on it", index)
+        # answers from the dashboard: each to the session working on that cycle
         box = os.path.join(root, "docs/board/inbox")
         os.makedirs(box, exist_ok=True)
         json.dump([{"key": "c01-D1", "pick": "①", "note": ""}, {"key": "c02-D1", "pick": "②", "note": ""}], open(os.path.join(box, "1.json"), "w"))
