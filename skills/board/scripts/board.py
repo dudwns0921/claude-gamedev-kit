@@ -127,11 +127,20 @@ def find_root(start):
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
-            return d
+            return out_of_build_folder(d)
         up = os.path.dirname(d)
         if up == d:
             return None
         d = up
+
+
+BUILD_FOLDER = re.compile(r"^(.*)[/\\]\.git[/\\]gamedev-kit[/\\]worktrees[/\\][^/\\]+(?:[/\\](.*))?$")
+
+
+def out_of_build_folder(d):
+    """A cycle's build folder (a git worktree beside git's own files) holds a copy of the game: its documents and its state are the game's own folder's."""
+    m = BUILD_FOLDER.match(d)
+    return (os.path.join(m.group(1), m.group(2)) if m.group(2) else m.group(1)) if m else d
 
 
 def read(path):

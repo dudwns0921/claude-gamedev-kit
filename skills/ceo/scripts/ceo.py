@@ -38,6 +38,8 @@ WORKER_RULES = """You run as a worker of the game's CEO session: headless — no
 - Stop at the stops, do not wait them out: decisions asked and waiting · the build turn another session's · Play reached (the user plays) · work the user must see.
 - Work on your one cycle. Never start another, never take a cycle another session holds.
 - Commit as the skills say — each build, each round of fixes.
+- Wait for everything in the foreground — agents (never `run_in_background`), checks, engine runs. This run ends the moment your turn ends,
+  and whatever still runs in the background is lost with it, half done. Never end a turn to wait for a notification.
 - Advice to /clear or to change sessions is not for you.
 - End your last message with exactly one line: `STOP: <decisions|turn|play|blocked|done> — <one plain sentence for the user>`."""
 ROOT = ""
@@ -48,11 +50,20 @@ def find_root(start):
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
-            return d
+            return out_of_build_folder(d)
         up = os.path.dirname(d)
         if up == d:
             sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
+
+
+BUILD_FOLDER = re.compile(r"^(.*)[/\\]\.git[/\\]gamedev-kit[/\\]worktrees[/\\][^/\\]+(?:[/\\](.*))?$")
+
+
+def out_of_build_folder(d):
+    """A cycle's build folder (a git worktree beside git's own files) holds a copy of the game: its documents and its state are the game's own folder's."""
+    m = BUILD_FOLDER.match(d)
+    return (os.path.join(m.group(1), m.group(2)) if m.group(2) else m.group(1)) if m else d
 
 
 def whole():
@@ -131,6 +142,28 @@ def running():
     return {w["cycle"]: w for w in workers() if not w.get("ended") and alive(w.get("pid"))}
 
 
+def settle():
+    """A worker gone without ending (stopped, the machine slept) is written as gone — not left as running in the record."""
+    rows, changed = workers(), False
+    for w in rows:
+        if not w.get("ended") and not alive(w.get("pid")):
+            w.update(ended=f"{datetime.datetime.now():%Y-%m-%d %H:%M}", ended_at=time.time(), stop="gone", said="ended without a word — stopped from outside")
+            changed = True
+    if changed:
+        save_workers(rows)
+
+
+def folder_left(n):
+    """What cycle n's build folder holds that is not in the game yet — commits not merged, changes not committed. "" when it has no folder or nothing."""
+    wt = os.path.join(kept(), "worktrees", f"c{n:02d}")
+    if not os.path.isdir(wt):
+        return ""
+    git = lambda *a: subprocess.run(["git", *a], cwd=wt, capture_output=True, text=True).stdout
+    ahead = int(git("rev-list", "--count", f"HEAD", f"^{subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()}").strip() or 0)
+    loose = len([l for l in git("status", "--porcelain").split("\n") if l.strip()])
+    return " · ".join(x for x in (f"{ahead} commit(s) not merged" if ahead else "", f"{loose} change(s) not committed" if loose else "") if x)
+
+
 def last_of(n):
     return next((w for w in reversed(workers()) if w["cycle"] == n and w.get("ended")), None)
 
@@ -146,6 +179,9 @@ def state(path):
         return stage, "a window of yours works on it — left alone", False
     if asked:
         return stage, f"{asked} decision(s) wait for you — the dashboard's Review", False
+    left = folder_left(n)
+    if left:  # a build its worker did not finish or merge — at Play it is a playtest round's
+        return stage, f"its build folder holds work not in the game ({left}) — `run {n} {'implement' if PLAY.match(stage) else 'next'}` finishes and merges it", True
     if PLAY.match(stage):
         return stage, "yours to play — problems go to `run playtest`", False
     last = last_of(n)
@@ -184,7 +220,8 @@ def cmd_ready():
     room = cfg()["parallel"] - len(running())
     hits = [p for p in docs() if stage_of(open(p, encoding="utf-8").read()) not in CLOSED and state(p)[2]]
     for p in hits:
-        print(f"C{num(p):02d} {os.path.basename(p)[3:-3]} — `run {num(p)} next`")
+        how = re.search(r"`(run \d+ \w+)`", state(p)[1])
+        print(f"C{num(p):02d} {os.path.basename(p)[3:-3]} — `{how.group(1) if how else f'run {num(p)} next'}`")
     print(f"room for {max(room, 0)} more worker(s)" if hits else "nothing a worker can take now")
 
 
@@ -300,6 +337,7 @@ def main():
     global ROOT
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
     cmd, rest = (args[0] if args else ""), args[1:]
+    settle()
     if cmd == "status" and not rest:
         return cmd_status()
     if cmd == "ready" and not rest:

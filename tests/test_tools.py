@@ -2456,11 +2456,16 @@ else:
         self.assertTrue(os.path.isfile(os.path.join(folder, "Library/cache.bin")), "the engine's cache is cloned in")
         self.assertIn("uncommitted change", out, "the game's folder has the cycle documents in hand — the build starts without them")
         as_(a, "mark", "T1", "doing")
+        inside = subprocess.run([sys.executable, CYCLE, "next"], cwd=folder, capture_output=True, text=True, env=env(a))
+        self.assertIn("docs/cycle/01-combat.md", inside.stdout, "run inside the build folder, the script works on the game's own folder")
+        self.assertIn("no turn to take", as_(a, "turn", "take", "C01 build").stdout, "a build in its own folder takes no turn")
         other = re.search(r"build folder: (\S+)", as_(b, "worktree", "open").stdout).group(1)
         self.assertIn("T1: [>]", as_(b, "mark", "T1", "doing").stdout, "two cycles build at once, each in its own folder — no turn to wait for")
         open(os.path.join(folder, "combat.cs"), "w").write("hit\n")
         open(os.path.join(other, "shared.cs"), "w").write("changed in the shop build\n")
         open(os.path.join(root, "shared.cs"), "w").write("changed by hand in the game's folder\n")  # in hand, uncommitted
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "shop"], cwd=other, check=True)
+        open(os.path.join(other, "shop.cs"), "w").write("loose\n")
         out = as_(a, "worktree", "merge").stdout
         self.assertIn("merged", out)
         self.assertEqual(open(os.path.join(root, "combat.cs")).read(), "hit\n", "the build is in the game")
@@ -2473,7 +2478,11 @@ else:
         self.assertIn("not merged", err, "the shop build would overwrite what is in hand — refused")
         self.assertTrue(os.path.isdir(other), "its folder is kept")
         self.assertEqual(open(os.path.join(root, "shared.cs")).read(), "changed by hand in the game's folder\n", "and the game's folder is as it was")
-        self.assertIn("C02's build folder dropped", as_(b, "worktree", "drop", "the user does not want it").stdout)
+        as_(b, "leave")
+        ceo = subprocess.run([sys.executable, CEO, "--root", root, "status"], capture_output=True, text=True, env=env(a)).stdout
+        self.assertIn("its build folder holds work not in the game (2 commit(s) not merged) — `run 2 next`", ceo,
+                      "a build left unmerged is not forgotten — the CEO is told to finish it")
+        self.assertIn("C02's build folder dropped", as_(b, "worktree", "drop", "the user does not want it", "--doc", "docs/cycle/02-shop.md").stdout)
         self.assertFalse(os.path.exists(other))
 
     def test_cycle_commit(self):

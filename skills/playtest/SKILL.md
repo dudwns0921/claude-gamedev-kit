@@ -59,7 +59,9 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    Where the engine runs one at a time (`"cycle": {"check": "wave"}` in `kit.config.json`), build and check each wave as the cycle skill's "Checked as a wave" says;
    where the game builds in a build folder (`"cycle": {"worktree": …}`), the round runs in this session's cycle's folder and merges as the cycle skill's "In a build folder" says —
    then the play route and the round's commit as below.
-   **Before the first wave, take the build turn** — with several sessions at once, one builds at a time:
+   **Before the first wave, take the build turn** — with several sessions at once, one builds at a time in the game's folder.
+   **Where the game builds in a build folder** (`"cycle": {"worktree": …}` in `kit.config.json`) **take no turn**: `worktree open` instead (the cycle skill's script),
+   build there, and `worktree merge` at the end takes the turn for the merge only. Otherwise:
    `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn take "playtest <document name>"`. Refused (another session is building) → say so in a line,
    run `until python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn; do sleep 60; done` in the background, and call the wave when it ends.
    Give it back with `turn done` once the step 5 below is through — after its commit.

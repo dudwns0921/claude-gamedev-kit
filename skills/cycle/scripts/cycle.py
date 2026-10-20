@@ -161,11 +161,20 @@ def find_root(start):
     d = os.path.abspath(start)
     while True:
         if os.path.exists(os.path.join(d, CONFIG_NAME)):
-            return d
+            return out_of_build_folder(d)
         up = os.path.dirname(d)
         if up == d:
             sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
+
+
+BUILD_FOLDER = re.compile(r"^(.*)[/\\]\.git[/\\]gamedev-kit[/\\]worktrees[/\\][^/\\]+(?:[/\\](.*))?$")
+
+
+def out_of_build_folder(d):
+    """A cycle's build folder (a git worktree beside git's own files) holds a copy of the game: its documents and its state are the game's own folder's."""
+    m = BUILD_FOLDER.match(d)
+    return (os.path.join(m.group(1), m.group(2)) if m.group(2) else m.group(1)) if m else d
 
 
 def docs():
@@ -350,6 +359,9 @@ def turn(what, path=None):
 def cmd_turn(rest):
     me = session()
     if rest and rest[0] == "take":
+        mine = held_doc()
+        if wt_cfg() and mine and os.path.isdir(wt_dir(cycle_no(mine))):
+            return print(f"C{cycle_no(mine):02d} builds in its own folder — no turn to take; `worktree merge` takes it for the merge only")
         if not turn(" ".join(rest[1:]) or "a build"):
             sys.exit(1)
         return print("the build turn is this session's")
@@ -464,6 +476,10 @@ def cmd_worktree(path, action, said=""):
     game = os.path.join(wt, os.path.relpath(os.path.realpath(ROOT), os.path.realpath(top)))  # the game's root inside the folder
     git = lambda *a, at=top: subprocess.run(["git", *a], cwd=at, capture_output=True, text=True)
     if action == "open":
+        with sessions() as s:  # building in the folder needs no turn: one held for the build is given back, so other cycles can merge meanwhile
+            if s["build"] and s["build"]["pid"] == session() and "merge" not in s["build"].get("what", ""):
+                s["build"] = None
+                print("the build turn is given back — this build runs in its own folder; `worktree merge` takes the turn for the merge only")
         if os.path.isdir(wt):
             return print(f"build folder: {game}")
         made = git("worktree", "add", "-q", "-b", branch, wt, "HEAD")
