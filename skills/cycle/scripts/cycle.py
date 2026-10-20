@@ -54,9 +54,20 @@ Tasks are named T3 inside their cycle, and C16-T3 across the game — every comm
   python3 cycle.py checks                       The checks by playing that do not read at a glance (a name from the code or the documents, too long) — `stage Play` says the same
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
-The document is the newest one (highest number). For another, `--doc <path>`.
+Several sessions at once — each works on one cycle; it is told apart by its Claude Code process, so it holds across /clear and lets go when the window closes:
+  python3 cycle.py take 13 [--force]            This session works on cycle 13 from now on (`new` takes the one it makes). Refused while another open session
+                                                holds it — --force only when the user says that session is done with it. `leave` lets it go
+  python3 cycle.py open                         The other cycles still open: stage, whether a session works on it, its epics · files · GDD ids · asset slots —
+                                                what the systems designer's `fit` weighs a new goal against
+  python3 cycle.py turn [take "<what>" | done | free]   The build turn — one session builds at a time. `mark … doing` takes it for the cycle, `stage Play` gives it back;
+                                                `turn` alone exits 1 while another session has it (`until cycle.py turn; do sleep 60; done` waits for it).
+                                                `free` — only when the user says the other session's build is not running
+
+The document is the one this session holds; with none, the newest (highest number) — unless another session holds a cycle, then it says which there are
+and stops for `take`. For another, `--doc <path>`.
 Documents are written in English. Ones written before that use Korean words — both are read, and a stage or section given in Korean is taken too.
 """
+import collections
 import contextlib
 import datetime
 import io
@@ -65,6 +76,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 
 CONFIG_NAME = "kit.config.json"
 DIR = os.path.join("docs", "cycle")
@@ -133,6 +145,7 @@ BACKLOG_HEAD = ("# Backlog\n\nWhat is put off for a later cycle — one line eac
                 "Written by `cycle.py later` · `backlog` — do not edit by hand.\n\n")
 BACKLOG_RE = re.compile(r"^- \[(.)\] (B\d+)\. (.*)$", re.M)
 BL_EPIC = re.compile(r" — epic: ([^()]+?)(?= \(|$)")
+SESSIONS = "sessions.json"  # which session holds which cycle, and the build turn — the board's watchers read it too, to send each answer to its cycle's session
 
 ROOT = ""
 
@@ -154,6 +167,111 @@ def docs():
     return sorted(os.path.join(d, n) for n in os.listdir(d) if re.match(r"\d+-.*\.md$", n)) if os.path.isdir(d) else []
 
 
+def session():
+    """The Claude Code session this runs in: the process above the shell that started this script — the same across /clear,
+    gone when its window closes. None where there is no `ps`: sessions are then not told apart, and everything acts on the newest document."""
+    if os.environ.get("KIT_SESSION"):
+        return int(os.environ["KIT_SESSION"])
+    try:
+        out = subprocess.run(["ps", "-o", "ppid=", "-p", str(os.getppid())], capture_output=True, text=True, timeout=5).stdout.strip()
+        return int(out) if out and int(out) > 1 else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def alive(pid):
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except (OSError, ValueError):
+        return True  # there, but not ours to signal
+
+
+def store():
+    """Which session holds which cycle, and whose build is running — beside git's own files, so it is never committed.
+    A game folder that is not a git repository keeps it in docs/cycle/."""
+    p = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True, text=True)
+    if p.returncode == 0 and p.stdout.strip():
+        return os.path.join(ROOT, p.stdout.strip(), "gamedev-kit", SESSIONS)
+    return os.path.join(ROOT, DIR, "." + SESSIONS)
+
+
+@contextlib.contextmanager
+def sessions():
+    """This game's entry in the store, cleared of sessions that have ended — {"held": {pid: {cycle, doc, at}}, "build": {pid, what, at} | None}.
+    Changed in place inside the block and written back after it; one script at a time (a lock file)."""
+    path = store()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lock = path + ".lock"
+    for _ in range(100):
+        try:
+            os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+            break
+        except FileExistsError:
+            with contextlib.suppress(OSError):
+                if time.time() - os.path.getmtime(lock) > 10:  # left by a script that was killed
+                    os.remove(lock)
+            time.sleep(0.05)
+    try:
+        try:
+            every = json.load(open(path, encoding="utf-8"))
+        except (OSError, ValueError):
+            every = {}
+        mine = every.get(os.path.realpath(ROOT)) or {}
+        build = mine.get("build")
+        state = {"held": {p: h for p, h in (mine.get("held") or {}).items() if alive(p)},
+                 "build": build if build and alive(build.get("pid", 0)) else None}
+        yield state
+        if state["held"] or state["build"]:
+            every[os.path.realpath(ROOT)] = state
+        else:
+            every.pop(os.path.realpath(ROOT), None)
+        with open(path + ".part", "w", encoding="utf-8") as f:
+            json.dump(every, f, ensure_ascii=False, indent=1)
+        os.replace(path + ".part", path)
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(lock)
+
+
+def stamp():
+    return f"{datetime.datetime.now():%Y-%m-%d %H:%M}"
+
+
+def open_docs():
+    return [p for p in docs() if stage_of(read(p)) not in CLOSED]
+
+
+def holders():
+    """Cycle document (from the game root) → the session holding it, for the sessions still open other than this one."""
+    me = str(session())
+    with sessions() as s:
+        return {h["doc"]: dict(h, pid=p) for p, h in s["held"].items() if p != me}
+
+
+def held_doc():
+    """The document this session holds, if it holds one."""
+    me = session()
+    if me is None:
+        return None
+    with sessions() as s:
+        h = s["held"].get(str(me))
+    return os.path.join(ROOT, h["doc"]) if h and os.path.exists(os.path.join(ROOT, h["doc"])) else None
+
+
+def unheld(others):
+    """Several sessions work on the game and this one holds no cycle — which document a line goes to is not guessed."""
+    lines = []
+    for p in sorted(set(open_docs()) | {os.path.join(ROOT, d) for d in others}):
+        rel, h = os.path.relpath(p, ROOT), others.get(os.path.relpath(p, ROOT))
+        lines.append(f"  C{cycle_no(p)} {os.path.basename(p)[3:-3]} (stage {stage_of(read(p))}) — "
+                     + (f"held by another session open since {h['at']}" if h else "free"))
+    return ("another session is working on this game, and this one holds no cycle — say which this session works on:\n" + "\n".join(lines)
+            + "\n`take <number>` to work on a free one (`new` starts another) · `--doc <path>` for one line in another cycle")
+
+
 def pick(path):
     if path:
         path = path if os.path.isabs(path) else os.path.join(ROOT, path)
@@ -162,7 +280,111 @@ def pick(path):
         return path
     if not docs():
         sys.exit(f"no cycle document in {DIR}/ — cycle.py new <short-name> \"<goal>\"")
+    mine = held_doc()
+    if mine:
+        return mine
+    others = holders()
+    if others:
+        sys.exit(unheld(others))
     return docs()[-1]
+
+
+def take(path, force=False):
+    """This session works on that cycle from now on — every command without --doc acts on it, and the dashboard's answers to it come here."""
+    me, rel = session(), os.path.relpath(path, ROOT)
+    if me is None:
+        return
+    with sessions() as s:
+        other = next((p for p, h in s["held"].items() if h["doc"] == rel and p != str(me)), None)
+        if other and not force:
+            sys.exit(f"C{cycle_no(path)} is held by another session open since {s['held'][other]['at']} — work on it there, or close that session. "
+                     f"If the user says that session is done with it: take {cycle_no(path)} --force")
+        if other:
+            del s["held"][other]
+        s["held"][str(me)] = {"cycle": str(cycle_no(path)), "doc": rel, "at": stamp()}
+    print(f"this session works on C{cycle_no(path)} — {rel}")
+
+
+def turn(what, path=None):
+    """The build turn: one session's build at a time — two builds in one folder see each other's half-made code, and an engine runs one batch job per project.
+    Taken by this session for `what`; refused while another open session has it."""
+    me = session()
+    if me is None:
+        return True
+    with sessions() as s:
+        b = s["build"]
+        if b and b["pid"] != me:
+            print(f"the build turn is another session's ({b['what']}, since {b['at']}) — wait for it: run in the background\n"
+                  f"  until python3 \"{os.path.abspath(__file__)}\" turn; do sleep 60; done\n"
+                  "and call the wave when it ends. Meanwhile spec · design · plan · decisions · play go on")
+            return False
+        if not b:
+            s["build"] = {"pid": me, "what": what, "at": stamp()}
+    return True
+
+
+def cmd_turn(rest):
+    me = session()
+    if rest and rest[0] == "take":
+        if not turn(" ".join(rest[1:]) or "a build"):
+            sys.exit(1)
+        return print("the build turn is this session's")
+    if rest and rest[0] in ("done", "free"):
+        with sessions() as s:
+            b = s["build"]
+            if b and (b["pid"] == me or rest[0] == "free"):
+                s["build"] = None
+                return print(f"the build turn is free ({b['what']} is done with it)")
+        return print("the build turn was not this session's" if b else "the build turn is free")
+    with sessions() as s:
+        b = s["build"]
+    if b and b["pid"] != me:
+        print(f"the build turn is another session's: {b['what']}, since {b['at']}")
+        sys.exit(1)
+    print("the build turn is this session's" if b else "the build turn is free")
+
+
+def cmd_open(path):
+    """The other cycles still open — what the systems designer weighs a new goal against (`fit`): where each stands, who works on it,
+    and what it touches (epics · files · GDD ids · asset slots)."""
+    others, me, b = holders(), session(), None
+    with sessions() as s:
+        b = s["build"]
+    shown = 0
+    for p in open_docs():
+        if os.path.abspath(p) == os.path.abspath(path):
+            continue
+        text, rel = read(p), os.path.relpath(p, ROOT)
+        h, ts = others.get(rel), tasks(text)
+        line = LINE_RE.search(text)
+        goal = section(text, "Goal")
+        files, ids, epics = set(), set(), collections.Counter()
+        for _n, (mark, _t, a, z) in ts.items():
+            if mark == "-":
+                continue
+            block = text[a:z]
+            epics[epic_of(block) or "no epic"] += 1
+            for m in re.finditer(r"^- \*\*(?:Where|GDD)\*\*:(.*)$", block, re.M):
+                files.update(re.findall(r"[\w./-]+\.[a-z][a-z0-9]{0,5}\b", m.group(1)))
+                ids.update(re.findall(r"\b[A-Z]{2,}(?:\.[A-Z0-9_]+)+\b", m.group(1)))
+        spec = section(text, "Spec")
+        if spec:
+            ids.update(re.findall(r"\b[A-Z]{2,}(?:\.[A-Z0-9_]+)+\b", text[spec[0]:spec[1]]))
+        print(f"C{cycle_no(p)} {os.path.basename(p)[3:-3]} — stage {stage_of(text)} · "
+              + (f"another session works on it (since {h['at']})" if h else "no session works on it")
+              + (" · building now" if b and h and b["pid"] == int(h["pid"]) else ""))
+        print(f"  goal: {(line.group(1).strip() if line and line.group(1).strip() else ' '.join(text[goal[0]:goal[1]].split()) if goal else '')[:300]}")
+        if epics:
+            print("  epics: " + " · ".join(f"{e} ({n})" for e, n in epics.most_common()))
+        if files:
+            print("  files: " + " · ".join(sorted(files)[:40]))
+        if ids:
+            print("  GDD: " + " · ".join(sorted(ids)[:40]))
+        if slots(text):
+            print("  asset slots: " + " · ".join(slots(text)))
+        shown += 1
+    if not shown:
+        print("no other cycle is open")
 
 
 def read(path):
@@ -342,6 +564,14 @@ def cmd_next(path):
     text = read(path)
     ts, ds = tasks(text), decisions(text)
     print(summary(path))
+    others = holders()
+    if others:
+        print("other sessions work on: " + " · ".join(f"C{h['cycle']}" for h in others.values())
+              + " — this session's commands act on its own cycle; the build turn is one session's at a time (`turn`)")
+        with sessions() as s:
+            b = s["build"]
+        if b and b["pid"] != session():
+            print(f"build turn: another session's ({b['what']}, since {b['at']}) — this cycle's waves wait for it")
     for line in carried(text):
         print(f"carried over: {line}")
     for note in old_notes():
@@ -417,6 +647,8 @@ def cmd_mark(path, names, state, note):
         bad = plain(" ".join(note.split()), DONE_MAX)
         if bad:
             sys.exit("Not marked — the dashboard shows this as what changed, read by the user:\n- " + "\n- ".join(bad))
+    if state == "doing" and not turn(f"C{cycle_no(path)}", path):
+        sys.exit(1)
     text = read(path)
     for num in names.split(","):
         ts = tasks(text)
@@ -1014,9 +1246,17 @@ def cmd_new(name, goal):
     write(path, TEMPLATE.format(num=f"{num:02d}", name=name, date=datetime.date.today(),
                                 commit=git("rev-parse", "--short", "HEAD") or "none", goal=goal.strip()))
     print(os.path.relpath(path, ROOT))
-    if before:
+    others = holders()
+    take(path)
+    if before and os.path.relpath(before[-1], ROOT) in others:
+        print(f"the previous cycle is another session's, left open: {os.path.relpath(before[-1], ROOT)}")
+    elif before:
         close(before[-1])
     report_leftovers()
+    alongside = [p for p in open_docs() if p != path and os.path.relpath(p, ROOT) in others]
+    if alongside:
+        print("open alongside it, in other sessions: " + " · ".join(f"C{cycle_no(p)} (stage {stage_of(read(p))})" for p in alongside)
+              + " — before Spec, call the systems designer with `fit`: it weighs this goal against them (`open` lists what they touch)")
     if dirty:
         print("there are uncommitted changes")
 
@@ -1029,6 +1269,9 @@ def main():
             i = args.index(flag)
             opts[flag] = args[i + 1]
             del args[i:i + 2]
+    force = "--force" in args
+    if force:
+        args.remove("--force")
     while "--image" in args:
         i = args.index("--image")
         if i + 1 >= len(args):
@@ -1044,20 +1287,40 @@ def main():
         sys.exit("--wait goes with todo")
     if "--epic" in opts and cmd != "later":
         sys.exit("--epic goes with later")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3)}
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3),
+            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
+    if force and cmd != "take":
+        sys.exit("--force goes with take")
     global ROOT
     ROOT = os.path.abspath(opts["--root"]) if "--root" in opts else find_root(os.getcwd())
     if cmd == "new":
         return cmd_new(*rest)
     if cmd == "status":
-        return print("\n".join(summary(p) for p in docs()) or f"no cycle document in {DIR}/")
+        others = holders()
+        mine = held_doc() if others else None  # who works where is said only while several sessions do
+        return print("\n".join(summary(p) + (" · this session" if p == mine else " · another session" if os.path.relpath(p, ROOT) in others else "")
+                               for p in docs()) or f"no cycle document in {DIR}/")
     if cmd == "epics":
         return cmd_epics()
-    path = pick(opts.get("--doc"))
-    if cmd in ("task", "mark") and KEY_RE.match(rest[0].split(",")[0]):
-        path, rest[0] = keyed(path, rest[0])
+    if cmd == "take":
+        said = rest[0]
+        return take(pick(said) if not re.fullmatch(r"[Cc]?\d+", said) else doc_of(said.lstrip("Cc")), force)
+    if cmd == "leave":
+        with sessions() as s:
+            h = s["held"].pop(str(session()), None)
+        return print(f"this session no longer works on C{h['cycle']}" if h else "this session held no cycle")
+    if cmd == "turn":
+        return cmd_turn(rest)
+    if cmd in ("task", "mark") and KEY_RE.match(rest[0].split(",")[0]) and "--doc" not in opts:
+        path, rest[0] = keyed(None, rest[0])
+    else:
+        path = pick(opts.get("--doc"))
+        if cmd in ("task", "mark") and KEY_RE.match(rest[0].split(",")[0]):
+            path, rest[0] = keyed(path, rest[0])
+    if cmd == "open":
+        return cmd_open(path)
     if cmd == "next":
         cmd_next(path)
     elif cmd == "task":
@@ -1112,6 +1375,10 @@ def main():
         write(path, STAGE_RE.sub(lambda m: m.group(1) + stage, text, count=1))
         print(f"stage: {stage}")
         if stage == "Play":
+            with sessions() as s:  # the build is done, verification and screens with it — the next session's build may start
+                if s["build"] and s["build"]["pid"] == session():
+                    s["build"] = None
+                    print("the build turn is free")
             report_checks(read(path))
 
 

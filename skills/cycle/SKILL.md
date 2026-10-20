@@ -7,7 +7,8 @@ description: >-
   ("continue the cycle", "next stage", "where were we"); answers a decision ("D2 는 ①로", "D2 is ①").
   Also how work crosses sessions — the document holds the state, so there is no separate handoff note: use when the user says "세션 바꾸자",
   "새 세션에서 이어가자", "인계 메모 남겨줘", "여기까지 정리해줘" ("let's switch sessions", "let's continue in a new session", "leave a handoff note",
-  "wrap up where we are"), or in a new session "이어서 하자", "아까 하던 거" ("let's continue", "what we were doing"). Not for one-line fixes.
+  "wrap up where we are"), or in a new session "이어서 하자", "아까 하던 거" ("let's continue", "what we were doing"). And several cycles at once, one per session —
+  "다른 세션에서 사이클 하나 더", "동시에 돌리자", "병렬로" ("another cycle in another session", "run them at the same time", "in parallel"). Not for one-line fixes.
 ---
 
 # cycle
@@ -40,10 +41,13 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" epic T3,T4 "<epic>"              
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" epics                                           # per epic: its tasks across every cycle and playtest, and its backlog
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry "<what the next session must know>"       # work in hand that the document does not hold — `next` shows it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" carry done                                      # picked up — not shown again
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" take 13                                         # this session works on C13 (`new` takes its own) · `leave`
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" open                                            # the other open cycles and what they touch — for `fit`
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" turn                                            # the build turn — `turn take "<what>"` · `turn done`
 python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped us → how to avoid it>"   # one of the user's own rules — holds in their next game too (--any: whatever the engine)
 ```
 
-These act on the newest document (for another, `--doc <path>`, or name a task across the game as `C16-T3`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
+These act on this session's cycle — the one it made with `new` or took with `take`; with none, the newest (for another, `--doc <path>`, or name a task across the game as `C16-T3`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
 
 **Clear the context at the breaks — in the same session.** All state is in the document, so a cleared session continues with one `next`. There are three places to break —
 where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
@@ -88,7 +92,7 @@ Create the document with `new` — pass the goal in the user's words as-is, unpo
 Then give it one line with `line` — what the cycle does, in what the player meets, in the user's language (at most 120 characters): it heads the board's "Now",
 above the user's own words. When the goal changes under way, write the line again.
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
-**`new` also closes the previous cycle** — there is no closing stage. A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
+**`new` also closes the previous cycle** — there is no closing stage — unless another session works on it ("Several sessions at once"). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
 
 **What earlier work left is settled before the goal moves on — the board is how the user sees nothing was forgotten, and it counts only what is still real.**
@@ -101,6 +105,11 @@ unanswered decisions, and what the user put off (`later`). Relay those lines as 
   ③ not needed → `backlog drop B3 "<why>"`. (`deferred:` lines are from a document written before the backlog — one still for later goes in with `later`.)
   To-dos not done and checks never answered come with the rest.
   Put the lines in `--detail`. A condition a task waits on ("only if fps drops") is checked, not asked, when it can be.
+
+**Other sessions' cycles first.** If `new` says cycles are open alongside it in other sessions, call `gamedev-kit:systems-designer` with `fit` before anything else —
+pass the document path and the listing command (`python3 <absolute path to this skill's cycle.py> open`). `Fit: clear` → say it in a line and go on.
+`Fit: overlaps` → write its decision with `ask Goal …` (the `why` and `detail` too) and stop there: no agent runs on this goal until it is answered.
+An answer that reshapes the goal is the goal now — write the line again (`line`); "start after C<n> reaches Play" leaves the document at Goal, and the user picks it up later with `take`.
 
 ### 2. Spec · 3. Design · 4. Plan
 
@@ -190,6 +199,7 @@ a task if it belongs to this cycle (call `plan`), `later` if it does not.
 Pass three lines — `build T<n>`, the document path, and the task-extraction command (`python3 <absolute path to this skill's cycle.py> task T<n> --doc <document>`). **Do not copy out the task content.**
 Things that apply identically to every task, like the engine executable's path, are written once in the project's CLAUDE.md — do not repeat them to each agent.
 In the same message that calls the wave, `mark T1,T3 doing` — the board and the dashboard show which tasks are being worked on now.
+**Run `mark … doing` before calling the agents**: it also takes the build turn, and refuses while another session is building (one build at a time — "Several sessions at once").
 Record returned results with `mark` (agents do not edit the document): done → `mark T1 done "<its Changed line>"`, one task per call — the dashboard shows that line
 as what changed, so it stays one plain sentence (the script refuses code names and long lines); blocked · failed → `mark T2 blocked "<reason>"`.
 `next` lists tasks without a "What" or a "Change" line — call `plan` again for them before the build.
@@ -289,6 +299,22 @@ Update the header's `Stage:` with `stage` every time the stage changes (Goal · 
 
 Documents written before the kit wrote English use the Korean words (`# 사이클`, `단계:`, `## 목표` · `## 결정` · `## 기획` · `## 디자인` · `## 작업` · `## 순서` · `## 플레이`, `· 권함:`, `- 1차:`, `**대기**`). The script reads both, and what it adds to such a document is English — leave the old lines as they are.
 
+## Several sessions at once
+
+The user can run a cycle in each of several sessions — one window each, in the same game folder. Each session works on one cycle: `new` takes the one it makes,
+`take <n>` takes one already there (`leave` lets it go). It is told apart by its Claude Code process, so it holds across `/clear` and lets go when the window closes.
+
+- **Every command without `--doc` acts on this session's cycle.** A session holding none, while another works on one, is stopped with the list of open cycles —
+  ask the user which this session is for (one of the free ones → `take`, or a new goal → `new`). Do not guess and do not pass `--doc` to get past it.
+- **A cycle another open session holds is refused** by `take`. If the user says that session is done with it (left open, not working), `take <n> --force`.
+- **A new goal is weighed against the others before it starts** — `fit` in "1. Goal".
+- **Spec, design, plan, decisions and play run side by side; the build takes turns.** `mark … doing` takes the build turn for the cycle and `stage Play` gives it back.
+  Refused → tell the user in a line which cycle is building, run `until python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" turn; do sleep 60; done` in the background,
+  and call the wave when it ends; meanwhile anything else in this cycle goes on. A build stopped half-way gives it back with `turn done`.
+  `turn free` only when the user says the other session's build is not running.
+- **The dashboard's answers go to the session working on that cycle** — the board's watchers set them aside for it. What no session holds goes, as before, to the newest one.
+- The playtest skill takes the turn for its own build, and its decisions go to this session's cycle.
+
 ## Leaving a session
 
 The cycle document is the one thing a cleared (or new) session picks up from — there is no separate note. Stage, decisions and tasks are already in it. What is not — work outside the tasks,
@@ -306,7 +332,8 @@ Before the first cycle there is no document to carry in, and none is needed: `/g
 
 ## next
 
-Run `cycle.py next` and continue from there — do not read the document. If the board is shared, read the answers tapped on it first (the board skill's "Reading the answers").
+Run `cycle.py next` and continue from there — do not read the document. If it stops because another session works on a cycle and this one holds none,
+ask which this session is for ("Several sessions at once"). If the board is shared, read the answers tapped on it first (the board skill's "Reading the answers").
 **If it lists "carried over" lines, those come first**: they are what the last session had in hand.
 A "for the user" line whose file is there now is next: look at it and go on with what waited for it, then `did U1`.
 If their commit differs from the current one, say so — the lines are a snapshot of when they were left. Run `carry done` at once (what is still unfinished when this session ends is carried again),

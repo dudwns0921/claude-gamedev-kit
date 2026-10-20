@@ -2311,6 +2311,79 @@ none
             f.write(doc.replace("## Design\n", "## Design\n### Screen and UI\n- a wider logo\n"))
         self.assertIn("already has content", run(CYCLE, root, "skip", "Design", "nothing seen changes", ok=False).stderr)
 
+    def test_cycle_sessions(self):
+        """Several sessions at once, each on its own cycle: commands act on the session's cycle, one held elsewhere is not taken or closed,
+        the build turn is one session's at a time, and the dashboard's answers go to the session working on that cycle."""
+        root = tempfile.mkdtemp(prefix="kit-sessions-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        json.dump({"board": {"service": {"game": "g"}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        procs = [subprocess.Popen(["sleep", "300"]) for _ in range(2)]  # two open sessions
+        for p in procs:
+            self.addCleanup(p.kill)
+        a, b = (str(p.pid) for p in procs)
+        env = lambda s: dict(os.environ, KIT_SESSION=s, KIT_INBOX_POLL="0.1")
+        as_ = lambda s, script, *args, ok=True: (lambda p: p if not ok or p.returncode == 0 else self.fail(f"{args}: {p.stdout}{p.stderr}"))(
+            subprocess.run([sys.executable, script, "--root", root, *args], capture_output=True, text=True, env=env(s)))
+
+        self.assertIn("this session works on C1", as_(a, CYCLE, "new", "combat", "Make combat").stdout)
+        doc = os.path.join(root, "docs/cycle/01-combat.md")
+        text = open(doc, encoding="utf-8").read().replace("## Order\n", "## Order\n- Wave 1: T1\n").replace("## Tasks\n", "## Tasks\n\n### [ ] T1. Hit\n"
+            "- **Epic**: Foundation\n- **What**: hits land\n- **Change**: hits land\n- **Where**: `src/combat.js` hit()\n- **GDD**: BAL.PLAYER.HP\n\n")
+        open(doc, "w", encoding="utf-8").write(text)
+        out = as_(b, CYCLE, "next", ok=False)
+        self.assertNotEqual(out.returncode, 0, "a session holding no cycle while another works does not guess where a line goes")
+        self.assertIn("C1 combat (stage Goal) — held by another session", out.stderr)
+        self.assertIn("held by another session", as_(b, CYCLE, "take", "1", ok=False).stderr, "one cycle, one session")
+        as_(a, CYCLE, "stage", "Play")
+        out = as_(b, CYCLE, "new", "shop", "A shop screen").stdout
+        self.assertIn("the previous cycle is another session's, left open", out, "a cycle another session works on is not closed under it")
+        self.assertIn("call the systems designer with `fit`", out)
+        self.assertIn("Stage: Play", open(doc, encoding="utf-8").read())
+        out = as_(b, CYCLE, "open").stdout
+        self.assertIn("C1 combat — stage Play · another session works on it", out)
+        self.assertIn("files: src/combat.js", out)
+        self.assertIn("GDD: BAL.PLAYER.HP", out)
+        self.assertEqual(as_(b, CYCLE, "ask", "Spec", "Shop opens how — ① tap ② walk in · recommended: ①").stdout.strip(), "D1")
+        self.assertEqual(as_(a, CYCLE, "ask", "Play", "Hits feel how — ① heavy ② light · recommended: ①").stdout.strip(), "D1", "each into its own cycle")
+        self.assertIn("· this session", [l for l in as_(b, CYCLE, "status").stdout.split("\n") if "02-shop" in l][0])
+        # the build turn
+        self.assertIn("T1: [>]", as_(a, CYCLE, "mark", "T1", "doing").stdout)
+        self.assertEqual(as_(b, CYCLE, "turn", ok=False).returncode, 1)
+        self.assertIn("the build turn is another session's", as_(b, CYCLE, "turn", "take", "C2", ok=False).stdout)
+        self.assertIn("the build turn is free", as_(a, CYCLE, "turn", "done").stdout)
+        self.assertIn("this session's", as_(b, CYCLE, "turn", "take", "C2").stdout)
+        self.assertIn("the build turn is free", as_(b, CYCLE, "stage", "Play").stdout, "Play — the build, its checks and screens are done")
+
+        # answers from the dashboard: each to the session working on that cycle
+        as_(a, BOARD)
+        box = os.path.join(root, "docs/board/inbox")
+        os.makedirs(box, exist_ok=True)
+        json.dump([{"key": "c01-D1", "pick": "①", "note": ""}, {"key": "c02-D1", "pick": "②", "note": ""}], open(os.path.join(box, "1.json"), "w"))
+        self.assertIn("1 answer(s) from the board", as_(b, BOARD, "watch", "--notice").stdout, "the session told takes its own")
+        self.assertIn(f"1.for-{a}.json", os.listdir(box), "the other cycle's answer is set aside for its session")
+        out = as_(b, BOARD, "answers", "--inbox").stdout
+        self.assertIn("D1 → ②", out)
+        self.assertNotIn("D1 → ①", out)
+        self.assertIn("1 answer(s) from the board", as_(a, BOARD, "watch", "--notice").stdout)
+        out = as_(a, BOARD, "answers", "--inbox").stdout
+        self.assertIn("D1 → ①", out)
+        self.assertNotIn("--doc", out, "its own cycle — the decision goes where the session's commands go")
+        # a monitor that is not the newest still takes what is set aside for its session
+        mon = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env(a))
+        self.addCleanup(mon.kill)
+        time.sleep(0.5)
+        newer = subprocess.Popen([sys.executable, BOARD, "--root", root, "watch"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env(b))
+        self.addCleanup(newer.kill)
+        time.sleep(0.5)
+        json.dump([{"key": "c01-D1", "pick": "②", "note": "again"}], open(os.path.join(box, "2.json"), "w"))
+        self.assertIn("1 answer(s) from the board", mon.stdout.readline(), "set aside by the newest, taken by its own session's monitor")
+        # the session closes: what it held is free again
+        procs[0].kill()
+        procs[0].wait()
+        self.assertIn("this session works on C1", as_(b, CYCLE, "take", "1").stdout)
+
     def test_harvest_sort(self):
         """As an issue arrives: the same lesson already open from the same sender is its duplicate — from another sender it is a second game, left alone."""
         root = tempfile.mkdtemp(prefix="kit-sort-")

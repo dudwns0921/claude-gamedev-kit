@@ -2099,25 +2099,87 @@ def tidy_inbox(asked):
             json.dump(keep, open(p, "w", encoding="utf-8"), ensure_ascii=False)
 
 
-def claim(stranded=False):
+# Several sessions at once: each works on one cycle, as the cycle skill's script keeps beside git's own files (`cycle.py take`). An answer to a cycle
+# another open session works on goes to that session — the batch is split, its rows left as <batch>.for-<pid>.json, which only that session's watcher takes.
+# What no session holds goes as before, to the newest session. A batch taken while several work is named for its taker (<batch>.s<pid>.taken).
+FOR_RE = re.compile(r"^(.+)\.for-(\d+)\.json$")
+TAKER_RE = re.compile(r"\.s(\d+)\.taken$")
+_STORE = []
+
+
+def holding():
+    """Cycle number → the pid of the open session working on it."""
+    if not _STORE:
+        p = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True, text=True)
+        _STORE.append(os.path.join(ROOT, p.stdout.strip(), "gamedev-kit", "sessions.json") if p.returncode == 0 and p.stdout.strip()
+                      else os.path.join(ROOT, "docs", "cycle", ".sessions.json"))  # where the cycle script keeps it outside git
+    held = ((load_json(_STORE[0]) or {}).get(os.path.realpath(ROOT)) or {}).get("held") or {}
+    return {str(int(h.get("cycle", 0))): int(p) for p, h in held.items() if str(p).isdigit() and running(int(p))}
+
+
+def cycle_of(key):
+    m = re.match(r"c(\d+)-", str(key or ""))
+    return str(int(m.group(1))) if m else None
+
+
+def mine(name, me):
+    """A taken batch this session reads: its own, one taken before several sessions worked, or one whose taker has ended."""
+    m = TAKER_RE.search(name)
+    return not m or int(m.group(1)) == me or not running(int(m.group(1)))
+
+
+def claim(stranded=False, me=None, lead=True):
     """Takes the batches no watcher has taken. stranded: also counts the ones taken but never read — the session told of them ended
     (or its watcher outlived it) before running `answers --inbox`, so a session starting now picks them up. Reading twice is harmless:
-    `answers` says nothing for an answer it has already relayed."""
+    `answers` says nothing for an answer it has already relayed.
+    me: this session. lead: the newest session's watcher — the one that takes what no other session works on. One that is not
+    takes only the answers set aside for its own session."""
     box, n = os.path.join(board_folder(), "inbox"), 0
+    own = holding()
+    several = any(p != me for p in own.values())
     for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
-        if stranded and name.endswith(".taken"):
-            n += len(rows_in(load_json(os.path.join(box, name)) or []))
-        if name.endswith(".json"):
-            try:
-                os.rename(os.path.join(box, name), os.path.join(box, name[:-5] + ".taken"))
-            except OSError:
-                continue  # another watcher took it
-            n += len(rows_in(load_json(os.path.join(box, name[:-5] + ".taken")) or []))
+        if name.endswith(".taken"):
+            if stranded and mine(name, me):
+                n += len(rows_in(load_json(os.path.join(box, name)) or []))
+            continue
+        if not name.endswith(".json"):
+            continue
+        to = FOR_RE.match(name)
+        if to and int(to.group(2)) != me and (running(int(to.group(2))) or not lead):
+            continue  # set aside for another open session — or, its session ended, left to the newest
+        if not to and not lead:
+            continue
+        stem = to.group(1) if to else name[:-5]
+        taken = os.path.join(box, f"{stem}.s{me}.taken" if several and me else f"{stem}.taken")
+        try:
+            os.rename(os.path.join(box, name), taken)
+        except OSError:
+            continue  # another watcher took it
+        keep, away = [], {}
+        for r in rows_in(load_json(taken) or []):
+            pid = own.get(cycle_of(r.get("key")))
+            if pid is not None and pid != me:
+                away.setdefault(pid, []).append(r)
+            else:
+                keep.append(r)
+        for pid, part in away.items():
+            out = os.path.join(box, f"{stem}.for-{pid}.json")
+            with open(out + ".part", "w", encoding="utf-8") as f:
+                json.dump(part, f, ensure_ascii=False)
+            os.replace(out + ".part", out)
+        if away:
+            if keep:
+                json.dump(keep, open(taken, "w", encoding="utf-8"), ensure_ascii=False)
+            else:
+                os.remove(taken)
+        n += len(keep)
     return n
 
 
 def session_pid():
     """The process above the one that started this watcher — the session itself when a hook or monitor is run through a shell."""
+    if os.environ.get("KIT_SESSION"):  # as the cycle script reads it — the tests play several sessions
+        return int(os.environ["KIT_SESSION"])
     try:
         out = subprocess.run(["ps", "-o", "ppid=", "-p", str(os.getppid())], capture_output=True, text=True, timeout=5).stdout.strip()
         return int(out) if out and int(out) > 1 else None
@@ -2137,15 +2199,25 @@ def running(pid):
         return True  # there, but not ours to signal
 
 
+def beating(path):
+    """A monitor's beat written within the last few polls by a watcher still running."""
+    try:
+        return time.time() - os.path.getmtime(path) < 4 * INBOX_POLL + 2 and running(int(read(path).strip() or 0) or None)
+    except (OSError, ValueError):
+        return False
+
+
 def unsettled():
     """Keys of answers relayed to a session that the board still asks in the same words and that were not put off — taken, then left."""
     folder = board_folder()
     asked = {i["key"]: i.get("asked", "") for i in load_json(os.path.join(folder, "review.json")) or [] if isinstance(i, dict) and "key" in i}
     box, later, out = os.path.join(folder, "inbox"), parked(), []
+    me, own = session_pid(), holding()
     for name in sorted(os.listdir(box)) if os.path.isdir(box) else []:
         if name.endswith(".relayed"):
             out += [r["key"] for r in rows_in(load_json(os.path.join(box, name)) or [])
-                    if r.get("key") in asked and r.get("asked", asked[r["key"]]) == asked[r["key"]] and r["key"] not in later]
+                    if r.get("key") in asked and r.get("asked", asked[r["key"]]) == asked[r["key"]] and r["key"] not in later
+                    and own.get(cycle_of(r["key"]), me) == me]  # an answer to another open session's cycle is that session's to settle
     return list(dict.fromkeys(out))
 
 
@@ -2221,7 +2293,7 @@ def watch(mode):
     beat = os.path.join(folder, ".watching")
     if mode == "--notice":
         at_work()
-        n = claim(stranded=True)
+        n = claim(stranded=True, me=session_pid())
         if n:
             print(told(n))
         got = arrived()
@@ -2237,8 +2309,10 @@ def watch(mode):
     gone = lambda: os.getppid() != parent or not running(session)  # the session that started this watcher has ended — it would take batches for no one
     if mode == "--rewake":
         me = os.path.join(folder, ".rewake")
+        own = os.path.join(folder, f".rewake-{session}")  # this session's newest hook — with several sessions at once, each has its own
         os.makedirs(folder, exist_ok=True)
         open(me, "w").write(str(os.getpid()))
+        open(own, "w").write(str(os.getpid()))
         say_session("on", "", os.getpid())
 
         def ended(why, code=0, state="off"):
@@ -2246,8 +2320,9 @@ def watch(mode):
             state: what the session is now, said only while .session still names this hook (a newer hook or a monitor says its own)."""
             try:
                 open(os.path.join(folder, ".rewake.log"), "w").write(f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} · pid {os.getpid()} · {why}\n")
-                if read(me).strip() == str(os.getpid()):
-                    os.remove(me)
+                for f in (me, own):
+                    if read(f).strip() == str(os.getpid()):
+                        os.remove(f)
                 if state:
                     say_session(state, why if state == "off" else "", session if state == "work" else None, only_if=os.getpid())
             except OSError:
@@ -2260,15 +2335,19 @@ def watch(mode):
         while time.time() < end:
             if gone():
                 ended("the session that started it has ended")
-            if read(me).strip() != str(os.getpid()):
+            if read(own).strip() != str(os.getpid()):
                 ended("a newer turn's hook took over", state="")
-            if os.path.exists(beat) and time.time() - os.path.getmtime(beat) < 4 * INBOX_POLL + 2:
-                ended("a monitor is watching", state="")
-            n = claim()
+            if beating(os.path.join(folder, f".watching-{session}")):
+                ended("a monitor is watching", state="")  # this session's own monitor relays
+            newest, monitor = read(me).strip() == str(os.getpid()), beating(beat)
+            if not (newest and not monitor) and session not in holding().values():
+                ended("a monitor is watching" if newest else "a newer turn's hook took over", state="")
+            lead = newest and not monitor  # else it waits only for the answers set aside for this session's cycle
+            n = claim(me=session, lead=lead)
             if n:
                 print(told(n), file=sys.stderr)
                 ended("woke the session for the answers", 2, state="work")  # exit 2 wakes the session (asyncRewake)
-            got = arrived()
+            got = arrived() if lead else []
             if got:
                 print(told_files(got), file=sys.stderr)
                 ended("woke the session for a file the user saved", 2, state="work")
@@ -2276,19 +2355,28 @@ def watch(mode):
         ended("waited the hour a hook may — any message in the session reconnects it")
     os.makedirs(folder, exist_ok=True)
     open(beat, "w").write(str(os.getpid()))  # the newest monitor watches; one already running stands aside while this one beats
+    own = os.path.join(folder, f".watching-{session}")  # this session's monitor — its hooks stand aside for it
     while not gone():
+        open(own, "w").write(str(os.getpid()))
         mine = read(beat).strip() == str(os.getpid())
         if mine or not os.path.exists(beat) or time.time() - os.path.getmtime(beat) > 4 * INBOX_POLL + 2:  # or the newer one's session ended — take over again
             os.makedirs(folder, exist_ok=True)
             open(beat, "w").write(str(os.getpid()))
             say_session("on", "", os.getpid())
-            n = claim()
+            n = claim(me=session)
             if n:
                 print(told(n), flush=True)
             got = arrived()
             if got:
                 print(told_files(got), flush=True)
+        elif session in holding().values():  # another session's monitor is the newest — this one still takes the answers to its own cycle
+            n = claim(me=session, lead=False)
+            if n:
+                print(told(n), flush=True)
         time.sleep(INBOX_POLL)
+    with contextlib.suppress(OSError):
+        if read(own).strip() == str(os.getpid()):
+            os.remove(own)
     say_session("off", "the session that started it has ended", None, only_if=os.getpid())
 
 
@@ -2309,8 +2397,9 @@ def answers(path):
     items = {i["key"]: i for i in load_json(os.path.join(folder, "review.json")) or []}
     taken = []
     if path == "--inbox":  # what the dashboard sent: the batches a watch took, and any not yet taken
-        box = os.path.join(folder, "inbox")
-        taken = sorted(os.path.join(box, n) for n in (os.listdir(box) if os.path.isdir(box) else []) if n.endswith((".taken", ".json")))
+        box, me = os.path.join(folder, "inbox"), session_pid()
+        claim(me=me)  # what waits is taken now, the answers to another open session's cycle set aside for it
+        taken = sorted(os.path.join(box, n) for n in (os.listdir(box) if os.path.isdir(box) else []) if n.endswith(".taken") and mine(n, me))
         data = [load_json(p) for p in taken]
     elif os.path.isdir(path):  # the folder a read of the collection saved its documents into, one JSON file each
         data = [load_json(os.path.join(d, n)) for d, _dirs, names in os.walk(path) for n in sorted(names) if n.endswith(".json")]
@@ -2320,6 +2409,9 @@ def answers(path):
         sys.exit(f"{path}: could not read — save the rows of the \"answers\" collection as JSON")
     seen_path = os.path.join(folder, "answered.json")
     seen = load_json(seen_path) or {}
+    me = session_pid()
+    held = next((c for c, p in holding().items() if p == me), None)  # this session's cycle: a line for another one names its document
+    away = lambda i: str(int(i["cycle"])) != held if held is not None else not i.get("latest", True)
     groups, stale = {"todo": [], "decision": [], "question": [], "check": []}, 0
     for r in rows_in(data):
         i = items.get(r["key"])
@@ -2339,12 +2431,12 @@ def answers(path):
             was = f' (decided for you: {i["proxy"]})' if i.get("proxy") else ""
             what = ("accept" if pick == "accept" else "not needed (drop)" if pick == "drop"
                     else f"overturn → {pick}" if i.get("proxy") and pick else pick or "(no option)")
-            where = "" if i.get("latest", True) else f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]'
+            where = f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]' if away(i) else ""
             out.append(f'  {i["ref"]}{was} → {what}{note(n)}{where}')
     if groups["todo"]:
         out.append("For you — what the user did outside the chat (cycle skill: did · drop):")
         for i, pick, n in groups["todo"]:
-            where = "" if i.get("latest", True) else f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]'
+            where = f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]' if away(i) else ""
             what = ("not needed (drop)" if pick == "drop" else
                     f'done — look at {i["wait"]}' + ("" if os.path.exists(os.path.join(ROOT, i["wait"])) else " (NOT there yet — say so, and reopen the card)") if i.get("wait") else "done")
             out.append(f'  {i["ref"]} {i["title"][:60]} → {what}{note(n)}{where}')

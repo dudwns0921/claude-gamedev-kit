@@ -196,6 +196,8 @@ The plugin wakes the open session for it — a monitor (`board.py watch`) where 
 the session by exiting 2); a session opened later is told at its start (`watch --notice`). Whichever takes the batch first relays it; none relays it twice.
 Across a change of sessions nothing is lost: the newest session's watcher takes the batches (an older one left open stands aside), a watcher whose session ended stops,
 and a batch taken but never read is told again to the next session at its start.
+**With several sessions at once, each on its own cycle** (the cycle skill's "Several sessions at once"), an answer to a cycle another open session works on is set aside for that session
+(`inbox/<batch>.for-<pid>.json`) and only its watcher takes it — standing aside for the newest otherwise; `answers --inbox` lists only this session's, and names the document of any other cycle's.
 **Any message reconnects.** Every prompt the user sends also picks up what waits (`watch --notice` runs on each one), and the turn it starts ends with the
 after-turn hook waiting again — so a session whose watcher is gone (idle past the hook's hour, the plugin updated, the app restarted) is back with one message.
 The watchers write where the session stands as it changes — listening · at work · off and why — in `docs/board/.session`, and the dashboard shows it as written.

@@ -42,7 +42,7 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    Record the current commit with `git rev-parse --short HEAD`, and say so if there are uncommitted changes.
 2. **Call the `gamedev-kit:playtest-analyst` agent.** Pass: the problem list verbatim, the commit hash,
    context the user added (which scene · which device · how many tries). **Do not pass your guesses** — an analyst handed a hypothesis comes back having confirmed it.
-3. When it returns, write each of its "Questions for the user" as a decision in the newest cycle document
+3. When it returns, write each of its "Questions for the user" as a decision in this session's cycle document — the one `cycle.py` acts on
    (`python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" ask Playtest "<question — ① … ② … · recommended: ①>"` — the board's review and the dashboard show only decisions),
    then relay the document path, the task count and the questions with their numbers. For `plan`, stop here. When answered, `cycle.py decide` records it as for any decision.
 
@@ -56,6 +56,10 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
 3. **Per wave, one `gamedev-kit:developer` agent per task, with `build T<n>` and `model: sonnet`.** Call a wave's tasks all at once (in one message) —
    the analyst grouped them so they touch different files. Pass three lines — `build T<n>`, the document path, the task-extraction command (`python3 <absolute path to this skill's playtest.py> task T<n> --doc <document>`). Do not copy out the task content.
    Call the next wave after the previous wave has fully returned.
+   **Before the first wave, take the build turn** — with several sessions at once, one builds at a time:
+   `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn take "playtest <document name>"`. Refused (another session is building) → say so in a line,
+   run `until python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn; do sleep 60; done` in the background, and call the wave when it ends.
+   Give it back with `turn done` once the step 5 below is through.
 4. **Record returned results with `mark`** (agents do not edit the document. Do not open the document and edit it by hand):
    - done → `mark T1 done "<its Changed line>"`, one task per call — the dashboard shows it as what changed: one plain sentence, no code names (the script refuses them).
    - blocked · failed → `mark T2 blocked "<reason>"`. **Do not re-analyze and fix it here yourself.**
@@ -65,7 +69,7 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    - if any task's Kind was balance (older: 밸런스), `export` with the balance-table skill (so the table does not hold old values)
    - if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`
    - the project's verification (CLAUDE.md "Verification") once in full — conflicts between tasks show up here
-   - **shoot the screens** of each epic (`Epic:` line) the round changed what the player sees in — the cycle skill's "Shoot the screens", into the newest cycle:
+   - **shoot the screens** of each epic (`Epic:` line) the round changed what the player sees in — the cycle skill's "Shoot the screens", into this session's cycle:
      `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" shot "<epic>" <picture>`. The dashboard's Screens tab of that epic shows it
 6. **Report:**
 
