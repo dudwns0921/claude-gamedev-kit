@@ -2381,6 +2381,7 @@ else:
         out = ceo("status").stdout
         self.assertIn("C01 menu — Goal · ready", out, "no window on it, nothing asked: a worker can take it")
         self.assertIn("not set up", out)
+        self.assertIn("builds: one at a time in the game's folder", out, "how builds run is said by the script, not remembered")
         self.assertIn("the user says once how far it may go", ceo("run", "1", "next", ok=False).stderr, "no worker before the user says how they run")
         self.assertIn("workers run with acceptEdits", ceo("setup", "--mode", "acceptEdits").stdout)
         self.assertEqual(json.load(open(os.path.join(root, "kit.config.json")))["ceo"]["mode"], "acceptEdits")

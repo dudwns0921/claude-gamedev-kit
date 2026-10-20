@@ -45,6 +45,11 @@ Start each with the Bash tool **in the background** (`run_in_background`) — `r
 
 Never more than `parallel` at once (`run` refuses). Never on a cycle a window of the user's works on — `status` says so, and that cycle is left alone.
 
+**How builds run is what `status` says — not what you remember.** Where the game builds each cycle in a folder of its own (`cycle.worktree`), builds of several cycles
+run at once: start every cycle and every playtest build that can move, up to `parallel`, each in its own worker — never chain builds one after another in one worker
+or hold one back for another's turn. Only the merge into the game takes the turn, for a moment; a worker that meets it stops with `STOP turn` and is started again.
+Where it does not, builds take turns in the game's folder, and the other workers think ahead — spec, design, plan, playtest analysis.
+
 ## Answers from the dashboard
 
 This window holds no cycle, so the dashboard's answers come here (a worker running on a cycle gets none — they wait for it to end).

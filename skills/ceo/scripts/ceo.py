@@ -169,6 +169,11 @@ def cmd_status():
     if not shown:
         print("no cycle is open — propose goals (the skill's \"New goals\")")
     held, build = store()
+    if isinstance((whole().get("cycle") or {}).get("worktree"), dict):
+        print("builds: each cycle in a folder of its own — several build at once; only a merge into the game takes the turn, for a moment. "
+              "Start every cycle that can move, up to the workers allowed — never queue builds one after another")
+    else:
+        print("builds: one at a time in the game's folder — the others wait for the turn; spec · design · plan · playtest analysis go on meanwhile")
     if build:
         print(f"build turn: {build.get('what', '')} since {build.get('at', '')}")
     n = len(running())
