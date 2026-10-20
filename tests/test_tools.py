@@ -27,6 +27,7 @@ REPORT = os.path.join(KIT, "skills/gdd-sync/scripts/sync_report.py")
 TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
+CEO = os.path.join(KIT, "skills/ceo/scripts/ceo.py")
 SHEET = os.path.join(KIT, "skills/cycle/scripts/sheet.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 INIT = os.path.join(KIT, "skills/init/scripts/init.py")
@@ -2347,6 +2348,59 @@ none
         run(BOARD, root, "play", "playtest", "docs/playtest/2026-10-20-feel.md")
         newest = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["plays"][0]
         self.assertEqual((newest["what"], newest["playtest"]), ("Playtest 2026-10-20-feel", "2026-10-20-feel.md"), "newest first — named as the user reads it, matched by its document")
+
+    def test_ceo(self):
+        """The CEO runs a cycle's steps as headless workers and decides nothing: it needs the user's word on how workers run,
+        a worker stops where the user is needed and says so in one line, and a cycle moves again once its decisions are answered."""
+        root = tempfile.mkdtemp(prefix="kit-ceo-")
+        self.addCleanup(shutil.rmtree, root, True)
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        gone = subprocess.Popen(["sleep", "300"])  # the window that made the cycle, closed since
+        run_env = lambda **e: dict(os.environ, **e)
+        subprocess.run([sys.executable, CYCLE, "--root", root, "new", "menu", "A main menu"], env=run_env(KIT_SESSION=str(gone.pid)), check=True, capture_output=True)
+        gone.kill()
+        gone.wait()
+        # a stand-in for claude: it asks one decision in the cycle, as a worker of the cycle skill would, and ends with its STOP line
+        fake = os.path.join(root, "fake-claude")
+        open(fake, "w").write(f"""#!{sys.executable}
+import json, os, subprocess, sys
+args = sys.argv[1:]
+open("worker-args.json", "w").write(json.dumps({{"args": args, "worker": os.environ.get("KIT_WORKER")}}))
+said = args[args.index("-p") + 1]
+if said.startswith("A new cycle"):
+    subprocess.run([sys.executable, {CYCLE!r}, "new", "shop", "A shop"], capture_output=True)
+    print(json.dumps({{"result": "Started.\\nSTOP: decisions — what the shop sells", "total_cost_usd": 0.3}}))
+else:
+    subprocess.run([sys.executable, {CYCLE!r}, "ask", "Spec", "Menu how — ① list ② grid", "--doc", "docs/cycle/01-menu.md"], capture_output=True)
+    print(json.dumps({{"result": "Spec written.\\nSTOP: decisions — how the menu is laid out", "total_cost_usd": 0.42}}))
+""")
+        os.chmod(fake, 0o755)
+        ceo = lambda *a, ok=True: (lambda p: p if not ok or p.returncode == 0 else self.fail(f"{a}: {p.stdout}{p.stderr}"))(
+            subprocess.run([sys.executable, CEO, "--root", root, *a], capture_output=True, text=True, env=run_env(KIT_CLAUDE=fake)))
+        out = ceo("status").stdout
+        self.assertIn("C01 menu — Goal · ready", out, "no window on it, nothing asked: a worker can take it")
+        self.assertIn("not set up", out)
+        self.assertIn("the user says once how far it may go", ceo("run", "1", "next", ok=False).stderr, "no worker before the user says how they run")
+        self.assertIn("workers run with acceptEdits", ceo("setup", "--mode", "acceptEdits").stdout)
+        self.assertEqual(json.load(open(os.path.join(root, "kit.config.json")))["ceo"]["mode"], "acceptEdits")
+        out = ceo("run", "1", "next").stdout
+        self.assertIn("C01 worker ended — STOP decisions: how the menu is laid out", out)
+        self.assertIn("$0.42", out)
+        sent = json.load(open(os.path.join(root, "worker-args.json")))
+        self.assertEqual(sent["worker"], "1", "the worker's hooks know it is one — the dashboard's answers stay the CEO window's")
+        self.assertEqual(sent["args"][sent["args"].index("--permission-mode") + 1], "acceptEdits")
+        self.assertIn("STOP:", sent["args"][sent["args"].index("--append-system-prompt") + 1])
+        self.assertIn("1 decision(s) wait for you", ceo("status").stdout)
+        self.assertIn("nothing a worker can take now", ceo("ready").stdout)
+        self.assertIn("decision(s) wait", ceo("run", "1", "next", ok=False).stderr, "a cycle waiting on the user is not run")
+        subprocess.run([sys.executable, CYCLE, "--root", root, "decide", "D1", "①", "--doc", "docs/cycle/01-menu.md"], check=True, capture_output=True,
+                       env=run_env(KIT_SESSION="1"))
+        self.assertIn("C01 menu — `run 1 next`", ceo("ready").stdout, "answered — it moves again")
+        self.assertIn("C01 next", ceo("workers").stdout)
+        self.assertIn("Spec written.", ceo("workers", "1").stdout, "the last words, for what to tell the user")
+        out = ceo("run", "new", "A shop").stdout
+        self.assertIn("C02 worker ended — STOP decisions: what the shop sells", out, "a new cycle's worker is known by the document it made")
 
     def test_cycle_commit(self):
         """A build is committed the moment it is done, and each round of fixes after it: what changed since the build turn was taken and

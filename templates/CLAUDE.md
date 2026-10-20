@@ -29,6 +29,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 |---|---|
 | A new game with no cycle yet — the GDD, the look, the first goal | `/gamedev-kit:start` — it reads where the game stands from the files |
 | A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from Goal to Play |
+| Cycles run for the user in the background, several at once, while they decide and play | `/gamedev-kit:ceo` — this window coordinates, workers do the cycles; it decides nothing |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
 | A 3D model, a sprite, a sound or a clip | Made the way the user's own skill for it says (their ways of working, in `~/.claude/skills/`; with none, ask which tool and make one — `/gamedev-kit:feedback`) — the kit makes none; the style is the one in [docs/DESIGN.md](docs/DESIGN.md); the file goes to its slot's path |
 | "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
@@ -37,7 +38,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 ## The user decides
 
 Claude does not decide scope · taste · numbers · whether to ship. Offer options with one recommendation, ask, and write the answer in the cycle document's "Decisions" in the user's own words.
-**Every question for the user is a decision**, whatever stage or skill it comes up in (build, play, a playtest fix, an asset, a logo): write it with `cycle.py ask <stage> "…"` in the newest cycle document before asking —
+**Every question for the user is a decision**, whatever stage or skill it comes up in (build, play, a playtest fix, an asset, a logo): write it with `cycle.py ask <stage> "…"` in this session's cycle document before asking —
 the board's review and the dashboard show only what is written there, and a question asked only in the chat is lost when the session changes. **Anything to look at while deciding goes with it**: a capture of now, the candidates, a measurement, a reference — `--image "<label>=<path>"` on the `ask`
 (or a sheet, for options compared side by side — the cycle skill's "chosen by eye"). Not a separate page, not only a path in the chat.
 **Write it to be read on a phone, by someone who has not opened the documents**: a short question in what the player meets, options that say what changes in play, the recommendation with its reason;

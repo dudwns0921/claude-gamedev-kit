@@ -100,6 +100,8 @@ def context_size(path):
 
 
 def main():
+    if os.environ.get("KIT_WORKER"):
+        return  # a headless worker of the CEO: its size and its words are not the user's window
     data = json.load(sys.stdin)
     path = data.get("transcript_path") or ""
     root = in_game(data.get("cwd"))

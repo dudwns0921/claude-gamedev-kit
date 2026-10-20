@@ -2413,6 +2413,8 @@ def watch(mode):
     svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
     if not svc.get("game"):
         return  # no dashboard for this game
+    if os.environ.get("KIT_WORKER"):
+        return  # a headless worker of the CEO (the ceo skill): no one is there to wake — the answers are the CEO window's
     folder = board_folder()
     beat = os.path.join(folder, ".watching")
     if mode == "--notice":
