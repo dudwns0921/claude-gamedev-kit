@@ -546,6 +546,14 @@ def leftovers():
     return tests, [n for n in empty if n not in made], [n for n in empty if n in made]
 
 
+def own_cfg():
+    """This skill's section of kit.config.json — "check": "wave" where the engine runs one at a time in a project folder (the engine's config sets it)."""
+    try:
+        return json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("cycle", {}) or {}
+    except (OSError, ValueError):
+        return {}
+
+
 def board_cfg():
     try:
         return json.load(open(os.path.join(ROOT, CONFIG_NAME), encoding="utf-8")).get("board", {}) or {}
@@ -683,7 +691,8 @@ def cmd_next(path, looked=False):
         left = [t for t in names if t in ts and ts[t][0] in OPEN]
         if not left:
             continue
-        print(f"next wave: {n}")
+        print(f"next wave: {n}" + (" — checked as a wave: `build T<n> wave` for each (no engine run), then one `check` (the skill's \"Checked as a wave\")"
+                                   if own_cfg().get("check") == "wave" else ""))
         for t in left:
             hold = waiting(text[ts[t][2]:ts[t][3]], ds)
             epic = epic_of(text[ts[t][2]:ts[t][3]])

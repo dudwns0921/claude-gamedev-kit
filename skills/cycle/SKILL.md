@@ -211,6 +211,14 @@ Do not fix a blocked task here yourself — ask the user whether to call `plan` 
 Before the first wave on a machine that has not run this project (a fresh clone), check that the engine executable written in CLAUDE.md exists — without it a whole wave comes back unverified.
 A blocked task or a returned "Deviations from the document" may be something learned — see "What was learned" below.
 
+**Checked as a wave** — where the engine runs one at a time in a project folder (`"cycle": {"check": "wave"}` in `kit.config.json`; `next` says so).
+Each task's agent running the engine for itself makes a wave queue on it; instead the wave is written in parallel and checked once:
+1. Call the wave as `build T<n> wave` — each writes its task without running the engine.
+2. When all have returned, one `gamedev-kit:developer` with `check T1,T3,T4` (`model: sonnet`), the document path, the extract-task command, and each task's "Changed files" line.
+3. `T3: failed` → call `build T3 wave` again with its failure lines attached (all failed tasks at once), then `check` again with those tasks. After two such rounds, a task still failing is `mark … blocked "<its lines>"`.
+   "Unplaced" failures are no task's: put them to the user as a decision (`ask Build …`) — never fix them here.
+4. `mark … done` only for tasks the check passed. The last wave's check is the project's verification below when nothing changed after it.
+
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
 the project's full verification (CLAUDE.md "Verification").
 **Shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play cycle <NN>`. The game's own harness walks the route (`board.play` in `kit.config.json`:

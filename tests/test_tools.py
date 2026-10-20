@@ -2407,6 +2407,20 @@ else:
         self.assertEqual([(w["cycle"], w["stop"]) for w in work["ended"]], [(2, "decisions"), (1, "decisions")], "the Now tab: how the last workers ended, newest first")
         self.assertEqual((work["workers"], work["build"]), ([], None), "nothing running now")
 
+    def test_cycle_wave_check(self):
+        """Where the engine runs one at a time in a project folder, the engine's config has a wave checked together — `next` says so."""
+        root = tempfile.mkdtemp(prefix="kit-wave-")
+        self.addCleanup(shutil.rmtree, root, True)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        run(CYCLE, root, "new", "menu", "A menu")
+        doc = os.path.join(root, "docs/cycle/01-menu.md")
+        text = open(doc, encoding="utf-8").read().replace("## Tasks\n", "## Tasks\n\n### [ ] T1. List\n- **What**: a\n- **Change**: b\n\n").replace("## Order\n", "## Order\n- Wave 1: T1\n")
+        open(doc, "w", encoding="utf-8").write(text)
+        self.assertNotIn("checked as a wave", run(CYCLE, root, "next").stdout)
+        json.dump({"cycle": {"check": "wave"}}, open(os.path.join(root, "kit.config.json"), "w"))
+        self.assertIn("next wave: 1 — checked as a wave: `build T<n> wave`", run(CYCLE, root, "next").stdout)
+        self.assertEqual(json.load(open(os.path.join(KIT, "engines/unity/kit.config.json")))["cycle"], {"check": "wave"}, "Unity runs one editor per project")
+
     def test_cycle_commit(self):
         """A build is committed the moment it is done, and each round of fixes after it: what changed since the build turn was taken and
         the cycle's document — not what was already changed before, nor another session's cycle."""

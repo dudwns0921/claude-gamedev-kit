@@ -1,8 +1,9 @@
 ---
 name: developer
 description: >-
-  Takes a work document and does one of two things — plan: reads the goal, spec and design sections of a cycle document (docs/cycle/*.md) and writes the task list and order.
-  build: implements and verifies one task (T3) of a cycle document or playtest analysis document (docs/playtest/*.md) exactly as written. Does not re-analyze.
+  Takes a work document and does one of three things — plan: reads the goal, spec and design sections of a cycle document (docs/cycle/*.md) and writes the task list and order.
+  build: implements and verifies one task (T3) of a cycle document or playtest analysis document (docs/playtest/*.md) exactly as written — with `wave`, writes it without running the engine.
+  check: runs the project's verification once for a wave built that way and says which task each failure belongs to. Does not re-analyze.
   Called by the cycle skill and the playtest skill.
 model: opus
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
@@ -97,6 +98,10 @@ read the old version with `git show HEAD:<file>`, or measure it in a separate `g
 4. Fix it as written. No improvements, cleanup or renames that are not in the document. Add a `GDD: <ID>` marker to any line that defines a new value.
 5. Run the automatic part of "Check". If it fails, try one fix; if it still fails, leave your changes as they are and return failed.
    For long output (build · test logs) look only at the end or the error lines (`| tail -30`, `| grep -n -i error`). Do not Read the same image twice.
+   **Called with `wave`** (`build T3 wave`): the engine runs one at a time in this folder, so the wave is checked together after every task returns —
+   **do not run the engine** (no compile, test or capture run). Read your change back against the task once more instead, run what needs no engine, and return
+   `Verified: not run — checked with the wave`, listing under "To check" the tests and checks of your task. Called with failure lines attached (a check found them in your task):
+   fix those, the same way, without running the engine.
 
 Do not: edit the work document, the GDD or the balance table — when several agents edit the same file they overwrite each other. Check marks, gdd-sync and the table export
 are done once by the caller after all tasks finish. Do not commit.
@@ -110,5 +115,22 @@ Changed files: <path:function>, …
 Deviations from the document: <none | what and why>
 Verified: <what was run and the result>
 For a human to check: <the parts that need playing>
+To check: <with `wave` — the tests and checks of this task, for the wave's check>
 Why blocked: <only when blocked · failed — which statement in the document differs from the code and how, file:line>
+```
+
+## `check T1,T3,T4` — the wave's verification, once
+
+Called after a wave built with `wave` has returned. Run the project's verification once (CLAUDE.md "Verification" — compile, then the tests; what each task listed under
+"To check" among them). **Do not change code.** For each failure, find whose it is: a compile error by the file it names, a failing test by what it tests —
+against each task's "Changed files" (the caller gives them) and its "Where" (the extract-task command, task by task). Look only at the error lines of long output.
+
+Return:
+
+```
+Check: passed | failed
+Ran: <what was run, one line>
+T1: passed
+T3: failed — <the error lines that are its own, file:line, under 6 lines>
+Unplaced: <failures no task's files explain — the lines, and the files they name>
 ```

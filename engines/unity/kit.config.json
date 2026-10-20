@@ -1,6 +1,9 @@
 {
   "engine": "unity",
   "models": "standard",
+  "cycle": {
+    "check": "wave"
+  },
   "gdd-sync": {
     "code_ext": [".cs", ".json", ".asset"],
     "skip_dirs": [".git", ".claude", "build", "docs", "Library", "Temp", "Logs", "obj", "Packages", "UserSettings"],
