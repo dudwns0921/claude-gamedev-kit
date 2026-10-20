@@ -713,8 +713,8 @@ class Tools(unittest.TestCase):
         self.assertIn("1 in no stage yet (assets 1) — place them →", chart, "what belongs to no stage sits beside what is left, as a to-do")
         os.remove(os.path.join(root, "assets/sounds/zzz_orphan.mp3"))
 
-        # the cycle in hand heads the first screen: its goal in one line, its stages, its tasks; a stage's card is the screen a cycle shot of it
-        self.assertIn("No screen yet", page(root, "index.html"), "no stage has been shot yet")
+        # the cycle in hand heads the first screen: its goal in one line, its stages, its tasks; a stage's card carries words — the game's screens are the play route's runs
+        self.assertNotIn('class="hero', page(root, "index.html"), "no picture on a stage card")
         os.makedirs(os.path.join(root, "docs/capture/cycle01"))
         open(os.path.join(root, "docs/capture/cycle01/rules.png"), "wb").write(b"\x89PNG\r\n\x1a\n")
         self.assertIn("in one line: pick coins up", run(CYCLE, root, "line", "pick coins up").stdout)
@@ -730,14 +730,14 @@ class Tools(unittest.TestCase):
         chart = page(root, "index.html")
         self.assertIn("<h2>pick coins up</h2>", chart, "the one line heads Now")
         self.assertIn('<span class="step on">Play</span>', chart)
-        self.assertIn('url(../capture/cycle01/rules.png)"><span class="age">cycle 01</span>', chart, "the stage's card is its newest screen, with the cycle it came from")
+        self.assertNotIn("url(../capture/cycle01/rules.png)", chart, "a screen a cycle shot is not on the card any more")
         self.assertIn('<span class="busy">in cycle 01 · T1 · T2</span>', chart, "a stage the cycle in hand works on says so, with its tasks")
         data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))
         self.assertEqual(data["now"]["line"], "pick coins up")
-        self.assertEqual(data["board"]["stages"][0]["shot"], {"cycle": "01", "behind": 0})
+        self.assertIsNone(data["board"]["stages"][0]["shot"])
         self.assertEqual([t["num"] for t in data["board"]["cycles"][-1]["list"]], ["T1", "T2"], "the newest cycle's tasks go to the dashboard's Now")
         self.assertEqual(data["board"]["cycles"][-1]["stages"], [0], "the stages a cycle worked in")
-        self.assertEqual(data["board"]["cycles"][-1]["shots"], [{"stage": "rules", "img": "../capture/cycle01/rules.png"}])
+        self.assertEqual(data["board"]["cycles"][-1]["shots"], [], "nor sent — the Play tab shows the game")
         run(CYCLE, root, "shot", "Boss — phase two", "docs/capture/cycle01/rules.png")
         run(CYCLE, root, "shot", "boss — phase two", "docs/capture/cycle01/rules.png")
         self.assertEqual(open(doc, encoding="utf-8").read().count("- boss — phase two — `docs/capture/cycle01/rules.png`"), 1, "a stage name with a dash in it is shot, and replaced when shot again")
@@ -2285,7 +2285,7 @@ none
         self.assertRegex(backlog, r"- \[>\] B1\. a boss, some day — epic: Draw the bow \(from Cycle 01 · \d{4}-\d\d-\d\d\) → Cycle 02 \(")
         self.assertIn("- [-] B2. music — epic: Title screen (from Cycle 01 · ", backlog)
 
-        # each epic keeps the screens its cycles shot — newest first, one per cycle; Foundation has none
+        # an epic keeps no screens of its own any more — the play route's runs are where the game is seen
         os.makedirs(os.path.join(root, "docs/capture"))
         for n in ("a", "b"):
             open(os.path.join(root, f"docs/capture/{n}.png"), "wb").write(b"\x89PNG\r\n\x1a\n")
@@ -2293,7 +2293,7 @@ none
         run(CYCLE, root, "shot", "Title", "docs/capture/b.png")
         run(BOARD, root)
         stages = {x["name"]: x for x in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["stages"]}
-        self.assertEqual([(x["cycle"], x["img"].split("/")[-1]) for x in stages["Title screen"]["screens"]], [("02", "b.png"), ("01", "a.png")])
+        self.assertEqual(stages["Title screen"]["screens"], [])
         self.assertEqual(stages["Foundation"]["screens"], [])
 
     def test_cycle_skip(self):
@@ -2311,6 +2311,42 @@ none
         with open(os.path.join(root, "docs/cycle/01-menu.md"), "w", encoding="utf-8") as f:
             f.write(doc.replace("## Design\n", "## Design\n### Screen and UI\n- a wider logo\n"))
         self.assertIn("already has content", run(CYCLE, root, "skip", "Design", "nothing seen changes", ok=False).stderr)
+
+    def test_board_play(self):
+        """The play route: at the end of a build the game's own command shoots each stop into a run folder kept out of git;
+        the board carries every run for the dashboard's Play tab, and no other picture of the game."""
+        root = tempfile.mkdtemp(prefix="kit-play-")
+        self.addCleanup(shutil.rmtree, root, True)
+        os.makedirs(os.path.join(root, "docs/cycle"))
+        open(os.path.join(root, "docs/GDD.md"), "w", encoding="utf-8").write(GDD_EN)
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        self.assertIn("no play route yet", run(CYCLE, root, "new", "menu", "A menu").stdout, "a game without one is told as a cycle starts")
+        self.assertIn("no play route yet", run(BOARD, root, "play", "cycle", "1", ok=False).stderr)
+        shoot = ("import os, sys\n"
+                 "for n in ('menu', 'morning'):\n"
+                 "    open(os.path.join(sys.argv[1], n + '.jpg'), 'wb').write(b'\\xff\\xd8\\xff')\n"
+                 "print('shot')\n")
+        open(os.path.join(root, "shoot.py"), "w").write(shoot)
+        json.dump({"board": {"play": {"run": f'"{sys.executable}" shoot.py {{out}}', "route": [
+            {"id": "menu", "stage": "Menu", "what": "the main menu"}, {"id": "morning", "stage": "Morning", "what": "waking up"},
+            {"id": "chores", "stage": "Chores", "what": "the chore list"}]}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        self.assertNotIn("no play route yet", run(CYCLE, root, "new", "menu2", "More menu").stdout)
+        out = run(BOARD, root, "play", "cycle", "2").stdout
+        self.assertIn("play route: 2/3 stops shot", out)
+        self.assertIn("not shot: chores", out, "a stop the harness missed is said")
+        self.assertIn("docs/board/plays/\n", open(os.path.join(root, ".gitignore")).read(), "kept on this machine, out of git")
+        runs = os.listdir(os.path.join(root, "docs/board/plays"))
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(open(os.path.join(root, "docs/board/plays", runs[0], "run.log")).read(), "shot\n", "the harness's output is kept beside its pictures")
+        board = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]
+        self.assertEqual([s["id"] for s in board["route"]], ["menu", "morning", "chores"])
+        (only,) = board["plays"]
+        self.assertEqual((only["what"], only["cycle"]), ("Cycle 2 build", "2"))
+        self.assertEqual([bool(s["img"]) for s in only["stops"]], [True, True, False])
+        self.assertTrue(all(not s["image"] and not s["screens"] for s in board["stages"]), "a stage card carries words — pictures of the game are the runs")
+        run(BOARD, root, "play", "playtest", "docs/playtest/2026-10-20-feel.md")
+        newest = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["plays"][0]
+        self.assertEqual((newest["what"], newest["playtest"]), ("Playtest 2026-10-20-feel", "2026-10-20-feel.md"), "newest first — named as the user reads it, matched by its document")
 
     def test_cycle_sessions(self):
         """Several sessions at once, each on its own cycle: commands act on the session's cycle, one held elsewhere is not taken or closed,

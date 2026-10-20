@@ -9,6 +9,9 @@
   python3 board.py serve [--stop | --status]   run the dashboard on this machine (cloned, built and started once; every game sends to it).
                                        Run while it is running, it brings a newer dashboard in (stop · update · build · start) — or just joins this game
   python3 board.py watch [--rewake | --notice]   wake the session when answers arrive from the dashboard (the plugin's monitor · hooks run it)
+  python3 board.py play cycle <NN> | play playtest <document>   at the end of a build: shoot the play route with the game's own command (board.play.run)
+                                       into a new run folder kept on this machine (board.plays), redraw, send — the dashboard's Play tab shows every run
+  python3 board.py play route          the route's stops and the command, as kit.config.json holds them
   python3 board.py reopen <key> …                 an answer from the dashboard the session leaves open (unclear, mistyped): its card can be answered again
   python3 board.py answers <folder|rows.json>  the answers tapped on the shared review page (its "answers" collection, saved as files) → what each one asks for
 
@@ -33,6 +36,7 @@ import mimetypes
 import os
 import re
 import secrets
+import shlex
 import shutil
 import signal
 import struct
@@ -72,7 +76,10 @@ DEFAULTS = {
     "app_repo": "https://github.com/dudwns0921/gamedev-kit-board",  # the dashboard `serve` runs on this machine
     "app_dir": "~/.config/gamedev-kit/board-app",  # where it is cloned — outside every game, shared by all of them
     "app_port": 3100,
+    "play": {},                    # the play route: {"run": "<the game's command that shoots every stop into {out}>", "route": [{"id", "stage", "what"}]} — "Play route" in the skill
+    "plays": "docs/board/plays",   # where each run of the route is kept — on this machine only, never in git
 }
+PLAYS_SHOWN = 60  # runs of the play route the dashboard is sent, newest first — the folder keeps every one
 # Document words: the English form is written now, the Korean one is in older documents. Both are read.
 LEGACY = {"appendix_heading": "## 부록 A", "open_heading": "미정"}  # read too while the config holds the default
 STATE = {"동기": "synced", "불일치": "mismatch", "미구현": "missing", "폐기": "retired"}  # GDD table states → the English form
@@ -694,25 +701,17 @@ def attach_shots(st, cycles):
                 break
 
 
-SCREENS_MAX = 6  # an epic's screens on the dashboard: enough to show it, newest first
 
 
 def screens_of(s, cycles):
-    """The screens every cycle shot of this stage (`cycle.py shot`), newest cycle first — one per cycle, the same picture once."""
-    if s["common"] or s["foundation"]:
-        return []
-    out, seen = [], set()
-    for c in reversed(cycles):
-        for said, pic in c["shots"]:
-            path = os.path.join(ROOT, pic)
-            if fits(said, s["name"]) and os.path.isfile(path) and pic not in seen:
-                seen.add(pic)
-                out.append({"img": rel(path), "cycle": c["num"], "name": c["name"]})
-    return out[:SCREENS_MAX]
+    """The screens every cycle shot of this stage (`cycle.py shot`) — no longer sent: the game's screens are seen in one place,
+    the play route's runs (`play`, the dashboard's Play tab). Kept, empty, for a dashboard that still reads the field."""
+    return []
 
 
 def cycle_shot(c):
-    return next((rel(os.path.join(ROOT, p)) for _, p in c["shots"] if os.path.isfile(os.path.join(ROOT, p))), "")
+    """A cycle's own picture — none now: the play route's runs show the game's screens (`play`)."""
+    return ""
 
 
 def opens(s):
@@ -732,11 +731,8 @@ def open_chips(o, undecided=0):
 
 
 def hero_of(s):
-    if s.get("shot"):
-        return rel(os.path.join(ROOT, s["shot"]["img"]))
-    if s["image"]:
-        return rel(os.path.join(ROOT, s["image"]))
-    return next((rel(i["img"]) for i in s["lanes"]["art"] if i["img"]), "")
+    """A stage card carries words only — pictures of the game are seen in one place, the play route's runs (`play`, the dashboard's Play tab)."""
+    return ""
 
 
 def stage_label(s, lead=""):
@@ -1075,9 +1071,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
         busy = [(c, t) for c, ts in s["work"] if c["num"] in nums for t in ts]  # what the cycles in hand do in this stage
         age = (f'<span class="age{" old" if shot["behind"] >= 2 else ""}">cycle {e(shot["cycle"])}'
                + (f' · {shot["behind"]} cycles old' if shot["behind"] >= 2 else "") + "</span>") if shot else ""
-        hero = (f'<div class="hero" style="background-image:url({pic})">{age}</div>' if pic
-                else '<div class="hero none"><span>Under every stage<br>no screen of its own</span></div>' if s["foundation"]
-                else '<div class="hero none"><span>No screen yet<br>shot at the next Play</span></div>')
+        hero = f'<div class="hero" style="background-image:url({pic})">{age}</div>' if pic else ""
         busy_html = ('<span class="busy">' + " · ".join(f'in cycle {e(n)} · ' + " · ".join(e(t["num"]) for c, t in busy if c["num"] == n)
                                                          for n in dict.fromkeys(c["num"] for c, _t in busy)) + "</span>" if busy else "")
         n = task_counts(s["tasks"])
@@ -1108,8 +1102,7 @@ def index_html(name, st, asks, cycles, stamp, sheet, review):
         f'<span><i class="s-none"></i>{c["none"]} not made</span><span><i class="s-bad"></i>{c["bad"]} problem</span></div>'
         + (f'<a class="lab stray" href="stage-{rest["i"] + 1}.html">{stray} in no stage yet (assets {stray_assets}) — place them →</a>' if stray else "")
         + "</div></section>")
-    strip_cycles = "".join(f'<div class="cyc"><div class="hero{"" if cycle_shot(k) else " none"}"' + (f' style="background-image:url({cycle_shot(k)})"' if cycle_shot(k) else "")
-                           + f'>{"" if cycle_shot(k) else "<span>no screen kept</span>"}</div><b>{e(k["num"])} · {e(k["name"])}</b>'
+    strip_cycles = "".join(f'<div class="cyc"><b>{e(k["num"])} · {e(k["name"])}</b>'
                            f'<span class="lab">{e(stage_word(k["stage"]))} · tasks {sum(1 for t in k["tasks"] if t["mark"] == "x")}/{sum(1 for t in k["tasks"] if t["mark"] != "-")}</span></div>'
                            for k in list(reversed(cycles))[:5])
     body = (f'<header><div><div class="lab">{head_lab}</div><h1>{e(name)}</h1></div>'
@@ -1535,7 +1528,7 @@ def chart_data(st, asks, cycles, sheet, review, playtests=()):
     stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "foundation": s["foundation"], "loop": s["loop"], "complete": stage_pct(s),
                "epic": {"tasks": s["tasks"], "counts": task_counts(s["tasks"]),
                         "backlog": [b["num"] for b in queue if b["mark"] == " " and epic_stage(st, b["epic"]) is s]},
-               "image": hero_of(s), "shot": {"cycle": s["shot"]["cycle"], "behind": s["shot"]["behind"]} if s.get("shot") else None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
+               "image": hero_of(s), "shot": None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
                "parts": s.get("part_list", []), "screens": screens_of(s, cycles),
                "halves": halves([dict(i, lane=lane) for lane in ("function", "art", "sound") for i in s["lanes"][lane]]),
                "open": [dict({"title": q["title"], "text": q["text"], "from": q["from"]}, **({"decision": q["decision"]} if q.get("decision") else {})) for q in s["open"]],
@@ -1564,10 +1557,12 @@ def chart_data(st, asks, cycles, sheet, review, playtests=()):
                                     "tasks": [t["num"] for t in c["tasks"] if n["name"] in t.get("assets", [])]}
                                    for n in c["needs"] if not re.match(HAVE_DROPPED, n["have"].strip(), re.I)],
                         "stages": touched.get(c["num"], []),
-                        "shots": [{"stage": said, "img": rel(os.path.join(ROOT, pic))} for said, pic in c["shots"] if os.path.isfile(os.path.join(ROOT, pic))],
+                        "shots": [],  # the game's screens are the play route's runs (`plays`)
                         "tasks": {k: sum(1 for t in c["tasks"] if t["mark"] == m) for k, m in (("done", "x"), ("open", " "), ("blocked", "!"), ("doing", ">"))},
                         "decisions": {"open": sum(1 for d in c["decisions"] if not d["done"]), "all": len(c["decisions"])}} for c in cycles],
             "review": [review_data(i) for i in review],
+            "route": route()[0],
+            "plays": play_runs(),
             "backlog": [dict(b, stage=(epic_stage(st, b["epic"]) or {}).get("i")) for b in queue],
             "tasks": task_details(st, cycles, playtests),
             "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
@@ -1745,6 +1740,87 @@ def draw(quiet):
 
 def load_name():
     return gdd()[0]
+
+
+PLAY_EXT = (".jpg", ".jpeg", ".png", ".webp")
+STOP_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
+
+
+def route():
+    """The play route — the stops shot at the end of every build, in the order the player meets them: ([{id, stage, what}], the game's command)."""
+    play = CFG.get("play") if isinstance(CFG.get("play"), dict) else {}
+    stops = [{"id": r["id"], "stage": str(r.get("stage", "")), "what": str(r.get("what", ""))} for r in play.get("route") or []
+             if isinstance(r, dict) and STOP_RE.fullmatch(str(r.get("id", "")))]
+    return stops, str(play.get("run") or "")
+
+
+def keep_out_of_git(path, why):
+    """One line in the game's .gitignore for a folder this machine makes — unless a line already covers it."""
+    folder = os.path.relpath(path, ROOT).replace(os.sep, "/").rstrip("/") + "/"
+    ignore = os.path.join(ROOT, ".gitignore")
+    text = read(ignore)
+    lines = [l.strip().lstrip("/") for l in text.split("\n")]
+    if not any(l.endswith("/") and folder.startswith(l) for l in lines):
+        with open(ignore, "a", encoding="utf-8") as f:
+            f.write(("" if not text or text.endswith("\n") else "\n") + f"\n# {why}\n{folder}\n")
+
+
+def play(kind, name):
+    """Shoots the play route once with the game's own command, into a new run folder (on this machine only), then redraws the board
+    and sends it — the dashboard's Play tab shows every run. kind · name: the build it follows — `cycle 13` or `playtest <document>`.
+    Says which stops were not shot; it never opens the pictures."""
+    stops, command = route()
+    if not command or not stops:
+        sys.exit("this game has no play route yet (board.play in kit.config.json — run and route): the board skill's \"Play route\" says how one is made. "
+                 "It is built as a Foundation task — `cycle.py later \"Make the play route\" --epic Foundation`, then taken into a cycle")
+    base = os.path.join(ROOT, CFG["plays"])
+    stamp, n = f"{datetime.datetime.now():%Y%m%d-%H%M%S}", 1
+    out = os.path.join(base, stamp)
+    while os.path.exists(out):  # two runs in one second
+        n += 1
+        out = os.path.join(base, f"{stamp}-{n}")
+    os.makedirs(out)
+    keep_out_of_git(base, "the play route's runs — shot on this machine at the end of every build")
+    with open(os.path.join(out, "run.log"), "w", encoding="utf-8") as log:
+        done = subprocess.run(command.replace("{out}", shlex.quote(out)), shell=True, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                              env=dict(os.environ, PLAY_OUT=out, PLAY_ROUTE=json.dumps(stops, ensure_ascii=False)))
+    shot = {os.path.splitext(n)[0]: n for n in sorted(os.listdir(out)) if n.lower().endswith(PLAY_EXT)}
+    commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    meta = {"at": f"{datetime.datetime.now():%Y-%m-%d %H:%M}", "what": f"Cycle {name} build" if kind == "cycle" else f"Playtest {re.sub(r'[.]md$', '', name)}",
+            "cycle": name if kind == "cycle" else "", "playtest": name if kind == "playtest" else "", "commit": commit, "code": done.returncode,
+            "stops": [dict(s, file=shot.get(s["id"], "")) for s in stops]}
+    with open(os.path.join(out, "run.json"), "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=1)
+    missing = [s["id"] for s in stops if s["id"] not in shot]
+    print(f"play route: {len(stops) - len(missing)}/{len(stops)} stops shot — {os.path.relpath(out, ROOT)}")
+    if done.returncode:
+        print(f"the command ended with {done.returncode} — its output is in {os.path.relpath(os.path.join(out, 'run.log'), ROOT)}")
+    if missing:
+        print("not shot: " + " · ".join(missing) + " — a stop the harness did not save (`<id>.jpg`); fix the harness, not the route")
+    draw(False)
+    svc = CFG["service"] if isinstance(CFG["service"], dict) else {}
+    if svc.get("game"):
+        try:
+            push(False)
+        except Exception as err:
+            print(f"the board was not sent yet ({err}) — the next turn sends it")
+
+
+def play_runs():
+    """The play route's runs, newest first, each stop with its picture — what the dashboard's Play tab draws. A run with no picture is left out."""
+    base = os.path.join(ROOT, CFG["plays"])
+    runs = []
+    for n in sorted(os.listdir(base), reverse=True) if os.path.isdir(base) else []:
+        meta = load_json(os.path.join(base, n, "run.json"))
+        if not isinstance(meta, dict):
+            continue
+        stops = [dict(s, img=rel(os.path.join(base, n, s["file"])) if s.get("file") and os.path.isfile(os.path.join(base, n, s["file"])) else "")
+                 for s in meta.get("stops") or [] if isinstance(s, dict)]
+        if any(s["img"] for s in stops):
+            runs.append({"id": n, **{k: meta.get(k, "") for k in ("at", "what", "cycle", "playtest", "commit")}, "stops": stops})
+        if len(runs) >= PLAYS_SHOWN:
+            break
+    return runs
 
 
 def share(whole, done):
@@ -2590,6 +2666,13 @@ def main():
             watch(args[1] if args[1:] else "")
         elif args[0] == "serve" and args[1:] in ([], ["--stop"], ["--status"]):
             serve(setup(root), args[1] if args[1:] else "")
+        elif args[0] == "play" and (args[1:2] in (["cycle"], ["playtest"]) and len(args) == 3 or args[1:] == ["route"]):
+            setup(root)
+            if args[1] == "route":
+                stops, command = route()
+                print("\n".join(f'{x["id"]} — {x["stage"]} · {x["what"]}' for x in stops) or "no route yet", f"\nrun: {command or '(none)'}", sep="")
+            else:
+                play(args[1], args[2].lstrip("Cc") if args[1] == "cycle" else os.path.basename(args[2]))
         elif args[0] == "answers" and len(args) == 2:
             setup(root)
             answers(args[1])

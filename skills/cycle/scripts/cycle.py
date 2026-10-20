@@ -1268,6 +1268,12 @@ def cmd_new(name, goal):
     elif before:
         close(before[-1])
     report_leftovers()
+    play = board_cfg().get("play")
+    routed = isinstance(play, dict) and play.get("run") and play.get("route")
+    queued = os.path.exists(os.path.join(ROOT, BACKLOG)) and "make the play route" in read(os.path.join(ROOT, BACKLOG)).lower()
+    if not routed and not queued:
+        print("no play route yet — the screens of the game are shot along it at the end of every build: "
+              "`later \"Make the play route\" --epic Foundation`, then `backlog take` it into this cycle (the board skill's \"Play route\")")
     alongside = [p for p in open_docs() if p != path and os.path.relpath(p, ROOT) in others]
     if alongside:
         print("open alongside it, in other sessions: " + " · ".join(f"C{cycle_no(p)} (stage {stage_of(read(p))})" for p in alongside)

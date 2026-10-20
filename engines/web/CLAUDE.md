@@ -26,6 +26,7 @@ Everything that can be verified without a screen becomes a test. Run them before
 - **Flow by smoke run.** Give the game a `?smoke` mode: it steps a fixed number of frames with scripted input, without waiting for real time, and writes the resulting
   state as JSON into `<pre id="smoke">`. Read it with `<browser> --headless --virtual-time-budget=5000 --dump-dom "http://localhost:<port>/?smoke"`.
 - **Screen (color · layout · HUD) by capture.** `<browser> --headless --screenshot=<file> --window-size=<w>,<h> --virtual-time-budget=3000 "<url>"`. Claude reads the captured image.
+- **Play route** (the board skill's): the game sets a stop's state from the address (`?stop=<id>`), and a small script shoots each stop that way into `<folder>/<id>.jpg`; its command is `board.play.run`.
 - Stop the server you started when the check is done.
 
 ## Pitfalls (web)

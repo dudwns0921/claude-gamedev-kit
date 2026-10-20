@@ -69,8 +69,8 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    - if any task's Kind was balance (older: 밸런스), `export` with the balance-table skill (so the table does not hold old values)
    - if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`
    - the project's verification (CLAUDE.md "Verification") once in full — conflicts between tasks show up here
-   - **shoot the screens** of each epic (`Epic:` line) the round changed what the player sees in — the cycle skill's "Shoot the screens", into this session's cycle:
-     `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" shot "<epic>" <picture>`. The dashboard's Screens tab of that epic shows it
+   - **shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play playtest <document>` (the cycle skill's "Shoot the play route");
+     the dashboard's Play tab shows the run beside the ones before
 6. **Report:**
 
    ```

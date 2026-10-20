@@ -2,7 +2,7 @@
 name: board
 description: >-
   Draws the game's status board — HTML pages made by a script. First screen: the cycle in hand (its goal in one line, where it stands, its tasks, what waits on the user),
-  then the stages of play in the order the player meets them, each as its newest screen with what is still open in it (problem · not made · placeholder · to check), counts of what is left, the cycles as pictures. A card opens that stage's page: GDD rows,
+  then the stages of play in the order the player meets them, each with what is still open in it (problem · not made · placeholder · to check), counts of what is left. A card opens that stage's page: GDD rows,
   art, sounds, checks, open questions, the cycle tasks that touched it. Everything is read from the GDD table, the asset folders, cycle and playtest
   documents. Once drawn, it redraws itself as the documents change — a hook runs the script, no model involved.
   Use when the user says "현황판" (status board), "보드 보여줘" (show me the board), "지금 어디까지 됐어" (how far along are we),
@@ -11,6 +11,8 @@ description: >-
   checks by playing) — and the private claude.ai link that carries board and review to a phone: use when the user says "리뷰 페이지" (review page),
   "폰으로 보게 해줘" (let me see it on my phone), "링크로 올려줘" (put it on a link), "답 달았어" · "답 읽어줘" (I answered · read the answers).
   And the dashboard — every game on this machine on one page, run locally: "대시보드 띄워줘" (start the dashboard), "현황판 서버" (board server), "게임 다 같이 보자" (all games together).
+  And the play route — the game's screens shot along one route at the end of every build, seen build by build in the dashboard's Play tab:
+  "플레이 캡처" (play captures), "화면 기록" (screen history), "경로 찍어줘" (shoot the route), "캡처 어떻게 바뀌었어" (how have the screens changed).
 ---
 
 # board
@@ -33,13 +35,12 @@ Two kinds of page, written next to each other in `docs/board/`:
 
 - `index.html` — **the first screen**, built around the cycle in hand:
   - **Now** — the cycle in hand (with several sessions at once, one such section per cycle a session works on, each saying whether its session is open and whether it is building — `active` in `board.json`): its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks — the ones being worked on now marked (`cycle.py mark … doing`) — and how many things wait on the user (→ review).
-  - **The game** — the stages of play in the order the player meets them, each card the stage's newest screen (`cycle.py shot`, stamped with its cycle; marked when two or more cycles old;
-    "no screen yet" when none), how complete it is (%), its tasks done of all (each stage is an epic: every task whose `Epic:` line names it), which of the cycle's tasks are in it,
+  - **The game** — the stages of play in the order the player meets them, each card in words (pictures of the game are seen in one place — "Play route" below): how complete it is (%), its tasks done of all (each stage is an epic: every task whose `Epic:` line names it), which of the cycle's tasks are in it,
     and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page. Foundation — what no stage owns — follows under them, once a task names it.
   - **What is left** — how complete the game is (the stages' average %), then counts: waiting on you · problems · not made · placeholders · the backlog, one bar of everything, and what belongs to no stage yet.
-  - **Cycles** — one picture per cycle (its first screen).
+  - **Cycles** — one line per cycle.
 
-The data the dashboard draws from (`board.json`) also carries each stage's parts, its screens (the ones every cycle shot of it, newest first — the epic's Screens tab) and its epic (its tasks across cycles and playtests, their counts, its backlog lines), the backlog (`docs/backlog.md`),
+The data the dashboard draws from (`board.json`) also carries the play route and its runs (`route` · `plays`, newest first — the Play tab), each stage's parts and its epic (its tasks across cycles and playtests, their counts, its backlog lines), the backlog (`docs/backlog.md`),
 every cycle's tasks (with their game-wide key `C16-T3`, their epic, what was written under each, the stages each went into and the assets each names),
 every task of every cycle and playtest by its key (`tasks` — the lines under it and the decisions it names: the dashboard's task panel),
 the cycle's assets with what each is, the stages it worked in and the screens it shot — the dashboard's Epics and Cycle tabs —
@@ -93,7 +94,7 @@ write `board.flow` in `kit.config.json` — the stages a player goes through, in
 - `parts` — what the player meets in the stage (an enemy, a weapon, the room), each `{ "name", "about", "ids", "assets", "words" }` like a stage's own keys.
   The stage page shows one row per part — how far its function is (its rules and numbers in the code) and how far its assets are (looks and sounds), each a %, and the assets still to make. What no part names falls in a part made from its name
   (a GDD id's second word, an asset's first word). Write them with the user when the stage page reads by names rather than by the game — in the user's language.
-- `image` — the card's picture when no cycle has shot the stage yet (a screen a cycle records with `cycle.py shot` wins — the newest one). Without either, the first art thumbnail. `loop` — consecutive stages that repeat get one bracket.
+- `loop` — consecutive stages that repeat get one bracket.
 - Rows, assets and questions no stage claims are shown under "Unsorted" — nothing is dropped. When a new asset or GDD section lands there, add it to a stage.
 
 - `"ignore"` (beside `flow`) — asset names (globs) not to count: planned in a cycle document, then dropped.
@@ -112,6 +113,29 @@ It is for the user's eye — do not read the page or the images to judge consist
 When the table carries the value file's time (`balance-table.code`) the tile says **in step with the value file**; otherwise it says only "the game's numbers" —
 file times cannot tell an edit in the spreadsheet from a table that was never stamped (written by an older kit, or freshly cloned). Whether the two differ is the balance-table skill's `check`.
 The hook brings the table up to the value file before it redraws the board.
+
+## Play route — the game's screens, build by build
+
+The one place pictures of the game are seen: at the end of every build (a cycle's Build, a playtest round) the game's own harness walks the same route through the game
+and shoots each stop, and the dashboard's **Play** tab shows every run — the stops in play order, and any stop beside its earlier runs. A task's panel links to the run of its build.
+Nothing else shows screens of the game (a stage card carries words); a decision chosen by eye still carries its own candidates.
+
+```jsonc
+"board": {
+  "play": {
+    "run": "<the command that shoots every stop into {out}>",   // run from the game root; {out} — also $PLAY_OUT — is the run's folder, $PLAY_ROUTE the stops as JSON
+    "route": [ { "id": "menu-main", "stage": "<a stage of play, as in flow>", "what": "<what the player sees, in a few words>" } ]
+  }
+}
+```
+
+- **The route is the user's.** One to three stops per stage of play, in the order the player meets them — the plan proposes them as a decision when the harness is made,
+  and a new stage of play adds its stops the same way.
+- **The harness is the game's** — a Foundation task, once (`cycle.py new` says when a game has none). It brings the game to each stop by code — the scene, and the state the stop needs —
+  never by replaying input, waits for the frame to draw, and saves `<id>.jpg` (long side 1280 at most) into the folder; the engine's rules say how ("Play route").
+  It shoots the screen as the player sees it: the same way the game already captures to check its work.
+- `board.py play cycle <NN>` · `play playtest <document>` runs it and keeps the run in `board.plays` (`docs/board/plays/<time>/` — `run.json` and the pictures), out of git;
+  then redraws and sends. A stop not saved is said, and fixed in the harness. `play route` shows what is configured.
 
 ## Review — what waits on the user
 

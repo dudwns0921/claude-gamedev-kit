@@ -25,6 +25,7 @@ Everything that can be verified without a screen becomes a headless test. Run th
 - **Rules without scenes.** Keep rulings (does it work · does it not · how many seconds) in a script that knows neither nodes nor input, and write a test that loads and runs only that script — it finishes within 1 second.
 - **Flow by smoke test.** Attach the scene the game actually launches as a child, feed input and look at state: `<godot> --headless --path . res://tests/smoke_<name>.tscn`.
 - **Screen (color · layout · HUD) by capture.** Keep a scene that briefly opens a window and shoots set scenes (`res://tests/capture_<name>.tscn -- <folder>`). Claude reads the captured images.
+- **Play route** (the board skill's): the same kind of scene, `res://tests/capture_route.tscn -- <folder>`, walks the route — each stop's state set by code — and saves `<id>.jpg`; its command is `board.play.run`.
   **If the screen is locked or the window is covered, nothing is captured** (it does not draw). If the window grabs the mouse, mouse movement during the shot changes the framing.
 - **Motion by frames.** `<godot> --path . --write-movie <folder>/<scene>.png --fixed-fps 10 --resolution 800x450 res://tests/capture_play.tscn -- <scene>`.
 - `Parameter "material" is null` in headless output is noise from having no renderer. Look only at `SCRIPT ERROR`.

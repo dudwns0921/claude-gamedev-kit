@@ -34,7 +34,6 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # a do
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" drop D4,D12 "<why>"         # the user says a decision is not needed any more — [-], nothing waits on it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" line "<the goal in one line>"                    # what the board's "Now" shows
-python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" shot "<stage of play>" <picture>                 # that stage's screen as it stands now — the board's card shows it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>" [--epic <epic>]       # something put off — into the backlog (docs/backlog.md), kept until taken or dropped
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" backlog                                         # what waits, by epic · `backlog take B2,B5` · `backlog drop B3 "<why>"` · `backlog epic B3 "<epic>"`
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" epic T3,T4 "<epic>"                              # the stage of play a task is for (or Foundation) — the developer writes it at Plan
@@ -94,6 +93,9 @@ above the user's own words. When the goal changes under way, write the line agai
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
 **`new` also closes the previous cycle** — there is no closing stage — unless another session works on it ("Several sessions at once"). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
+
+**A game with no play route yet** (`new` says so): it is made in this cycle, without asking — `later "Make the play route" --epic Foundation`, then `backlog take` it.
+Its plan proposes the stops as a decision (one to three per stage of play, in play order); the build writes the harness and `board.play` (the board skill's "Play route").
 
 **What earlier work left is settled before the goal moves on — the board is how the user sees nothing was forgotten, and it counts only what is still real.**
 `new` also prints every playtest task still open, every asset slot still empty, and every slot whose file is in the game while its "Have" cell says none. Take them in this order:
@@ -210,10 +212,11 @@ A blocked task or a returned "Deviations from the document" may be something lea
 
 When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
 the project's full verification (CLAUDE.md "Verification").
-**Shoot the screens.** For each stage of play (the board's stages, `board.flow`) this cycle changed — and each that has no screen yet — capture it as the player sees it,
-the way the engine's rules say ("Screen … by capture"), into `docs/capture/cycle<NN>/`, and record it with `shot "<stage>" <picture>`. The board's cards show the newest screen of each stage
-with the cycle it came from, so the user sees the game, not a percentage, and each epic's Screens tab on the dashboard keeps one per cycle — so frame the moment that shows the epic best
-(the player in it, not a menu or a loading screen). Do not Read the captures for this — they are for the board. An engine with no way to capture: leave it; the card says so.
+**Shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play cycle <NN>`. The game's own harness walks the route (`board.play` in `kit.config.json`:
+the stops in the order the player meets them, one to three per stage of play) and the run is kept on this machine, out of git; the dashboard's Play tab shows every run,
+so the user sees the whole game change build by build — the one place pictures of the game are seen. Do not Read the pictures. Relay its "not shot" line if there is one
+(a stop the harness missed is a fix to the harness, written as a task). A game with no route yet says so — see "1. Goal".
+Captures an agent takes to check its work or to put beside a decision go under `docs/board/captures/` — out of git, like the board's folder.
 Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
 If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
 The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving (the spec's "Tuning notes").

@@ -24,6 +24,8 @@ Everything that can be verified without a screen becomes an EditMode test. Run t
 - **Rules without scenes.** Keep rulings (does it work · does it not · how many seconds) in plain C# classes that know neither `MonoBehaviour` nor input,
   and test only those classes in EditMode.
 - **Flow by PlayMode test** (`-testPlatform PlayMode`): load the scene the game actually launches, feed input and look at state.
+- **Play route** (the board skill's): one batch run that loads the launched scene, sets each stop's state by code, waits for the end of the frame and saves the screen
+  as `<id>.jpg` into the folder it is given — the command is `board.play.run`. Nothing is drawn under `-nographics`, so it runs without it; look at the first run's pictures once.
 - A compile error anywhere stops every test from running — the result file is missing or empty. Look for `error CS` in the log first.
 
 ## Pitfalls (Unity)
