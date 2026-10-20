@@ -1262,9 +1262,10 @@ if sys.argv[1:3] == ["run", "start"]:
                 if os.path.exists(os.path.join(root, "docs/board", left)):
                     os.remove(os.path.join(root, "docs/board", left))
             cmd = f'"{sys.executable}" "{BOARD}" --root "{root}" watch {mode}'
-            starts = (f"import subprocess,sys,time\np=subprocess.Popen({['sh', '-c', cmd + '; true'] if shell else ['sh', '-c', 'exec ' + cmd]!r},"
+            starts = (f"# kit-session-stand-in\nimport subprocess,sys,time\np=subprocess.Popen({['sh', '-c', cmd + '; true'] if shell else ['sh', '-c', 'exec ' + cmd]!r},"
                       "stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)\ntime.sleep(1)\nprint(p.pid,flush=True)\ntime.sleep(60)")
-            session = subprocess.Popen([sys.executable, "-c", starts], stdout=subprocess.PIPE, text=True, env=env)  # stands in for the session
+            session = subprocess.Popen([sys.executable, "-c", starts], stdout=subprocess.PIPE, text=True,
+                                       env=dict(env, KIT_SESSION_MARK="kit-session-stand-in"))  # stands in for the session — the nearest one above the watcher
             child = int(session.stdout.readline())
             pid = int(subprocess.run(["pgrep", "-P", str(child)], capture_output=True, text=True).stdout.split()[0]) if shell else child
             session.kill()
@@ -2388,6 +2389,16 @@ none
         time.sleep(0.5)
         json.dump([{"key": "c01-D1", "pick": "②", "note": "again"}], open(os.path.join(box, "2.json"), "w"))
         self.assertIn("1 answer(s) from the board", mon.stdout.readline(), "set aside by the newest, taken by its own session's monitor")
+        # one session, two ways in: its Bash tool runs the cycle script through a shell that stays (`; true`), its hooks run the board's watcher with none —
+        # both must name the same session, or the answers set aside for it are taken by no one
+        stand_in = ("# kit-session-stand-in\nimport subprocess,sys\n"
+                    f"subprocess.run(['sh', '-c', {f'{sys.executable!r} {CYCLE!r} --root {root!r} new menu Menu; true'!r}], capture_output=True)\n"
+                    f"subprocess.run(['sh', '-c', {f'{sys.executable!r} {CYCLE!r} --root {root!r} ask Spec \"Menu how — ① a ② b\"; true'!r}], capture_output=True)\n"
+                    f"open({os.path.join(box, '3.json')!r}, 'w').write('[{{\"key\": \"c03-D1\", \"pick\": \"①\", \"note\": \"\"}}]')\n"
+                    f"print(subprocess.run([sys.executable, {BOARD!r}, '--root', {root!r}, 'watch', '--notice'], capture_output=True, text=True).stdout)\n")
+        e = {k: v for k, v in env(b).items() if k != "KIT_SESSION"}
+        out = subprocess.run([sys.executable, "-c", stand_in], capture_output=True, text=True, env=dict(e, KIT_SESSION_MARK="kit-session-stand-in")).stdout
+        self.assertIn("1 answer(s) from the board", out, "the answer to the session's own cycle reaches it")
         # the session closes: what it held is free again
         procs[0].kill()
         procs[0].wait()

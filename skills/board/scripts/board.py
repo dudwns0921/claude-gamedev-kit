@@ -2177,12 +2177,25 @@ def claim(stranded=False, me=None, lead=True):
 
 
 def session_pid():
-    """The process above the one that started this watcher — the session itself when a hook or monitor is run through a shell."""
+    """The session this runs in: the nearest Claude Code process above — whether a shell stands between (the Bash tool) or not (a hook, a monitor)."""
     if os.environ.get("KIT_SESSION"):  # as the cycle script reads it — the tests play several sessions
         return int(os.environ["KIT_SESSION"])
     try:
+        pid = os.getppid()
+        for _ in range(8):  # the nearest Claude Code process above — a shell may stand between (the Bash tool), or none (a hook, a monitor)
+            out = subprocess.run(["ps", "-o", "ppid=,command=", "-p", str(pid)], capture_output=True, text=True, timeout=5).stdout.strip()
+            if not out:
+                break
+            up, _sep, cmd = out.partition(" ")
+            words, mark = cmd.split(), os.environ.get("KIT_SESSION_MARK")  # mark: what the tests' stand-in for a session carries
+            if words and (os.path.basename(words[0]) == "claude" or os.path.basename(words[0]) in ("node", "bun") and len(words) > 1 and "claude" in words[1]
+                          or mark and mark in cmd):
+                return pid
+            pid = int(up)
+            if pid <= 1:
+                break
         out = subprocess.run(["ps", "-o", "ppid=", "-p", str(os.getppid())], capture_output=True, text=True, timeout=5).stdout.strip()
-        return int(out) if out and int(out) > 1 else None
+        return int(out) if out and int(out) > 1 else None  # no Claude Code above: the process above the shell that started this
     except (OSError, ValueError, subprocess.SubprocessError):
         return None  # no ps here — the parent alone is watched
 

@@ -168,13 +168,26 @@ def docs():
 
 
 def session():
-    """The Claude Code session this runs in: the process above the shell that started this script — the same across /clear,
+    """The Claude Code session this runs in: the nearest Claude Code process above this script — the same across /clear,
     gone when its window closes. None where there is no `ps`: sessions are then not told apart, and everything acts on the newest document."""
     if os.environ.get("KIT_SESSION"):
         return int(os.environ["KIT_SESSION"])
     try:
+        pid = os.getppid()
+        for _ in range(8):  # the nearest Claude Code process above — a shell may stand between (the Bash tool), or none (a hook, a monitor)
+            out = subprocess.run(["ps", "-o", "ppid=,command=", "-p", str(pid)], capture_output=True, text=True, timeout=5).stdout.strip()
+            if not out:
+                break
+            up, _sep, cmd = out.partition(" ")
+            words, mark = cmd.split(), os.environ.get("KIT_SESSION_MARK")  # mark: what the tests' stand-in for a session carries
+            if words and (os.path.basename(words[0]) == "claude" or os.path.basename(words[0]) in ("node", "bun") and len(words) > 1 and "claude" in words[1]
+                          or mark and mark in cmd):
+                return pid
+            pid = int(up)
+            if pid <= 1:
+                break
         out = subprocess.run(["ps", "-o", "ppid=", "-p", str(os.getppid())], capture_output=True, text=True, timeout=5).stdout.strip()
-        return int(out) if out and int(out) > 1 else None
+        return int(out) if out and int(out) > 1 else None  # no Claude Code above: the process above the shell that started this
     except (OSError, ValueError, subprocess.SubprocessError):
         return None
 
