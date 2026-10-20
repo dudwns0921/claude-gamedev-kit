@@ -57,8 +57,10 @@ Tasks are named T3 inside their cycle, and C16-T3 across the game — every comm
 Several sessions at once — each works on one cycle; it is told apart by its Claude Code process, so it holds across /clear and lets go when the window closes:
   python3 cycle.py take 13 [--force]            This session works on cycle 13 from now on (`new` takes the one it makes). Refused while another open session
                                                 holds it — --force only when the user says that session is done with it. `leave` lets it go
-  python3 cycle.py open                         The other cycles still open: stage, whether a session works on it, its epics · files · GDD ids · asset slots —
+  python3 cycle.py open                         The other cycles still before Play: stage, whether a session works on it, its epics · files · GDD ids · asset slots —
                                                 what the systems designer's `fit` weighs a new goal against
+  python3 cycle.py commit build | playtest <document> | fix "<what>"   Commits what this build changed, the moment it is done (and after each round of fixes):
+                                                the files changed since the build turn was taken, and this cycle's document — not what another session has in hand
   python3 cycle.py turn [take "<what>" | done | free]   The build turn — one session builds at a time. `mark … doing` takes it for the cycle, `stage Play` gives it back;
                                                 `turn` alone exits 1 while another session has it (`until cycle.py turn; do sleep 60; done` waits for it).
                                                 `free` — only when the user says the other session's build is not running
@@ -70,6 +72,7 @@ Documents are written in English. Ones written before that use Korean words — 
 import collections
 import contextlib
 import datetime
+import hashlib
 import io
 import json
 import os
@@ -257,6 +260,11 @@ def open_docs():
     return [p for p in docs() if stage_of(read(p)) not in CLOSED]
 
 
+def building_docs():
+    """The open cycles still before Play — what a new goal can collide with. One at Play is built: its fixes go through playtests."""
+    return [p for p in open_docs() if not OPEN_STAGE.match(stage_of(read(p)))]
+
+
 def holders():
     """Cycle document (from the game root) → the session holding it, for the sessions still open other than this one."""
     me = str(session())
@@ -331,8 +339,8 @@ def turn(what, path=None):
                   f"  until python3 \"{os.path.abspath(__file__)}\" turn; do sleep 60; done\n"
                   "and call the wave when it ends. Meanwhile spec · design · plan · decisions · play go on")
             return False
-        if not b:
-            s["build"] = {"pid": me, "what": what, "at": stamp()}
+        if not b:  # what is already changed now is not this build's — `commit` leaves it out
+            s["build"] = {"pid": me, "what": what, "at": stamp(), "before": tree_state()}
     return True
 
 
@@ -357,14 +365,77 @@ def cmd_turn(rest):
     print("the build turn is this session's" if b else "the build turn is free")
 
 
+def git_top():
+    p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=ROOT, capture_output=True, text=True)
+    return p.stdout.strip() if p.returncode == 0 else ""
+
+
+def tree_state():
+    """Every path git sees changed — tracked or new, not ignored — from the repository's top → a hash of what is in it now ("" when deleted)."""
+    top = git_top()
+    if not top:
+        return {}
+    raw = subprocess.run(["git", "status", "--porcelain", "-z", "-uall"], cwd=top, capture_output=True).stdout.decode("utf-8", "replace").split("\0")
+    out, i = {}, 0
+    while i < len(raw):
+        entry = raw[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        if entry[0] in "RC":
+            i += 1  # a rename names the old path next
+        full = os.path.join(top, entry[3:])
+        out[entry[3:]] = hashlib.sha1(open(full, "rb").read()).hexdigest() if os.path.isfile(full) else ""
+    return out
+
+
+def cmd_commit(path, kind, said=""):
+    """Commits what this build changed, as soon as it is done — and again after each round of fixes from play:
+    the files changed since the build turn was taken (with several sessions in one folder, what the others have in hand stays out),
+    and this cycle's document. kind: build · playtest <document> · fix "<what, in a line>"."""
+    top = git_top()
+    if not top:
+        return print("not a git repository — nothing committed")
+    me = session()
+    with sessions() as s:
+        b = s["build"]
+    mine = b if b and b["pid"] == me else None
+    if holders() and not mine:
+        sys.exit("other sessions work in this folder and this one does not hold the build turn — what changed is not told apart. "
+                 "Take it before changing code (`turn take \"<what>\"`), then commit")
+    before = (mine or {}).get("before")
+    others = {os.path.realpath(os.path.join(ROOT, d)) for d in holders()}  # another session's cycle document is its own to commit
+    now = tree_state()
+    files = [f for f, h in now.items() if (before is None or before.get(f) != h) and os.path.realpath(os.path.join(top, f)) not in others]
+    doc = os.path.relpath(os.path.realpath(path), os.path.realpath(top))
+    if doc in now and doc not in files:
+        files.append(doc)
+    if not files:
+        return print("nothing changed since the build turn was taken — nothing committed")
+    text = read(path)
+    line = (LINE_RE.search(text).group(1).strip() if LINE_RE.search(text) else "") or os.path.basename(path)[3:-3]
+    msg = {"build": f"Cycle {cycle_no(path):02d} build — {line}", "playtest": f"Cycle {cycle_no(path):02d} playtest {re.sub(r'[.]md$', '', os.path.basename(said))} — fixes from play",
+           "fix": f"Cycle {cycle_no(path):02d} fix — {' '.join(said.split())}"}[kind]
+    subprocess.run(["git", "add", "-A", "--", *files], cwd=top, check=True, capture_output=True)
+    done = subprocess.run(["git", "commit", "-q", "-m", msg, "--", *files], cwd=top, capture_output=True, text=True)
+    if done.returncode:
+        sys.exit("git commit failed:\n" + (done.stderr or done.stdout).strip())
+    if mine:
+        with sessions() as s:  # committed — a second commit in the same turn (assets after the build) takes only what changes after this
+            if s["build"] and s["build"]["pid"] == me:
+                s["build"]["before"] = tree_state()
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=top, capture_output=True, text=True).stdout.strip()
+    print(f"committed {head}: {msg} — {len(files)} file(s)")
+
+
 def cmd_open(path):
-    """The other cycles still open — what the systems designer weighs a new goal against (`fit`): where each stands, who works on it,
-    and what it touches (epics · files · GDD ids · asset slots)."""
+    """The other cycles still before Play — what the systems designer weighs a new goal against (`fit`): where each stands, who works on it,
+    and what it touches (epics · files · GDD ids · asset slots). One at Play is left out: it is built, and what it fixes now goes through playtests."""
     others, me, b = holders(), session(), None
     with sessions() as s:
         b = s["build"]
     shown = 0
-    for p in open_docs():
+    for p in building_docs():
         if os.path.abspath(p) == os.path.abspath(path):
             continue
         text, rel = read(p), os.path.relpath(p, ROOT)
@@ -397,7 +468,7 @@ def cmd_open(path):
             print("  asset slots: " + " · ".join(slots(text)))
         shown += 1
     if not shown:
-        print("no other cycle is open")
+        print("no other cycle is before Play")
 
 
 def read(path):
@@ -1274,7 +1345,7 @@ def cmd_new(name, goal):
     if not routed and not queued:
         print("no play route yet — the screens of the game are shot along it at the end of every build: "
               "`later \"Make the play route\" --epic Foundation`, then `backlog take` it into this cycle (the board skill's \"Play route\")")
-    alongside = [p for p in open_docs() if p != path and os.path.relpath(p, ROOT) in others]
+    alongside = [p for p in building_docs() if p != path and os.path.relpath(p, ROOT) in others]  # one at Play is built — nothing to weigh
     if alongside:
         print("open alongside it, in other sessions: " + " · ".join(f"C{cycle_no(p)} (stage {stage_of(read(p))})" for p in alongside)
               + " — before Spec, call the systems designer with `fit`: it weighs this goal against them (`open` lists what they touch)")
@@ -1309,7 +1380,7 @@ def main():
     if "--epic" in opts and cmd != "later":
         sys.exit("--epic goes with later")
     need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3),
-            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0}
+            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0, "commit": (1, 2)}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     if force and cmd != "take":
@@ -1342,6 +1413,10 @@ def main():
             path, rest[0] = keyed(path, rest[0])
     if cmd == "open":
         return cmd_open(path)
+    if cmd == "commit":
+        if rest[0] not in ("build", "playtest", "fix") or (rest[0] != "build") != (len(rest) == 2):
+            sys.exit('commit build · commit playtest <document> · commit fix "<what, in a line>"')
+        return cmd_commit(path, *rest)
     if cmd == "next":
         cmd_next(path, "--doc" in opts)
     elif cmd == "task":

@@ -59,7 +59,7 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    **Before the first wave, take the build turn** — with several sessions at once, one builds at a time:
    `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn take "playtest <document name>"`. Refused (another session is building) → say so in a line,
    run `until python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn; do sleep 60; done` in the background, and call the wave when it ends.
-   Give it back with `turn done` once the step 5 below is through.
+   Give it back with `turn done` once the step 5 below is through — after its commit.
 4. **Record returned results with `mark`** (agents do not edit the document. Do not open the document and edit it by hand):
    - done → `mark T1 done "<its Changed line>"`, one task per call — the dashboard shows it as what changed: one plain sentence, no code names (the script refuses them).
    - blocked · failed → `mark T2 blocked "<reason>"`. **Do not re-analyze and fix it here yourself.**
@@ -71,6 +71,8 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    - the project's verification (CLAUDE.md "Verification") once in full — conflicts between tasks show up here
    - **shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play playtest <document>` (the cycle skill's "Shoot the play route");
      the dashboard's Play tab shows the run beside the ones before
+   - **commit the round** — `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" commit playtest <document>`: what this round changed, nothing another session has in hand.
+     Each round of fixes is its own commit, so what the user plays next is one
 6. **Report:**
 
    ```

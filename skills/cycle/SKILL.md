@@ -108,7 +108,8 @@ Its plan proposes the stops as a decision (one to three per stage of play, in pl
   To-dos not done and checks never answered come with the rest.
   Put the lines in `--detail`. A condition a task waits on ("only if fps drops") is checked, not asked, when it can be.
 
-**Other sessions' cycles first.** If `new` says cycles are open alongside it in other sessions, call `gamedev-kit:systems-designer` with `fit` before anything else —
+**Other sessions' cycles first.** If `new` says cycles are open alongside it in other sessions — only those before Play count: one at Play is built, and its fixes go through playtests —
+call `gamedev-kit:systems-designer` with `fit` before anything else —
 pass the document path and the listing command (`python3 <absolute path to this skill's cycle.py> open`). `Fit: clear` → say it in a line and go on.
 `Fit: overlaps` → write its decision with `ask Goal …` (the `why` and `detail` too) and stop there: no agent runs on this goal until it is answered.
 An answer that reshapes the goal is the goal now — write the line again (`line`); "start after C<n> reaches Play" leaves the document at Goal, and the user picks it up later with `take`.
@@ -217,6 +218,8 @@ the stops in the order the player meets them, one to three per stage of play) an
 so the user sees the whole game change build by build — the one place pictures of the game are seen. Do not Read the pictures. Relay its "not shot" line if there is one
 (a stop the harness missed is a fix to the harness, written as a task). A game with no route yet says so — see "1. Goal".
 Captures an agent takes to check its work or to put beside a decision go under `docs/board/captures/` — out of git, like the board's folder.
+**Commit the build, now** — `cycle.py commit build`. It takes what changed since the build turn was taken and this cycle's document, nothing another session has in hand,
+and says what it committed; relay that line. Work is never left to pile up uncommitted across builds — the user plays a commit.
 Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
 If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
 The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving (the spec's "Tuning notes").
@@ -233,7 +236,7 @@ and the user looks once, not every few tasks.
    which lays every file in a slot side by side — and take approvals and redraws together.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.
 4. Write each path in the table's "Have" cell with `have <slot> "<path>"` (and `have <slot> "placeholder (kept — Dn)"` for one the user leaves as it is), run the verification again,
-   and only then tell the user what to play. A cell left `none` stays "Not made" on the board — for every cycle after.
+   `commit build` again (it takes only what changed since the last one), and only then tell the user what to play — then `stage Play`, which gives the build turn back. A cell left `none` stays "Not made" on the board — for every cycle after.
 
 If the user would rather play on placeholders first and make assets after that round, do it in that order — say the choice in one line when the build ends.
 
@@ -248,7 +251,9 @@ Not needed any more → `drop U1 "<why>"`. A choice is not a to-do — that is `
 **The last stage, and it stays open.** The user plays and feeds back, round after round — that is the normal shape, not an overrun. Do not ask whether the cycle is done
 and do not write a wrap-up: the cycle is closed by the next one (`new`).
 
-If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section.
+If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section — it commits its round when it is done.
+**Anything else changed after the build is committed the same way** — a small fix asked for during Play, assets made after a round on placeholders:
+`turn take "C<NN> <what>"`, change, verify, `commit fix "<what, in a line>"`, `turn done`. A change is never left uncommitted for the next build to sweep up.
 **Checks are read by someone holding the game, not the documents.** `stage Play` (and `checks`) lists every check that names something from the code or the documents
 (a constant, a section, a decision number) or runs long: rewrite each, before telling the user what to play, as one plain question about what the player meets —
 "Does the split land on the share you want in one try?" — and move the numbers and what to move in the table to the spec's "Tuning notes", which the card does not show.
@@ -310,7 +315,7 @@ The user can run a cycle in each of several sessions — one window each, in the
 - **Every command without `--doc` acts on this session's cycle.** A session holding none, while another works on one, is stopped with the list of open cycles —
   ask the user which this session is for (one of the free ones → `take`, or a new goal → `new`). Do not guess and do not pass `--doc` to get past it.
 - **A cycle another open session holds is refused** by `take`. If the user says that session is done with it (left open, not working), `take <n> --force`.
-- **A new goal is weighed against the others before it starts** — `fit` in "1. Goal".
+- **A new goal is weighed against the others still before Play** — `fit` in "1. Goal". A cycle at Play is not weighed.
 - **Spec, design, plan, decisions and play run side by side; the build takes turns.** `mark … doing` takes the build turn for the cycle and `stage Play` gives it back.
   Refused → tell the user in a line which cycle is building, run `until python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" turn; do sleep 60; done` in the background,
   and call the wave when it ends; meanwhile anything else in this cycle goes on. A build stopped half-way gives it back with `turn done`.

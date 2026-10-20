@@ -2348,6 +2348,46 @@ none
         newest = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["plays"][0]
         self.assertEqual((newest["what"], newest["playtest"]), ("Playtest 2026-10-20-feel", "2026-10-20-feel.md"), "newest first — named as the user reads it, matched by its document")
 
+    def test_cycle_commit(self):
+        """A build is committed the moment it is done, and each round of fixes after it: what changed since the build turn was taken and
+        the cycle's document — not what was already changed before, nor another session's cycle."""
+        root = tempfile.mkdtemp(prefix="kit-commit-")
+        self.addCleanup(shutil.rmtree, root, True)
+        git = lambda *a: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=root, capture_output=True, text=True, check=True).stdout
+        git("init", "-q")
+        json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
+        open(os.path.join(root, "old.txt"), "w").write("old\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "start")
+        procs = [subprocess.Popen(["sleep", "300"]) for _ in range(2)]
+        for p in procs:
+            self.addCleanup(p.kill)
+        a, b = (str(p.pid) for p in procs)
+        env = lambda s: dict(os.environ, KIT_SESSION=s, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+        as_ = lambda s, *args, ok=True: (lambda p: p if not ok or p.returncode == 0 else self.fail(f"{args}: {p.stdout}{p.stderr}"))(
+            subprocess.run([sys.executable, CYCLE, "--root", root, *args], capture_output=True, text=True, env=env(s)))
+        as_(a, "new", "combat", "Make combat")
+        as_(a, "line", "hits land")
+        as_(b, "new", "shop", "A shop")
+        open(os.path.join(root, "old.txt"), "w").write("changed by hand, before the build\n")
+        doc = os.path.join(root, "docs/cycle/01-combat.md")
+        open(doc, "a", encoding="utf-8").write("\n### [ ] T1. Hit\n- **What**: hits\n- **Change**: hits land\n\n- Wave 1: T1\n")
+        self.assertIn("does not hold the build turn", as_(a, "commit", "build", ok=False).stderr, "with others in the folder, what is this build's is told by the turn")
+        as_(a, "mark", "T1", "doing")
+        open(os.path.join(root, "combat.cs"), "w").write("hit\n")  # the build
+        open(os.path.join(root, "shop.cs"), "w").write("")  # made in the same minute by the other session…
+        as_(b, "ask", "Spec", "Price — ① fixed ② floating")  # …and its own document
+        os.remove(os.path.join(root, "shop.cs"))
+        out = as_(a, "commit", "build").stdout
+        self.assertIn("Cycle 01 build — hits land", out)
+        files = git("show", "--name-only", "--format=", "HEAD").split()
+        self.assertEqual(sorted(files), ["combat.cs", "docs/cycle/01-combat.md"], "the build and its document — not what was changed before, nor the other cycle")
+        self.assertIn("nothing changed", as_(a, "commit", "build").stdout, "committed — nothing of this build is left")
+        open(os.path.join(root, "combat.cs"), "w").write("hit harder\n")  # a fix after play, in the same turn
+        self.assertIn("Cycle 01 fix — hits land harder", as_(a, "commit", "fix", "hits land harder").stdout)
+        self.assertEqual(git("show", "--name-only", "--format=", "HEAD").split(), ["combat.cs"])
+        self.assertIn("M old.txt", git("status", "--short"), "what was changed by hand stays as it was")
+
     def test_cycle_sessions(self):
         """Several sessions at once, each on its own cycle: commands act on the session's cycle, one held elsewhere is not taken or closed,
         the build turn is one session's at a time, and the dashboard's answers go to the session working on that cycle."""
@@ -2382,15 +2422,22 @@ none
         c.kill()
         c.wait()
         self.assertIn("this session works on C1", as_(a, CYCLE, "take", "1").stdout, "its session closed — free again")
-        as_(a, CYCLE, "stage", "Play")
+        as_(a, CYCLE, "stage", "Build")
         out = as_(b, CYCLE, "new", "shop", "A shop screen").stdout
         self.assertIn("the previous cycle is another session's, left open", out, "a cycle another session works on is not closed under it")
         self.assertIn("call the systems designer with `fit`", out)
-        self.assertIn("Stage: Play", open(doc, encoding="utf-8").read())
+        self.assertIn("Stage: Build", open(doc, encoding="utf-8").read())
         out = as_(b, CYCLE, "open").stdout
-        self.assertIn("C1 combat — stage Play · another session works on it", out)
+        self.assertIn("C1 combat — stage Build · another session works on it", out)
         self.assertIn("files: src/combat.js", out)
         self.assertIn("GDD: BAL.PLAYER.HP", out)
+        # a cycle at Play is built — a new goal is not weighed against it
+        as_(a, CYCLE, "stage", "Play")
+        self.assertEqual(as_(b, CYCLE, "open").stdout.strip(), "no other cycle is before Play")
+        out = as_(b, CYCLE, "new", "menu", "A menu").stdout
+        self.assertNotIn("fit", out)
+        self.assertIn("Stage: Play", open(doc, encoding="utf-8").read(), "and not closed either — its session is still on it")
+        as_(b, CYCLE, "take", "2")
         self.assertEqual(as_(b, CYCLE, "ask", "Spec", "Shop opens how — ① tap ② walk in · recommended: ①").stdout.strip(), "D1")
         self.assertEqual(as_(a, CYCLE, "ask", "Play", "Hits feel how — ① heavy ② light · recommended: ①").stdout.strip(), "D1", "each into its own cycle")
         self.assertIn("· this session", [l for l in as_(b, CYCLE, "status").stdout.split("\n") if "02-shop" in l][0])
@@ -2405,8 +2452,8 @@ none
         # the board's first screen: every cycle in hand, not only the newest
         as_(a, BOARD)
         active = json.load(open(os.path.join(root, "docs/board/board.json")))["active"]
-        self.assertEqual([(x["cycle"], x["session"], x["review"]) for x in active], [("01", True, 1), ("02", True, 1)],
-                         "each cycle a session works on, with what of it waits on the user")
+        self.assertEqual([(x["cycle"], x["session"], x["review"]) for x in active], [("01", True, 1), ("02", True, 1), ("03", False, 0)],
+                         "each cycle a session works on, with what of it waits on the user — and the newest, as ever")
         index = open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read()
         self.assertIn("Now · cycle 01 — combat · a session is on it", index)
         self.assertIn("Now · cycle 02 — shop · a session is on it", index)
@@ -2437,7 +2484,7 @@ none
         stand_in = ("# kit-session-stand-in\nimport subprocess,sys\n"
                     f"subprocess.run(['sh', '-c', {f'{sys.executable!r} {CYCLE!r} --root {root!r} new menu Menu; true'!r}], capture_output=True)\n"
                     f"subprocess.run(['sh', '-c', {f'{sys.executable!r} {CYCLE!r} --root {root!r} ask Spec \"Menu how — ① a ② b\"; true'!r}], capture_output=True)\n"
-                    f"open({os.path.join(box, '3.json')!r}, 'w').write('[{{\"key\": \"c03-D1\", \"pick\": \"①\", \"note\": \"\"}}]')\n"
+                    f"open({os.path.join(box, '3.json')!r}, 'w').write('[{{\"key\": \"c04-D1\", \"pick\": \"①\", \"note\": \"\"}}]')\n"
                     f"print(subprocess.run([sys.executable, {BOARD!r}, '--root', {root!r}, 'watch', '--notice'], capture_output=True, text=True).stdout)\n")
         e = {k: v for k, v in env(b).items() if k != "KIT_SESSION"}
         out = subprocess.run([sys.executable, "-c", stand_in], capture_output=True, text=True, env=dict(e, KIT_SESSION_MARK="kit-session-stand-in")).stdout
