@@ -403,6 +403,9 @@ def cmd_commit(path, kind, said=""):
     if holders() and not mine:
         sys.exit("other sessions work in this folder and this one does not hold the build turn — what changed is not told apart. "
                  "Take it before changing code (`turn take \"<what>\"`), then commit")
+    if mine and "before" not in mine:
+        sys.exit("the build turn was taken by an older kit, which kept no record of what was changed before it — this build's files are not told apart. "
+                 "Commit them by naming them (git add <files>; git commit), then `turn done` — the next turn keeps the record")
     before = (mine or {}).get("before")
     others = {os.path.realpath(os.path.join(ROOT, d)) for d in holders()}  # another session's cycle document is its own to commit
     now = tree_state()
