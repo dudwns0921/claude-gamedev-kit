@@ -92,10 +92,11 @@ Create the document with `new` — pass the goal in the user's words as-is, unpo
 Then give it one line with `line` — what the cycle does, in what the player meets, in the user's language (at most 120 characters): it heads the board's "Now",
 above the user's own words. When the goal changes under way, write the line again.
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
-**`new` also closes the previous cycle** — there is no closing stage — unless another session works on it ("Several sessions at once"). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
+**`new` also closes the previous cycle** — unless another session works on it ("Several sessions at once") or a CEO's worker makes the new one (with the CEO the user says when a cycle is done). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
-**A cycle at Play closes on its own too** — when every check by playing is answered ok, when its playtest round leaves no task open, or with `close` when the user says they are done with it.
-**A closed cycle is done**: what the user brings about it afterwards — a fault found later, more of the same — is a new cycle's goal (`new`) or the backlog's (`later`), never a round on the old one.
+**A cycle at Play closes on its own too** — when every check by playing is answered ok with no decision of it open, or with `close` when the user says they are done with it.
+**A closed cycle is done**: a playtest document already analysed for it is still built to the end, but what the user brings about it afterwards — a fault found later,
+more of the same — is a new cycle's goal (`new`) or the backlog's (`later`), never a new round on the old one.
 
 **A game with no play route yet** (`new` says so): it is made in this cycle, without asking — `later "Make the play route" --epic Foundation`, then `backlog take` it.
 Its plan proposes the stops as a decision (one to three per stage of play, in play order); the build writes the harness and `board.play` (the board skill's "Play route").

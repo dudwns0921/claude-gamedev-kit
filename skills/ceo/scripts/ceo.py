@@ -249,7 +249,7 @@ def cmd_run(target, kind, said=""):
     n = 0 if kind == "new" else int(str(target).lstrip("Cc"))
     if n:
         path = doc_of(n)
-        if stage_of(open(path, encoding="utf-8").read()) in CLOSED:
+        if kind != "implement" and stage_of(open(path, encoding="utf-8").read()) in CLOSED:  # a playtest already analysed is built to the end
             sys.exit(f"C{n:02d} is closed — the user played it and was done with it. What they bring about it now is a new cycle's: "
                      f"`run new \"<their words>\"` (or later: `cycle.py later \"…\"`)")
         stage, what, ready = state(path)

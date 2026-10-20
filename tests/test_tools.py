@@ -2429,42 +2429,51 @@ else:
         self.assertIn("closed: docs/cycle/01-door.md", run(CYCLE, root, "checked", "Steps sound on", "ok").stdout)
         self.assertEqual(stage("docs/cycle/01-door.md"), "Closed")
 
-        # a check answered "problem" keeps it open; the playtest round that leaves no task open closes it with its commit
+        # a check answered "problem" keeps it open, and so does a decision still open; a playtest round's commit does not close it
         run(CYCLE, root, "new", "shop", "A shop")
         with open(os.path.join(root, "docs/cycle/02-shop.md"), "a", encoding="utf-8") as f:
-            f.write("\n### To see by playing\n- The price reads at a glance\n")
+            f.write("\n### To see by playing\n- The price reads at a glance\n- The till rings on a sale\n")
         run(CYCLE, root, "stage", "Play")
         self.assertNotIn("closed:", run(CYCLE, root, "checked", "The price reads", "problem", "too small").stdout)
         os.makedirs(os.path.join(root, "docs/playtest"))
-        test = os.path.join(root, "docs/playtest/2026-01-01-price.md")
-        open(test, "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Bigger price\n\n### [ ] T2. Price colour\n")
+        open(os.path.join(root, "docs/playtest/2026-01-01-price.md"), "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Bigger price\n")
         open(os.path.join(root, "price.txt"), "w").write("big")
         out = run(CYCLE, root, "commit", "playtest", "docs/playtest/2026-01-01-price.md").stdout
-        self.assertNotIn("closed:", out, "a task still open — the next round is still this cycle's")
-        self.assertEqual(stage("docs/cycle/02-shop.md"), "Play")
-        open(test, "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Bigger price\n\n### [-] T2. Price colour\n")
-        open(os.path.join(root, "price.txt"), "w").write("bigger")
-        out = run(CYCLE, root, "commit", "playtest", "2026-01-01-price.md").stdout
-        self.assertIn("closed: docs/cycle/02-shop.md", out)
         self.assertIn("committed", out)
-        self.assertEqual(stage("docs/cycle/02-shop.md"), "Closed")
-        self.assertEqual(subprocess.run(["git", "status", "--porcelain", "docs/cycle"], cwd=root, capture_output=True, text=True).stdout, "",
-                         "the closed document goes in the round's commit")
+        self.assertNotIn("closed:", out, "another analysed round may still be waiting for it — a round never closes the cycle")
+        self.assertEqual(stage("docs/cycle/02-shop.md"), "Play")
+        run(CYCLE, root, "new", "cart", "A cart")
+        with open(os.path.join(root, "docs/cycle/03-cart.md"), "a", encoding="utf-8") as f:
+            f.write("\n### To see by playing\n- The cart wheels squeak\n")
+        run(CYCLE, root, "stage", "Play")
+        run(CYCLE, root, "ask", "Playtest", "How loud is the squeak? — ① quiet ② loud · recommended: ①")
+        self.assertNotIn("closed:", run(CYCLE, root, "checked", "The cart wheels squeak", "ok").stdout, "a decision still open is work still coming")
+        self.assertEqual(stage("docs/cycle/03-cart.md"), "Play")
+        run(CYCLE, root, "close")
 
         # `close` on the user's word; the CEO says when several stand at Play, and refuses a round on a closed one
         run(CYCLE, root, "new", "map", "A map")
         run(CYCLE, root, "stage", "Play")
         run(CYCLE, root, "new", "bag", "A bag")
-        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/04-bag.md")
-        self.assertIn("closed: docs/cycle/03-map.md", run(CYCLE, root, "close", "--doc", "docs/cycle/03-map.md").stdout)
-        self.assertIn("already closed", run(CYCLE, root, "close", "--doc", "docs/cycle/03-map.md").stdout)
+        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/05-bag.md")
+        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/02-shop.md")
+        run(CYCLE, root, "close", "--doc", "docs/cycle/02-shop.md")
+        self.assertIn("closed: docs/cycle/04-map.md", run(CYCLE, root, "close", "--doc", "docs/cycle/04-map.md").stdout)
+        self.assertIn("already closed", run(CYCLE, root, "close", "--doc", "docs/cycle/04-map.md").stdout)
         run(CEO, root, "setup", "--mode", "acceptEdits")
         self.assertNotIn("stand at Play", run(CEO, root, "status").stdout, "one at Play — nothing to ask")
         run(CYCLE, root, "new", "rain", "Rain")
         run(CYCLE, root, "stage", "Play")
-        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/04-bag.md")  # `new` closed it — as if another window had held it open
+        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/05-bag.md")  # `new` closed it — as if another window had held it open
         self.assertIn("2 cycles stand at Play", run(CEO, root, "status").stdout)
-        self.assertIn("C03 is closed", run(CEO, root, "run", "3", "playtest", "the map is blurry", ok=False).stderr)
+        self.assertIn("C04 is closed", run(CEO, root, "run", "4", "playtest", "the map is blurry", ok=False).stderr)
+        out = subprocess.run([sys.executable, CYCLE, "--root", root, "new", "wind", "Wind"], capture_output=True, text=True, env=dict(os.environ, KIT_WORKER="1")).stdout
+        self.assertIn("the previous cycle is left open", out, "a worker's new cycle closes none — with the CEO the user says when one is done")
+        self.assertEqual(stage("docs/cycle/06-rain.md"), "Play")
+        built = subprocess.run([sys.executable, CEO, "--root", root, "run", "4", "implement", "docs/playtest/2026-01-01-price.md"], capture_output=True, text=True,
+                               env=dict(os.environ, KIT_CLAUDE="/usr/bin/true"))
+        self.assertNotIn("is closed", built.stderr, "a playtest already analysed is built to the end on a closed cycle")
+        self.assertIn("worker ended", built.stdout)
 
     def test_ceo_notice(self):
         """A window opened or cleared in a game the CEO runs is told it is the CEO's — quiet in a worker, before setup, and outside a game."""

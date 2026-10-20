@@ -71,9 +71,10 @@ A goal the user gives directly goes the same way. A goal too big for one cycle: 
 A cycle at Play is the user's. When they bring problems about what it built — here, or as "problem" on the dashboard's checks — hand the list verbatim:
 `run <NN> playtest "<list>"`; once its decisions are answered, `run <NN> implement`. Each round commits itself.
 
-**A cycle closes once it is done** — every check answered ok, its playtest round built with no task left open, or the user saying they are done with it
-(`cycle.py close --doc <document>`). `status` says when several stand at Play: ask once which are done.
-**What the user brings about a closed cycle is a new cycle**, never a round on the old one (`run` refuses it): a fault found later, or more of the same →
+**A cycle closes once it is done** — every check answered ok with no decision of it open, or the user saying they are done with it
+(`cycle.py close --doc <document>`). `status` says when several stand at Play: ask once which are done. A playtest document already analysed for it
+is still built on a closed cycle (`run <NN> implement <document>`).
+**What the user brings about a closed cycle is a new cycle**, never a new round on the old one (`run` refuses `playtest` and `next` there): a fault found later, or more of the same →
 `run new "<their words>"` (small fixes skip Spec and Design there by themselves); something new that is not for now → `cycle.py later "<their words>"`.
 Problems that are partly about an open cycle and partly about closed ones are split: the open one's go to its playtest, the rest to a new cycle.
 

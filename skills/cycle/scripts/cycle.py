@@ -51,9 +51,9 @@ Tasks are named T3 inside their cycle, and C16-T3 across the game — every comm
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
   python3 cycle.py checked "<the check, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves,
                                                 and the cycle counts as played. A cycle closed with checks never answered stays "not played" on the board
-  python3 cycle.py close                        The user has played it and is done with it — a cycle at Play becomes `Closed`. It closes by itself too:
-                                                once every check by playing is answered ok, and when a playtest round's commit leaves its document with no task open.
-                                                What the user brings about a closed cycle afterwards is a new cycle's (`new`) or the backlog's (`later`)
+  python3 cycle.py close                        The user has played it and is done with it — a cycle at Play becomes `Closed`. It closes by itself too,
+                                                once every check by playing is answered ok and no decision of it is open. A playtest document already analysed
+                                                is still built to the end on a closed cycle; anything the user brings about it afterwards is a new cycle's (`new`) or the backlog's (`later`)
   python3 cycle.py checks                       The checks by playing that do not read at a glance (a name from the code or the documents, too long) — `stage Play` says the same
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
@@ -424,12 +424,6 @@ def cmd_commit(path, kind, said=""):
     if mine and "before" not in mine:
         sys.exit("the build turn was taken by an older kit, which kept no record of what was changed before it — this build's files are not told apart. "
                  "Commit them by naming them (git add <files>; git commit), then `turn done` — the next turn keeps the record")
-    if kind == "playtest" and OPEN_STAGE.match(stage_of(read(path))):  # the round on a played cycle is its last: it closes with this commit
-        test = next((t for t in (said, os.path.join(ROOT, said), os.path.join(ROOT, "docs", "playtest", os.path.basename(said)),
-                                 os.path.join(ROOT, "docs", "playtest", os.path.basename(said) + ".md")) if os.path.isfile(t)), "")
-        if test and not OPEN_TASK.search(read(test)):
-            print("the playtest round leaves no task open — the cycle is done, and closes with this commit:")
-            close(path)
     before = (mine or {}).get("before")
     others = {os.path.realpath(os.path.join(ROOT, d)) for d in holders()}  # another session's cycle document is its own to commit
     now = tree_state()
@@ -1168,7 +1162,8 @@ def cmd_checked(path, line, result, seen=""):
           + f" ({datetime.date.today()})\n\n" + text[span[1]:])
     print(f"checked ({result}): {hit[:80]}" + (" — the problem goes to the playtest skill with the others" if result == "problem" else ""))
     text = read(path)
-    if result == "ok" and OPEN_STAGE.match(stage_of(text)) and not unchecked(text) and "- Checked (problem)" not in text:
+    if (result == "ok" and OPEN_STAGE.match(stage_of(text)) and not unchecked(text) and "- Checked (problem)" not in text
+            and not any(d[0] == " " for d in decisions(text).values())):  # a decision still open is work still coming for it
         print("every check answered ok — the cycle is done:")
         close(path)
 
@@ -1183,8 +1178,6 @@ def cmd_close(path):
     close(path)
     print("what the user brings about it from now on is a new cycle's (`new`) or the backlog's (`later`)")
 
-
-OPEN_TASK = re.compile(r"^### \[[ !>]\] T\d+", re.M)
 
 
 SKIP_RE = re.compile(r"^_Skipped: (.+)_$", re.M)
@@ -1476,6 +1469,8 @@ def cmd_new(name, goal):
     take(path)
     if before and os.path.relpath(before[-1], ROOT) in others:
         print(f"the previous cycle is another session's, left open: {os.path.relpath(before[-1], ROOT)}")
+    elif before and os.environ.get("KIT_WORKER") and OPEN_STAGE.match(stage_of(read(before[-1]))):  # with the CEO, cycles run side by side — the user says when one is done
+        print(f"the previous cycle is left open: {os.path.relpath(before[-1], ROOT)} — the user says when it is done (the CEO asks)")
     elif before:
         close(before[-1])
     report_leftovers()
