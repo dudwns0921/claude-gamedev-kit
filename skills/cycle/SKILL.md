@@ -302,7 +302,7 @@ Documents written before the kit wrote English use the Korean words (`# 사이�
 ## Several sessions at once
 
 The user can run a cycle in each of several sessions — one window each, in the same game folder. Each session works on one cycle: `new` takes the one it makes,
-`take <n>` takes one already there (`leave` lets it go). It is told apart by its Claude Code process, so it holds across `/clear` and lets go when the window closes.
+`next` the free one it goes on with, `take <n>` any other free one (`leave` lets it go). It is told apart by its Claude Code process, so it holds across `/clear` and lets go when the window closes.
 
 - **Every command without `--doc` acts on this session's cycle.** A session holding none, while another works on one, is stopped with the list of open cycles —
   ask the user which this session is for (one of the free ones → `take`, or a new goal → `new`). Do not guess and do not pass `--doc` to get past it.

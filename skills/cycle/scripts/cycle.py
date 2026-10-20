@@ -560,11 +560,13 @@ def summary(path):
             + "".join(f" · {k} skipped" for k in skips))
 
 
-def cmd_next(path):
+def cmd_next(path, looked=False):
     text = read(path)
     ts, ds = tasks(text), decisions(text)
     print(summary(path))
     others = holders()
+    if not looked and held_doc() != path and os.path.relpath(path, ROOT) not in others:
+        take(path)  # (not one only looked at with --doc) the session that goes on with a free cycle works on it — a second session opened after it is then told, not let in beside it
     if others:
         print("other sessions work on: " + " · ".join(f"C{h['cycle']}" for h in others.values())
               + " — this session's commands act on its own cycle; the build turn is one session's at a time (`turn`)")
@@ -1322,7 +1324,7 @@ def main():
     if cmd == "open":
         return cmd_open(path)
     if cmd == "next":
-        cmd_next(path)
+        cmd_next(path, "--doc" in opts)
     elif cmd == "task":
         cmd_task(path, rest[0])
     elif cmd == "mark":

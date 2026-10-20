@@ -2336,6 +2336,15 @@ none
         self.assertNotEqual(out.returncode, 0, "a session holding no cycle while another works does not guess where a line goes")
         self.assertIn("C1 combat (stage Goal) — held by another session", out.stderr)
         self.assertIn("held by another session", as_(b, CYCLE, "take", "1", ok=False).stderr, "one cycle, one session")
+        # a session that goes on with a free cycle (`next`, not `take`) holds it too — the one opened after it is told
+        c = subprocess.Popen(["sleep", "300"])
+        self.addCleanup(c.kill)
+        as_(a, CYCLE, "leave")
+        self.assertIn("this session works on C1", as_(str(c.pid), CYCLE, "next").stdout)
+        self.assertIn("held by another session", as_(a, CYCLE, "next", ok=False).stderr)
+        c.kill()
+        c.wait()
+        self.assertIn("this session works on C1", as_(a, CYCLE, "take", "1").stdout, "its session closed — free again")
         as_(a, CYCLE, "stage", "Play")
         out = as_(b, CYCLE, "new", "shop", "A shop screen").stdout
         self.assertIn("the previous cycle is another session's, left open", out, "a cycle another session works on is not closed under it")
