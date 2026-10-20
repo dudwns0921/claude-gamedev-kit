@@ -211,6 +211,16 @@ Do not fix a blocked task here yourself — ask the user whether to call `plan` 
 Before the first wave on a machine that has not run this project (a fresh clone), check that the engine executable written in CLAUDE.md exists — without it a whole wave comes back unverified.
 A blocked task or a returned "Deviations from the document" may be something learned — see "What was learned" below.
 
+**In a build folder** — where the game sets `"cycle": {"worktree": …}` in `kit.config.json`. Each cycle builds in a folder of its own (a git worktree, the engine's cache
+cloned in), so builds of several cycles run at once and none waits for the turn:
+1. Before the first wave, `worktree open` — it prints the folder. Pass `Work in: <folder>` as one more line to every `build` and `check` call of this cycle.
+   The first engine run there takes a minute or two longer (the engine compiles everything once for the new folder); after that it is as fast as ever.
+2. When the waves and the checks are through, `worktree merge` — it commits there, merges into the game and removes the folder. It takes the build turn for the game's
+   folder until `stage Play` — refused while another cycle is merging: wait for it as for the turn. Then the project's verification once in the game's folder,
+   the play route, the assets, `commit build`, `stage Play` — as below.
+3. Refused because both sides changed the same lines, or the game's folder has changes in the way: the folder is kept and nothing in the game changed —
+   ask the user (`ask Build …`), never pick a side here. `worktree drop "<why>"` only when the user says the build is not wanted.
+
 **Checked as a wave** — where the engine runs one at a time in a project folder (`"cycle": {"check": "wave"}` in `kit.config.json`; `next` says so).
 Each task's agent running the engine for itself makes a wave queue on it; instead the wave is written in parallel and checked once:
 1. Call the wave as `build T<n> wave` — each writes its task without running the engine.

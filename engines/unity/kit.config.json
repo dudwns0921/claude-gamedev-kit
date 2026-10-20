@@ -2,7 +2,10 @@
   "engine": "unity",
   "models": "standard",
   "cycle": {
-    "check": "wave"
+    "check": "wave",
+    "worktree": {
+      "clone": ["Library"]
+    }
   },
   "gdd-sync": {
     "code_ext": [".cs", ".json", ".asset"],

@@ -80,6 +80,9 @@ Decisions needed: <only scope — the goal is too big, what to cut>
       detail: <the numbers, names and files behind it — kept folded on the card; only if there are any>
 ```
 
+**Given `Work in: <folder>`** (a build folder — the cycle's own git worktree): that folder is the game for you. Every path in the task is under it, every command
+runs from it (`cd` there first; the engine's `-projectPath` is it), and you change nothing in the game's own folder. The work document and the extract-task command stay where they are.
+
 ## `build T<n>` — implement one task
 
 The cause has already been found and the place to fix is written down. Your job is to fix it as written and verify.

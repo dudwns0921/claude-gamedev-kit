@@ -56,7 +56,9 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
 3. **Per wave, one `gamedev-kit:developer` agent per task, with `build T<n>` and `model: sonnet`.** Call a wave's tasks all at once (in one message) —
    the analyst grouped them so they touch different files. Pass three lines — `build T<n>`, the document path, the task-extraction command (`python3 <absolute path to this skill's playtest.py> task T<n> --doc <document>`). Do not copy out the task content.
    Call the next wave after the previous wave has fully returned.
-   Where the engine runs one at a time (`"cycle": {"check": "wave"}` in `kit.config.json`), build and check each wave as the cycle skill's "Checked as a wave" says.
+   Where the engine runs one at a time (`"cycle": {"check": "wave"}` in `kit.config.json`), build and check each wave as the cycle skill's "Checked as a wave" says;
+   where the game builds in a build folder (`"cycle": {"worktree": …}`), the round runs in this session's cycle's folder and merges as the cycle skill's "In a build folder" says —
+   then the play route and the round's commit as below.
    **Before the first wave, take the build turn** — with several sessions at once, one builds at a time:
    `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn take "playtest <document name>"`. Refused (another session is building) → say so in a line,
    run `until python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" turn; do sleep 60; done` in the background, and call the wave when it ends.

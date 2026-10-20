@@ -61,6 +61,8 @@ Several sessions at once — each works on one cycle; it is told apart by its Cl
                                                 what the systems designer's `fit` weighs a new goal against
   python3 cycle.py commit build | playtest <document> | fix "<what>"   Commits what this build changed, the moment it is done (and after each round of fixes):
                                                 the files changed since the build turn was taken, and this cycle's document — not what another session has in hand
+  python3 cycle.py worktree open | merge | drop "<why>"   Where the game sets `cycle.worktree`: the cycle's build runs in its own folder (a git worktree,
+                                                the engine's cache cloned in) — several cycles build at once. merge commits it, merges it into the game and removes the folder
   python3 cycle.py turn [take "<what>" | done | free]   The build turn — one session builds at a time. `mark … doing` takes it for the cycle, `stage Play` gives it back;
                                                 `turn` alone exits 1 while another session has it (`until cycle.py turn; do sleep 60; done` waits for it).
                                                 `free` — only when the user says the other session's build is not running
@@ -77,6 +79,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -431,6 +434,88 @@ def cmd_commit(path, kind, said=""):
     print(f"committed {head}: {msg} — {len(files)} file(s)")
 
 
+def wt_cfg():
+    """`cycle.worktree` in kit.config.json — a build runs in a folder of its own, so several build at once: {"clone": [the ignored folders a build needs, cloned in]}."""
+    w = own_cfg().get("worktree")
+    return w if isinstance(w, dict) else None
+
+
+def wt_dir(n):
+    """Cycle n's build folder — beside git's own files, out of every scan of the game."""
+    p = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True, text=True)
+    return os.path.join(ROOT, p.stdout.strip(), "gamedev-kit", "worktrees", f"c{n:02d}")
+
+
+def clone(src, dst):
+    """A copy that shares the disk where the file system can (APFS · btrfs · XFS) — a game's import cache runs to gigabytes."""
+    for args in (["cp", "-c", "-R"], ["cp", "-R", "--reflink=auto"]):
+        if subprocess.run([*args, src, dst], capture_output=True).returncode == 0:
+            return
+    shutil.copytree(src, dst, symlinks=True)
+
+
+def cmd_worktree(path, action, said=""):
+    """open: the cycle's own build folder (a git worktree on branch kit/cNN from the last commit, with the folders the engine needs cloned in) —
+    every build and check of the cycle runs there, beside other cycles' builds. merge: commit it there, merge it into the game, remove the folder.
+    drop: remove the folder and its branch unmerged — only when the user says the build is not wanted."""
+    cfg = wt_cfg() or sys.exit("this game builds in its own folder — no `\"cycle\": {\"worktree\": …}` in kit.config.json")
+    top, n = git_top(), cycle_no(path)
+    wt, branch = wt_dir(n), f"kit/c{n:02d}"
+    game = os.path.join(wt, os.path.relpath(os.path.realpath(ROOT), os.path.realpath(top)))  # the game's root inside the folder
+    git = lambda *a, at=top: subprocess.run(["git", *a], cwd=at, capture_output=True, text=True)
+    if action == "open":
+        if os.path.isdir(wt):
+            return print(f"build folder: {game}")
+        made = git("worktree", "add", "-q", "-b", branch, wt, "HEAD")
+        if made.returncode:
+            made = git("worktree", "add", "-q", wt, branch)  # its branch is left from before
+        if made.returncode:
+            sys.exit("git worktree add failed:\n" + made.stderr.strip())
+        for d in cfg.get("clone") or []:
+            if os.path.exists(os.path.join(ROOT, d)) and not os.path.exists(os.path.join(game, d)):
+                clone(os.path.join(ROOT, d), os.path.join(game, d))
+        print(f"build folder: {game} — every build and check of C{n:02d} runs there; the game's folder stays as it is until `worktree merge`")
+        dirty = [l for l in git("status", "--porcelain").stdout.split("\n") if l.strip()]
+        if dirty:
+            print(f"the game's folder has {len(dirty)} uncommitted change(s) — the build folder starts from the last commit, without them")
+        return
+    if not os.path.isdir(wt):
+        sys.exit(f"C{n:02d} has no build folder (`worktree open`)")
+    if action == "drop":
+        if not said.strip():
+            sys.exit('say why: worktree drop "<the user\'s words>"')
+        git("worktree", "remove", "--force", wt)
+        git("branch", "-D", branch)
+        return print(f"C{n:02d}'s build folder dropped, unmerged — {said}")
+    text = read(path)
+    line = (LINE_RE.search(text).group(1).strip() if LINE_RE.search(text) else "") or os.path.basename(path)[3:-3]
+    git("add", "-A", at=wt)
+    if git("diff", "--cached", "--quiet", at=wt).returncode:
+        done = git("commit", "-q", "-m", f"Cycle {n:02d} build — {line}", at=wt)
+        if done.returncode:
+            sys.exit("git commit in the build folder failed:\n" + (done.stderr or done.stdout).strip())
+    if int(git("rev-list", "--count", f"HEAD..{branch}").stdout.strip() or 0) == 0:
+        git("worktree", "remove", "--force", wt)
+        git("branch", "-D", branch)
+        return print(f"C{n:02d}'s build folder held nothing new — removed")
+    if not turn(f"C{n:02d} merge", path):  # the game's folder: one merge, play route and commit at a time
+        sys.exit(1)
+    merged = git("merge", "--no-ff", "-m", f"Merge cycle {n:02d} build — {line}", branch)
+    if merged.returncode:
+        clash = sorted(set(git("diff", "--name-only", "--diff-filter=U").stdout.split()))
+        git("merge", "--abort")  # a merge refused before it began (local changes in the way) has nothing to abort — harmless
+        with sessions() as s:
+            if s["build"] and s["build"]["pid"] == session():
+                s["build"] = None
+        sys.exit(f"C{n:02d} not merged — the build folder is kept, the game's folder is as it was.\n"
+                 + (f"both changed: {' · '.join(clash)}" if clash else (merged.stderr or merged.stdout).strip()[-800:])
+                 + "\nPut it to the user as a decision (which side, or rebuild that part in the build folder) — never resolve it by choosing a side here")
+    head = git("rev-parse", "--short", "HEAD").stdout.strip()
+    git("worktree", "remove", "--force", wt)
+    git("branch", "-D", branch)
+    print(f"merged {head}: cycle {n:02d}'s build is in the game — the build folder is removed. The build turn is this session's until `stage Play`")
+
+
 def cmd_open(path):
     """The other cycles still before Play — what the systems designer weighs a new goal against (`fit`): where each stands, who works on it,
     and what it touches (epics · files · GDD ids · asset slots). One at Play is left out: it is built, and what it fixes now goes through playtests."""
@@ -745,8 +830,8 @@ def cmd_mark(path, names, state, note):
         bad = plain(" ".join(note.split()), DONE_MAX)
         if bad:
             sys.exit("Not marked — the dashboard shows this as what changed, read by the user:\n- " + "\n- ".join(bad))
-    if state == "doing" and not turn(f"C{cycle_no(path)}", path):
-        sys.exit(1)
+    if state == "doing" and not (wt_cfg() and os.path.isdir(wt_dir(cycle_no(path)))) and not turn(f"C{cycle_no(path)}", path):
+        sys.exit(1)  # a build in its own folder (`worktree open`) needs no turn: the game's folder is not touched until it merges
     text = read(path)
     for num in names.split(","):
         ts = tasks(text)
@@ -1392,7 +1477,7 @@ def main():
     if "--epic" in opts and cmd != "later":
         sys.exit("--epic goes with later")
     need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3),
-            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0, "commit": (1, 2)}
+            "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0, "commit": (1, 2), "worktree": (1, 2)}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
     if force and cmd != "take":
@@ -1425,6 +1510,10 @@ def main():
             path, rest[0] = keyed(path, rest[0])
     if cmd == "open":
         return cmd_open(path)
+    if cmd == "worktree":
+        if rest[0] not in ("open", "merge", "drop"):
+            sys.exit("worktree open · worktree merge · worktree drop \"<why>\"")
+        return cmd_worktree(path, *rest)
     if cmd == "commit":
         if rest[0] not in ("build", "playtest", "fix") or (rest[0] != "build") != (len(rest) == 2):
             sys.exit('commit build · commit playtest <document> · commit fix "<what, in a line>"')

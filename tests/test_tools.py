@@ -2419,7 +2419,61 @@ else:
         self.assertNotIn("checked as a wave", run(CYCLE, root, "next").stdout)
         json.dump({"cycle": {"check": "wave"}}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertIn("next wave: 1 — checked as a wave: `build T<n> wave`", run(CYCLE, root, "next").stdout)
-        self.assertEqual(json.load(open(os.path.join(KIT, "engines/unity/kit.config.json")))["cycle"], {"check": "wave"}, "Unity runs one editor per project")
+        self.assertEqual(json.load(open(os.path.join(KIT, "engines/unity/kit.config.json")))["cycle"], {"check": "wave", "worktree": {"clone": ["Library"]}},
+                         "Unity runs one editor per project — a wave checked together, each cycle's build in its own folder")
+
+    def test_cycle_worktree(self):
+        """Where the game sets `cycle.worktree`, each cycle builds in its own folder — the engine's cache cloned in — so two build at once;
+        merge commits it there and brings it into the game, and one that would overwrite what the game's folder has in hand is refused, the folder kept."""
+        root = tempfile.mkdtemp(prefix="kit-wt-")
+        self.addCleanup(shutil.rmtree, root, True)
+        git = lambda *a, at=root: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=at, capture_output=True, text=True, check=True).stdout
+        git("init", "-q")
+        json.dump({"cycle": {"worktree": {"clone": ["Library"]}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        open(os.path.join(root, ".gitignore"), "w").write("Library/\n")
+        os.makedirs(os.path.join(root, "Library"))
+        open(os.path.join(root, "Library/cache.bin"), "w").write("imported\n")
+        open(os.path.join(root, "shared.cs"), "w").write("a\n")
+        git("add", "-A")
+        git("commit", "-q", "-m", "start")
+        procs = [subprocess.Popen(["sleep", "300"]) for _ in range(2)]
+        for p in procs:
+            self.addCleanup(p.kill)
+        a, b = (str(p.pid) for p in procs)
+        env = lambda s: dict(os.environ, KIT_SESSION=s, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+        as_ = lambda s, *args, ok=True: (lambda p: p if not ok or p.returncode == 0 else self.fail(f"{args}: {p.stdout}{p.stderr}"))(
+            subprocess.run([sys.executable, CYCLE, "--root", root, *args], capture_output=True, text=True, env=env(s)))
+        as_(a, "new", "combat", "Combat")
+        as_(b, "new", "shop", "Shop")
+        git("add", "-A")
+        git("commit", "-q", "-m", "cycles")
+        for s, n in ((a, 1), (b, 2)):
+            doc = os.path.join(root, f"docs/cycle/0{n}-{'combat' if n == 1 else 'shop'}.md")
+            open(doc, "a", encoding="utf-8").write("\n### [ ] T1. Do\n- **What**: a\n- **Change**: b\n\n- Wave 1: T1\n")
+        out = as_(a, "worktree", "open").stdout
+        folder = re.search(r"build folder: (\S+)", out).group(1)
+        self.assertTrue(os.path.isfile(os.path.join(folder, "Library/cache.bin")), "the engine's cache is cloned in")
+        self.assertIn("uncommitted change", out, "the game's folder has the cycle documents in hand — the build starts without them")
+        as_(a, "mark", "T1", "doing")
+        other = re.search(r"build folder: (\S+)", as_(b, "worktree", "open").stdout).group(1)
+        self.assertIn("T1: [>]", as_(b, "mark", "T1", "doing").stdout, "two cycles build at once, each in its own folder — no turn to wait for")
+        open(os.path.join(folder, "combat.cs"), "w").write("hit\n")
+        open(os.path.join(other, "shared.cs"), "w").write("changed in the shop build\n")
+        open(os.path.join(root, "shared.cs"), "w").write("changed by hand in the game's folder\n")  # in hand, uncommitted
+        out = as_(a, "worktree", "merge").stdout
+        self.assertIn("merged", out)
+        self.assertEqual(open(os.path.join(root, "combat.cs")).read(), "hit\n", "the build is in the game")
+        self.assertFalse(os.path.exists(folder), "and its folder is gone")
+        self.assertIn("Cycle 01 build — combat", git("log", "--format=%s", "-3"))
+        self.assertIn("the build turn is another session's", as_(b, "worktree", "merge", ok=False).stdout,
+                      "the game's folder takes one merge, play route and commit at a time")
+        as_(a, "stage", "Play")
+        err = as_(b, "worktree", "merge", ok=False).stderr
+        self.assertIn("not merged", err, "the shop build would overwrite what is in hand — refused")
+        self.assertTrue(os.path.isdir(other), "its folder is kept")
+        self.assertEqual(open(os.path.join(root, "shared.cs")).read(), "changed by hand in the game's folder\n", "and the game's folder is as it was")
+        self.assertIn("C02's build folder dropped", as_(b, "worktree", "drop", "the user does not want it").stdout)
+        self.assertFalse(os.path.exists(other))
 
     def test_cycle_commit(self):
         """A build is committed the moment it is done, and each round of fixes after it: what changed since the build turn was taken and

@@ -151,7 +151,8 @@ def state(path):
     last = last_of(n)
     if last and last.get("stop") == "blocked" and os.path.getmtime(path) <= last.get("ended_at", 0):
         return stage, f"blocked — {last.get('said', '')} (`workers {n}`)", False
-    if build and stage in BUILDING and held.get(n) != build.get("pid"):  # its next step builds, and another has the turn
+    folders = isinstance((whole().get("cycle") or {}).get("worktree"), dict)  # each build in a folder of its own: only the merge takes the turn
+    if build and not folders and stage in BUILDING and held.get(n) != build.get("pid"):  # its next step builds, and another has the turn
         return stage, f"waits for the build turn — {build.get('what', '')} has it", False
     return stage, "ready — a worker can go on with it", True
 
