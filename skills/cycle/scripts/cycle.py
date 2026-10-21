@@ -199,6 +199,7 @@ def session():
             up, _sep, cmd = out.partition(" ")
             words, mark = cmd.split(), os.environ.get("KIT_SESSION_MARK")  # mark: what the tests' stand-in for a session carries
             if words and (os.path.basename(words[0]) == "claude" or os.path.basename(words[0]) in ("node", "bun") and len(words) > 1 and "claude" in words[1]
+                          or os.path.basename(os.path.dirname(words[0])) == "ccd-cli"  # the desktop app's sessions: <…>/ccd-cli/<version>
                           or mark and mark in cmd):
                 return pid
             pid = int(up)

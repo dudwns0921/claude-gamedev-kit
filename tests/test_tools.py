@@ -11,6 +11,7 @@ import http.server
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import struct
@@ -2712,6 +2713,21 @@ else:
         e = {k: v for k, v in env(b).items() if k != "KIT_SESSION"}
         out = subprocess.run([sys.executable, "-c", stand_in], capture_output=True, text=True, env=dict(e, KIT_SESSION_MARK="kit-session-stand-in")).stdout
         self.assertIn("1 answer(s) from the board", out, "the answer to the session's own cycle reaches it")
+        # the desktop app's session is a binary named for its version in a ccd-cli folder: its hooks and its Bash tool must find the same one,
+        # or a batch its watcher takes (named for the session) reads as another session's, and `answers --inbox` comes back empty
+        py, q = sys.executable, lambda *w: " ".join(shlex.quote(x) for x in w)
+        # cycle 04's session (the stand-in above) has ended: a window that holds no cycle — the CEO's — takes the answers to it, while other sessions work
+        for m in (mon, newer):  # their sessions' monitors would take it first
+            m.kill()
+            m.wait()
+        self.assertEqual(as_(b, CYCLE, "ask", "Spec", "Menu where — ① top ② side", "--doc", "docs/cycle/04-menu.md").stdout.strip(), "D2")
+        json.dump([{"key": "c04-D2", "pick": "②", "note": ""}], open(os.path.join(box, "4.json"), "w"))
+        script = (f"{q(py, BOARD, '--root', root)}; {q(py, BOARD, '--root', root, 'watch', '--notice')}; "
+                  f"sh -c {shlex.quote(q(py, BOARD, '--root', root, 'answers', '--inbox') + '; true')}; true")
+        app = "/Applications/App/ccd-cli/2.1.0-test"  # a shell under that name stands in (a copied binary would not run unsigned)
+        out = subprocess.run(["bash", "-c", f"exec -a {app} /bin/sh -c {shlex.quote(script)}"], capture_output=True, text=True, env=e).stdout
+        self.assertIn("answer(s) from the board", out, "its hook takes the batch")
+        self.assertIn("D2 → ②", out, "and its Bash tool reads it — the same session")
         # the session closes: what it held is free again
         procs[0].kill()
         procs[0].wait()
