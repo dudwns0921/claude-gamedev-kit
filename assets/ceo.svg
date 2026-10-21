@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
-  <title>Several cycles at once — the CEO starts a worker per cycle; each stops where you are needed</title>
+  <title>The CEO coordinates every cycle — you only decide</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#07110e"/><stop offset="0.55" stop-color="#0b2a22"/><stop offset="1" stop-color="#1a1033"/>
@@ -70,12 +70,12 @@
 
     <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">Several cycles at once</text>
     <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="url(#title)">Several cycles at once</text>
-    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">The CEO starts a worker per cycle — you only decide and play</text>
+    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">The CEO coordinates every cycle — you only decide</text>
     <rect class="sweep" x="0" y="40" width="240" height="100" fill="url(#shine)" opacity="0.16" transform="skewX(-20)"/>
 
     <rect x="70" y="270" width="140" height="50" rx="25" fill="#0d1b22" stroke="#3dffb0" stroke-width="2"/>
     <text x="140" y="303" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">CEO</text>
-    <text x="140" y="343" font-size="15" font-weight="600" text-anchor="middle" fill="#5dffc0">decides nothing</text>
+    <text x="140" y="343" font-size="15" font-weight="600" text-anchor="middle" fill="#5dffc0">coordinates</text>
     <text x="250" y="178" font-size="16" font-weight="700" fill="#8ad8ff">workers <tspan fill="#e6f3f8" font-weight="500">— headless Claude Code runs</tspan></text>
     <path d="M210,295 C232,295 228,215 250,215" fill="none" stroke="#3dffb0" stroke-opacity="0.6" stroke-width="2.5"/>
     <rect x="250" y="198" width="62" height="34" rx="17" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
@@ -131,12 +131,11 @@
     <rect x="710" y="360" width="70" height="30" rx="8" fill="#ffd24a"/>
     <text x="745" y="380" font-size="14" font-weight="800" text-anchor="middle" fill="#07110e">Play</text>
     <rect x="800" y="358" width="178" height="34" rx="17" fill="#0d1b22" stroke="#ffd24a" stroke-width="2"/>
-    <text x="889" y="381" font-size="15" font-weight="700" text-anchor="middle" fill="#ffd24a">ready to play</text>
-    <path d="M978,375 C1000,375 1000,295 1022,295" fill="none" stroke="#ffd24a" stroke-opacity="0.8" stroke-width="2.5"/>
+    <text x="889" y="381" font-size="15" font-weight="700" text-anchor="middle" fill="#ffd24a">build done</text>
     <path d="M1012,287 L1023,295 L1012,303" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
     <rect x="1024" y="270" width="120" height="50" rx="25" fill="url(#you)"/>
     <text x="1084" y="303" font-size="23" font-weight="900" text-anchor="middle" fill="#07110e">You</text>
-    <text x="1084" y="343" font-size="15" font-weight="600" text-anchor="middle" fill="#5dffc0">decide · play</text>
+    <text x="1084" y="343" font-size="15" font-weight="600" text-anchor="middle" fill="#5dffc0">decides</text>
 
     <rect x="80" y="454" width="22" height="16" rx="5" fill="#3dffb0"/>
     <text x="112" y="468" font-size="18" font-weight="700" fill="#9fe9cc">each cycle builds in a folder of its own <tspan fill="#e6f3f8" font-weight="500">— only the merge into the game takes turns</tspan></text>

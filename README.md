@@ -3,7 +3,7 @@
 </p>
 
 **A [Claude Code](https://code.claude.com) plugin for making games.**
-Agents make your game one cycle at a time — spec, design, build — several cycles at once in the background. You decide and play, from a dashboard that shows where every game stands.
+Agents make your game cycle by cycle — spec, design, build — and a CEO coordinates all of it, several cycles at once. You only decide, from a dashboard that shows where every game stands.
 
 ## Quick start
 
@@ -27,7 +27,7 @@ Then start Claude Code there and say what you want — there is nothing to learn
 ```
 I want to make a cozy farming game      → asks where it will be played, picks the engine, sets it up, writes the GDD with you, then hands the first goal to the CEO
 this time, let's add a shop             → one cycle: spec, design, build; what is yours to decide waits on the dashboard
-run it for me                           → the CEO runs the cycles in the background, several at once, and stops where you are needed
+run it for me                           → the CEO coordinates the cycles, several at once; only what is yours to decide reaches you
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
 
@@ -43,11 +43,11 @@ Every step also has a slash command — `/gamedev-kit:init`, `start`, `ceo`, `cy
 
 Making a game with AI is easy. The trouble starts when making it takes weeks: you lose track of where it stands and what waits on you, the design and the code drift apart, and what you learned in the last game is gone by the next.
 
-### Several cycles at once — you only decide and play
+### You decide — the CEO coordinates the rest
 
-<p align="center"><img src="assets/ceo.svg" alt="The CEO starts a worker for each of three cycles; one stops on a decision for you, one is building in its own folder, one is ready to play" width="860"></p>
+<p align="center"><img src="assets/ceo.svg" alt="The CEO coordinates three cycles, each run by a worker; only the decision one of them reaches stops at you" width="860"></p>
 
-One window is the CEO: it proposes the next goals and starts a worker — a headless Claude Code run — for each cycle that can move. A worker goes on with its cycle and stops where you are needed: a decision, another cycle's build, or a build ready to play. The CEO decides nothing; every question stays yours, on the dashboard. Where the engine allows it, each cycle builds in a folder of its own (a git worktree), so several build at once and only the merge into the game takes turns. You can still work on a cycle by hand in a window of your own. The dashboard's Now tab shows what is in motion: the workers, the cycle each one holds, and whose turn it is to build.
+One window is the CEO, and it coordinates all the work: it proposes the next goals, starts a worker — a headless Claude Code run — for each cycle that can move, and keeps the builds in order. Every question that comes up is put to you on the dashboard; your part is to decide. Where the engine allows it, each cycle builds in a folder of its own, so several build at once. The dashboard's Now tab shows what is in motion: the workers, the cycle each one holds, and whose turn it is to build. You can still work on a cycle by hand in a window of your own.
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-now-dark.png"><img src="assets/dashboard-now-light.png" alt="The Now tab: two workers running, cycle 3 holding the build turn, three answers waiting on you, and each cycle in hand with its worker and the task being built" width="860"></picture></p>
 
