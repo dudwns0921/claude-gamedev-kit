@@ -43,19 +43,24 @@ Every step also has a slash command — `/gamedev-kit:init`, `start`, `ceo`, `cy
 
 Making a game with AI is easy. The trouble starts when making it takes weeks: you lose track of where it stands and what waits on you, the design and the code drift apart, and what you learned in the last game is gone by the next.
 
+### Several cycles at once — you only decide and play
+
+<p align="center"><img src="assets/ceo.svg" alt="The CEO starts a worker for each of three cycles; one stops on a decision for you, one is building in its own folder, one is ready to play" width="860"></p>
+
+One window is the CEO: it proposes the next goals and starts a worker — a headless Claude Code run — for each cycle that can move. A worker goes on with its cycle and stops where you are needed: a decision, another cycle's build, or a build ready to play. The CEO decides nothing; every question stays yours, on the dashboard. Where the engine allows it, each cycle builds in a folder of its own (a git worktree), so several build at once and only the merge into the game takes turns. You can still work on a cycle by hand in a window of your own. The dashboard's Now tab shows what is in motion: the workers, the cycle each one holds, and whose turn it is to build.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-now-dark.png"><img src="assets/dashboard-now-light.png" alt="The Now tab: two workers running, cycle 3 holding the build turn, three answers waiting on you, and each cycle in hand with its worker and the task being built" width="860"></picture></p>
+
 ### See where every game stands — and decide there
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png"><img src="assets/dashboard-light.png" alt="The Epics tab of a sample game: epic cards with their task counts, and one epic opened below with its cycles in a row and that cycle's tasks" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-cycle-dark.png"><img src="assets/dashboard-cycle-light.png" alt="The Cycle tab: the cycle's goal and stages on top, its tasks in four columns — to do, in hand, blocked, done" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-task-dark.png"><img src="assets/dashboard-task-light.png" alt="A task opened: what it is, how the game will change, and what changed, a sentence each" width="860"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-play-dark.png"><img src="assets/dashboard-play-light.png" alt="The Play tab: each stop of the play route beside the run before it, build by build" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-decide-dark.png"><img src="assets/dashboard-decide-light.png" alt="A decision on the Review tab: three wing drafts to compare above the options, one of them recommended" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-assets-dark.png"><img src="assets/dashboard-assets-light.png" alt="The assets tab: every picture and sound of the game, grouped by epic, each with its state" width="860"></picture></p>
 
-A dashboard on your machine lays each game out like a tracker. Every part the player meets is an epic; each cycle is a board of its tasks; what you put off waits in a backlog. Open a task and it says what it is, how the game will change and what changed. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening. The Now tab shows what is in motion — the workers, the cycle each one holds, whose turn it is to build — and the Play tab shows the game's screens, shot along the same route at the end of every build, beside their earlier runs.
-
-### Several cycles at once — you only decide and play
-
-One window is the CEO: it proposes the next goals and starts a worker — a headless Claude Code run — for each cycle that can move. A worker goes on with its cycle and stops where you are needed: a decision, another cycle's build, or a build ready to play. The CEO decides nothing; every question stays yours, on the dashboard. Where the engine allows it, each cycle builds in a folder of its own (a git worktree), so several build at once and only the merge into the game takes turns. You can still work on a cycle by hand in a window of your own.
+A dashboard on your machine lays each game out like a tracker. Every part the player meets is an epic; each cycle is a board of its tasks; what you put off waits in a backlog. Open a task and it says what it is, how the game will change and what changed. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening. The Play tab shows the game's screens, shot along the same route at the end of every build, beside their earlier runs.
 
 ### The design and the code stay one thing
 

@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 500" width="1200" height="500" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>Several cycles at once — the CEO starts a worker per cycle; each stops where you are needed</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07110e"/><stop offset="0.55" stop-color="#0b2a22"/><stop offset="1" stop-color="#1a1033"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3dffb0"/><stop offset="0.45" stop-color="#d8ff5a"/><stop offset="0.8" stop-color="#ffd24a"/><stop offset="1" stop-color="#ff8ad1"/>
+    </linearGradient>
+    <linearGradient id="you" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5dffc0"/><stop offset="1" stop-color="#16b877"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="spot" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3dffb0" stop-opacity="0.3"/><stop offset="1" stop-color="#3dffb0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="spot2" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#b06cff" stop-opacity="0.34"/><stop offset="1" stop-color="#b06cff" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#3dffb0" stroke-opacity="0.07" stroke-width="1"/>
+    </pattern>
+    <filter id="glow" x="-50%" y="-120%" width="200%" height="340%"><feGaussianBlur stdDeviation="7"/></filter>
+    <clipPath id="card"><rect x="6" y="6" width="1188" height="488" rx="28"/></clipPath>
+    <path id="star" d="M0,-10 L2.4,-2.4 L10,0 L2.4,2.4 L0,10 L-2.4,2.4 L-10,0 L-2.4,-2.4 Z"/>
+  </defs>
+  <style>
+    .tw { animation: tw 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    @keyframes tw { 0%,100% { opacity: .15; transform: scale(.6); } 50% { opacity: 1; transform: scale(1.15); } }
+    .new { animation: pop 2.4s ease-in-out infinite; }
+    @keyframes pop { 0%,100% { opacity: .35; } 50% { opacity: .95; } }
+    .sweep { animation: sweep 5s ease-in-out infinite; }
+    @keyframes sweep { 0% { transform: translateX(-500px); } 60%,100% { transform: translateX(1300px); } }
+  </style>
+
+  <g clip-path="url(#card)">
+    <rect x="6" y="6" width="1188" height="488" fill="url(#bg)"/>
+    <rect x="6" y="6" width="1188" height="488" fill="url(#grid)"/>
+    <ellipse cx="220" cy="110" rx="420" ry="230" fill="url(#spot)"/>
+    <ellipse cx="1010" cy="330" rx="400" ry="260" fill="url(#spot2)"/>
+
+    <g transform="translate(68,200) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.19s" fill="#ff8ad1"/></g>
+    <g transform="translate(778,57) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-2.37s" fill="#ffd24a"/></g>
+    <g transform="translate(206,47) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.18s" fill="#8ad8ff"/></g>
+    <g transform="translate(43,265) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-0.32s" fill="#ffd24a"/></g>
+    <g transform="translate(60,265) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-1.52s" fill="#8ad8ff"/></g>
+    <g transform="translate(723,131) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.75s" fill="#ffd24a"/></g>
+    <g transform="translate(33,396) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-1.46s" fill="#ffd24a"/></g>
+    <g transform="translate(414,43) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.42s" fill="#8ad8ff"/></g>
+    <g transform="translate(31,408) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.29s" fill="#ff8ad1"/></g>
+    <g transform="translate(1160,388) scale(1.0)"><use href="#star" class="tw" style="animation-delay:-2.40s" fill="#ffffff"/></g>
+    <g transform="translate(93,173) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.21s" fill="#ffffff"/></g>
+    <g transform="translate(45,337) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.75s" fill="#8ad8ff"/></g>
+    <g transform="translate(1078,46) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.97s" fill="#ffd24a"/></g>
+    <g transform="translate(1166,170) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.99s" fill="#ff8ad1"/></g>
+    <g transform="translate(117,238) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-1.55s" fill="#ff8ad1"/></g>
+    <g transform="translate(1144,197) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-1.23s" fill="#8ad8ff"/></g>
+    <g transform="translate(664,56) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-0.74s" fill="#3dffb0"/></g>
+    <g transform="translate(35,209) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.44s" fill="#8ad8ff"/></g>
+    <g transform="translate(1143,261) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-0.34s" fill="#ffd24a"/></g>
+    <g transform="translate(1165,404) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.43s" fill="#3dffb0"/></g>
+    <g transform="translate(38,285) scale(0.75)"><use href="#star" class="tw" style="animation-delay:-2.25s" fill="#ffffff"/></g>
+    <g transform="translate(1162,344) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.39s" fill="#ffd24a"/></g>
+    <g transform="translate(818,144) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.03s" fill="#ff8ad1"/></g>
+    <g transform="translate(834,96) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-0.38s" fill="#ff8ad1"/></g>
+    <g transform="translate(186,222) scale(0.55)"><use href="#star" class="tw" style="animation-delay:-2.48s" fill="#ff8ad1"/></g>
+    <g transform="translate(50,423) scale(0.4)"><use href="#star" class="tw" style="animation-delay:-1.19s" fill="#ff8ad1"/></g>
+
+    <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="#3dffb0" filter="url(#glow)" opacity="0.6">Several cycles at once</text>
+    <text x="78" y="84" font-size="46" font-weight="900" letter-spacing="-1.2" fill="url(#title)">Several cycles at once</text>
+    <text x="80" y="120" font-size="23" font-weight="600" fill="#ffffff">The CEO starts a worker per cycle — you only decide and play</text>
+    <rect class="sweep" x="0" y="40" width="240" height="100" fill="url(#shine)" opacity="0.16" transform="skewX(-20)"/>
+
+    <rect x="70" y="270" width="140" height="50" rx="25" fill="#0d1b22" stroke="#3dffb0" stroke-width="2"/>
+    <text x="140" y="303" font-size="23" font-weight="800" text-anchor="middle" fill="#f2fbff">CEO</text>
+    <text x="140" y="343" font-size="15" font-weight="600" text-anchor="middle" fill="#5dffc0">decides nothing</text>
+    <text x="250" y="178" font-size="16" font-weight="700" fill="#8ad8ff">workers <tspan fill="#e6f3f8" font-weight="500">— headless Claude Code runs</tspan></text>
+    <path d="M210,295 C232,295 228,215 250,215" fill="none" stroke="#3dffb0" stroke-opacity="0.6" stroke-width="2.5"/>
+    <rect x="250" y="198" width="62" height="34" rx="17" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="281" y="221" font-size="17" font-weight="800" text-anchor="middle" fill="#f2fbff">C1</text>
+    <rect x="330" y="200" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="365" y="220" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Goal</text>
+    <rect class="new" style="animation-delay:-0.0s" x="406" y="200" width="70" height="30" rx="8" fill="#ff8ad1" filter="url(#glow)"/>
+    <rect x="406" y="200" width="70" height="30" rx="8" fill="#ff8ad1"/>
+    <text x="441" y="220" font-size="14" font-weight="800" text-anchor="middle" fill="#07110e">Spec</text>
+    <rect x="482" y="200" width="70" height="30" rx="8" fill="none" stroke="#8ad8ff" stroke-opacity="0.3"/>
+    <text x="517" y="220" font-size="14" font-weight="600" text-anchor="middle" fill="#8ad8ff" fill-opacity="0.5">Design</text>
+    <rect x="558" y="200" width="70" height="30" rx="8" fill="none" stroke="#8ad8ff" stroke-opacity="0.3"/>
+    <text x="593" y="220" font-size="14" font-weight="600" text-anchor="middle" fill="#8ad8ff" fill-opacity="0.5">Plan</text>
+    <rect x="634" y="200" width="70" height="30" rx="8" fill="none" stroke="#8ad8ff" stroke-opacity="0.3"/>
+    <text x="669" y="220" font-size="14" font-weight="600" text-anchor="middle" fill="#8ad8ff" fill-opacity="0.5">Build</text>
+    <rect x="710" y="200" width="70" height="30" rx="8" fill="none" stroke="#8ad8ff" stroke-opacity="0.3"/>
+    <text x="745" y="220" font-size="14" font-weight="600" text-anchor="middle" fill="#8ad8ff" fill-opacity="0.5">Play</text>
+    <rect x="800" y="198" width="178" height="34" rx="17" fill="#0d1b22" stroke="#ff8ad1" stroke-width="2"/>
+    <text x="889" y="221" font-size="15" font-weight="700" text-anchor="middle" fill="#ff8ad1">decision for you</text>
+    <path d="M978,215 C1000,215 1000,295 1022,295" fill="none" stroke="#ff8ad1" stroke-opacity="0.8" stroke-width="2.5"/>
+    <path d="M210,295 C232,295 228,295 250,295" fill="none" stroke="#3dffb0" stroke-opacity="0.6" stroke-width="2.5"/>
+    <rect x="250" y="278" width="62" height="34" rx="17" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="281" y="301" font-size="17" font-weight="800" text-anchor="middle" fill="#f2fbff">C2</text>
+    <rect x="330" y="280" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="365" y="300" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Goal</text>
+    <rect x="406" y="280" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="441" y="300" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Spec</text>
+    <rect x="482" y="280" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="517" y="300" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Design</text>
+    <rect x="558" y="280" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="593" y="300" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Plan</text>
+    <rect class="new" style="animation-delay:-0.6s" x="634" y="280" width="70" height="30" rx="8" fill="#3dffb0" filter="url(#glow)"/>
+    <rect x="634" y="280" width="70" height="30" rx="8" fill="#3dffb0"/>
+    <text x="669" y="300" font-size="14" font-weight="800" text-anchor="middle" fill="#07110e">Build</text>
+    <rect x="710" y="280" width="70" height="30" rx="8" fill="none" stroke="#8ad8ff" stroke-opacity="0.3"/>
+    <text x="745" y="300" font-size="14" font-weight="600" text-anchor="middle" fill="#8ad8ff" fill-opacity="0.5">Play</text>
+    <rect x="800" y="278" width="178" height="34" rx="17" fill="#0d1b22" stroke="#3dffb0" stroke-width="2"/>
+    <text x="889" y="301" font-size="15" font-weight="700" text-anchor="middle" fill="#3dffb0">building, own folder</text>
+    <path d="M210,295 C232,295 228,375 250,375" fill="none" stroke="#3dffb0" stroke-opacity="0.6" stroke-width="2.5"/>
+    <rect x="250" y="358" width="62" height="34" rx="17" fill="#0d1b22" stroke="#8ad8ff" stroke-opacity="0.85" stroke-width="2"/>
+    <text x="281" y="381" font-size="17" font-weight="800" text-anchor="middle" fill="#f2fbff">C3</text>
+    <rect x="330" y="360" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="365" y="380" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Goal</text>
+    <rect x="406" y="360" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="441" y="380" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Spec</text>
+    <rect x="482" y="360" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="517" y="380" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Design</text>
+    <rect x="558" y="360" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="593" y="380" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Plan</text>
+    <rect x="634" y="360" width="70" height="30" rx="8" fill="#3dffb0" fill-opacity="0.18" stroke="#3dffb0" stroke-opacity="0.45"/>
+    <text x="669" y="380" font-size="14" font-weight="600" text-anchor="middle" fill="#9fe9cc">Build</text>
+    <rect class="new" style="animation-delay:-1.2s" x="710" y="360" width="70" height="30" rx="8" fill="#ffd24a" filter="url(#glow)"/>
+    <rect x="710" y="360" width="70" height="30" rx="8" fill="#ffd24a"/>
+    <text x="745" y="380" font-size="14" font-weight="800" text-anchor="middle" fill="#07110e">Play</text>
+    <rect x="800" y="358" width="178" height="34" rx="17" fill="#0d1b22" stroke="#ffd24a" stroke-width="2"/>
+    <text x="889" y="381" font-size="15" font-weight="700" text-anchor="middle" fill="#ffd24a">ready to play</text>
+    <path d="M978,375 C1000,375 1000,295 1022,295" fill="none" stroke="#ffd24a" stroke-opacity="0.8" stroke-width="2.5"/>
+    <path d="M1012,287 L1023,295 L1012,303" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="1024" y="270" width="120" height="50" rx="25" fill="url(#you)"/>
+    <text x="1084" y="303" font-size="23" font-weight="900" text-anchor="middle" fill="#07110e">You</text>
+    <text x="1084" y="343" font-size="15" font-weight="600" text-anchor="middle" fill="#5dffc0">decide · play</text>
+
+    <rect x="80" y="454" width="22" height="16" rx="5" fill="#3dffb0"/>
+    <text x="112" y="468" font-size="18" font-weight="700" fill="#9fe9cc">each cycle builds in a folder of its own <tspan fill="#e6f3f8" font-weight="500">— only the merge into the game takes turns</tspan></text>
+  </g>
+  <rect x="6" y="6" width="1188" height="488" rx="28" fill="none" stroke="url(#title)" stroke-width="3"/>
+</svg>
