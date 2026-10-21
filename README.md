@@ -3,7 +3,7 @@
 </p>
 
 **A [Claude Code](https://code.claude.com) plugin for making games.**
-Agents make your game one cycle at a time — spec, design, build. You decide, from a dashboard that shows where every game stands.
+Agents make your game one cycle at a time — spec, design, build — several cycles at once in the background. You decide and play, from a dashboard that shows where every game stands.
 
 ## Quick start
 
@@ -25,12 +25,13 @@ Installed for the project, the kit stays with the game: anyone who opens the gam
 Then start Claude Code there and say what you want — there is nothing to learn:
 
 ```
-I want to make a cozy farming game      → asks where it will be played, picks the engine, sets it up, then writes the GDD with you
+I want to make a cozy farming game      → asks where it will be played, picks the engine, sets it up, writes the GDD with you, then hands the first goal to the CEO
 this time, let's add a shop             → one cycle: spec, design, build; what is yours to decide waits on the dashboard
+run it for me                           → the CEO runs the cycles in the background, several at once, and stops where you are needed
 I played it — the prices are unreadable → finds the causes and fixes them
 ```
 
-Every step also has a slash command — `/gamedev-kit:init`, `start`, `cycle`, `playtest`, `board`, … — if you would rather type one.
+Every step also has a slash command — `/gamedev-kit:init`, `start`, `ceo`, `cycle`, `playtest`, `board`, … — if you would rather type one.
 
 ### Engines games have been made with
 
@@ -50,7 +51,11 @@ Making a game with AI is easy. The trouble starts when making it takes weeks: yo
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-decide-dark.png"><img src="assets/dashboard-decide-light.png" alt="A decision on the Review tab: three wing drafts to compare above the options, one of them recommended" width="860"></picture></p>
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-assets-dark.png"><img src="assets/dashboard-assets-light.png" alt="The assets tab: every picture and sound of the game, grouped by epic, each with its state" width="860"></picture></p>
 
-A dashboard on your machine lays each game out like a tracker. Every part the player meets is an epic; each cycle is a board of its tasks; what you put off waits in a backlog. Open a task and it says what it is, how the game will change and what changed. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening.
+A dashboard on your machine lays each game out like a tracker. Every part the player meets is an epic; each cycle is a board of its tasks; what you put off waits in a backlog. Open a task and it says what it is, how the game will change and what changed. Every question the agents have for you is a decision there, with the pictures (or a clip of play, or the sounds to choose between) to judge it by. Pick an answer and the game's Claude session picks it up; the top bar always says whether that session is listening. The Now tab shows what is in motion — the workers, the cycle each one holds, whose turn it is to build — and the Play tab shows the game's screens, shot along the same route at the end of every build, beside their earlier runs.
+
+### Several cycles at once — you only decide and play
+
+One window is the CEO: it proposes the next goals and starts a worker — a headless Claude Code run — for each cycle that can move. A worker goes on with its cycle and stops where you are needed: a decision, another cycle's build, or a build ready to play. The CEO decides nothing; every question stays yours, on the dashboard. Where the engine allows it, each cycle builds in a folder of its own (a git worktree), so several build at once and only the merge into the game takes turns. You can still work on a cycle by hand in a window of your own.
 
 ### The design and the code stay one thing
 
@@ -66,7 +71,9 @@ What tripped you becomes one of your rules, loaded into every game you make next
 
 ## What it runs and sends
 
-The scripts are plain Python (standard library only) and run on your machine. Hooks run them when a session starts, after edits and when a turn ends, to keep the status board, the balance table and the kit's rules in your game's CLAUDE.md up to date. Everything they write stays in your game's folder and in `~/.config/gamedev-kit/`.
+The scripts are plain Python (standard library only) and run on your machine. Hooks run them when a session starts, after edits and when a turn ends, to keep the status board, the balance table and the kit's rules in your game's CLAUDE.md up to date. Everything they write stays in your game's folder and in `~/.config/gamedev-kit/`. The play route's screens are kept in `docs/board/plays/`, out of git.
+
+The CEO's workers are `claude -p` runs of your own Claude Code, with the permission mode you choose once per game (`acceptEdits` is recommended) and a spending cap each (`--max-budget-usd`, $15 by default) — they use your Claude account like any session.
 
 What leaves your machine, and only then:
 
