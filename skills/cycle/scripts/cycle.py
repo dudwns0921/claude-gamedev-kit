@@ -451,7 +451,7 @@ def cmd_commit(path, kind, said=""):
 
 
 def wt_cfg():
-    """`cycle.worktree` in kit.config.json — a build runs in a folder of its own, so several build at once: {"clone": [the ignored folders a build needs, cloned in]}."""
+    """`cycle.worktree` in kit.config.json — a build runs in a folder of its own, so several build at once: {"clone": [the ignored folders a build needs, cloned in], "prune": [paths inside them removed again]}."""
     w = own_cfg().get("worktree")
     return w if isinstance(w, dict) else None
 
@@ -494,6 +494,12 @@ def cmd_worktree(path, action, said=""):
         for d in cfg.get("clone") or []:
             if os.path.exists(os.path.join(ROOT, d)) and not os.path.exists(os.path.join(game, d)):
                 clone(os.path.join(ROOT, d), os.path.join(game, d))
+        for d in cfg.get("prune") or []:  # a compile cache cloned from another path is wrong here — better absent than stale
+            target = os.path.join(game, d)
+            if os.path.isdir(target):
+                shutil.rmtree(target, ignore_errors=True)
+            elif os.path.exists(target):
+                os.remove(target)
         print(f"build folder: {game} — every build and check of C{n:02d} runs there; the game's folder stays as it is until `worktree merge`")
         dirty = [l for l in git("status", "--porcelain").stdout.split("\n") if l.strip()]
         if dirty:

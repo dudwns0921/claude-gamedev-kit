@@ -2554,7 +2554,7 @@ else:
         self.assertNotIn("checked as a wave", run(CYCLE, root, "next").stdout)
         json.dump({"cycle": {"check": "wave"}}, open(os.path.join(root, "kit.config.json"), "w"))
         self.assertIn("next wave: 1 — checked as a wave: `build T<n> wave`", run(CYCLE, root, "next").stdout)
-        self.assertEqual(json.load(open(os.path.join(KIT, "engines/unity/kit.config.json")))["cycle"], {"check": "wave", "worktree": {"clone": ["Library"]}},
+        self.assertEqual(json.load(open(os.path.join(KIT, "engines/unity/kit.config.json")))["cycle"], {"check": "wave", "worktree": {"clone": ["Library"], "prune": ["Library/ScriptAssemblies", "Library/Bee", "Library/ScriptMapper"]}},
                          "Unity runs one editor per project — a wave checked together, each cycle's build in its own folder")
 
     def test_cycle_worktree(self):
@@ -2564,10 +2564,12 @@ else:
         self.addCleanup(shutil.rmtree, root, True)
         git = lambda *a, at=root: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *a], cwd=at, capture_output=True, text=True, check=True).stdout
         git("init", "-q")
-        json.dump({"cycle": {"worktree": {"clone": ["Library"]}}}, open(os.path.join(root, "kit.config.json"), "w"))
+        json.dump({"cycle": {"worktree": {"clone": ["Library"], "prune": ["Library/Bee"]}}}, open(os.path.join(root, "kit.config.json"), "w"))
         open(os.path.join(root, ".gitignore"), "w").write("Library/\n")
         os.makedirs(os.path.join(root, "Library"))
         open(os.path.join(root, "Library/cache.bin"), "w").write("imported\n")
+        os.makedirs(os.path.join(root, "Library/Bee"))
+        open(os.path.join(root, "Library/Bee/stale.bin"), "w").write("compiled elsewhere\n")
         open(os.path.join(root, "shared.cs"), "w").write("a\n")
         git("add", "-A")
         git("commit", "-q", "-m", "start")
@@ -2588,6 +2590,7 @@ else:
         out = as_(a, "worktree", "open").stdout
         folder = re.search(r"build folder: (\S+)", out).group(1)
         self.assertTrue(os.path.isfile(os.path.join(folder, "Library/cache.bin")), "the engine's cache is cloned in")
+        self.assertFalse(os.path.exists(os.path.join(folder, "Library/Bee")), "a compile cache the config prunes is not carried into the build folder")
         self.assertIn("uncommitted change", out, "the game's folder has the cycle documents in hand — the build starts without them")
         as_(a, "mark", "T1", "doing")
         inside = subprocess.run([sys.executable, CYCLE, "next"], cwd=folder, capture_output=True, text=True, env=env(a))

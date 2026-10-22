@@ -4,7 +4,8 @@
   "cycle": {
     "check": "wave",
     "worktree": {
-      "clone": ["Library"]
+      "clone": ["Library"],
+      "prune": ["Library/ScriptAssemblies", "Library/Bee", "Library/ScriptMapper"]
     }
   },
   "gdd-sync": {
