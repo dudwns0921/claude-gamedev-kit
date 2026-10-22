@@ -233,7 +233,7 @@ Each task's agent running the engine for itself makes a wave queue on it; instea
    "Unplaced" failures are no task's: put them to the user as a decision (`ask Build …`) — never fix them here.
 4. `mark … done` only for tasks the check passed. The last wave's check is the project's verification below when nothing changed after it.
 
-When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd`; if the balance value file changed, the balance-table skill's `export`;
+When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-sync to-gdd` (in a build folder, after `worktree merge` and in the game's folder — it rewrites the whole table's code locations, which collides with a GDD another cycle changed meanwhile); if the balance value file changed, the balance-table skill's `export`;
 the project's full verification (CLAUDE.md "Verification").
 **Shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play cycle <NN>`. The game's own harness walks the route (`board.play` in `kit.config.json`:
 the stops in the order the player meets them, one to three per stage of play) and the run is kept on this machine, out of git; the dashboard's Play tab shows every run,
