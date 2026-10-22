@@ -29,6 +29,8 @@ TABLE = os.path.join(KIT, "skills/balance-table/scripts/balance_table.py")
 BOARD = os.path.join(KIT, "skills/board/scripts/board.py")
 CYCLE = os.path.join(KIT, "skills/cycle/scripts/cycle.py")
 CEO = os.path.join(KIT, "skills/ceo/scripts/ceo.py")
+# the accounts workers run on are this machine's (the ceo script's head) — never read here: a real token, or the workers a real game runs, would reach the tests
+os.environ["GAMEDEV_KIT_ACCOUNTS"] = tempfile.mkdtemp(prefix="kit-no-accounts-")
 SHEET = os.path.join(KIT, "skills/cycle/scripts/sheet.py")
 PLAYTEST = os.path.join(KIT, "skills/playtest/scripts/playtest.py")
 INIT = os.path.join(KIT, "skills/init/scripts/init.py")
@@ -2750,9 +2752,10 @@ else:
         self.assertIn("1 answer(s) from the board", mon.stdout.readline(), "set aside by the newest, taken by its own session's monitor")
         # one session, two ways in: its Bash tool runs the cycle script through a shell that stays (`; true`), its hooks run the board's watcher with none —
         # both must name the same session, or the answers set aside for it are taken by no one
+        ask = f'{sys.executable!r} {CYCLE!r} --root {root!r} ask Spec "Menu how — ① a ② b"; true'  # apart: an f-string's expression holds no backslash before 3.12
         stand_in = ("# kit-session-stand-in\nimport subprocess,sys\n"
                     f"subprocess.run(['sh', '-c', {f'{sys.executable!r} {CYCLE!r} --root {root!r} new menu Menu; true'!r}], capture_output=True)\n"
-                    f"subprocess.run(['sh', '-c', {f'{sys.executable!r} {CYCLE!r} --root {root!r} ask Spec \"Menu how — ① a ② b\"; true'!r}], capture_output=True)\n"
+                    f"subprocess.run(['sh', '-c', {ask!r}], capture_output=True)\n"
                     f"open({os.path.join(box, '3.json')!r}, 'w').write('[{{\"key\": \"c04-D1\", \"pick\": \"①\", \"note\": \"\"}}]')\n"
                     f"print(subprocess.run([sys.executable, {BOARD!r}, '--root', {root!r}, 'watch', '--notice'], capture_output=True, text=True).stdout)\n")
         e = {k: v for k, v in env(b).items() if k != "KIT_SESSION"}

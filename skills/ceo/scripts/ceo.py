@@ -329,9 +329,6 @@ def cmd_run(target, kind, said=""):
     if c["mode"] not in MODES:
         sys.exit("not set up — a worker runs with no one to ask, so the user says once how far it may go: "
                  f"`setup --mode <{'|'.join(MODES)}>` (the skill's \"Setting up\")")
-    claude = os.environ.get("KIT_CLAUDE") or shutil.which("claude")
-    if not claude:
-        sys.exit("claude (Claude Code) is not on this machine's PATH")
     n = 0 if kind == "new" else int(str(target).lstrip("Cc"))
     if n:
         path = doc_of(n)
@@ -343,6 +340,9 @@ def cmd_run(target, kind, said=""):
             sys.exit(f"C{n:02d} — {what}")
         if n in running():
             sys.exit(f"C{n:02d}: {what}")
+    claude = os.environ.get("KIT_CLAUDE") or shutil.which("claude")  # looked for once the cycle is known to be runnable — a refusal needs no claude
+    if not claude:
+        sys.exit("claude (Claude Code) is not on this machine's PATH")
     if len(running()) >= c["parallel"]:
         sys.exit(f"{c['parallel']} worker(s) already running — the next one starts when one ends (`setup --parallel <n>` to change)")
     account = pick_account()
