@@ -13,6 +13,13 @@ It coordinates and decides nothing: every question stays a decision for the user
   python3 ceo.py --notice               at session start (a hook): in a game the CEO runs, a window opened or cleared is told it is the CEO's — so "go on" picks it up
   python3 ceo.py setup --mode <permission mode> [--tools "<tool,…>"] [--budget <usd>] [--parallel <n>] [--model <model>]
                                         how workers run — "ceo" in kit.config.json. The user says it once: a worker runs with no one to ask
+  python3 ceo.py accounts               the Claude accounts workers run on, in the order they are used — this machine's, not the game's (below)
+
+Accounts — ~/.config/gamedev-kit/accounts/ (GAMEDEV_KIT_ACCOUNTS), outside every game, as the user sets it up:
+  accounts.json   [{"name": "pro", "parallel": 2}, {"name": "max", "parallel": 5}] — a worker goes to the first that has room
+  <name>.token    what `claude setup-token` printed, signed in as that account (chmod 600). A name with no token is this machine's own login
+An account's limit is spent by every game on this machine, so its workers are counted across games. A worker that hits an account's usage limit
+rests that account for an hour; the next `run` goes to the next account. No accounts.json: every worker runs on this machine's login, as before.
 """
 import datetime
 import json
@@ -57,6 +64,13 @@ def find_root(start):
             sys.exit(f"{CONFIG_NAME} not found — run this inside a game repository, after /gamedev-kit:init")
         d = up
 
+
+ACCOUNTS = os.path.expanduser(os.environ.get("GAMEDEV_KIT_ACCOUNTS") or "~/.config/gamedev-kit/accounts")
+# what says which account a run is signed in as — the CEO window's own (a desktop app session passes its account on) is left out of a worker given a token
+AUTH_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_ACCOUNT_UUID", "CLAUDE_CODE_USER_EMAIL",
+            "CLAUDE_CODE_ORGANIZATION_UUID", "CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH", "CLAUDE_CODE_OAUTH_SCOPES", "USE_LOCAL_OAUTH", "USE_STAGING_OAUTH")
+LIMIT_RE = re.compile(r"usage limit|limit reached|hit your limit|rate.?limit|out of (?:extra )?usage", re.I)
+REST = 3600  # an account that hit its limit is passed over this long
 
 BUILD_FOLDER = re.compile(r"^(.*)[/\\]\.git[/\\]gamedev-kit[/\\]worktrees[/\\][^/\\]+(?:[/\\](.*))?$")
 
@@ -154,6 +168,65 @@ def settle():
         save_workers(rows)
 
 
+def accounts():
+    """The accounts workers run on, in the order they are used: [{name, parallel}]. Empty: this machine's login only."""
+    rows = load(os.path.join(ACCOUNTS, "accounts.json"), [])
+    return [{"name": r["name"], "parallel": int(r.get("parallel", 1))} for r in (rows if isinstance(rows, list) else [])
+            if isinstance(r, dict) and re.fullmatch(r"[A-Za-z0-9_-]+", str(r.get("name", "")))]
+
+
+def token_of(name):
+    try:
+        return open(os.path.join(ACCOUNTS, f"{name}.token"), encoding="utf-8").read().strip()
+    except OSError:
+        return ""
+
+
+def keep(name, data):
+    os.makedirs(ACCOUNTS, exist_ok=True)
+    path = os.path.join(ACCOUNTS, name)
+    with open(path + f".{os.getpid()}.part", "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(path + f".{os.getpid()}.part", path)
+
+
+def on_accounts():
+    """pid → account of every worker running on this machine, whatever the game — an account's limit is spent by all of them."""
+    return {p: a for p, a in load(os.path.join(ACCOUNTS, "running.json"), {}).items() if alive(p)}
+
+
+def resting():
+    """Account → when it may run again, for the accounts that hit their usage limit within the hour."""
+    return {a: t for a, t in load(os.path.join(ACCOUNTS, "resting.json"), {}).items() if isinstance(t, (int, float)) and t > time.time()}
+
+
+def use(pid, name):
+    """Counts a worker against its account (pid given) or stops counting it (name None)."""
+    rows = on_accounts()
+    if name is None:
+        rows.pop(str(pid), None)
+    else:
+        rows[str(pid)] = name
+    keep("running.json", rows)
+
+
+def account_line():
+    """Each account as it stands: workers on it of its room, or resting."""
+    busy, rest = list(on_accounts().values()), resting()
+    return " · ".join(f"{a['name']} " + (f"rests until {time.strftime('%H:%M', time.localtime(rest[a['name']]))}" if a["name"] in rest
+                                         else f"{busy.count(a['name'])}/{a['parallel']}") + ("" if token_of(a["name"]) else " (this machine's login)")
+                      for a in accounts())
+
+
+def pick_account():
+    """The first account with room that is not resting — None when there are accounts and none has room; {} when there are none."""
+    have = accounts()
+    if not have:
+        return {}
+    busy, rest = list(on_accounts().values()), resting()
+    return next((a for a in have if a["name"] not in rest and busy.count(a["name"]) < a["parallel"]), None)
+
+
 def folder_left(n):
     """What cycle n's build folder holds that is not in the game yet — commits not merged, changes not committed. "" when it has no folder or nothing."""
     wt = os.path.join(kept(), "worktrees", f"c{n:02d}")
@@ -219,6 +292,19 @@ def cmd_status():
         print(f"build turn: {build.get('what', '')} since {build.get('at', '')}")
     n = len(running())
     print(f"workers running: {n} of {cfg()['parallel']}" + ("" if cfg()["mode"] else " · not set up — ask the user how workers may run (`setup`)"))
+    if accounts():
+        print(f"accounts: {account_line()}")
+
+
+def cmd_accounts():
+    if not accounts():
+        print(f"no accounts — every worker runs on this machine's login. To spread them over accounts: {os.path.join(ACCOUNTS, 'accounts.json')} "
+              "(this script's head says how)")
+        return
+    print(account_line())
+    missing = [a["name"] for a in accounts() if not token_of(a["name"])]
+    if len(missing) > 1:
+        print(f"more than one account without a token ({' · '.join(missing)}) — they are all this machine's one login")
 
 
 def cmd_ready():
@@ -259,6 +345,14 @@ def cmd_run(target, kind, said=""):
             sys.exit(f"C{n:02d}: {what}")
     if len(running()) >= c["parallel"]:
         sys.exit(f"{c['parallel']} worker(s) already running — the next one starts when one ends (`setup --parallel <n>` to change)")
+    account = pick_account()
+    if account is None:
+        sys.exit(f"no account has room — {account_line()}; the next one starts when a worker ends or an account rests no more")
+    env = dict(os.environ, KIT_WORKER="1")  # its hooks leave the dashboard's answers to the CEO window
+    token = token_of(account["name"]) if account else ""
+    if token:  # signed in as that account, whatever the CEO window is signed in as
+        env = {k: v for k, v in env.items() if k not in AUTH_ENV}
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
     before = set(docs())
     logs = os.path.join(kept(), "workers")
     os.makedirs(logs, exist_ok=True)
@@ -267,17 +361,26 @@ def cmd_run(target, kind, said=""):
     args = [claude, "-p", prompt(kind, n, said), "--permission-mode", c["mode"], "--output-format", "json", "--append-system-prompt", WORKER_RULES,
             "--max-budget-usd", str(c["budget"])] + (["--allowedTools", ",".join(c["tools"])] if c["tools"] else []) + (["--model", c["model"]] if c["model"] else [])
     with open(log, "w", encoding="utf-8") as out, open(log[:-5] + ".err", "w", encoding="utf-8") as err:
-        proc = subprocess.Popen(args, cwd=ROOT, stdout=out, stderr=err, stdin=subprocess.DEVNULL,
-                                env=dict(os.environ, KIT_WORKER="1"))  # its hooks leave the dashboard's answers to the CEO window
+        proc = subprocess.Popen(args, cwd=ROOT, stdout=out, stderr=err, stdin=subprocess.DEVNULL, env=env)
+        name = account.get("name", "")
+        if name:
+            use(proc.pid, name)
         rows = workers()
         rows.append({"cycle": n, "kind": kind, "what": {"next": "going on", "new": f"new: {said[:60]}", "playtest": "playtest analysis",
-                                                       "implement": "playtest build"}[kind], "pid": proc.pid, "started": f"{started:%Y-%m-%d %H:%M}", "log": log})
+                                                       "implement": "playtest build"}[kind], "pid": proc.pid, "started": f"{started:%Y-%m-%d %H:%M}", "log": log,
+                     "account": name})
         save_workers(rows)
-        print(f"worker started for {'a new cycle' if kind == 'new' else f'C{n:02d}'} ({kind}) — it runs until it stops", flush=True)
+        print(f"worker started for {'a new cycle' if kind == 'new' else f'C{n:02d}'} ({kind})" + (f" on the {name} account" if name else "")
+              + " — it runs until it stops", flush=True)
         code = proc.wait()
+        if name:
+            use(proc.pid, None)
     got = load(log, {})
     result = got.get("result") or ""
     stop = STOP_RE.search(result)
+    limit = not stop and (code or got.get("is_error") or not got) and LIMIT_RE.search(result + "\n" + open(log[:-5] + ".err", encoding="utf-8", errors="replace").read()[-4000:])
+    if limit and name:
+        keep("resting.json", dict(resting(), **{name: time.time() + REST}))
     rows = workers()
     for w in rows:
         if w.get("pid") == proc.pid and w.get("log") == log:
@@ -285,13 +388,18 @@ def cmd_run(target, kind, said=""):
                 made = sorted(set(docs()) - before)
                 w["cycle"] = num(made[0]) if made else 0
             w.update(ended=f"{datetime.datetime.now():%Y-%m-%d %H:%M}", ended_at=time.time(), code=code, cost=got.get("total_cost_usd"),
-                     stop=stop.group(1).lower() if stop else "", said=(stop.group(2).strip() if stop else ""), last=result.strip()[-1500:])
+                     stop=stop.group(1).lower() if stop else "limit" if limit else "", last=result.strip()[-1500:],
+                     said=stop.group(2).strip() if stop else f"the {name or 'signed-in'} account hit its usage limit" if limit else "")
             n = w["cycle"]
     save_workers(rows)
     minutes = round((datetime.datetime.now() - started).total_seconds() / 60)
     cost = f" · ${got['total_cost_usd']:.2f}" if isinstance(got.get("total_cost_usd"), (int, float)) else ""
     if stop:
         print(f"C{n:02d} worker ended — STOP {stop.group(1)}: {stop.group(2).strip()} · {minutes} min{cost}")
+    elif limit:
+        print(f"C{n:02d} worker ended — the {name or 'signed-in'} account hit its usage limit · {minutes} min"
+              + (f". It rests an hour; `run` again goes to the next account ({account_line()})" if name and len(accounts()) > 1
+                 else " — it runs again once the limit resets (more accounts: `accounts`)"))
     else:
         print(f"C{n:02d} worker ended without a STOP line (exit {code}{', ' + str(got.get('subtype')) if got.get('subtype') else ''}) · {minutes} min{cost}"
               f" — its last words: `workers {n}`; its output: {os.path.relpath(log, ROOT)}")
@@ -304,7 +412,8 @@ def cmd_workers(only=None):
             print(f"C{w['cycle']:02d} {w['kind']} — {'running' if alive(w.get('pid')) else 'gone without ending (the machine slept, or it was stopped)'} since {w['started']}")
             continue
         cost = f" · ${w['cost']:.2f}" if isinstance(w.get("cost"), (int, float)) else ""
-        print(f"C{w['cycle']:02d} {w['kind']} {w['started']} → {w['ended']} — STOP {w.get('stop') or '?'}: {w.get('said', '')}{cost}")
+        on = f" · {w['account']}" if w.get("account") else ""
+        print(f"C{w['cycle']:02d} {w['kind']} {w['started']} → {w['ended']} — STOP {w.get('stop') or '?'}: {w.get('said', '')}{cost}{on}")
     if only is not None and rows and rows[-1].get("last"):
         print("\nlast words:\n" + rows[-1]["last"])
     if not rows:
@@ -329,8 +438,9 @@ def cmd_setup(opts):
     with open(os.path.join(ROOT, CONFIG_NAME), "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
         f.write("\n")
+    kept_mode = "--mode" not in opts and c.get("mode")
     c = dict(DEFAULTS, **c)
-    print(f"workers run with {c['mode'] or '(no mode yet)'} · tools {', '.join(c['tools']) or 'any'} · up to ${c['budget']:g} each · {c['parallel']} at a time"
+    print(("mode unchanged — " if kept_mode else "") + f"workers run with {c['mode'] or '(no mode yet)'} · tools {', '.join(c['tools']) or 'any'} · up to ${c['budget']:g} each · {c['parallel']} at a time"
           + (f" · model {c['model']}" if c["model"] else ""))
 
 
@@ -378,6 +488,8 @@ def main():
         return cmd_workers(rest[0].lstrip("Cc") if rest else None)
     if cmd == "setup":
         return cmd_setup(opts)
+    if cmd == "accounts" and not rest:
+        return cmd_accounts()
     if cmd == "run" and len(rest) >= 2:
         if rest[0] == "new" and len(rest) == 2:
             return cmd_run(0, "new", rest[1])

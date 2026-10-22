@@ -25,6 +25,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/ceo.py" run 13 playtest "<the user's proble
 python3 "${CLAUDE_SKILL_DIR}/scripts/ceo.py" run 13 implement [<playtest document>]
 python3 "${CLAUDE_SKILL_DIR}/scripts/ceo.py" workers [13]                 # how the workers ended — with 13, the last one's last words
 python3 "${CLAUDE_SKILL_DIR}/scripts/ceo.py" setup --mode <mode> [--parallel 2] [--budget 15]
+python3 "${CLAUDE_SKILL_DIR}/scripts/ceo.py" accounts                     # the Claude accounts workers run on, and the room on each
 ```
 
 ## Setting up — once per game
@@ -33,6 +34,8 @@ A worker runs with no one to ask, so how far it may go is the user's to say. Whe
 ① `acceptEdits` — edits files and runs the tools allowed (`Bash` among them by default: builds, tests, git); anything else is refused, and the worker stops on it ·
 ② `auto` — Claude Code's own judgement decides what runs without asking · ③ `bypassPermissions` — nothing is checked. Recommended: ①.
 Then `setup --mode <it>`; ask how many at once only if they bring it up (`--parallel`, default 2 — builds take turns anyway).
+**Change one setting with its flag alone** — `setup --parallel 5`, never `setup --mode … --parallel 5`: the mode stays as the user said it,
+and repeating a permission mode reads as making new unchecked agents, which Claude Code's auto mode refuses. Pass `--mode` only when the user changes it.
 
 ## Starting a worker
 
@@ -42,6 +45,8 @@ Start each with the Bash tool **in the background** (`run_in_background`) — `r
 - `turn` — another cycle is building; `ready` lists it again once the turn is free.
 - `play` — the build is committed and its screens are in the Play tab; tell the user what to play, from `workers <NN>` (its last words name it).
 - `blocked` — `workers <NN>` says why; put it to the user as a decision in that cycle (`cycle.py ask Build "…" --doc <document>`), or start `run <NN> next` once the reason is gone.
+- `limit` — the account it ran on hit its usage limit (the script says so, not the worker). With another account set up, start it again at once — it goes there;
+  with none, tell the user in a line and start it again once the limit has reset.
 - no STOP line — the worker ran out (budget, a refused tool, an error): `workers <NN>`, tell the user in a line what it says, and do not start it again on the same reason.
 
 Never more than `parallel` at once (`run` refuses). Never on a cycle a window of the user's works on — `status` says so, and that cycle is left alone.
@@ -50,6 +55,14 @@ Never more than `parallel` at once (`run` refuses). Never on a cycle a window of
 run at once: start every cycle and every playtest build that can move, up to `parallel`, each in its own worker — never chain builds one after another in one worker
 or hold one back for another's turn. Only the merge into the game takes the turn, for a moment; a worker that meets it stops with `STOP turn` and is started again.
 Where it does not, builds take turns in the game's folder, and the other workers think ahead — spec, design, plan, playtest analysis.
+
+## Accounts — when the user has more than one
+
+Workers can run on several Claude accounts, so one subscription is spared while another takes the work — set up on this machine, never in the game
+(the script's head says how: `~/.config/gamedev-kit/accounts/accounts.json` lists them in the order they are used with how many workers each may run,
+and `<name>.token` holds what `claude setup-token` printed for that account). The user makes the token and writes the file — never ask them to paste a token here.
+`run` gives each worker the first account with room, counted across every game on this machine; an account that hits its limit rests an hour.
+`status` shows each account's room. When the user asks how to set it up, show them those two files with their own account names.
 
 ## Answers from the dashboard
 

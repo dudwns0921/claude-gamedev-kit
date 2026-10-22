@@ -2367,8 +2367,13 @@ none
         open(fake, "w").write(f"""#!{sys.executable}
 import json, os, subprocess, sys
 args = sys.argv[1:]
-open("worker-args.json", "w").write(json.dumps({{"args": args, "worker": os.environ.get("KIT_WORKER")}}))
+open("worker-args.json", "w").write(json.dumps({{"args": args, "worker": os.environ.get("KIT_WORKER"),
+                                                 "token": os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"), "app": os.environ.get("CLAUDE_CODE_ACCOUNT_UUID")}}))
 said = args[args.index("-p") + 1]
+if os.path.exists("limit-now"):
+    os.remove("limit-now")
+    print(json.dumps({{"is_error": True, "result": "Claude usage limit reached. Your limit will reset at 5pm"}}))
+    sys.exit(1)
 if said.startswith("A new cycle"):
     subprocess.run([sys.executable, {CYCLE!r}, "new", "shop", "A shop"], capture_output=True)
     print(json.dumps({{"result": "Started.\\nSTOP: decisions — what the shop sells", "total_cost_usd": 0.3}}))
@@ -2408,6 +2413,37 @@ else:
         work = json.load(open(os.path.join(root, "docs/board/board.json")))["work"]
         self.assertEqual([(w["cycle"], w["stop"]) for w in work["ended"]], [(2, "decisions"), (1, "decisions")], "the Now tab: how the last workers ended, newest first")
         self.assertEqual((work["workers"], work["build"]), ([], None), "nothing running now")
+
+        # accounts: this machine's, outside every game — a worker goes to the first with room, signed in by its token, and an account at its limit rests
+        acc = tempfile.mkdtemp(prefix="kit-accounts-")
+        self.addCleanup(shutil.rmtree, acc, True)
+        ceo = lambda *a, ok=True: (lambda p: p if not ok or p.returncode == 0 else self.fail(f"{a}: {p.stdout}{p.stderr}"))(
+            subprocess.run([sys.executable, CEO, "--root", root, *a], capture_output=True, text=True,
+                           env=run_env(KIT_CLAUDE=fake, GAMEDEV_KIT_ACCOUNTS=acc, CLAUDE_CODE_ACCOUNT_UUID="the-window-s")))
+        self.assertIn("no accounts — every worker runs on this machine's login", ceo("accounts").stdout)
+        json.dump([{"name": "pro", "parallel": 1}, {"name": "max", "parallel": 1}], open(os.path.join(acc, "accounts.json"), "w"))
+        open(os.path.join(acc, "pro.token"), "w").write("tok-pro\n")
+        self.assertEqual(ceo("accounts").stdout.strip(), "pro 0/1 · max 0/1 (this machine's login)")
+        self.assertIn("on the pro account", ceo("run", "new", "A map").stdout)
+        sent = json.load(open(os.path.join(root, "worker-args.json")))
+        self.assertEqual((sent["token"], sent["app"]), ("tok-pro", None), "signed in by the token — not as the window it was started from")
+        busy = subprocess.Popen(["sleep", "300"])  # a worker of another game, on pro
+        self.addCleanup(busy.kill)
+        json.dump({str(busy.pid): "pro"}, open(os.path.join(acc, "running.json"), "w"))
+        self.assertIn("on the max account", ceo("run", "new", "A bag").stdout, "pro has no room — counted across games")
+        sent = json.load(open(os.path.join(root, "worker-args.json")))
+        self.assertEqual((sent["token"], sent["app"]), (None, "the-window-s"), "no token: this machine's login, as before")
+        busy.kill()
+        busy.wait()
+        open(os.path.join(root, "limit-now"), "w").write("")
+        out = ceo("run", "new", "A bell").stdout
+        self.assertIn("the pro account hit its usage limit", out)
+        self.assertIn("`run` again goes to the next account", out)
+        self.assertIn("pro rests until", ceo("status").stdout)
+        self.assertIn("STOP limit", ceo("workers").stdout)
+        self.assertIn("on the max account", ceo("run", "new", "A bell").stdout, "resting — the next account takes it")
+        json.dump({"pro": 1}, open(os.path.join(acc, "resting.json"), "w"))  # the hour is over
+        self.assertIn("on the pro account", ceo("run", "new", "A boat").stdout)
 
     def test_cycle_close(self):
         """A played cycle is done and closes: every check answered ok, a playtest round that leaves no task open, or `close` on the user's word.
