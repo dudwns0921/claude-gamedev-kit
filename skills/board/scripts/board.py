@@ -66,6 +66,7 @@ DEFAULTS = {
     "common": "Unsorted",          # where things that fit no stage gather — not counted in the %
     "foundation": "Foundation",    # the epic for what no stage of play owns (save, input, shared UI) — tasks name it; not in the play order
     "backlog": "docs/backlog.md",  # what is put off for a later cycle — `cycle.py later` · `backlog`
+    "bible": "docs/bible",  # pages the user keeps coming back to — who is who, how they look; the dashboard's Bible tab (the skill's "Bible")
     "ignore": [],                  # asset names not to count (glob) — planned, then dropped
     "flow": [],                    # the stages of play, in order. Empty = one per GDD section
     "sheets": "docs/cycle/sheets", # the question files of the cycle's sheet script — the pictures of a decision chosen by eye
@@ -1588,10 +1589,35 @@ def chart_data(st, asks, cycles, sheet, review, playtests=()):
             "route": route()[0],
             "plays": play_runs(),
             "backlog": [dict(b, stage=(epic_stage(st, b["epic"]) or {}).get("i")) for b in queue],
+            "bible": bible_pages(),
             "tasks": task_details(st, cycles, playtests),
             "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
                        "models": [model(m) for m in sheet["models"]], "loose": [model(m) for m in sheet["loose"]],
                        "sounds": [dict(data_item(x), used=used(os.path.basename(x["audio"]))) for x in sheet["sounds"]]}}
+
+
+IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
+
+
+def bible_files():
+    d = os.path.join(ROOT, CFG["bible"])
+    return sorted(os.path.join(d, n) for n in os.listdir(d) if not n.startswith(".")) if os.path.isdir(d) else []
+
+
+def bible_pages():
+    """The game's bible: each page in its folder (Markdown, in name order — a number in front sets it), as written, with every picture it shows
+    (`![caption](file)`, beside the page) pointed at as the board points at any picture. Kept as the game's people and places settle — no cycle owns it."""
+    pages = []
+    for path in bible_files():
+        if not path.endswith(".md"):
+            continue
+        text = read(path)
+        here = os.path.dirname(path)
+        text = IMAGE_RE.sub(lambda m: f"![{m.group(1)}]({rel(os.path.normpath(os.path.join(here, urllib.parse.unquote(m.group(2)))))})", text)
+        head = re.search(r"^# +(.+)$", text, re.M)
+        pages.append({"name": os.path.basename(path)[:-3], "title": head.group(1).strip() if head else os.path.basename(path)[:-3],
+                      "text": text[head.end():].strip() if head else text.strip()})
+    return pages
 
 
 def now_asked(items):
@@ -1676,7 +1702,7 @@ def sources():
             + ([os.path.join(sheets, n) for n in os.listdir(sheets)] if os.path.isdir(sheets) else [])
             + [p for p in table_files() if p]
             + cycle_docs() + playtest_docs() + [os.path.join(ROOT, CFG["backlog"]), os.path.join(ROOT, CFG["assets"])]
-            + [context_kept()] + work_files())
+            + [context_kept()] + work_files() + bible_files())
 
 
 def work_files():
