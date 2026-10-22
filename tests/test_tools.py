@@ -2265,6 +2265,15 @@ none
         self.assertEqual(epic["Draw the bow"]["counts"], {"done": 0, "doing": 0, "open": 1, "blocked": 0}, "the playtest task counts in its epic")
         self.assertEqual([t["key"] for t in epic["Title screen"]["tasks"]], ["C1-T1"])
         self.assertEqual(epic["Title screen"]["backlog"], ["B2"])
+        # what is left before an epic is done, one line each — its tasks not done, its backlog lines, one line per kind of asset not final
+        left = {s["name"]: s["left"] for s in board["stages"]}
+        self.assertEqual((left["Title screen"]["tasks"], left["Title screen"]["backlog"]), ([], ["B2"]), "its task is done; its backlog line is left")
+        self.assertEqual((left["Draw the bow"]["tasks"], left["Draw the bow"]["blocked"]), (["first T1"], 0), "the playtest's problem is left")
+        self.assertEqual(left["Foundation"]["tasks"], ["C1-T2"])
+        self.assertEqual(left["Foundation"]["cycles"], ["01"], "the cycle that has it in hand")
+        for x in left.values():
+            self.assertEqual(x["count"], len(x["tasks"]) + len(x["backlog"]) + len(x["assets"]), "a hundred placeholders are one line of their kind")
+            self.assertTrue(all(a["temp"] + a["none"] + a["bad"] for a in x["assets"]))
         self.assertTrue(next(s for s in board["stages"] if s["name"] == "Foundation")["foundation"])
         self.assertEqual([(t["key"], t["epic"]) for t in board["cycles"][0]["list"]], [("C1-T1", "Title screen"), ("C1-T2", "Foundation")])
         detail = board["tasks"]["C1-T1"]

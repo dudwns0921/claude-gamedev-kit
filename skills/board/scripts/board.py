@@ -261,7 +261,7 @@ def decision(mark, num, rest):
     ask = ask[:who.start()] if who else ask
     while who and re.search(r"\s*\(([^()]{1,8})\)\s*$", ask):  # … and its stage twice ("(Spec) (Spec)")
         ask = re.sub(r"\s*\(([^()]{1,8})\)\s*$", "", ask)
-    ask, pick = (re.split(RECOMMENDED, ask, 1) + [""])[:2]
+    ask, pick = (re.split(RECOMMENDED, ask, maxsplit=1) + [""])[:2]
     cut = re.search(r" — (?=①)", ask)  # the dash before the options, not one inside the title
     first = option_marks(ask)  # … or, with no dash before them, where the options start
     if cut:
@@ -693,6 +693,20 @@ def task_details(st, cycles, playtests):
                         "assets": t.get("assets", []),
                         "decisions": [{"num": n, "title": ds[n]["title"], "answer": ds[n]["answer"], "done": ds[n]["done"]} for n in refs]}
     return out
+
+
+def left_of(s, queued):
+    """What is left before an epic is done, one line each: its tasks not done, its backlog lines, and its assets not final — one line per kind,
+    so a hundred placeholders do not bury the rest. The dashboard shows the count; nothing here is a %, as a task is not a size."""
+    tasks = [t for t in s["tasks"] if t["mark"] in (" ", ">", "!")]
+    assets = []
+    for lane in ("art", "sound"):
+        n = {k: sum(1 for i in s["lanes"][lane] if i["st"] == k) for k in ("temp", "none", "bad")}
+        if any(n.values()):
+            assets.append(dict(n, kind=lane, label=LANE_LABEL[lane]))
+    return {"count": len(tasks) + len(queued) + len(assets), "tasks": [t["key"] for t in tasks], "backlog": [b["num"] for b in queued], "assets": assets,
+            "cycles": sorted({t["cycle"] for t in tasks if t["cycle"]}, key=lambda c: int(c) if c.isdigit() else 0),
+            "blocked": sum(1 for t in tasks if t["mark"] == "!")}
 
 
 def task_counts(ts):
@@ -1537,6 +1551,7 @@ def chart_data(st, asks, cycles, sheet, review, playtests=()):
     stages = [{"i": s["i"], "name": s["name"], "about": s["about"], "common": s["common"], "foundation": s["foundation"], "loop": s["loop"], "complete": stage_pct(s),
                "epic": {"tasks": s["tasks"], "counts": task_counts(s["tasks"]),
                         "backlog": [b["num"] for b in queue if b["mark"] == " " and epic_stage(st, b["epic"]) is s]},
+               "left": left_of(s, [b for b in queue if b["mark"] == " " and epic_stage(st, b["epic"]) is s]),
                "image": hero_of(s), "shot": None, "lanes": {lane: [data_item(i) for i in sorted(s["lanes"][lane], key=lambda i: ORDER.index(i["st"]))] for lane in LANES},
                "parts": s.get("part_list", []), "screens": screens_of(s, cycles),
                "halves": halves([dict(i, lane=lane) for lane in ("function", "art", "sound") for i in s["lanes"][lane]]),
