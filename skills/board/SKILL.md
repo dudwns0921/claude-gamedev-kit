@@ -137,15 +137,12 @@ Nothing else shows screens of the game (a stage card carries words); a decision 
 - `board.py play cycle <NN>` · `play playtest <document>` runs it and keeps the run in `board.plays` (`docs/board/plays/<time>/` — `run.json` and the pictures), out of git;
   then redraws and sends. A stop not saved is said, and fixed in the harness. `play route` shows what is configured.
 
-## Bible — what the user keeps coming back to
+## Bible — pictures the user keeps coming back to
 
-Pages that stay while cycles come and go — who is who and how they stand to each other, how each looks, the places — in `docs/bible/` (`board.bible`),
-one Markdown file a page, in name order (`01-people.md`); the dashboard's **Bible** tab shows them as written. No cycle owns it: a page is written
-or brought up to date when the user asks, or when a decision settles who someone is or how they look.
-- A picture goes beside its page and is shown with `![caption](file)` — **one picture a person**, not a lineup in one image: a picture leaves this machine
-  at 1024 pixels on its long side, and side by side the faces are too small to judge. Pictures on consecutive lines are laid out as a row.
-- A chart of who is who (relationships) is a picture too — an SVG or PNG the session draws — or a list in words when that says it better.
-- The pictures are the game's own (approved art, a cycle's candidates), never made for the page: the kit makes no assets.
+Pictures that stay while cycles come and go — a chart of who is who, each person in full, the places — in `docs/bible/` (`board.bible`, subfolders too).
+The dashboard's **Bible** tab shows each by its file name, in name order, and opens it large; they are sent whole, not shrunk, as they are looked at up close.
+The user puts them there, or asks the session to: copy the game's own pictures (approved art, a cycle's candidates) or draw a chart — the kit makes no assets.
+Name them so the order reads (`01-relations.png`, `people/02-wife.png`).
 
 ## Review — what waits on the user
 

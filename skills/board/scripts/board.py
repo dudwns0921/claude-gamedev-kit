@@ -66,7 +66,7 @@ DEFAULTS = {
     "common": "Unsorted",          # where things that fit no stage gather — not counted in the %
     "foundation": "Foundation",    # the epic for what no stage of play owns (save, input, shared UI) — tasks name it; not in the play order
     "backlog": "docs/backlog.md",  # what is put off for a later cycle — `cycle.py later` · `backlog`
-    "bible": "docs/bible",  # pages the user keeps coming back to — who is who, how they look; the dashboard's Bible tab (the skill's "Bible")
+    "bible": "docs/bible",  # pictures the user keeps coming back to — who is who, how each looks; the dashboard's Bible tab (the skill's "Bible")
     "ignore": [],                  # asset names not to count (glob) — planned, then dropped
     "flow": [],                    # the stages of play, in order. Empty = one per GDD section
     "sheets": "docs/cycle/sheets", # the question files of the cycle's sheet script — the pictures of a decision chosen by eye
@@ -403,15 +403,15 @@ def small(path):
     return out if done.returncode == 0 and os.path.exists(out) else path
 
 
-def rel(path):
+def rel(path, whole=False):
     """The path as seen from the board's folder (pictures and sounds are pointed at, not copied).
-    While bundling for a link, the file is named by its content under f/ instead — the bundle carries it."""
+    While bundling for a link, the file is named by its content under f/ instead — the bundle carries it. whole: sent as it is, never shrunk."""
     if not path:
         return ""
     if SHARED is not None:
         if not os.path.isfile(path):
             return ""
-        path = small(path)
+        path = path if whole else small(path)
         pub = "f/" + hashlib.sha1(open(path, "rb").read()).hexdigest()[:16] + os.path.splitext(path)[1].lower()
         SHARED[pub] = os.path.abspath(path)
         return pub
@@ -1589,35 +1589,26 @@ def chart_data(st, asks, cycles, sheet, review, playtests=()):
             "route": route()[0],
             "plays": play_runs(),
             "backlog": [dict(b, stage=(epic_stage(st, b["epic"]) or {}).get("i")) for b in queue],
-            "bible": bible_pages(),
+            "bible": bible_pictures(),
             "tasks": task_details(st, cycles, playtests),
             "assets": {"style": sheet["style"], "world": sheet["world"], "learned": sheet["learned"], "sound": sheet["sound"],
                        "models": [model(m) for m in sheet["models"]], "loose": [model(m) for m in sheet["loose"]],
                        "sounds": [dict(data_item(x), used=used(os.path.basename(x["audio"]))) for x in sheet["sounds"]]}}
 
 
-IMAGE_RE = re.compile(r"!\[([^\]]*)\]\(([^)\s]+)\)")
+BIBLE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")
 
 
 def bible_files():
     d = os.path.join(ROOT, CFG["bible"])
-    return sorted(os.path.join(d, n) for n in os.listdir(d) if not n.startswith(".")) if os.path.isdir(d) else []
+    return sorted(os.path.join(w, n) for w, _ds, ns in os.walk(d) for n in ns if not n.startswith(".")) if os.path.isdir(d) else []
 
 
-def bible_pages():
-    """The game's bible: each page in its folder (Markdown, in name order — a number in front sets it), as written, with every picture it shows
-    (`![caption](file)`, beside the page) pointed at as the board points at any picture. Kept as the game's people and places settle — no cycle owns it."""
-    pages = []
-    for path in bible_files():
-        if not path.endswith(".md"):
-            continue
-        text = read(path)
-        here = os.path.dirname(path)
-        text = IMAGE_RE.sub(lambda m: f"![{m.group(1)}]({rel(os.path.normpath(os.path.join(here, urllib.parse.unquote(m.group(2)))))})", text)
-        head = re.search(r"^# +(.+)$", text, re.M)
-        pages.append({"name": os.path.basename(path)[:-3], "title": head.group(1).strip() if head else os.path.basename(path)[:-3],
-                      "text": text[head.end():].strip() if head else text.strip()})
-    return pages
+def bible_pictures():
+    """The game's bible: every picture in its folder (subfolders too), in name order, by its path there — sent whole, not shrunk,
+    as it is looked at up close (a face, a proportion). The user puts them there, or asks the session to; no cycle owns it."""
+    d = os.path.join(ROOT, CFG["bible"])
+    return [{"name": os.path.relpath(p, d).replace(os.sep, "/"), "src": rel(p, whole=True)} for p in bible_files() if p.lower().endswith(BIBLE_EXT)]
 
 
 def now_asked(items):

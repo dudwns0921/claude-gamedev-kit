@@ -2260,20 +2260,15 @@ none
         run(PLAYTEST, root, "epic", "T1", "bow")
         self.assertIn("### [ ] T1. The string sticks\n- **Epic**: Draw the bow\n- **Kind**: bug", open(os.path.join(root, "docs/playtest/first.md"), encoding="utf-8").read())
 
-        # the bible: pages the user keeps coming back to, as written, every picture on them pointed at as the board points at any picture
+        # the bible: the pictures the user keeps coming back to, by their path in its folder, in name order
         os.makedirs(os.path.join(root, "docs/bible/people"))
-        open(os.path.join(root, "docs/bible/people/wife.png"), "wb").write(b"\x89PNG\r\n\x1a\n")
-        open(os.path.join(root, "docs/bible/02-places.md"), "w", encoding="utf-8").write("# Places\n\nThe flat.\n")
-        open(os.path.join(root, "docs/bible/01-people.md"), "w", encoding="utf-8").write(
-            "# People\n\n- The wife — sharp, kind\n\n![The wife](people/wife.png)\n![Not drawn yet](people/none.png)\n")
-        open(os.path.join(root, "docs/bible/notes.txt"), "w").write("not a page")
+        for n in ("people/wife.png", "map.JPG", "notes.txt", ".DS_Store"):
+            open(os.path.join(root, "docs/bible", n), "wb").write(b"\x89PNG\r\n\x1a\n")
         run(BOARD, root)
         page = lambda root, name: open(os.path.join(root, "docs/board", name), encoding="utf-8").read()
         board = json.load(open(os.path.join(root, "docs/board/board.json")))["board"]
-        self.assertEqual([(p["name"], p["title"]) for p in board["bible"]], [("01-people", "People"), ("02-places", "Places")], "in name order, titled by the heading")
-        self.assertIn("- The wife — sharp, kind", board["bible"][0]["text"])
-        self.assertIn("![The wife](../bible/people/wife.png)", board["bible"][0]["text"], "a picture beside the page, pointed at from the board")
-        self.assertNotIn("# People", board["bible"][0]["text"], "the heading is the title")
+        self.assertEqual(board["bible"], [{"name": "map.JPG", "src": "../bible/map.JPG"}, {"name": "people/wife.png", "src": "../bible/people/wife.png"}],
+                         "pictures only, subfolders too, pointed at from the board")
         epic = {s["name"]: s["epic"] for s in board["stages"]}
         self.assertEqual(epic["Draw the bow"]["counts"], {"done": 0, "doing": 0, "open": 1, "blocked": 0}, "the playtest task counts in its epic")
         self.assertEqual([t["key"] for t in epic["Title screen"]["tasks"]], ["C1-T1"])
