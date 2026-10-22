@@ -25,7 +25,7 @@ Everything that can be verified without a screen becomes an EditMode test. Run t
   and test only those classes in EditMode.
 - **Flow by PlayMode test** (`-testPlatform PlayMode`): load the scene the game actually launches, feed input and look at state.
 - **A build folder's first run is slow, once.** In a cycle's build folder (a worktree, `Library` cloned in) the first batch run recompiles every script for the new path —
-  a minute or two, no asset reimport; the runs after it are as fast as in the game's folder. Unity runs in two folders at once; in one folder, only one.
+  a minute or two, no asset reimport (the clone leaves out the compiled-script caches `ScriptAssemblies` · `Bee` · `ScriptMapper` — cloned, they made tests fail on null assets and "referenced script is missing" with no `error CS`; if it shows anyway, delete those three there and run again); the runs after it are as fast as in the game's folder. Unity runs in two folders at once; in one folder, only one.
 - **Play route** (the board skill's): one batch run that loads the launched scene, sets each stop's state by code, waits for the end of the frame and saves the screen
   as `<id>.jpg` into the folder it is given — the command is `board.play.run`. Nothing is drawn under `-nographics`, so it runs without it; look at the first run's pictures once.
 - A compile error anywhere stops every test from running — the result file is missing or empty. Look for `error CS` in the log first.
