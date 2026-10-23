@@ -2053,12 +2053,13 @@ def halt(pid, pid_path):
 
 
 def holder(port):
-    """(pid, its folder) of what listens on the port — read with lsof, so a dashboard the pid file lost track of is still found. None: nothing, or no lsof."""
+    """(pid, its folder) of what listens on the port — read with lsof, so a dashboard the pid file lost track of is still found. None: nothing, or no lsof.
+    Only on 127.0.0.1, where the dashboard listens: `tailscale serve` holds the same port on the machine's tailnet address, and is no other dashboard."""
     tool = shutil.which("lsof")
     if not tool:
         return None
     try:
-        pids = subprocess.run([tool, "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"], capture_output=True, text=True, timeout=10).stdout.split()
+        pids = subprocess.run([tool, "-t", "-nP", f"-iTCP@127.0.0.1:{port}", "-sTCP:LISTEN"], capture_output=True, text=True, timeout=10).stdout.split()
         if not pids:
             return None
         cwd = subprocess.run([tool, "-a", "-p", pids[0], "-d", "cwd", "-Fn"], capture_output=True, text=True, timeout=10).stdout
