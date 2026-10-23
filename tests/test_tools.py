@@ -1537,6 +1537,16 @@ if sys.argv[1:3] == ["run", "start"]:
         out = run(CYCLE, root, "new", "third", "Third").stdout
         self.assertIn("checks by playing never answered: 1", out)
         self.assertIn("- Not played: 1 check(s) never answered", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
+        # a cycle left at Play behind a newer one (a CEO worker's new cycle closes none) still sends its checks, under its own number
+        text = open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read()
+        open(os.path.join(root, "docs/cycle/02-next.md"), "w", encoding="utf-8").write(re.sub(r"(Stage: *)Closed", r"\1Play", text, count=1))
+        run(BOARD, root)
+        card = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check")
+        self.assertEqual((card["ref"], card["cycle"], card["doc"], card["latest"]), ("Steps sound on stone", "02", "02-next.md", False))
+        self.assertIn("Check by playing · cycle 02", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
+        json.dump([{"key": card["key"], "pick": "ok"}], open(os.path.join(inbox, "b.json"), "w"))
+        self.assertIn("✓ Steps sound on stone [cycle 02 — --doc docs/cycle/02-next.md]", run(BOARD, root, "answers", "--inbox").stdout,
+                      "the session is told which document the check is recorded in")
         self.assertIn("checked (ok)", run(CYCLE, root, "checked", "Steps sound on stone", "ok", "--doc", "docs/cycle/02-next.md").stdout)
 
     def test_board_review(self):

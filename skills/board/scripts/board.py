@@ -19,7 +19,7 @@ index.html is the chart — one card per stage of play, in play order: how far F
 When the game has a balance table, a tile on it opens the table and says so when it is in step with the value file (the two files carry the same time).
 stage-N.html is the inside of one stage. Every state is read as written (the code is not searched here).
 review.html is what waits on the user, with a button per answer: the newest cycle's open decisions (with their comparison pictures, from the
-question files the cycle's sheet script keeps), the GDD's open questions, and — once the cycle is at Play — what to check by playing.
+question files the cycle's sheet script keeps), the GDD's open questions, and what to check by playing in every cycle at Play, by its cycle.
 
 Read-only towards the documents — it writes inside the folder of <out> (and, for `share --done`, the link into kit.config.json). Config is "board" in kit.config.json at the project root (optional).
 
@@ -1401,11 +1401,13 @@ def review_items(cycles, sheet, asks=()):
     for q in asks:
         if q["from"] == "GDD":
             items.append({"key": "q-" + short(q["title"]), "kind": "question", "ref": q["title"], "title": q["title"], "text": q["text"]})
-    c = cycles[-1] if cycles else None
-    if c and re.match(STAGE_PLAY, c["stage"]):
+    for c in reversed(cycles):  # every cycle at Play, the newest first — with several cycles in hand, the newest is often not the one waiting to be played
+        if not re.match(STAGE_PLAY, c["stage"]):
+            continue
         for line in unchecked_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):
             ask, _sep, rest = line.partition(" — ")  # a check written with its tuning hint after the dash (older documents): the question on the card, the rest folded
-            items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "title": ask.strip(), "detail": rest.strip()})
+            items.append({"key": f'c{c["num"]}-chk-{short(line)}', "kind": "check", "ref": line, "cycle": c["num"], "doc": c["file"], "latest": c is cycles[-1],
+                          "title": ask.strip(), "detail": rest.strip()})
     later = parked()
     for i in items:  # put off to a later cycle — the card says so instead of reading as in hand
         if i["key"] in later:
@@ -1486,11 +1488,12 @@ def card(i):
 
 
 def review_html(name, items, stamp):
-    cyc = next((i["cycle"] for i in items if i["kind"] == "check"), "")
-    groups = [("todo", "For you to do"), ("decision", "Decisions"), ("question", "Open questions in the GDD"), ("check", f"Check by playing · cycle {cyc}")]
     now, later = now_asked(items), [i for i in items if i.get("later")]
+    checks = list(dict.fromkeys(i["cycle"] for i in now if i["kind"] == "check"))  # one group per cycle at Play: which build each check is played on
+    groups = ([(lambda i, kind=kind: i["kind"] == kind, title) for kind, title in [("todo", "For you to do"), ("decision", "Decisions"), ("question", "Open questions in the GDD")]]
+              + [(lambda i, c=c: i["kind"] == "check" and i["cycle"] == c, f"Check by playing · cycle {c}") for c in checks])
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
-                    for kind, title in groups for its in [[i for i in now if i["kind"] == kind]] for n in [len(its)] if its)
+                    for keep, title in groups for its in [[i for i in now if keep(i)]] for n in [len(its)] if its)
     if later:  # put off by the session to a later cycle — kept in sight, not counted as waiting
         parts += (f'<h2 style="margin:6px 0 0;font-size:18px">Later <span class="lab">{len(later)}</span></h2>'
                   f'<div class="sub">Put off to a later cycle — nothing to do now; the next cycle&#39;s start lists them again.</div><div class="rvs">{"".join(card(i) for i in later)}</div>')
@@ -1538,7 +1541,7 @@ def review_data(i):
     elif i["kind"] == "question":
         out.update(text=i["text"])
     else:
-        out.update(cycle=i["cycle"], detail=i.get("detail", ""))
+        out.update(cycle=i["cycle"], doc=i.get("doc", ""), latest=i.get("latest", True), detail=i.get("detail", ""))
     return out
 
 
@@ -2639,7 +2642,8 @@ def answers(path):
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
         out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem — record each with the cycle skill '
                    '(`checked "<the check>" ok|problem "<what was seen>"`)' + ("; hand the problems to the playtest skill as one list:" if bad else ":"))
-        out += [f'  {"✗" if pick == "problem" else "✓"} {i["ref"]}{note(n)}' for i, pick, n in groups["check"]]
+        out += [f'  {"✗" if pick == "problem" else "✓"} {i["ref"]}{note(n)}' + (f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]' if away(i) else "")
+                for i, pick, n in groups["check"]]
     if stale:
         out.append(f"{stale} saved answer(s) are to questions no longer on the page (answered, or the question changed) — ignored")
     json.dump(seen, open(seen_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)

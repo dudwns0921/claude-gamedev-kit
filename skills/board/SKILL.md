@@ -222,7 +222,7 @@ which pictures it lacks, sends only those, then the board as data (`docs/board/b
 the open questions, the cycles, the review cards and the asset sheet; the dashboard draws its own screens from it). With the dashboard down, the hook does nothing.
 
 **Answers from the dashboard reach the session by themselves.** The dashboard's Review tab holds everything that waits on the user — every cycle's open decisions
-(the newest first), the GDD's open questions, checks by playing. "Send to the session" writes the answers as one file in `docs/board/inbox/`.
+(the newest first), the GDD's open questions, the checks by playing of every cycle at Play (each card names its cycle; the Cycle tab narrows its row to one stage, so the cycles at Play list what to play). "Send to the session" writes the answers as one file in `docs/board/inbox/`.
 The plugin wakes the open session for it — a monitor (`board.py watch`) where monitors run, else the hook that waits after each turn (`watch --rewake`, which wakes
 the session by exiting 2); a session opened later is told at its start (`watch --notice`). Whichever takes the batch first relays it; none relays it twice.
 Across a change of sessions nothing is lost: the newest session's watcher takes the batches (an older one left open stands aside), a watcher whose session ended stops,
