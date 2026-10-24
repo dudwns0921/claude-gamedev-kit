@@ -19,7 +19,7 @@ The Unity executable lives in a different place on each machine and per editor v
 
 ## Verification
 
-Everything that can be verified without a screen becomes an EditMode test. Run them before asking the user to "try it and tell me".
+Everything that can be verified without a screen becomes an EditMode test. Run them, and look at the play route's pictures yourself — the build verifies what it built; the user is not asked to "try it and tell me" (only the one thing a person alone can judge goes to them).
 
 - **Rules without scenes.** Keep rulings (does it work · does it not · how many seconds) in plain C# classes that know neither `MonoBehaviour` nor input,
   and test only those classes in EditMode.

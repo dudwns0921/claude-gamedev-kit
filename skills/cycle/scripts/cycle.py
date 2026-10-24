@@ -49,12 +49,16 @@
 
 Tasks are named T3 inside their cycle, and C16-T3 across the game — every command that takes a task takes either (C16-T3 picks cycle 16's document).
   python3 cycle.py carry "<what the next session must know>"   One `- [ ]` line in the "Carried over" section, for work in hand that the document does not hold. `next` shows it
-  python3 cycle.py checked "<the check, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves,
-                                                and the cycle counts as played. A cycle closed with checks never answered stays "not played" on the board
-  python3 cycle.py close                        The user has played it and is done with it — a cycle at Play becomes `Closed`. It closes by itself too,
-                                                once every check by playing is answered ok and no decision of it is open. A playtest document already analysed
+  python3 cycle.py checks                       What the build verifies itself (the lines under "To verify" in the spec and the design), and the one thing
+                                                for the user to judge (the first line under "For you to judge") — said if it would not read at a glance, or if more than one is written
+  python3 cycle.py verified "<what was verified, in a line>"   One `- Verified:` line in the "Play" section: the tests passed and the play route's pictures,
+                                                held against the spec and the design, show what they must — the build's own verification, done before Play
+  python3 cycle.py checked "<the thing to judge, as the board lists it>" ok|problem ["<what was seen>"]   One `- Checked:` line in the "Play" section — the card leaves.
+                                                ok closes the cycle when nothing else waits; a problem waits for its playtest round (`commit playtest` answers it)
+  python3 cycle.py settle                       A built cycle closes when nothing waits on the user — no open decision, no task left, no to-do, the thing to judge answered.
+                                                `stage Play` and `checked … ok` run it; `commit playtest` too once the round leaves no task open. Otherwise it says what waits
+  python3 cycle.py close                        The user says they are done with it — a cycle at Play becomes `Closed` whatever waits. A playtest document already analysed
                                                 is still built to the end on a closed cycle; anything the user brings about it afterwards is a new cycle's (`new`) or the backlog's (`later`)
-  python3 cycle.py checks                       The checks by playing that do not read at a glance (a name from the code or the documents, too long) — `stage Play` says the same
   python3 cycle.py carry done                   The lines were picked up — they become [x], so the session after does not pick them up again
 
 Several sessions at once — each works on one cycle; it is told apart by its Claude Code process, so it holds across /clear and lets go when the window closes:
@@ -133,7 +137,9 @@ LINE_RE = re.compile(r"^In one line: *(.*)$", re.M)
 SCREENS = "### Screens"
 SHOT_RE = re.compile(r"^- (.+?) — `([^`]+)`$", re.M)
 SHOT_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif")
-CHECK_HEADS = re.compile(r"^###\s+(?:To see by playing|For a human to see)[ \t]*$", re.M)
+CHECK_HEADS = re.compile(r"^###\s+For you to judge[ \t]*$", re.M)  # the one thing of a cycle only a person can judge — the review's one card for it
+VERIFY_HEADS = re.compile(r"^###\s+(?:To verify|To see by playing|For a human to see)[ \t]*$", re.M)  # what the build verifies itself (the last two: older documents' names)
+VERIFIED_RE = re.compile(r"^- Verified: (.+?) \(\d{4}-\d\d-\d\d\)$", re.M)
 PROXY_RE = re.compile(r"^(.*) → (.*?) · (?:proxy|대리) (.*?) \(\d{4}-\d\d-\d\d\)$")
 TASK_RE = re.compile(r"^### \[(.)\] (T\d+)\.(.*)$", re.M)
 DECISION_RE = re.compile(r"^- \[(.)\] (D\d+)\.(.*)$", re.M)
@@ -426,6 +432,17 @@ def cmd_commit(path, kind, said=""):
         sys.exit("the build turn was taken by an older kit, which kept no record of what was changed before it — this build's files are not told apart. "
                  "Commit them by naming them (git add <files>; git commit), then `turn done` — the next turn keeps the record")
     before = (mine or {}).get("before")
+    if kind == "playtest":  # the round is in the game: a problem the user judged is answered by it, and a cycle nothing else waits on closes with the commit
+        round_doc = said if os.path.isabs(said) else os.path.join(ROOT, said)
+        left = PLAYTEST_TASK.findall(read(round_doc)) if os.path.exists(round_doc) else []
+        text = read(path)
+        span = section(text, "Play")
+        if span and OPEN_STAGE.match(stage_of(text)):
+            write(path, text[:span[0]] + text[span[0]:span[1]].rstrip("\n") + f"\n- Fixes built: {os.path.relpath(round_doc, ROOT)} ({datetime.date.today()})\n\n" + text[span[1]:])
+            if left:
+                print(f"{len(left)} task(s) of this round still open or blocked — the cycle stays at Play")
+            else:
+                settle(path)
     others = {os.path.realpath(os.path.join(ROOT, d)) for d in holders()}  # another session's cycle document is its own to commit
     now = tree_state()
     files = [f for f, h in now.items() if (before is None or before.get(f) != h) and os.path.realpath(os.path.join(top, f)) not in others]
@@ -821,6 +838,11 @@ def cmd_next(path, looked=False):
     open_b = [b for b in backlog() if b[0] == " "]
     if open_b:
         print(f"backlog: {len(open_b)} waiting (`backlog`)")
+    if OPEN_STAGE.match(stage_of(text)):
+        wait = waits_on_user(text)
+        if not VERIFIED_RE.search(text):
+            print("at Play with no `- Verified:` line — verify the build (the skill's \"Verify the build\"), then `verified \"…\"`")
+        print("at Play — waits on: " + " · ".join(wait) if wait else "at Play, nothing waits on the user — `settle` closes it")
 
 
 def cmd_task(path, num):
@@ -1103,10 +1125,10 @@ def cmd_drop(path, names, why):
     print(f"not needed: {' · '.join(names.split(','))}")
 
 
-def check_lines(text):
-    """What to check by playing — the bullets under the spec's "To see by playing" and the design's "For a human to see" (as the board reads them)."""
+def lines_under(text, heads):
+    """The bullets (or lines) under every `### ` heading the pattern matches, to the next heading."""
     out = []
-    for m in CHECK_HEADS.finditer(text):
+    for m in heads.finditer(text):
         nxt = re.search(r"^#{1,3} ", text[m.end():], re.M)
         lines = [x.strip() for x in text[m.end():m.end() + nxt.start() if nxt else len(text)].split("\n") if x.strip() and not x.strip().startswith(("<!--", "|", "- Checked (", "- Not played:", "- Next:"))]
         bullets = [re.sub(r"^(?:[-*]|\d+[.)])\s+", "", x) for x in lines if re.match(r"^(?:[-*]|\d+[.)])\s+", x)]
@@ -1114,16 +1136,27 @@ def check_lines(text):
     return out
 
 
+def check_lines(text):
+    """The one thing of the cycle only a person can judge — the first line under "For you to judge" (the board reads it the same way).
+    Everything else is verified by the build itself (`verify_lines`)."""
+    return lines_under(text, CHECK_HEADS)[:1]
+
+
+def verify_lines(text):
+    """What the build verifies itself — the lines under "To verify" in the spec and the design (and the older documents' "To see by playing" · "For a human to see")."""
+    return lines_under(text, VERIFY_HEADS)
+
+
 def unchecked(text):
     done = {" ".join(c.split()) for _r, c in CHECKED_RE.findall(text)}
     return [c for c in check_lines(text) if " ".join(c.split()) not in done]
 
 
-CHECK_MAX = 90  # a check is a question read on a phone while playing — like a decision's
+CHECK_MAX = 90  # the thing to judge is a question read on a phone while playing — like a decision's
 
 
 def check_unreadable(line):
-    """What keeps a check by playing from being read at a glance — empty when it reads. The tuning hint behind it goes in "Tuning notes"."""
+    """What keeps the thing to judge from being read at a glance — empty when it reads. The tuning hint behind it goes in "Tuning notes"."""
     out = []
     code = sorted(set(m.group(0) for m in CODE_WORDS.finditer(line)) | set(re.findall(r"\(\d+(?:\.\d+)+[^)]*\)|\bD\d+\b", line)))
     if code:
@@ -1134,24 +1167,102 @@ def check_unreadable(line):
 
 
 def report_checks(text):
-    """Said as the cycle reaches Play: the checks the user would not understand, to be rewritten before they are asked to play."""
+    """Said as the cycle reaches Play: the one thing for the user to judge, if it would not read at a glance — and any more than one, which are not sent."""
+    more = lines_under(text, CHECK_HEADS)[1:]
+    if more:
+        print(f"{len(more)} more line(s) under \"For you to judge\" are not sent — a cycle sends the user one thing only a person can judge; "
+              "verify the rest in the build (\"To verify\"), or drop them:")
+        for c in more:
+            print(f"  {c[:100]}{'…' if len(c) > 100 else ''}")
     bad = [(c, check_unreadable(c)) for c in check_lines(text)]
     bad = [(c, why) for c, why in bad if why]
     if bad:
-        print(f"{len(bad)} check(s) by playing do not read at a glance — rewrite each as one plain question about what the player meets, "
-              "and move the numbers, names and what to move in the table to \"### Tuning notes\" (the card does not show it), before telling the user what to play:")
+        print("the thing for the user to judge does not read at a glance — rewrite it as one plain question about what the player meets, "
+              "and move the numbers, names and what to move in the table to \"### Tuning notes\" (the card does not show it):")
         for c, why in bad:
             print(f"  {c[:100]}{'…' if len(c) > 100 else ''}\n    ↳ {' · '.join(why)}")
 
 
 def cmd_checks(path):
     text = read(path)
-    lines = check_lines(text)
+    lines, ver = check_lines(text), verify_lines(text)
+    if ver:
+        print(f"to verify in the build: {len(ver)} — the developer's `verify` checks each, with the tests and the play route's pictures:")
+        for c in ver:
+            print(f"  - {c}")
+    else:
+        print("nothing written to verify — the build is verified by the project's tests and the play route against the spec and the design")
     report_checks(text)
     if lines and not any(check_unreadable(c) for c in lines):
-        print(f"{len(lines)} check(s) by playing, all read at a glance")
+        print(f"for the user to judge: {lines[0]}")
     elif not lines:
-        print("no checks by playing in this cycle")
+        print("nothing for the user to judge — the cycle closes once its build is verified and no decision of it is open")
+
+
+def cmd_verified(path, said):
+    """The build's own verification passed — tests, and the play route's pictures held against the spec and the design. One `- Verified:` line in "Play"."""
+    said = " ".join(said.split())
+    if not said:
+        sys.exit("say in one line what was verified and how: `verified \"<tests · the play route's pictures — what was seen>\"`")
+    text = read(path)
+    span = section(text, "Play") or sys.exit("the document has no `## Play` section")
+    write(path, text[:span[0]] + text[span[0]:span[1]].rstrip("\n") + f"\n- Verified: {said} ({datetime.date.today()})\n\n" + text[span[1]:])
+    print(f"verified: {said[:100]}")
+
+
+FIXES_RE = re.compile(r"^- Fixes built: ", re.M)  # `commit playtest` writes it — a round of fixes from play is in the game
+
+
+def waits_on_user(text):
+    """What keeps a built cycle open — empty when nothing does: open decisions, unfinished tasks, to-dos, the thing to judge unanswered (or answered "problem"
+    with no round of fixes built after it)."""
+    out = []
+    ds = [m for m, _l in decisions(text).values()]
+    if ds.count(" ") or ds.count("~"):
+        out.append(f"{ds.count(' ') + ds.count('~')} decision(s) open")
+    ts = [t[0] for t in tasks(text).values()]
+    left = sum(1 for m in ts if m in OPEN + "!")
+    if left:
+        out.append(f"{left} task(s) not done")
+    if any(m == " " for m, _l, _w in todos(text).values()):
+        out.append("a to-do for the user")
+    judge = [" ".join(c.split()) for c in check_lines(text)]
+    if unchecked(text):
+        out.append("one thing for the user to judge")
+    else:
+        bad = [m.start() for m in CHECKED_RE.finditer(text) if m.group(1) == "problem" and " ".join(m.group(2).split()) in judge]
+        fixed = [m.start() for m in FIXES_RE.finditer(text)]
+        if bad and (not fixed or fixed[-1] < bad[-1]):
+            out.append("a problem the user saw — its playtest round is not built yet")
+    return out
+
+
+def settle(path):
+    """Closes a cycle at Play whose build is done and verified when nothing waits on the user — there is no waiting at Play for them to say "done".
+    Says what keeps it open otherwise. True when it closed."""
+    text = read(path)
+    stage = stage_of(text)
+    if stage in CLOSED or not OPEN_STAGE.match(stage):
+        return False
+    if not VERIFIED_RE.search(text):
+        print("no `- Verified:` line — the build's own verification (tests, the play route's pictures) is the skill's step before Play")
+    wait = waits_on_user(text)
+    if wait:
+        print("stays at Play — waits on: " + " · ".join(wait))
+        return False
+    print("built, nothing waits on the user — the cycle is done:")
+    close(path)
+    print("what the user brings about it from now on is a new cycle's (`new`) or the backlog's (`later`)")
+    return True
+
+
+def cmd_settle(path):
+    text = read(path)
+    if stage_of(text) in CLOSED:
+        return print(f"already closed: {os.path.relpath(path, ROOT)}")
+    if not OPEN_STAGE.match(stage_of(text)):
+        sys.exit(f"{os.path.relpath(path, ROOT)} stands at {stage_of(text)} — only a built cycle (at Play) closes")
+    settle(path)
 
 
 def cmd_checked(path, line, result, seen=""):
@@ -1162,26 +1273,23 @@ def cmd_checked(path, line, result, seen=""):
     lines = {" ".join(c.split()): c for c in check_lines(text)}
     hit = lines.get(line) or next((c for k, c in lines.items() if k.startswith(line)), None) if len(line) >= 12 or line in lines else None
     if not hit:
-        sys.exit("not a check of this cycle — give it as the board lists it (the start is enough):\n  " + "\n  ".join(lines) if lines else "this cycle has no checks by playing")
+        sys.exit("not the thing to judge of this cycle — give it as the board lists it (the start is enough):\n  " + "\n  ".join(lines) if lines else "this cycle has nothing for the user to judge")
     span = section(text, "Play") or sys.exit("the document has no `## Play` section")
     body = text[span[0]:span[1]].rstrip("\n")
     write(path, text[:span[0]] + body + f"\n- Checked ({result}): {' '.join(hit.split())}" + (f" — “{' '.join(seen.split())}”" if seen.strip() else "")
           + f" ({datetime.date.today()})\n\n" + text[span[1]:])
     print(f"checked ({result}): {hit[:80]}" + (" — the problem goes to the playtest skill with the others" if result == "problem" else ""))
-    text = read(path)
-    if (result == "ok" and OPEN_STAGE.match(stage_of(text)) and not unchecked(text) and "- Checked (problem)" not in text
-            and not any(d[0] == " " for d in decisions(text).values())):  # a decision still open is work still coming for it
-        print("every check answered ok — the cycle is done:")
-        close(path)
+    if result == "ok":
+        settle(path)  # a decision still open is work still coming for it — it stays
 
 
 def cmd_close(path):
-    """The user has played the cycle and is done with it. Only a played build closes — one before Play is not in their hands yet."""
+    """The user says they are done with the cycle. Only a built cycle closes — one before Play is not in their hands yet."""
     stage = stage_of(read(path))
     if stage in CLOSED:
         return print(f"already closed: {os.path.relpath(path, ROOT)}")
     if not OPEN_STAGE.match(stage):
-        sys.exit(f"{os.path.relpath(path, ROOT)} stands at {stage} — only a cycle at Play closes (its build is not in the user's hands yet)")
+        sys.exit(f"{os.path.relpath(path, ROOT)} stands at {stage} — only a built cycle (at Play) closes (its build is not in the game yet)")
     close(path)
     print("what the user brings about it from now on is a new cycle's (`new`) or the backlog's (`later`)")
 
@@ -1433,8 +1541,8 @@ def close(path):
         text = read(path)
         span = section(text, "Play")
         if span and not re.search(r"^- Not played:", text, re.M):
-            write(path, text[:span[0]] + text[span[0]:span[1]].rstrip("\n") + f"\n- Not played: {len(never)} check(s) never answered ({datetime.date.today()})\n\n" + text[span[1]:])
-        print(f"checks by playing never answered: {len(never)} — the board counts this cycle as not played until they are (`checked \"…\" ok --doc {rel}`):")
+            write(path, text[:span[0]] + text[span[0]:span[1]].rstrip("\n") + f"\n- Not played: {len(never)} thing(s) to judge never answered ({datetime.date.today()})\n\n" + text[span[1]:])
+        print(f"the thing for the user to judge was never answered — the board counts this cycle as not played until it is (`checked \"…\" ok --doc {rel}`):")
         for c in never:
             print(f"  {c[:110]}")
 
@@ -1521,7 +1629,7 @@ def main():
         sys.exit("--wait goes with todo")
     if "--epic" in opts and cmd != "later":
         sys.exit("--epic goes with later")
-    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3),
+    need = {"new": 2, "status": 0, "next": 0, "task": 1, "mark": (2, 3), "ask": 2, "attach": 1, "reask": 2, "decide": 2, "confirm": 1, "drop": 2, "stage": 1, "later": 1, "carry": 1, "todo": 1, "did": (1, 2), "have": 2, "checked": (2, 3), "checks": 0, "verified": 1, "settle": 0, "skip": 2, "line": 1, "shot": 2, "epic": 2, "epics": 0, "backlog": (0, 1, 2, 3),
             "take": 1, "leave": 0, "turn": (0, 1, 2), "open": 0, "commit": (1, 2), "worktree": (1, 2), "close": 0}
     if cmd not in need or len(rest) not in (need[cmd] if isinstance(need[cmd], tuple) else (need[cmd],)):
         sys.exit(__doc__)
@@ -1589,6 +1697,10 @@ def main():
         cmd_checked(path, *rest)
     elif cmd == "checks":
         cmd_checks(path)
+    elif cmd == "verified":
+        cmd_verified(path, rest[0])
+    elif cmd == "settle":
+        cmd_settle(path)
     elif cmd == "close":
         cmd_close(path)
     elif cmd == "skip":
@@ -1624,6 +1736,7 @@ def main():
                     s["build"] = None
                     print("the build turn is free")
             report_checks(read(path))
+            settle(path)  # verified and committed — a cycle nothing waits on is done here, not left standing at Play
 
 
 if __name__ == "__main__":

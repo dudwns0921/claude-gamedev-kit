@@ -13,7 +13,9 @@ description: >-
 # ceo
 
 The user has one window — this one — and the dashboard. Cycles run behind it: a **worker** is a headless Claude Code run that takes one cycle, goes on with it
-through the cycle skill as a window would, and stops where the user is needed — decisions asked, the build turn another's, Play.
+through the cycle skill as a window would, and stops where the user is needed or the work is through — decisions asked, the build turn another's, the build verified and committed.
+**Workers verify their own builds** — tests, and the play route's pictures they look at themselves against the spec and the design. The user is never sent checks by playing:
+the dashboard's Review carries decisions, and at most one thing per cycle only a person can judge.
 **This window only coordinates.** It does not do a cycle's work, read code or documents, or Read pictures, and it decides nothing — no scope, no taste, no numbers.
 
 ```bash
@@ -43,7 +45,8 @@ Start each with the Bash tool **in the background** (`run_in_background`) — `r
 `STOP decisions` · `STOP turn` · `STOP play` · `STOP blocked` · `STOP done`, with a plain sentence. Relay that sentence, once, then look again (`ready`).
 - `decisions` — they are on the dashboard's Review; nothing to do until they are answered.
 - `turn` — another cycle is building; `ready` lists it again once the turn is free.
-- `play` — the build is committed and its screens are in the Play tab; tell the user what to play, from `workers <NN>` (its last words name it).
+- `play` — the build is verified and committed, and its one thing for the user to judge waits on the Review (its screens are in the Play tab); relay it in a line.
+- `done` — the build is verified and committed, and the cycle closed: nothing waited on the user. Relay what changed in a line, then look again (`ready`, new goals).
 - `blocked` — `workers <NN>` says why; put it to the user as a decision in that cycle (`cycle.py ask Build "…" --doc <document>`), or start `run <NN> next` once the reason is gone.
 - `limit` — the account it ran on hit its usage limit (the script says so, not the worker). With another account set up, start it again at once — it goes there;
   with none, tell the user in a line and start it again once the limit has reset.
@@ -79,14 +82,18 @@ in what the player meets, each with why now and which other cycle it stays clear
 The chosen one, in the user's own words: `run new "<goal>"`. Its worker weighs it against the cycles in motion (`fit`) and stops at its decisions like any.
 A goal the user gives directly goes the same way. A goal too big for one cycle: offer to split it along lines that do not overlap — one `run new` per part.
 
-## Play and problems
+## Built cycles and problems
 
-A cycle at Play is the user's. When they bring problems about what it built — here, or as "problem" on the dashboard's checks — hand the list verbatim:
-`run <NN> playtest "<list>"`; once its decisions are answered, `run <NN> implement`. Each round commits itself.
+**A built cycle closes by itself** — its build verified and committed, no decision of it open, and its one thing to judge (if it has one) answered ok:
+its worker's `stage Play` closes it, and an answer that settles the last thing does too. Never ask the user whether a cycle is done.
+`status` lists the built cycles nothing waits on (cycles from before, or ones whose last answer just came): close each at once with `cycle.py settle --doc <document>` —
+bookkeeping, not a decision; it says what still waits, if anything does. An answer to a decision of a built cycle that asks for work is its worker's —
+`run <NN> implement` when a playtest document of it waited on it, else `run <NN> next`, which acts on it and settles; an answer that asks for nothing more is settled here.
+`cycle.py close --doc <document>` closes one whatever waits, when the user says they are done with it.
 
-**A cycle closes once it is done** — every check answered ok with no decision of it open, or the user saying they are done with it
-(`cycle.py close --doc <document>`). `status` says when several stand at Play: ask once which are done. A playtest document already analysed for it
-is still built on a closed cycle (`run <NN> implement <document>`).
+While a cycle is still open and the user brings problems about what it built — here, or as "problem" on its card — hand the list verbatim:
+`run <NN> playtest "<list>"`; once its decisions are answered, `run <NN> implement`. Each round verifies and commits itself, and a round that leaves nothing open closes the cycle.
+The playtest document is the workers' — never point the user to it. A playtest document already analysed for a cycle is still built on it once it is closed (`run <NN> implement <document>`).
 **What the user brings about a closed cycle is a new cycle**, never a new round on the old one (`run` refuses `playtest` and `next` there): a fault found later, or more of the same →
 `run new "<their words>"` (small fixes skip Spec and Design there by themselves); something new that is not for now → `cycle.py later "<their words>"`.
 Problems that are partly about an open cycle and partly about closed ones are split: the open one's go to its playtest, the rest to a new cycle.

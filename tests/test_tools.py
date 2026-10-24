@@ -647,7 +647,7 @@ class Tools(unittest.TestCase):
 
         def shape(root):
             """What the board came to, without the words of the documents: the summary line, and each page's states and counts."""
-            marks = r'class="((?:it|thumb|task|chip|tile|ask)[^"]*)"|<(?:small|em)>(\d+/\d+|none|\d+)</(?:small|em)>|<b>(T\d+|\d+%?)</b>|(your turn to play|Playtest first · open)'
+            marks = r'class="((?:it|thumb|task|chip|tile|ask)[^"]*)"|<(?:small|em)>(\d+/\d+|none|\d+)</(?:small|em)>|<b>(T\d+|\d+%?)</b>|(built — one thing for you to judge|Playtest first · open)'
             return run(BOARD, root).stdout, [re.findall(marks, page(root, n).split("</style>")[1]) for n in ("index.html", "stage-1.html", "stage-2.html")]
 
         root = project(GDD_EN.replace("# Game", "# Game — design", 1).replace("## 4. Rules", "## 4. Rules <b>")
@@ -696,7 +696,7 @@ class Tools(unittest.TestCase):
         self.assertIn("<h2>Rules &lt;b&gt;</h2>", chart, "without flow, one stage per GDD section")
         self.assertIn('<span class="chip">5 not made</span>', chart, "the card says what is still open — the GDD rows not in the code among it")
         self.assertIn("<code>BAL.PLAYER.HP</code>", stage)
-        self.assertIn("<b>Cycle 01 — coins</b><small>your turn to play</small>", stage, "a cycle that touched the stage stands in the Verified lane, by its stage")
+        self.assertIn("<b>Cycle 01 — coins</b><small>built</small>", stage, "a cycle that touched the stage stands in the Verified lane, by its stage — built, nothing for the user to judge")
         self.assertIn('<span class="task" title="the coin is picked up"><b>T1</b> Pick up a coin</span>', stage, "a task that touched the stage, with what was done")
         self.assertIn('<span class="task blocked" title=""><b>T2</b> Play a sound</span>', stage)
         self.assertIn("<b>D2 Sound</b>", chart, "an unanswered decision stands as undecided")
@@ -822,7 +822,7 @@ class Tools(unittest.TestCase):
         self.assertIn("<b>보스</b><span>있나</span>", chart)
         self.assertIn('<span class="task" title="coin 을 주웠다"><b>T1</b> 동전을 줍는다</span>', stage)
         self.assertIn("· Play</h4>", stage, "the stage name of an old document is shown in English")
-        for stage_name, said in (("끝", "played"), ("회고", "played"), ("배포", "played"), ("구현", "at Build"), ("Closed", "played"), ("Build", "at Build")):
+        for stage_name, said in (("끝", "done"), ("회고", "done"), ("배포", "done"), ("구현", "at Build"), ("Closed", "done"), ("Build", "at Build")):
             doc = os.path.join(old, "docs/cycle/01-coins.md")
             text = open(doc, encoding="utf-8").read()
             open(doc, "w", encoding="utf-8").write(re.sub(r"단계: \S+", f"단계: {stage_name}", text))
@@ -1512,42 +1512,41 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, root, "drop", "U2", "not needed now")
         self.assertIn("- [-] U2. Sign in on the phone → not needed: not needed now", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
 
-        # a check by playing is recorded when answered — and a cycle closed with checks never answered says so
+        # the one thing to judge is recorded when answered — and a cycle closed with it never answered says so
         with open(os.path.join(root, "docs/cycle/02-next.md"), "a", encoding="utf-8") as f:
-            f.write("\n### To see by playing\n- The door creaks once when opened\n- Steps sound on stone\n"
-                    "- Does the split land in one try — if it overshoots set PAY_SPLIT_STEP to 10 (4.6)\n")
+            f.write("\n### To verify\n- The door creaks once when opened\n"
+                    "\n### For you to judge\n- Does the split land in one try — if it overshoots set PAY_SPLIT_STEP to 10 (4.6)\n")
         out = run(CYCLE, root, "stage", "Play").stdout
-        self.assertIn("1 check(s) by playing do not read at a glance", out, "reaching Play says which checks the user would not understand")
-        self.assertIn("PAY_SPLIT_STEP", out.split("do not read")[1])
+        self.assertIn("the thing for the user to judge does not read at a glance", out, "reaching Play says when the user would not understand it")
+        self.assertIn("PAY_SPLIT_STEP", out.split("does not read")[1])
         run(BOARD, root)
         card = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check" and "split" in i["ref"])
         self.assertEqual((card["title"], card["detail"]), ("Does the split land in one try", "if it overshoots set PAY_SPLIT_STEP to 10 (4.6)"),
                          "an older line's hint after the dash is folded, the question stays")
         text = open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read()
-        open(os.path.join(root, "docs/cycle/02-next.md"), "w", encoding="utf-8").write(text.replace("- Does the split land in one try — if it overshoots set PAY_SPLIT_STEP to 10 (4.6)\n", ""))
-        self.assertIn("2 check(s) by playing, all read at a glance", run(CYCLE, root, "checks").stdout)
+        open(os.path.join(root, "docs/cycle/02-next.md"), "w", encoding="utf-8").write(
+            text.replace("- Does the split land in one try — if it overshoots set PAY_SPLIT_STEP to 10 (4.6)\n", "- Do steps sound right on stone\n"))
+        out = run(CYCLE, root, "checks").stdout
+        self.assertIn("for the user to judge: Do steps sound right on stone", out)
+        self.assertIn("  - The door creaks once when opened", out, "what the build verifies itself is listed apart")
         run(BOARD, root)
         checks = [i["ref"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"]
-        self.assertEqual(len(checks), 2)
-        self.assertIn("not a check of this cycle", run(CYCLE, root, "checked", "The window", "ok", ok=False).stderr)
-        self.assertIn("checked (ok): The door creaks once", run(CYCLE, root, "checked", "The door creaks", "ok", "creaks, good").stdout)
-        run(BOARD, root)
-        checks = [i["ref"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"]
-        self.assertEqual(checks, ["Steps sound on stone"], "an answered check leaves the page")
+        self.assertEqual(checks, ["Do steps sound right on stone"], "only the thing to judge is a card — never what the build verifies")
+        self.assertIn("not the thing to judge", run(CYCLE, root, "checked", "The door creaks", "ok", ok=False).stderr)
         out = run(CYCLE, root, "new", "third", "Third").stdout
-        self.assertIn("checks by playing never answered: 1", out)
-        self.assertIn("- Not played: 1 check(s) never answered", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
-        # a cycle left at Play behind a newer one (a CEO worker's new cycle closes none) still sends its checks, under its own number
+        self.assertIn("the thing for the user to judge was never answered", out)
+        self.assertIn("- Not played: 1 thing(s) to judge never answered", open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read())
+        # a cycle left at Play behind a newer one (a CEO worker's new cycle closes none) still sends its one thing to judge, under its own number
         text = open(os.path.join(root, "docs/cycle/02-next.md"), encoding="utf-8").read()
         open(os.path.join(root, "docs/cycle/02-next.md"), "w", encoding="utf-8").write(re.sub(r"(Stage: *)Closed", r"\1Play", text, count=1))
         run(BOARD, root)
         card = next(i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check")
-        self.assertEqual((card["ref"], card["cycle"], card["doc"], card["latest"]), ("Steps sound on stone", "02", "02-next.md", False))
-        self.assertIn("Check by playing · cycle 02", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
+        self.assertEqual((card["ref"], card["cycle"], card["doc"], card["latest"]), ("Do steps sound right on stone", "02", "02-next.md", False))
+        self.assertIn("For you to judge · cycle 02", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
         json.dump([{"key": card["key"], "pick": "ok"}], open(os.path.join(inbox, "b.json"), "w"))
-        self.assertIn("✓ Steps sound on stone [cycle 02 — --doc docs/cycle/02-next.md]", run(BOARD, root, "answers", "--inbox").stdout,
-                      "the session is told which document the check is recorded in")
-        self.assertIn("checked (ok)", run(CYCLE, root, "checked", "Steps sound on stone", "ok", "--doc", "docs/cycle/02-next.md").stdout)
+        self.assertIn("✓ Do steps sound right on stone [cycle 02 — --doc docs/cycle/02-next.md]", run(BOARD, root, "answers", "--inbox").stdout,
+                      "the session is told which document it is recorded in")
+        self.assertIn("checked (ok)", run(CYCLE, root, "checked", "Do steps sound right", "ok", "--doc", "docs/cycle/02-next.md").stdout)
 
     def test_board_review(self):
         """The review page holds what waits on the user — the newest cycle's open decisions (with the sheet's pictures), asset images to approve,
@@ -1582,12 +1581,14 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn('data-pick="accept"', review, "a proxy decision can be accepted")
         self.assertNotIn('data-pick="approve"', review, "the kit makes no assets — nothing to approve here")
         self.assertIn("knight.png", open(os.path.join(root, "docs/board/assets.html"), encoding="utf-8").read())
-        self.assertNotIn("Check by playing", review, "no checks before the cycle reaches Play")
+        self.assertNotIn("For you to judge", review, "nothing to judge before the cycle is built")
         self.assertIn('href="review.html"><span class="lab">waiting on you</span><b>Review 2 →</b>', open(os.path.join(root, "docs/board/index.html"), encoding="utf-8").read())
         doc = os.path.join(root, "docs/cycle/01-bow.md")
-        text = open(doc, encoding="utf-8").read().replace("Stage: Goal", "Stage: Play").replace("## Design\n", "## Design\n\n### For a human to see\n- Is the string readable\n")
+        text = open(doc, encoding="utf-8").read().replace("Stage: Goal", "Stage: Play").replace("## Design\n", "## Design\n\n### To verify\n- The string reads on the bow\n")
         open(doc, "w", encoding="utf-8").write(text)
-        self.assertIn("review 3", run(BOARD, root).stdout, "at Play, what to check by playing joins")
+        self.assertIn("review 2", run(BOARD, root).stdout, "what the build verifies is never a card")
+        open(doc, "w", encoding="utf-8").write(text.replace("### To verify\n- The string reads on the bow\n", "### For you to judge\n- Does the draw feel right in the hand\n"))
+        self.assertIn("review 3", run(BOARD, root).stdout, "at Play, the one thing to judge joins")
 
         out = run(BOARD, root, "share").stdout
         self.assertIn("files new 2", out, "the crop's picture and the picture on the asset sheet")
@@ -1621,7 +1622,7 @@ if sys.argv[1:3] == ["run", "start"]:
         out = run(BOARD, root, "answers", os.path.join(share, "answers")).stdout
         self.assertIn("D1 → ⓑ — “a little”", out)
         self.assertIn("D2 (decided for you: ②) → accept", out)
-        self.assertIn("✗ Is the string readable — “lost in the fog”", out)
+        self.assertIn("✗ Does the draw feel right in the hand — “lost in the fog”", out)
         self.assertIn("1 saved answer(s) are to questions no longer on the page", out, "an answer to an old question is not relayed")
         data = json.load(open(os.path.join(root, "docs/board/board.json"), encoding="utf-8"))["board"]
         d1 = next(i for i in data["review"] if i["key"] == "c01-D1")
@@ -1694,7 +1695,9 @@ if sys.argv[1:3] == ["run", "start"]:
         run(CYCLE, root, "mark", "T3", "done", "the sign hangs over the door")
         self.assertIn("- **Blocked**: sign.gd is missing\n- **Done**: the sign hangs over the door\n\n## Order", text())
         self.assertIn("no tasks left", run(CYCLE, root, "next").stdout)
-        self.assertEqual(run(CYCLE, root, "stage", "플레이").stdout.strip(), "stage: Play", "a stage named in Korean is written in English")
+        out = run(CYCLE, root, "stage", "플레이").stdout
+        self.assertEqual(out.split("\n")[0], "stage: Play", "a stage named in Korean is written in English")
+        self.assertIn("stays at Play — waits on: 1 decision(s) open", out, "a built cycle with a decision open stays")
         out = run(CYCLE, root, "status").stdout.strip().split("\n")
         self.assertEqual(len(out), 2)
         self.assertIn("02-shop.md — stage: Play · tasks [x] 3 · [ ] 0 · [!] 0 · open decisions 1", out[1])
@@ -1817,7 +1820,7 @@ if sys.argv[1:3] == ["run", "start"]:
         self.assertIn("- **대기**: D2\n- **Blocked**: sign.gd 가 없다\n\n## 순서", otext())
         run(CYCLE, old, "later", "문도 단다")
         self.assertIn("- 다음에: 간판에 불을 켠다\n", otext(), "an older document's own deferred line stays")
-        self.assertEqual(run(CYCLE, old, "stage", "Play").stdout.strip(), "stage: Play")
+        self.assertEqual(run(CYCLE, old, "stage", "Play").stdout.split("\n")[0], "stage: Play")
         self.assertIn("단계: Play\n", otext(), "the head keeps its own label; the stage written is English")
         at = "Play"
         for stage in ("플레이", "배포", "회고", "끝"):  # 배포 · 회고 are from documents written when those were stages
@@ -2473,8 +2476,9 @@ else:
         self.assertIn("on the pro account", ceo("run", "new", "A boat").stdout)
 
     def test_cycle_close(self):
-        """A played cycle is done and closes: every check answered ok, a playtest round that leaves no task open, or `close` on the user's word.
-        Only a cycle at Play closes; what comes about a closed one is a new cycle's — the CEO refuses a round on it."""
+        """A built cycle is done and closes by itself when nothing waits on the user — no list of checks by playing is sent, only one thing to judge at most:
+        `stage Play` settles it, the thing to judge answered ok does, a playtest round that leaves no task open does, or `close` on the user's word.
+        Only a built cycle closes; what comes about a closed one is a new cycle's — the CEO refuses a round on it, and closes the idle ones without asking."""
         root = tempfile.mkdtemp(prefix="kit-close-")
         self.addCleanup(shutil.rmtree, root, True)
         subprocess.run(["git", "init", "-q"], cwd=root, check=True)
@@ -2482,59 +2486,98 @@ else:
             subprocess.run(["git", "config", k, v], cwd=root, check=True)
         json.dump({}, open(os.path.join(root, "kit.config.json"), "w"))
         stage = lambda doc: re.search(r"Stage: *(\S+)", open(os.path.join(root, doc), encoding="utf-8").read()).group(1)
+        add = lambda doc, text: open(os.path.join(root, doc), "a", encoding="utf-8").write(text)
 
-        # checks answered ok, all of them → closed
-        run(CYCLE, root, "new", "door", "A door")
-        with open(os.path.join(root, "docs/cycle/01-door.md"), "a", encoding="utf-8") as f:
-            f.write("\n### To see by playing\n- The door creaks once when opened\n- Steps sound on stone\n")
-        self.assertIn("only a cycle at Play closes", run(CYCLE, root, "close", ok=False).stderr, "a build not in the user's hands does not close")
-        run(CYCLE, root, "stage", "Play")
-        self.assertNotIn("closed:", run(CYCLE, root, "checked", "The door creaks", "ok").stdout, "one check still open")
-        self.assertIn("closed: docs/cycle/01-door.md", run(CYCLE, root, "checked", "Steps sound on", "ok").stdout)
-        self.assertEqual(stage("docs/cycle/01-door.md"), "Closed")
-
-        # a check answered "problem" keeps it open, and so does a decision still open; a playtest round's commit does not close it
-        run(CYCLE, root, "new", "shop", "A shop")
-        with open(os.path.join(root, "docs/cycle/02-shop.md"), "a", encoding="utf-8") as f:
-            f.write("\n### To see by playing\n- The price reads at a glance\n- The till rings on a sale\n")
-        run(CYCLE, root, "stage", "Play")
-        self.assertNotIn("closed:", run(CYCLE, root, "checked", "The price reads", "problem", "too small").stdout)
-        os.makedirs(os.path.join(root, "docs/playtest"))
-        open(os.path.join(root, "docs/playtest/2026-01-01-price.md"), "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Bigger price\n")
-        open(os.path.join(root, "price.txt"), "w").write("big")
-        out = run(CYCLE, root, "commit", "playtest", "docs/playtest/2026-01-01-price.md").stdout
-        self.assertIn("committed", out)
-        self.assertNotIn("closed:", out, "another analysed round may still be waiting for it — a round never closes the cycle")
-        self.assertEqual(stage("docs/cycle/02-shop.md"), "Play")
-        run(CYCLE, root, "new", "cart", "A cart")
-        with open(os.path.join(root, "docs/cycle/03-cart.md"), "a", encoding="utf-8") as f:
-            f.write("\n### To see by playing\n- The cart wheels squeak\n")
-        run(CYCLE, root, "stage", "Play")
-        run(CYCLE, root, "ask", "Playtest", "How loud is the squeak? — ① quiet ② loud · recommended: ①")
-        self.assertNotIn("closed:", run(CYCLE, root, "checked", "The cart wheels squeak", "ok").stdout, "a decision still open is work still coming")
-        self.assertEqual(stage("docs/cycle/03-cart.md"), "Play")
-        run(CYCLE, root, "close")
-
-        # `close` on the user's word; the CEO says when several stand at Play, and refuses a round on a closed one
+        # nothing to judge, nothing open: verified, and closed the moment it is built
         run(CYCLE, root, "new", "map", "A map")
+        add("docs/cycle/01-map.md", "\n### To verify\n- The map shows the player's room\n")
+        self.assertIn("only a built cycle (at Play) closes", run(CYCLE, root, "settle", ok=False).stderr)
+        self.assertIn("The map shows the player's room", run(CYCLE, root, "checks").stdout, "what the build verifies is listed for its `verify`")
+        self.assertIn("nothing for the user to judge", run(CYCLE, root, "checks").stdout)
+        self.assertIn("verified: tests pass", run(CYCLE, root, "verified", "tests pass · the route's map stop shows the room").stdout)
+        out = run(CYCLE, root, "stage", "Play").stdout
+        self.assertIn("closed: docs/cycle/01-map.md", out, "no waiting at Play for the user to say done")
+        self.assertNotIn("no `- Verified:` line", out)
+        self.assertIn("- Verified: tests pass", open(os.path.join(root, "docs/cycle/01-map.md"), encoding="utf-8").read())
+        run(BOARD, root)
+        self.assertFalse([i for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"],
+                         "a \"To verify\" line is the build's, never a card")
+
+        # one thing to judge: only the first line is sent; ok closes it
+        run(CYCLE, root, "new", "door", "A door")
+        add("docs/cycle/02-door.md", "\n### For you to judge\n- Does the door feel heavy to open\n- Steps sound on stone\n")
+        self.assertIn("only a built cycle (at Play) closes", run(CYCLE, root, "close", ok=False).stderr, "a build not in the user's hands does not close")
+        out = run(CYCLE, root, "stage", "Play").stdout
+        self.assertIn("1 more line(s) under \"For you to judge\" are not sent", out)
+        self.assertIn("stays at Play — waits on: one thing for the user to judge", out)
+        self.assertIn("no `- Verified:` line", out, "a build not verified is said")
+        run(BOARD, root)
+        cards = [i["ref"] for i in json.load(open(os.path.join(root, "docs/board/board.json")))["board"]["review"] if i["kind"] == "check"]
+        self.assertEqual(cards, ["Does the door feel heavy to open"], "one card per cycle at most")
+        self.assertIn("For you to judge · cycle 02", open(os.path.join(root, "docs/board/review.html"), encoding="utf-8").read())
+        self.assertIn("not the thing to judge", run(CYCLE, root, "checked", "Steps sound on stone", "ok", ok=False).stderr)
+        self.assertIn("closed: docs/cycle/02-door.md", run(CYCLE, root, "checked", "Does the door feel", "ok").stdout)
+        self.assertEqual(stage("docs/cycle/02-door.md"), "Closed")
+
+        # answered "problem": it waits for its playtest round; a round that leaves a task open keeps it, one that leaves none closes it
+        run(CYCLE, root, "new", "shop", "A shop")
+        add("docs/cycle/03-shop.md", "\n### For you to judge\n- Does the till sound right on a sale\n")
         run(CYCLE, root, "stage", "Play")
+        self.assertNotIn("closed:", run(CYCLE, root, "checked", "Does the till sound", "problem", "too shrill").stdout)
+        self.assertIn("a problem the user saw", run(CYCLE, root, "settle").stdout)
+        os.makedirs(os.path.join(root, "docs/playtest"))
+        round_doc = os.path.join(root, "docs/playtest/2026-01-01-till.md")
+        open(round_doc, "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Softer till\n\n### [!] T2. A second till\n")
+        open(os.path.join(root, "till.txt"), "w").write("soft")
+        out = run(CYCLE, root, "commit", "playtest", "docs/playtest/2026-01-01-till.md").stdout
+        self.assertIn("1 task(s) of this round still open or blocked — the cycle stays at Play", out)
+        self.assertIn("committed", out)
+        self.assertEqual(stage("docs/cycle/03-shop.md"), "Play")
+        open(round_doc, "w", encoding="utf-8").write("# Playtest\n\n## Tasks\n\n### [x] T1. Softer till\n\n### [-] T2. A second till\n")
+        open(os.path.join(root, "till.txt"), "w").write("softer")
+        out = run(CYCLE, root, "commit", "playtest", "docs/playtest/2026-01-01-till.md").stdout
+        self.assertIn("closed: docs/cycle/03-shop.md", out, "the round answers the problem — nothing else waits")
+        self.assertEqual(subprocess.run(["git", "status", "--porcelain", "docs/cycle"], cwd=root, capture_output=True, text=True).stdout.strip(), "",
+                         "the closing goes into the round's commit")
+
+        # a decision still open keeps it; once it is answered and acted on, `settle` closes it
+        run(CYCLE, root, "new", "cart", "A cart")
+        run(CYCLE, root, "ask", "Playtest", "How loud is the squeak? — ① quiet ② loud · recommended: ①")
+        self.assertIn("waits on: 1 decision(s) open", run(CYCLE, root, "stage", "Play").stdout)
+        run(CYCLE, root, "decide", "D1", "quiet")
+        self.assertEqual(stage("docs/cycle/04-cart.md"), "Play", "an answer may still ask for work — it does not close by itself")
+        self.assertIn("nothing waits on the user — `settle`", run(CYCLE, root, "next").stdout)
+        self.assertIn("closed: docs/cycle/04-cart.md", run(CYCLE, root, "settle").stdout)
+        self.assertIn("already closed", run(CYCLE, root, "settle").stdout)
+
+        # `close` on the user's word, whatever waits; the CEO closes idle built cycles without asking and refuses a round on a closed one
         run(CYCLE, root, "new", "bag", "A bag")
-        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/05-bag.md")
-        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/02-shop.md")
-        run(CYCLE, root, "close", "--doc", "docs/cycle/02-shop.md")
-        self.assertIn("closed: docs/cycle/04-map.md", run(CYCLE, root, "close", "--doc", "docs/cycle/04-map.md").stdout)
-        self.assertIn("already closed", run(CYCLE, root, "close", "--doc", "docs/cycle/04-map.md").stdout)
-        run(CEO, root, "setup", "--mode", "acceptEdits")
-        self.assertNotIn("stand at Play", run(CEO, root, "status").stdout, "one at Play — nothing to ask")
-        run(CYCLE, root, "new", "rain", "Rain")
+        add("docs/cycle/05-bag.md", "\n### For you to judge\n- Does the bag feel full\n")
         run(CYCLE, root, "stage", "Play")
-        run(CYCLE, root, "stage", "Play", "--doc", "docs/cycle/05-bag.md")  # `new` closed it — as if another window had held it open
-        self.assertIn("2 cycles stand at Play", run(CEO, root, "status").stdout)
-        self.assertIn("C04 is closed", run(CEO, root, "run", "4", "playtest", "the map is blurry", ok=False).stderr)
-        out = subprocess.run([sys.executable, CYCLE, "--root", root, "new", "wind", "Wind"], capture_output=True, text=True, env=dict(os.environ, KIT_WORKER="1")).stdout
-        self.assertIn("the previous cycle is left open", out, "a worker's new cycle closes none — with the CEO the user says when one is done")
-        self.assertEqual(stage("docs/cycle/06-rain.md"), "Play")
-        built = subprocess.run([sys.executable, CEO, "--root", root, "run", "4", "implement", "docs/playtest/2026-01-01-price.md"], capture_output=True, text=True,
+        run(CEO, root, "setup", "--mode", "acceptEdits")
+        run(CYCLE, root, "leave")  # no window of the user's on it
+        out = run(CEO, root, "status").stdout
+        self.assertIn("C05 bag — Play · built — one thing for you to judge", out)
+        self.assertNotIn("wait on nothing", out, "one waiting on the user is not closed")
+        old = os.path.join(root, "docs/cycle/06-rain.md")  # a cycle left at Play by an older kit, nothing waiting on it
+        open(old, "w", encoding="utf-8").write("# Cycle 06 — rain\n\nStarted: 2026-01-01 · Commit none · Stage: Play\n\n## Goal\nRain\n\n## Decisions\n\n"
+                                               "## Spec\n\n### To see by playing\n- Does the rain sound right\n\n## Play\n")
+        out = run(CEO, root, "status").stdout
+        self.assertIn("C06 rain — Play · built, nothing waits on you — close it: `cycle.py settle --doc docs/cycle/06-rain.md`", out)
+        self.assertIn("1 built cycle(s) wait on nothing — close each now, without asking", out)
+        went = subprocess.run([sys.executable, CEO, "--root", root, "run", "6", "next"], capture_output=True, text=True, env=dict(os.environ, KIT_CLAUDE="/usr/bin/true"))
+        self.assertIn("worker ended", went.stdout, "an answer recorded on a built cycle may still ask for work — its worker can go on with it")
+        self.assertIn("closed: docs/cycle/06-rain.md", run(CYCLE, root, "settle", "--doc", "docs/cycle/06-rain.md").stdout,
+                      "an older document's checks by playing are the build's, not the user's — nothing holds it")
+        self.assertIn("closed: docs/cycle/05-bag.md", run(CYCLE, root, "close", "--doc", "docs/cycle/05-bag.md").stdout)
+        self.assertIn("C05 is closed", run(CEO, root, "run", "5", "playtest", "the bag is blurry", ok=False).stderr)
+        run(CYCLE, root, "new", "wind", "Wind")
+        run(CYCLE, root, "ask", "Spec", "How strong — ① calm ② gale · recommended: ①")
+        run(CYCLE, root, "stage", "Play")
+        out = subprocess.run([sys.executable, CYCLE, "--root", root, "new", "snow", "Snow"], capture_output=True, text=True, env=dict(os.environ, KIT_WORKER="1")).stdout
+        self.assertIn("the previous cycle is left open", out, "a worker's new cycle closes none")
+        self.assertEqual(stage("docs/cycle/07-wind.md"), "Play")
+        built = subprocess.run([sys.executable, CEO, "--root", root, "run", "3", "implement", "docs/playtest/2026-01-01-till.md"], capture_output=True, text=True,
                                env=dict(os.environ, KIT_CLAUDE="/usr/bin/true"))
         self.assertNotIn("is closed", built.stderr, "a playtest already analysed is built to the end on a closed cycle")
         self.assertIn("worker ended", built.stdout)

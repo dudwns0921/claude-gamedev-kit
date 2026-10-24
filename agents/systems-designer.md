@@ -57,12 +57,16 @@ A cycle document path and the mode `spec` — or `fit` with the command that lis
 ### What the HUD must tell
 What the player must be able to tell from the screen to follow this rule. What · when. Do not write what it looks like (the designer decides). GDD: <ID from A.5>
 
-### To see by playing
-One thing the player can try in the game per line, as a short question in plain words ("Does the second jump feel too late?").
-The review card shows these lines as they are, so no numbers, variable names, decision numbers or tuning hints in them.
+### To verify
+What the build must show once it is in, one per line — the build verifies each itself, with the tests and the play route's pictures ("The second jump starts after the first lands").
+Never a list for the user to play and check.
+
+### For you to judge
+At most one line, and usually none: the one thing no test or picture can tell and only a person holding the game can judge (how a jump feels in the hand),
+as a short question in plain words — the review card shows it as it is, so no numbers, variable names, decision numbers or tuning hints in it. Omit the heading when there is none.
 
 ### Tuning notes
-Which value to move in the table if a question above is answered "no". The review card does not show this section.
+Which value to move in the table if the build or the user finds a value off. The review card does not show this section.
 ```
 
 ## fit — can this goal run beside the cycles other sessions have open (before Play)

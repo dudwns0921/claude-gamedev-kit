@@ -14,6 +14,8 @@ description: >-
 Split analysis from the build, and give both to agents. Finding causes is done once by the expensive model and left as a document.
 **Which model thinks is set per game**: `"models"` in `kit.config.json`. `standard` (or no key) → call the playtest-analyst without a model — the agent's own, Opus. `max` → pass `model: fable` on those calls. Read the key once at the start; it changes nothing else.
 Fixing is done by a cheap-model agent per task — each reads only its own task entry and the files to fix.
+**The documents are the workers', not the user's.** The user is never asked to read a playtest document or to play-check its fixes: its questions reach them as decisions
+on the dashboard, and the round's build verifies itself (tests, the play route's pictures) like a cycle's.
 **This session only directs.** Reading code and analyzing here, or fixing directly, defeats the split.
 
 | Call | Meaning |
@@ -46,7 +48,7 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    (`python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" ask Playtest "<question — ① … ② … · recommended: ①>"` — the board's review and the dashboard show only decisions),
    Each line of its "Not this time" marked **new** (something the game does not have yet, not a fix of what the cycle built) goes to the backlog,
    in the user's words — `cycle.py later "<it>"` — where a later cycle takes it; a cycle's playtest fixes what that cycle built.
-   Then relay the document path, the task count and the questions with their numbers. For `plan`, stop here. When answered, `cycle.py decide` records it as for any decision.
+   Then relay the task count and the questions with their numbers (the path is for the next worker, not for the user to open). For `plan`, stop here. When answered, `cycle.py decide` records it as for any decision.
 
 ## 2. Build
 
@@ -78,15 +80,19 @@ These act on the newest document (for another, `--doc <path>`). Documents writte
    - the project's verification (CLAUDE.md "Verification") once in full — conflicts between tasks show up here
    - **shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play playtest <document>` (the cycle skill's "Shoot the play route");
      the dashboard's Play tab shows the run beside the ones before
+   - **verify the round** — the cycle skill's "Verify the build": one `gamedev-kit:developer` with `verify` (`model: sonnet`), the playtest document, its tasks' "Check" lines
+     (`playtest.py task T<n> --doc <document>` for each done task) and the run's folder; it looks at the pictures itself. A failed line is the task's: `mark T<n> blocked "<what it saw>"`
+     — never a check for the user
    - **commit the round** — `python3 "${CLAUDE_SKILL_DIR}/../cycle/scripts/cycle.py" commit playtest <document>`: what this round changed, nothing another session has in hand.
-     Each round of fixes is its own commit, so what the user plays next is one. A round does not close the cycle — the user's checks and word do (the cycle skill)
+     Each round of fixes is its own commit, so what the user plays next is one. A round that leaves none of its tasks open closes the cycle when nothing else waits on the user
+     (the commit runs `settle`); a later problem list about it is then a new cycle's
 6. **Report:**
 
    ```
    ## Playtest — <document>
    - Done: T3, T1 · Blocked: T2 (why) · Skipped: T4 (waiting on a question)
-   - For you to answer: <the document's questions>
-   - To play and check yourself: <what to look at, task by task>
+   - For you to answer: <the document's questions — already decisions on the dashboard>
+   - Verified: <what the round's verification ran and looked at> · the cycle: <closed | stays open — what waits>
    ```
 
    If any task is blocked, ask whether to re-analyze. Re-analysis means calling the analyst again with that task's "Why blocked" attached.

@@ -43,6 +43,7 @@ the board's review and the dashboard show only what is written there, and a ques
 (or a sheet, for options compared side by side — the cycle skill's "chosen by eye"). Not a separate page, not only a path in the chat.
 **Write it to be read on a phone, by someone who has not opened the documents**: a short question in what the player meets, options that say what changes in play, the recommendation with its reason;
 what led to it in `--why`, numbers · names · files in `--detail` (folded on the card). `ask` refuses a code name, a file path or a section number in the question. A value to settle by playing is not a question.
+**The build verifies what it built** — the tests, and the play route's pictures, which the session's agent looks at against the spec and the design. Nothing is sent to the user to check by playing: the review carries decisions and, per cycle, at most one thing only a person can judge (whether motion looks natural, the tone of words, how a touch feels). A built cycle nothing waits on closes by itself; what the user brings about it later is new work.
 An open question in the GDD is written the same way — one line the user can answer, with what it decides — or it is not written.
 **An answer from the dashboard is settled in the turn it arrives**, one of three ways: done (recorded); research it asks for ("look into it", "match reality") — research now and ask again with what was found as options and a recommendation;
 work for a later cycle — `cycle.py later "<their words>" --key <key>`, so its card reads waiting and the next cycle's start lists it. Left as it is, its card reads "the session is on it" with no one on it.
@@ -54,7 +55,7 @@ the board counts what the documents say, and is only worth looking at when what 
 
 ## Keep sessions short
 
-The longer the conversation, the more is re-read every turn. At a cycle's break points (decisions asked · time to play · a new goal) reached by work in this session, recommend `/clear` then `/gamedev-kit:cycle next` — the same window stays connected to the dashboard. A session that just started or was cleared at one is already light.
+The longer the conversation, the more is re-read every turn. At a cycle's break points (decisions asked · a build verified · a new goal) reached by work in this session, recommend `/clear` then `/gamedev-kit:cycle next` — the same window stays connected to the dashboard. A session that just started or was cleared at one is already light.
 Do not read cycle · playtest documents whole — that skill's script extracts the lines needed.
 
 ## What was learned, and what goes outside

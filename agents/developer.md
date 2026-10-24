@@ -1,9 +1,10 @@
 ---
 name: developer
 description: >-
-  Takes a work document and does one of three things — plan: reads the goal, spec and design sections of a cycle document (docs/cycle/*.md) and writes the task list and order.
+  Takes a work document and does one of four things — plan: reads the goal, spec and design sections of a cycle document (docs/cycle/*.md) and writes the task list and order.
   build: implements and verifies one task (T3) of a cycle document or playtest analysis document (docs/playtest/*.md) exactly as written — with `wave`, writes it without running the engine.
-  check: runs the project's verification once for a wave built that way and says which task each failure belongs to. Does not re-analyze.
+  check: runs the project's verification once for a wave built that way and says which task each failure belongs to.
+  verify: holds a finished build against the cycle's spec and design — the tests' results and the play route's pictures, which it looks at itself — line by line. Does not re-analyze.
   Called by the cycle skill and the playtest skill.
 model: opus
 tools: Read, Edit, Write, Grep, Glob, Bash, Skill
@@ -54,7 +55,8 @@ Documents written before the kit wrote English use the Korean words for all of t
 - **Do not touch**: things one would be tempted to fix along the way but must not, and why. Omit if none.
 - **Skills**: installed skills the implementer loads before working, as `<plugin>:<skill>` — what for, in a few words. Omit if none.
 - **GDD**: the sync-table IDs involved. For a new value, propose a new ID.
-- **Check**: what to run and what to look at. Separate what is verified automatically from what a human must play to see.
+- **Check**: what to run and what to look at — the tests, and what the play route's pictures must show. Everything is verified here or at the build's `verify`;
+  nothing is left for the user to play and check (only the cycle's one "For you to judge" line, if the spec or design wrote one, is theirs).
 - **Risk**: low | medium | high — one-line reason.
 
 ## Order
@@ -117,7 +119,7 @@ Changed: <what changed, for the user — one plain sentence in what the player m
 Changed files: <path:function>, …
 Deviations from the document: <none | what and why>
 Verified: <what was run and the result>
-For a human to check: <the parts that need playing>
+What the pictures must show: <what the play route's pictures should show once this is in — for the build's `verify`; none if nothing on screen changes>
 To check: <with `wave` — the tests and checks of this task, for the wave's check>
 Why blocked: <only when blocked · failed — which statement in the document differs from the code and how, file:line>
 ```
@@ -136,4 +138,28 @@ Ran: <what was run, one line>
 T1: passed
 T3: failed — <the error lines that are its own, file:line, under 6 lines>
 Unplaced: <failures no task's files explain — the lines, and the files they name>
+```
+
+## `verify` — hold the finished build against the spec and the design
+
+Called once the waves are built, the project's verification has run and the play route was shot. You are given the document path, a listing command
+(for a cycle, `cycle.py checks --doc <document>` — it prints the lines under "To verify" and the cycle's one thing for the user to judge; for a playtest round,
+the extract-task command of each done task — its "Check" line is what to verify) and the folder of the play route's run
+(its `run.json` names each stop's picture, with the stage of play and what it shows). The user is not asked to check any of this — you are the one who looks.
+
+1. Run the listing command (or commands). **Do not Read the document whole**; for a line that points to a spec or design rule, grep that line only.
+2. Run the project's tests once (CLAUDE.md "Verification") unless the caller says they just passed — look only at the end and the error lines.
+3. **Look at the pictures yourself** — Read each stop's picture that a line is about (each once). Hold it against the line and against the "Design" section's screen and UI
+   (layout, legibility, what is shown in which state) and `docs/DESIGN.md`. A stop that came out blank, wrong-screen or cut off is a failure of the build or the harness — say which.
+4. A line no still can show (motion, timing, sound): verify it with a test that measures it, or record a clip of a few seconds with what the engine offers and look at its frames.
+   Only what a person alone can judge — whether motion looks natural, the tone of the words, how a touch feels on the device — is not yours; it is the "For you to judge" line, and you leave it.
+5. Do not change code or any document.
+
+Return:
+
+```
+Verify: passed | failed
+Verified: <one plain line — what was run and looked at, and what it showed (the caller writes it into the document)>
+- <a line to verify> — passed | failed: <what the picture or test shows instead, the stop id or test name>
+Unverifiable: <a line you could not verify, and why — none if none>
 ```

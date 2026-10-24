@@ -19,7 +19,8 @@ index.html is the chart — one card per stage of play, in play order: how far F
 When the game has a balance table, a tile on it opens the table and says so when it is in step with the value file (the two files carry the same time).
 stage-N.html is the inside of one stage. Every state is read as written (the code is not searched here).
 review.html is what waits on the user, with a button per answer: the newest cycle's open decisions (with their comparison pictures, from the
-question files the cycle's sheet script keeps), the GDD's open questions, and what to check by playing in every cycle at Play, by its cycle.
+question files the cycle's sheet script keeps), the GDD's open questions, and the one thing for the user to judge of each built cycle, by its cycle —
+everything else is verified by the build itself, so no list of checks by playing comes here.
 
 Read-only towards the documents — it writes inside the folder of <out> (and, for `share --done`, the link into kit.config.json). Config is "board" in kit.config.json at the project root (optional).
 
@@ -347,7 +348,7 @@ def cycle(path):
             "stage": stage.group(1) if stage else "?", "start": start.group(1) if start else "",
             "goal": " ".join(LINE_RE.sub("", goal).split()),
             "decisions": decisions_in(section(text, "decisions")), "todos": todos_in(section(text, "todo")), "tasks": tasks,
-            "not_played": bool(re.search(r"^- Not played:", text, re.M))}
+            "not_played": bool(re.search(r"^- Not played:", text, re.M)), "verified": bool(re.search(r"^- Verified:", text, re.M))}
 
 
 # ── The chart — in play order, one screen ─────────────────────────────
@@ -529,10 +530,12 @@ def asset_items(st, where, cycles, tasks):
 def check_items(st, where, cycles, playtests):
     for c in cycles:
         state = "done" if re.match(STAGE_DONE, c["stage"]) else "temp" if re.match(STAGE_PLAY, c["stage"]) else "none"
-        said = {"done": "played", "temp": "your turn to play", "none": f'at {stage_word(c["stage"])}'}[state]
+        said = {"done": "done", "temp": "built — one thing for you to judge", "none": f'at {stage_word(c["stage"])}'}[state]
+        if state == "temp" and not unchecked_lines(os.path.join(ROOT, CFG["cycles"], c["file"])):  # built and verified — it waits on no one's playing
+            state, said = "done", "built and verified" if c.get("verified") else "built"
         never = len(unchecked_lines(os.path.join(ROOT, CFG["cycles"], c["file"]))) if state == "done" and c["not_played"] else 0
         if never:  # closed by the next cycle with checks never answered (`new` wrote so) — not counted as played until they are
-            state, said = "temp", f"closed — {never} check(s) never played"
+            state, said = "temp", "closed — the thing to judge never answered"
         hit = {}
         for t in c["tasks"]:
             epic = epic_stage(st, t["epic"])  # its epic first, then the stages its GDD ids are in
@@ -739,17 +742,17 @@ def cycle_shot(c):
 
 
 def opens(s):
-    """What is still open in a stage, in words a card can carry: problems · not made · placeholders · not yet checked by playing."""
+    """What is still open in a stage, in words a card can carry: problems · not made · placeholders · a built cycle's one thing for the user to judge."""
     made = [i for lane in ("function", "art", "sound") for i in s["lanes"][lane]]
     return {"bad": sum(1 for lane in LANES for i in s["lanes"][lane] if i["st"] == "bad"), "none": sum(1 for i in made if i["st"] == "none"),
-            "temp": sum(1 for i in made if i["st"] == "temp"), "check": sum(1 for i in s["lanes"]["verified"] if i["st"] in ("temp", "none")),
+            "temp": sum(1 for i in made if i["st"] == "temp"), "check": sum(1 for i in s["lanes"]["verified"] if i["st"] == "temp"),
             "all": sum(len(v) for v in s["lanes"].values())}
 
 
 def open_chips(o, undecided=0):
     chips = [("bad", f'{o["bad"]} problem{"s" if o["bad"] > 1 else ""}', o["bad"]), ("bad", f"{undecided} undecided", undecided),
              ("", f'{o["none"]} not made', o["none"]), ("temp", f'{o["temp"]} placeholder{"s" if o["temp"] > 1 else ""}', o["temp"]),
-             ("you", f'{o["check"]} to check', o["check"])]
+             ("you", f'{o["check"]} to judge', o["check"])]
     shown = [f'<span class="chip{" " + cls if cls else ""}">{e(word)}</span>' for cls, word, n in chips if n]
     return "".join(shown) or ('<span class="chip ok">✓ all made and checked</span>' if o["all"] else '<span class="chip">nothing counted yet</span>')
 
@@ -1065,7 +1068,7 @@ def now_section(now, review, several, newest):
     waiting = len(mine) if several else len(now_asked(review))
     held, build = holding(), building()
     who = (" · building now" if build == str(int(now["num"])) else "") + (" · a session is on it" if str(int(now["num"])) in held else " · no session open") if several else ""
-    turn = (f'<a class="turn" href="review.html"><b>{waiting}</b><span>waiting on you<small>decisions · checks by playing · to-dos</small></span><em>Review →</em></a>'
+    turn = (f'<a class="turn" href="review.html"><b>{waiting}</b><span>waiting on you<small>decisions · to-dos · what only you can judge</small></span><em>Review →</em></a>'
             if waiting else '<div class="turn calm"><b>0</b><span>nothing waits on you<small>the session is on it</small></span></div>')
     return (f'<section class="now"><div class="what"><span class="lab">Now · cycle {e(now["num"])} — {e(now["name"])}{e(who)}</span>'
                 f'<div class="steps">{steps}</div><h2>{md(line)}</h2>' + (f'<p class="clamp">{md(words)}</p>' if words else "")
@@ -1306,7 +1309,7 @@ def stage_html(name, s, st):
 # so an answer saved for an earlier version of a question never answers the new one.
 
 MARKS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ"
-CHECK_HEADS = r"^###\s+(?:To see by playing|For a human to see)[ \t]*$"
+CHECK_HEADS = r"^###\s+For you to judge[ \t]*$"  # a cycle's one thing only a person can judge — the build verifies the rest itself
 
 
 def short(text):
@@ -1363,7 +1366,7 @@ def unchecked_lines(path):
 
 
 def check_lines(path):
-    """The lines under the spec's "To see by playing" and the design's "For a human to see" — what to check by playing."""
+    """The cycle's one thing for the user to judge — the first line under "For you to judge" (one card per cycle at most)."""
     text, out = read(path), []
     for m in re.finditer(CHECK_HEADS, text, re.M):
         nxt = re.search(r"^#{1,3} ", text[m.end():], re.M)
@@ -1371,7 +1374,7 @@ def check_lines(path):
         lines = [x.strip() for x in block.split("\n") if x.strip() and not x.strip().startswith(("<!--", "|", "- Checked (", "- Not played:", "- Next:"))]
         bullets = [re.sub(r"^(?:[-*]|\d+[.)])\s+", "", x) for x in lines if re.match(r"^(?:[-*]|\d+[.)])\s+", x)]
         out += bullets or lines
-    return out
+    return out[:1]
 
 
 def review_items(cycles, sheet, asks=()):
@@ -1489,9 +1492,9 @@ def card(i):
 
 def review_html(name, items, stamp):
     now, later = now_asked(items), [i for i in items if i.get("later")]
-    checks = list(dict.fromkeys(i["cycle"] for i in now if i["kind"] == "check"))  # one group per cycle at Play: which build each check is played on
+    checks = list(dict.fromkeys(i["cycle"] for i in now if i["kind"] == "check"))  # one card per built cycle at most: which build it is judged on
     groups = ([(lambda i, kind=kind: i["kind"] == kind, title) for kind, title in [("todo", "For you to do"), ("decision", "Decisions"), ("question", "Open questions in the GDD")]]
-              + [(lambda i, c=c: i["kind"] == "check" and i["cycle"] == c, f"Check by playing · cycle {c}") for c in checks])
+              + [(lambda i, c=c: i["kind"] == "check" and i["cycle"] == c, f"For you to judge · cycle {c}") for c in checks])
     parts = "".join(f'<h2 style="margin:6px 0 0;font-size:18px">{title} <span class="lab">{n}</span></h2><div class="rvs">{"".join(card(i) for i in its)}</div>'
                     for keep, title in groups for its in [[i for i in now if keep(i)]] for n in [len(its)] if its)
     if later:  # put off by the session to a later cycle — kept in sight, not counted as waiting
@@ -2641,8 +2644,8 @@ def answers(path):
         out += [f'  “{i["ref"]}” → {"not needed" if pick == "drop" else "answer"}{note(n)}' for i, pick, n in groups["question"]]
     if groups["check"]:
         bad = [(i, n) for i, pick, n in groups["check"] if pick == "problem"]
-        out.append(f'Checks by playing — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem — record each with the cycle skill '
-                   '(`checked "<the check>" ok|problem "<what was seen>"`)' + ("; hand the problems to the playtest skill as one list:" if bad else ":"))
+        out.append(f'For you to judge — {len(groups["check"]) - len(bad)} ok, {len(bad)} problem — record each with the cycle skill '
+                   '(`checked "<it>" ok|problem "<what was seen>"` — ok closes a cycle nothing else waits on)' + ("; hand the problems to the playtest skill as one list:" if bad else ":"))
         out += [f'  {"✗" if pick == "problem" else "✓"} {i["ref"]}{note(n)}' + (f' [cycle {i["cycle"]} — --doc docs/cycle/{i.get("doc", "")}]' if away(i) else "")
                 for i, pick, n in groups["check"]]
     if stale:

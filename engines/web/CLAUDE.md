@@ -19,7 +19,7 @@ A headless browser is used to verify. Its executable lives in a different place 
 
 ## Verification
 
-Everything that can be verified without a screen becomes a test. Run them before asking the user to "try it and tell me".
+Everything that can be verified without a screen becomes a test. Run them, and look at the play route's pictures yourself — the build verifies what it built; the user is not asked to "try it and tell me" (only the one thing a person alone can judge goes to them).
 
 - **Rules without the page.** Keep rulings (does it hit · how many points · when it ends) in modules that touch neither `document` nor `window`,
   and test those with `node --test "tests/*.test.js"` — it finishes within a second. (Give it the files, not the folder: `node --test tests/` takes the folder for a module and fails.)

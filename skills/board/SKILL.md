@@ -2,13 +2,13 @@
 name: board
 description: >-
   Draws the game's status board — HTML pages made by a script. First screen: the cycle in hand (its goal in one line, where it stands, its tasks, what waits on the user),
-  then the stages of play in the order the player meets them, each with what is still open in it (problem · not made · placeholder · to check), counts of what is left. A card opens that stage's page: GDD rows,
+  then the stages of play in the order the player meets them, each with what is still open in it (problem · not made · placeholder · to judge), counts of what is left. A card opens that stage's page: GDD rows,
   art, sounds, checks, open questions, the cycle tasks that touched it. Everything is read from the GDD table, the asset folders, cycle and playtest
   documents. Once drawn, it redraws itself as the documents change — a hook runs the script, no model involved.
   Use when the user says "현황판" (status board), "보드 보여줘" (show me the board), "지금 어디까지 됐어" (how far along are we),
   "진행 상황 한눈에" (progress at a glance), "얼마나 만들었어" (how much is made), asks to see progress or the decisions so far
   as a page, or says the board looks stale or wrong. Also the review page — what waits on the user with a button per answer (decisions,
-  checks by playing) — and the private claude.ai link that carries board and review to a phone: use when the user says "리뷰 페이지" (review page),
+  the one thing per built cycle only the user can judge) — and the private claude.ai link that carries board and review to a phone: use when the user says "리뷰 페이지" (review page),
   "폰으로 보게 해줘" (let me see it on my phone), "링크로 올려줘" (put it on a link), "답 달았어" · "답 읽어줘" (I answered · read the answers).
   And the dashboard — every game on this machine on one page, run locally: "대시보드 띄워줘" (start the dashboard), "현황판 서버" (board server), "게임 다 같이 보자" (all games together).
   And the play route — the game's screens shot along one route at the end of every build, seen build by build in the dashboard's Play tab:
@@ -36,7 +36,7 @@ Two kinds of page, written next to each other in `docs/board/`:
 - `index.html` — **the first screen**, built around the cycle in hand:
   - **Now** — the cycle in hand (with several sessions at once, one such section per cycle a session works on, each saying whether its session is open and whether it is building — `active` in `board.json`): its goal in one line (`cycle.py line`), its stages Goal … Play (where it stands; skipped ones struck), its tasks — the ones being worked on now marked (`cycle.py mark … doing`) — and how many things wait on the user (→ review).
   - **The game** — the stages of play in the order the player meets them, each card in words (pictures of the game are seen in one place — "Play route" below): how complete it is (%), its tasks done of all (each stage is an epic: every task whose `Epic:` line names it), which of the cycle's tasks are in it,
-    and what is still open in it, in words: problems · not made · placeholders · to check. A card links to its stage page. Foundation — what no stage owns — follows under them, once a task names it.
+    and what is still open in it, in words: problems · not made · placeholders · to judge (a built cycle's one thing only the user can judge). A card links to its stage page. Foundation — what no stage owns — follows under them, once a task names it.
   - **What is left** — how complete the game is (the stages' average %), then counts: waiting on you · problems · not made · placeholders · the backlog, one bar of everything, and what belongs to no stage yet.
   - **Cycles** — one line per cycle.
 
@@ -152,7 +152,7 @@ Name them so the order reads (`01-relations.png`, `people/02-wife.png`).
 |---|---|---|
 | Decision | every cycle's unanswered decisions (`[ ]`, the newest cycle first), and the newest cycle's decisions made for the user by the auto mode of older kits (`[~]`) — with the pictures kept for it: the cycle's sheet script, or `cycle.py ask --image` (`docs/cycle/sheets/*.json`, by cycle and decision) | one per option (the recommended one marked); Accept for a proxy decision |
 | For you | every cycle's open to-dos (`cycle.py todo`) — what only the user can do outside the chat, with its steps and the text to copy. One that waits for a file leaves the page the moment the file is there (the watcher redraws and sends the board, and wakes the session) | Done · Not needed |
-| Check | once the newest cycle is at Play: the spec's "To see by playing" and the design's "For a human to see" | OK · Problem (the note is what was seen) |
+| For you to judge | each built cycle (at Play) — **one card at most**: the first line under its "For you to judge", the one thing no test or picture can tell (whether motion looks natural, the tone of words, how a touch feels on the device). The rest of what a cycle builds is verified by its build — tests and the play route's pictures — and never comes here as checks by playing; a cycle with nothing to judge and no open decision closes by itself and leaves the page | OK · Problem (the note is what was seen) |
 
 The chart's "Review N →" tile and the undecided strip open it. Each card's key changes when its question does (another cycle, a redrawn image, reworded check),
 so an answer saved for an old version never answers a new one. Opened as a local file, the taps stay in that browser and "Copy answers" gives a line to paste into the chat.
@@ -222,7 +222,7 @@ which pictures it lacks, sends only those, then the board as data (`docs/board/b
 the open questions, the cycles, the review cards and the asset sheet; the dashboard draws its own screens from it). With the dashboard down, the hook does nothing.
 
 **Answers from the dashboard reach the session by themselves.** The dashboard's Review tab holds everything that waits on the user — every cycle's open decisions
-(the newest first), the GDD's open questions, the checks by playing of every cycle at Play (each card names its cycle; the Cycle tab narrows its row to one stage, so the cycles at Play list what to play). "Send to the session" writes the answers as one file in `docs/board/inbox/`.
+(the newest first), the GDD's open questions, and the one thing to judge of each built cycle, if it has one (each card names its cycle). A closed cycle sends nothing; no list of checks by playing is sent. "Send to the session" writes the answers as one file in `docs/board/inbox/`.
 The plugin wakes the open session for it — a monitor (`board.py watch`) where monitors run, else the hook that waits after each turn (`watch --rewake`, which wakes
 the session by exiting 2); a session opened later is told at its start (`watch --notice`). Whichever takes the batch first relays it; none relays it twice.
 Across a change of sessions nothing is lost: the newest session's watcher takes the batches (an older one left open stands aside), a watcher whose session ended stops,
@@ -242,7 +242,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/board.py" answers --inbox
 ```
 
 and act on each line as it says — exactly as for answers given in the chat (record decisions with the cycle skill — `decide` · `confirm` · `drop`;
-answer or strike GDD open questions in the GDD; hand problems seen by playing to the playtest skill), then go on with the work.
+answer or strike GDD open questions in the GDD; hand a problem the user saw to the playtest skill), then go on with the work.
 **Every answer is settled in the turn it arrives** — `answers` ends by saying how. Done: recorded as above. **It asks for research** ("look into it", "match reality",
 "find what people consider success"): do the research now — a few searches, not a cycle — and ask again with what was found as the options and a recommendation
 (`reask` for a decision; for a GDD open question, `cycle.py ask` a decision and strike the question → "asked as Dn"). **Work for a later cycle**:

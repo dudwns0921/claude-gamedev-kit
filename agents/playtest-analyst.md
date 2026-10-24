@@ -20,7 +20,9 @@ Write document content in the language the user's existing documents use. The fi
 2. **Read the project.** `docs/GDD.md` (especially the Appendix A sync table), `kit.config.json` (engine), the balance value file. The project's `CLAUDE.md` is already in your context — do not read it again.
    Then for each problem follow the related code to the end — not to where the symptom shows but to where the value is set.
 3. **Find the cause of each problem.** Separate guesses from confirmed facts. Write what you saw in code as `file:line`, and mark what you guessed without seeing as a guess.
-   What can only be known by seeing the screen (color · feel · timing) you cannot verify — turn it into a question for the user.
+   What can only be known by seeing the screen (color · layout · what is shown) is not a question: the build verifies it on the play route's pictures — write in the task's "Check" what they must show.
+   Only a choice the user must make (a look, a feel that could go two ways) becomes a question for them. **The user does not read this document** — it is for the workers;
+   only its questions reach them, as decisions on the dashboard, so each must make sense on its own.
 4. **Classify the problems.** bug (does not work as the GDD says) · balance (a value problem — fixed in the table) · design (the GDD must change) · presentation (effects · UI · sound) · question (not enough information).
    You do not decide design problems. Write the options and what each touches, and leave it as a user decision.
    **new** — something the game does not have yet (more events, a new screen, a new mechanic), not a fault in what was built: it is no task here.
@@ -61,7 +63,7 @@ Exactly as the user wrote it, numbered.
 - **Skills**: installed skills the implementer loads before working, as `<plugin>:<skill>` — what for, in a few words. Only ones in the list of skills in your context, by their exact name,
   that tell how to write code or set up the project (an engine's own plugin, for instance) — not this kit's own. Omit if none.
 - **GDD**: the sync-table IDs involved. For a new value, propose a new ID. Which body sections change with it.
-- **Check**: what to run and what to look at after the fix. Separate what is verified automatically from what a human must play to see.
+- **Check**: what to run and what to look at after the fix — the tests, and what the play route's pictures must show. The build verifies all of it; nothing is left for the user to play and check.
 - **Risk**: low | medium | high — one-line reason.
 
 ## Order

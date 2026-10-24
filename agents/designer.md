@@ -53,15 +53,20 @@ A cycle document path and one mode.
 
 <when nothing is needed: the header with no rows, and one sentence here saying so and why — never a row that says "none", every row is counted as an asset>
 
-### For a human to see
-What to check by playing after implementation: what you could not settle in writing (legibility · intensity of effects · whether sounds overlap).
-One thing per line, as a short question in plain words — the review card shows these lines as they are, so keep numbers, names and fix hints out of them.
+### To verify
+What the build must show on screen once it is in, one per line (legibility · layout · an effect's state in a still · whether sounds overlap, by a test) —
+the build verifies each itself, on the play route's pictures held against this section and DESIGN.md. Never a list for the user to play and check.
+
+### For you to judge
+At most one line in the whole cycle, and usually none: the one thing only a person can judge (whether a motion looks natural, the tone of the words, how a touch feels on the device),
+as a short question in plain words — the review card shows it as it is, so keep numbers, names and fix hints out of it. Omit the heading when there is none,
+and when the spec already wrote one.
 ```
 
 ### `review` — look at screenshots
 
 You receive screenshot paths. Read the images and, against `docs/DESIGN.md` and the cycle's "Design" section, return what is off
-as `what · where · against which line of the rules · how to fix it`. The user puts the fixes into the `/gamedev-kit:playtest` list.
+as `what · where · against which line of the rules · how to fix it`. The caller turns them into fix tasks.
 Write no files. For what cannot be known from an image alone (motion · sound), say it cannot be known.
 
 ## Rules

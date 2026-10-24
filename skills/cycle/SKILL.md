@@ -14,7 +14,8 @@ description: >-
 
 # cycle
 
-One cycle runs **until one goal is built and in the user's hands to play** — and stays open there while they play and feed back. At each stage the agent in charge works, and results accumulate in one cycle document —
+One cycle runs **until one goal is built, verified by the build itself and in the game** — and closes there, unless a decision of it, or the one thing only the user can judge, still waits.
+The user is never handed a list of things to check by playing: what a test or a picture can tell, the build tells. At each stage the agent in charge works, and results accumulate in one cycle document —
 later stages read the earlier stages' sections. **This session only directs.** Doing spec or design here, or reading and editing code, defeats the split.
 
 ## Ledger by script, sessions short
@@ -34,6 +35,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" decide D2 "<the user's answer ver
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" confirm D2,D5              # a document from the time of auto mode: the user accepts what was decided in their place (`all`). To overturn: decide
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" drop D4,D12 "<why>"         # the user says a decision is not needed any more — [-], nothing waits on it
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" stage <stage>
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" checks                                          # what the build verifies ("To verify"), and the one thing for the user to judge
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" verified "<what was verified, in a line>"        # the build's own verification passed — before `stage Play`
+python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" settle                                          # a built cycle nothing waits on closes (`stage Play` runs it) — otherwise it says what waits
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" line "<the goal in one line>"                    # what the board's "Now" shows
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" later "<the user's words>" [--epic <epic>]       # something put off — into the backlog (docs/backlog.md), kept until taken or dropped
 python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" backlog                                         # what waits, by epic · `backlog take B2,B5` · `backlog drop B3 "<why>"` · `backlog epic B3 "<epic>"`
@@ -50,11 +54,11 @@ python3 "${CLAUDE_SKILL_DIR}/../feedback/scripts/feedback.py" add "<what tripped
 These act on this session's cycle — the one it made with `new` or took with `take`; with none, the newest (for another, `--doc <path>`, or name a task across the game as `C16-T3`). Use Edit only for writing a long section (Play) — and even then read only that section's line range, not the whole document.
 
 **Clear the context at the breaks — in the same session.** All state is in the document, so a cleared session continues with one `next`. There are three places to break —
-where you asked decisions and stopped, where the build is done and it is the user's turn to play, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
+where you asked decisions and stopped, where the build is verified and committed, where the user states a new goal. On reaching one **through work done in this session**, recommend in one line:
 "`/clear` here, then `/gamedev-kit:cycle next`, is lighter." The user stays in the same window (on the desktop, the terminal or their phone) and the dashboard stays connected to it —
 answers sent from there still wake it, and a cleared session picks up whatever waits as it starts. If the user says just go on, go on.
 When decisions are asked, the user may answer on the dashboard instead of the chat: this session stays open and waits, and "Send to the session" wakes it.
-A session that started (or was cleared) with `next` often starts at one of these (decisions asked again · Play) — it is already light, so do not recommend clearing again; recommend it only once this session has run a stage, a wave or a playtest round.
+A session that started (or was cleared) with `next` often starts at one of these (decisions asked again · a built cycle) — it is already light, so do not recommend clearing again; recommend it only once this session has run a stage, a wave or a playtest round.
 Do not chain two or more cycles in one session. If work is in hand that the document does not hold (assets · settings · another repo · a fix under way), leave it first — "Leaving a session" below.
 
 **Not done in this session**: reading code · reading images · reading logs. Agents do all of it and only summaries come back. When relaying an agent's report to the user, do not expand it at length again.
@@ -84,7 +88,7 @@ The **backlog** (`docs/backlog.md`) holds what is put off, each line with its ep
 | 3 | Design | `gamedev-kit:designer` `design` | Design | |
 | 4 | Plan | `gamedev-kit:developer` `plan` | Tasks · Order | **ask the decisions** |
 | 5 | Build | `gamedev-kit:developer` `build T<n>`, one per task | task checkboxes | |
-| 6 | Play | user (problems go to `/gamedev-kit:playtest`) | Play | **stays here** until it closes (below) |
+| 6 | Play | the build verified itself; the user only answers what waits (problems they bring go to `/gamedev-kit:playtest`) | Play | **closes** when nothing waits on the user (below) |
 
 ### 1. Goal
 
@@ -92,9 +96,10 @@ Create the document with `new` — pass the goal in the user's words as-is, unpo
 Then give it one line with `line` — what the cycle does, in what the player meets, in the user's language (at most 120 characters): it heads the board's "Now",
 above the user's own words. When the goal changes under way, write the line again.
 The script creates `docs/cycle/NN-<short-name>.md` from the template below and records the current commit. If it reports uncommitted changes, say so.
-**`new` also closes the previous cycle** — unless another session works on it ("Several sessions at once") or a CEO's worker makes the new one (with the CEO the user says when a cycle is done). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
+**`new` also closes the previous cycle** — unless another session works on it ("Several sessions at once") or a CEO's worker makes the new one (with the CEO, cycles close on their own as below). A document that stood at Play becomes `Closed`, and the script prints what that cycle left: open and blocked tasks,
 unanswered decisions, and what the user put off (`later`). Relay those lines as facts, once; do not pick from them. If it says the previous cycle is still before Play, say so and go on.
-**A cycle at Play closes on its own too** — when every check by playing is answered ok with no decision of it open, or with `close` when the user says they are done with it.
+**A built cycle closes on its own** — `settle`, which `stage Play` runs: its build verified and committed, no decision of it open, no task left, and its one thing to judge (if it has one) answered ok.
+Nothing waits at Play for the user to say "done". `close` closes it whatever waits, when the user says they are done with it.
 **A closed cycle is done**: a playtest document already analysed for it is still built to the end, but what the user brings about it afterwards — a fault found later,
 more of the same — is a new cycle's goal (`new`) or the backlog's (`later`), never a new round on the old one.
 
@@ -109,7 +114,7 @@ Its plan proposes the stops as a decision (one to three per stage of play, in pl
   (`mark … dropped`); the empty slots — ① made in this cycle ② kept on the placeholder (`have <slot> "placeholder (kept — Dn)"`) ③ not needed (`have <slot> "dropped — <why>"`).
   What waits in the backlog (`backlog:` lines) is in the same decision as the playtest tasks: ① into this goal → `backlog take B2` ② still later → nothing to do, it stays
   ③ not needed → `backlog drop B3 "<why>"`. (`deferred:` lines are from a document written before the backlog — one still for later goes in with `later`.)
-  To-dos not done and checks never answered come with the rest.
+  To-dos not done and a thing to judge never answered come with the rest.
   Put the lines in `--detail`. A condition a task waits on ("only if fps drops") is checked, not asked, when it can be.
 
 **Other sessions' cycles first.** If `new` says cycles are open alongside it in other sessions — only those before Play count: one at Play is built, and its fixes go through playtests —
@@ -237,14 +242,23 @@ When all waves are done, once: if values · rules changed, `/gamedev-kit:gdd-syn
 the project's full verification (CLAUDE.md "Verification").
 **Shoot the play route** — `python3 "${CLAUDE_SKILL_DIR}/../board/scripts/board.py" play cycle <NN>`. The game's own harness walks the route (`board.play` in `kit.config.json`:
 the stops in the order the player meets them, one to three per stage of play) and the run is kept on this machine, out of git; the dashboard's Play tab shows every run,
-so the user sees the whole game change build by build — the one place pictures of the game are seen. Do not Read the pictures. Relay its "not shot" line if there is one
+so the user sees the whole game change build by build — the one place pictures of the game are seen. It prints the run's folder. Do not Read the pictures here. Relay its "not shot" line if there is one
 (a stop the harness missed is a fix to the harness, written as a task). A game with no route yet says so — see "1. Goal".
 Captures an agent takes to check its work or to put beside a decision go under `docs/board/captures/` — out of git, like the board's folder.
+
+**Verify the build — here, by the build, not by the user.** One `gamedev-kit:developer` with `verify` (`model: sonnet`), the document path, the listing command
+(`python3 <absolute path to this skill's cycle.py> checks --doc <document>`) and the run's folder (with `Work in: <folder>` in a build folder). It holds each line under "To verify" —
+the spec's and the design's — and what the tasks built against the tests' results and the play route's pictures, which it looks at itself, and says for each: passed, or failed with what it saw.
+- `Verify: passed` → `verified "<its Verified line>"`.
+- `failed` lines → call `plan` again with them attached (fix tasks in this cycle), build them, shoot the route again and verify again. After two such rounds, a line still failing
+  is put to the user as a decision (`ask Build …`, with the picture that shows it) — never handed to them as something to check.
+- A line the pictures cannot show (motion, sound, timing) is verified by a test or a clip the agent records, not left for the user. Only what a person alone can judge stays
+  the cycle's one "For you to judge" line — and only if the spec or design wrote one.
+
 **Commit the build, now** — `cycle.py commit build`. It takes what changed since the build turn was taken and this cycle's document, nothing another session has in hand,
 and says what it committed; relay that line. Work is never left to pile up uncommitted across builds — the user plays a commit.
-Then tell the user what to play and look at, collected from the tasks' "For a human to check", the spec's "To see by playing" and the design's "For a human to see".
-If the board is shared, republish it first — its review page carries the last two as checks with OK · Problem buttons.
-The spec's numbers went in as "start" values — also say which values in the table (`data/balance.xlsx`) to try moving (the spec's "Tuning notes").
+If the board is shared, republish it — its review page carries the cycle's one thing to judge, if it has one, with OK · Problem buttons.
+The spec's numbers went in as "start" values — the spec's "Tuning notes" say which values in the table (`data/balance.xlsx`) move what; say so in a line, not as a check.
 
 **Assets — after the build, all at once.** The cycle owns each asset's slot — name, path, size — not how it gets made. Only now, with every wave done and the verification passed, fill the slots the user said to fill. The behaviour is fixed, so nothing made now is made for a rule that changes under it;
 and the user looks once, not every few tasks.
@@ -258,9 +272,9 @@ and the user looks once, not every few tasks.
    which lays every file in a slot side by side — and take approvals and redraws together.
 3. Each finished asset goes to the path its placeholder holds, so it drops in without a code change. Where it does not (a different size, a rig, a pivot) — that is a build task: write it into the document and run it.
 4. Write each path in the table's "Have" cell with `have <slot> "<path>"` (and `have <slot> "placeholder (kept — Dn)"` for one the user leaves as it is), run the verification again,
-   `commit build` again (it takes only what changed since the last one), and only then tell the user what to play — then `stage Play`, which gives the build turn back. A cell left `none` stays "Not made" on the board — for every cycle after.
+   `commit build` again (it takes only what changed since the last one) — then `stage Play`, which gives the build turn back and closes the cycle when nothing waits on the user (`settle`). A cell left `none` stays "Not made" on the board — for every cycle after.
 
-If the user would rather play on placeholders first and make assets after that round, do it in that order — say the choice in one line when the build ends.
+If the user would rather see the build on placeholders first and have assets made after it, do it in that order — say the choice in one line when the build ends.
 
 **What only the user can do goes on the board, not only in the chat.** A step outside this conversation — making a file on a site because no tool here can,
 signing in, plugging in a phone, recording a voice — is a to-do: `todo "<what, in a line>" --wait <the path to save it as> --why "<the steps>" --detail "<the prompt and settings to copy>" [--image …]`.
@@ -270,17 +284,20 @@ Not needed any more → `drop U1 "<why>"`. A choice is not a to-do — that is `
 
 ### 6. Play
 
-**The last stage, and it stays open.** The user plays and feeds back, round after round — that is the normal shape, not an overrun. Do not ask whether the cycle is done
-and do not write a wrap-up: the cycle is closed by the next one (`new`).
+**Built, verified, and closed as soon as nothing waits on the user.** `stage Play` runs `settle`: with no open decision, no task left and nothing to judge, the cycle closes there.
+What keeps it open: a decision (answered → act on it, then `settle`), or its one thing to judge — the dashboard's single card for this cycle. Do not ask whether the cycle is done
+and do not write a wrap-up. Report the build in a few lines: what changed, that it was verified and how, and — only if there is one — the thing to judge.
 
-If a problem list comes, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section — it commits its round when it is done.
+If a problem list comes while it is open, hand it to `/gamedev-kit:playtest` and write that document's path in the "Play" section — it commits its round when it is done, and a round that leaves no task open settles the cycle.
+Once it is closed, what the user brings about it is a new cycle's (`new`) or the backlog's (`later`).
 **Anything else changed after the build is committed the same way** — a small fix asked for during Play, assets made after a round on placeholders:
 `turn take "C<NN> <what>"`, change, verify, `commit fix "<what, in a line>"`, `turn done`. A change is never left uncommitted for the next build to sweep up.
-**Checks are read by someone holding the game, not the documents.** `stage Play` (and `checks`) lists every check that names something from the code or the documents
-(a constant, a section, a decision number) or runs long: rewrite each, before telling the user what to play, as one plain question about what the player meets —
-"Does the split land on the share you want in one try?" — and move the numbers and what to move in the table to the spec's "Tuning notes", which the card does not show.
-Each check by playing the user answers (in the chat or on the dashboard) is recorded: `checked "<the check>" ok|problem "<what they saw>"` — the start of the line is enough.
-A cycle the next one closes with checks never answered is written "Not played" and stays so on the board until they are (`checked … --doc <that document>`); `new` lists them.
+**The one thing to judge is read by someone holding the game, not the documents** — the first line under "For you to judge", one per cycle at most, only what no test or picture can tell
+(whether a motion looks natural, the tone of the words, how a touch feels on the device). `stage Play` (and `checks`) says if it names something from the code or the documents
+or runs long, and says any more lines written there, which are not sent: rewrite it as one plain question about what the player meets, and verify the rest in the build.
+When the user answers it (in the chat or on the dashboard): `checked "<it>" ok|problem "<what they saw>"` — the start of the line is enough. ok closes the cycle when nothing else waits;
+a problem goes to the playtest skill, whose round settles it.
+A cycle closed with its thing to judge never answered is written "Not played" and stays so on the board until it is (`checked … --doc <that document>`); `new` lists it.
 If given screenshots, you may call the designer with `review` (without a model — Opus — in either mode; checking against DESIGN.md is lighter than writing the design). Any number of rounds is fine.
 If the user says they settled values in the table: balance-table skill's `bake` → `/gamedev-kit:gdd-sync to-gdd`.
 When the user puts something off ("나중에", "다음에 하자" — "later", "let's do that next time"), record it with `later "<their words>" --epic <epic>` — it waits in the backlog, and `new` lists it as each cycle starts.
@@ -337,8 +354,8 @@ The user can run a cycle in each of several sessions — one window each, in the
 - **Every command without `--doc` acts on this session's cycle.** A session holding none, while another works on one, is stopped with the list of open cycles —
   ask the user which this session is for (one of the free ones → `take`, or a new goal → `new`). Do not guess and do not pass `--doc` to get past it.
 - **A cycle another open session holds is refused** by `take`. If the user says that session is done with it (left open, not working), `take <n> --force`.
-- **A new goal is weighed against the others still before Play** — `fit` in "1. Goal". A cycle at Play is not weighed.
-- **Spec, design, plan, decisions and play run side by side; the build takes turns.** `mark … doing` takes the build turn for the cycle and `stage Play` gives it back.
+- **A new goal is weighed against the others still before Play** — `fit` in "1. Goal". A built cycle is not weighed.
+- **Spec, design, plan and decisions run side by side; the build takes turns.** `mark … doing` takes the build turn for the cycle and `stage Play` gives it back.
   Refused → tell the user in a line which cycle is building, run `until python3 "${CLAUDE_SKILL_DIR}/scripts/cycle.py" turn; do sleep 60; done` in the background,
   and call the wave when it ends; meanwhile anything else in this cycle goes on. A build stopped half-way gives it back with `turn done`.
   `turn free` only when the user says the other session's build is not running.
@@ -373,6 +390,7 @@ Accepted → `confirm D2,D5` (or `confirm all`); overturned → `decide D2 "<the
 then rework the tasks that hung on it. If a document without a `## Spec` section (made before this stage existed) stands before Design or Plan,
 call spec first — the systems designer creates the section. A document whose build has already started continues as-is. If it stands at a stopping point (decisions), ask again — do not move on without an answer.
 A document standing at 배포 or 회고 (shipping and retrospective — made when those were stages) is in Play — treat it so, and write nothing in those sections.
+At Play, `next` says what waits on the user; with nothing, `settle` closes it. One with no `- Verified:` line was built before the build verified itself: verify it (as in "5. Build"), then `settle`.
 
 ## status
 

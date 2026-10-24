@@ -2,9 +2,10 @@
 """The CEO — runs a game's cycles in the background, one headless Claude Code run (a worker) per step, while the user decides and plays.
 It coordinates and decides nothing: every question stays a decision for the user, on the dashboard.
 
-  python3 ceo.py status                 each open cycle: its stage and what moves it next — decisions · the build turn · play · a worker on it · ready
+  python3 ceo.py status                 each open cycle: its stage and what moves it next — decisions · the build turn · the one thing to judge · a worker on it · ready.
+                                        A built cycle nothing waits on is said, to be closed (`cycle.py settle`) — no one is asked
   python3 ceo.py ready                  the cycles a worker can take now (no open decision, no worker, no window of the user's on it, not at Play)
-  python3 ceo.py run <NN> next          a worker goes on with cycle NN until it stops: decisions asked · the build turn another's · Play.
+  python3 ceo.py run <NN> next          a worker goes on with cycle NN until it stops: decisions asked · the build turn another's · built (verified, and closed when nothing waits).
                                         It blocks until the worker ends — start it in the background
   python3 ceo.py run new "<goal>"       a worker starts a cycle for the goal (weighed against the others, then spec · design · plan) and stops at its decisions
   python3 ceo.py run <NN> playtest "<the user's problem list>"   a worker turns the list into a playtest document and stops at what is the user's
@@ -40,16 +41,21 @@ CLOSED = ("Closed", "끝")
 PLAY = re.compile(r"Play|플레이|배포|회고")
 BUILDING = ("Plan", "계획", "Build", "구현")  # a cycle whose next step is a build
 OPEN_DECISION = re.compile(r"^- \[ \] D\d+\.", re.M)
+JUDGE = re.compile(r"^###\s+For you to judge[ \t]*$", re.M)  # the one thing of a cycle only a person can judge (the cycle skill writes it)
+CHECKED = re.compile(r"^- Checked \((ok|problem)\): (.+?)(?: — “.*”)? \(\d{4}-\d\d-\d\d\)$", re.M)
 STOP_RE = re.compile(r"^STOP: *(\w+)\s*(?:—|-)?\s*(.*)$", re.M)
 WORKER_RULES = """You run as a worker of the game's CEO session: headless — no one reads this conversation while it runs, and no one can answer you.
 - Never ask in the chat. Every question for the user is a decision (the cycle skill's `cycle.py ask …`), which reaches them on the dashboard; once asked, stop.
-- Stop at the stops, do not wait them out: decisions asked and waiting · the build turn another session's · Play reached (the user plays) · work the user must see.
+- Stop at the stops, do not wait them out: decisions asked and waiting · the build turn another session's · the build verified and committed · work the user must see.
+- Verify the build yourself — the tests, and the play route's pictures held against the spec and the design (the cycle skill's "Verify the build").
+  Never hand the user a list of things to check by playing: at most the one thing only a person can judge goes to them.
 - Work on your one cycle. Never start another, never take a cycle another session holds.
 - Commit as the skills say — each build, each round of fixes.
 - Wait for everything in the foreground — agents (never `run_in_background`), checks, engine runs. This run ends the moment your turn ends,
   and whatever still runs in the background is lost with it, half done. Never end a turn to wait for a notification.
 - Advice to /clear or to change sessions is not for you.
-- End your last message with exactly one line: `STOP: <decisions|turn|play|blocked|done> — <one plain sentence for the user>`."""
+- End your last message with exactly one line: `STOP: <decisions|turn|play|blocked|done> — <one plain sentence for the user>`
+  (`play` only when the one thing for the user to judge waits; a build that closed is `done`)."""
 ROOT = ""
 
 
@@ -242,6 +248,18 @@ def last_of(n):
     return next((w for w in reversed(workers()) if w["cycle"] == n and w.get("ended")), None)
 
 
+def judge_left(text):
+    """The cycle's one thing for the user to judge, when no answer is recorded for it — "" otherwise."""
+    m = JUDGE.search(text)
+    if not m:
+        return ""
+    nxt = re.search(r"^#{1,3} ", text[m.end():], re.M)
+    lines = [x.strip() for x in text[m.end():m.end() + nxt.start() if nxt else len(text)].split("\n") if x.strip() and not x.strip().startswith(("<!--", "|", "- Checked (", "- Not played:"))]
+    bullets = [re.sub(r"^(?:[-*]|\d+[.)])\s+", "", x) for x in lines if re.match(r"^(?:[-*]|\d+[.)])\s+", x)] or lines
+    done = {" ".join(c.split()) for _r, c in CHECKED.findall(text)}
+    return bullets[0] if bullets and " ".join(bullets[0].split()) not in done else ""
+
+
 def state(path):
     """(stage, what moves it next, ready for a worker)."""
     text, n = open(path, encoding="utf-8").read(), num(path)
@@ -257,7 +275,9 @@ def state(path):
     if left:  # a build its worker did not finish or merge — at Play it is a playtest round's
         return stage, f"its build folder holds work not in the game ({left}) — `run {n} {'implement' if PLAY.match(stage) else 'next'}` finishes and merges it", True
     if PLAY.match(stage):
-        return stage, "yours to play — problems go to `run playtest`", False
+        if judge_left(text):
+            return stage, "built — one thing for you to judge, on the dashboard's Review (a problem goes to `run playtest`)", False
+        return stage, f"built, nothing waits on you — close it: `cycle.py settle --doc {os.path.relpath(path, ROOT)}`", False
     last = last_of(n)
     if last and last.get("stop") == "blocked" and os.path.getmtime(path) <= last.get("ended_at", 0):
         return stage, f"blocked — {last.get('said', '')} (`workers {n}`)", False
@@ -278,10 +298,12 @@ def cmd_status():
         shown += 1
     if not shown:
         print("no cycle is open — propose goals (the skill's \"New goals\")")
-    played = [p for p in docs() if PLAY.match(stage_of(open(p, encoding="utf-8").read())) and num(p) not in running()]
-    if len(played) > 1:
-        print(f"{len(played)} cycles stand at Play — ask the user once which of them they have played and are done with; "
-              "those close (`cycle.py close --doc <document>`), and what they bring about a closed one is a new cycle's")
+    idle = [p for p in docs() if PLAY.match(stage_of(open(p, encoding="utf-8").read())) and num(p) not in running()
+            and not OPEN_DECISION.search(open(p, encoding="utf-8").read()) and not judge_left(open(p, encoding="utf-8").read())]
+    if idle:
+        print(f"{len(idle)} built cycle(s) wait on nothing — close each now, without asking: "
+              + " · ".join(f"`cycle.py settle --doc {os.path.relpath(p, ROOT)}`" for p in idle)
+              + " (it says what still waits, if anything does); what the user brings about a closed one is a new cycle's")
     held, build = store()
     if isinstance((whole().get("cycle") or {}).get("worktree"), dict):
         print("builds: each cycle in a folder of its own — several build at once; only a merge into the game takes the turn, for a moment. "
@@ -336,7 +358,8 @@ def cmd_run(target, kind, said=""):
             sys.exit(f"C{n:02d} is closed — the user played it and was done with it. What they bring about it now is a new cycle's: "
                      f"`run new \"<their words>\"` (or later: `cycle.py later \"…\"`)")
         stage, what, ready = state(path)
-        if kind == "next" and not ready:
+        built = PLAY.match(stage) and n not in running() and "nothing waits" in what  # an answer the CEO recorded may still ask for work on it
+        if kind == "next" and not ready and not built:
             sys.exit(f"C{n:02d} — {what}")
         if n in running():
             sys.exit(f"C{n:02d}: {what}")
