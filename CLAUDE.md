@@ -36,7 +36,11 @@ This is a Claude Code plugin repository. There is no game code here — the plug
 python3 tests/test_tools.py        # creates a temporary project per engine config and runs gdd-sync · balance-table end to end. init recognises engine projects and lists the engines to choose from, feedback against a fake gh · a fake GitHub server, the board's dashboard push against a fake service
 python3 tests/test_structure.py    # runs nothing, only reads files — do the files that skill documents and hooks point to exist, are there no branches on an engine's name in scripts, is only the standard library used
 claude plugin validate .           # manifest
+python3 tools/install_check.py     # installs the commit as a user would (a throwaway Claude Code config), sets up a game per engine and runs the installed hooks
 ```
+
+The pre-push hook in `.githooks/` runs all four and stops a push that fails (`SKIP_KIT_CHECK=1 git push` to skip); its commit-msg hook runs `tools/private_check.py`.
+Turn them on once per clone: `git config core.hooksPath .githooks`.
 
 These tests do not run the files an engine folder installs into a game (`engines/<engine>/files/`). If you change them, run them in that engine yourself — what was run and what was not is recorded in `records.md` (see "Where records go" below).
 
@@ -68,7 +72,7 @@ What comes out of making a game falls into these kinds. This repository is publi
 So the README and documents here state **only what the kit does** — the one exception is the README's list of the engines games have been made with (names only). Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).
 
 Rules written down are not enough — `tools/private_check.py` enforces it: it searches the files git knows and commit messages for games' names (`private-words.txt` in the rules folder — the names themselves
-must not be here, so the list lives outside the repository) and for dates. The tests run it, and it is also installed as a commit-msg hook (how to install it is at the top of that file). When starting a new game, add its name as a line in `private-words.txt`.
+must not be here, so the list lives outside the repository) and for dates. The tests run it, and it is also the commit-msg hook in `.githooks/`. When starting a new game, add its name as a line in `private-words.txt`.
 
 ## What games teach comes back here
 

@@ -8,8 +8,7 @@ The blocked words (games' names and the like) live outside the repository: priva
 (~/.config/gamedev-kit/rules, override with GAMEDEV_KIT_RULES — the old voice folder is read too), one per line. Without that file only dates are checked.
 Dates (YYYY-MM-DD) are written nowhere outside tests/.
 
-Install the hook once per repository:
-  printf '#!/bin/sh\\nexec python3 tools/private_check.py --message "$1"\\n' > .git/hooks/commit-msg && chmod +x .git/hooks/commit-msg
+The commit-msg hook in .githooks/ runs it; turn the hooks on once per clone: git config core.hooksPath .githooks
 """
 import os
 import re
