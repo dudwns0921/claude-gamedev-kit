@@ -24,7 +24,7 @@ This is a Claude Code plugin repository. There is no game code here — the plug
   keep only the rule and its reason ("where it was learned" stays in the user's own rules — do not write a game's name in commit messages either). Use `<game>` in examples.
 - **The cycle owns an asset's slot, not how it is made.** Name, path and size belong to the workflow; a file in the slot counts whoever made it.
   The kit makes no assets and names no service: the cycle runs on placeholders, and how a user has models, sprites, sounds or clips made is their way of working —
-  kept as their own skills (`~/.claude/skills/` — the feedback skill's "Ways of working"), never in the kit.
+  kept as their own skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/` — the feedback skill's "Ways of working"), never in the kit.
 - **The kit covers making a game and showing where it stands — nothing after.** What repeats while a game is made (cycles, GDD ↔ code, decisions, slots for assets) is the kit's;
   what happens now and then at the end (a store build, signing, uploading) is left to Claude Code itself, asked in plain words. Do not add a skill for it.
 - **Commit messages are written in English**, as `<version> — <summary>`.
@@ -62,7 +62,7 @@ What comes out of making a game falls into these kinds. This repository is publi
 | Individual records — what was made in which game and how many, measured figures, dates, cycle · playtest documents, **what was actually used and what was not** | That game's repository; what spans games goes in the user's private folder (`records.md` under `~/.config/gamedev-kit/`) |
 | What holds only in that game — its own traps and ways to verify | That game's CLAUDE.md |
 | What holds in this user's next game too — traps, ways to verify tied to their engine · genre · tools | The user's own rules (`rules.md` · `rules-<engine>.md` in `~/.config/gamedev-kit/rules/` — on their machine; every game imports them, so they hold from the next session) |
-| How this user has things made — the tools, services and steps for models · sprites · sounds · clips | The user's own skills (`~/.claude/skills/` — on their machine, never sent) |
+| How this user has things made — the tools, services and steps for models · sprites · sounds · clips | The user's own skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/` — on their machine, never sent) |
 | What holds for any game — traps, ways to verify, shortcomings of the tools | Here (rules · scripts), by way of the user's own rules sent as issues |
 
 So the README and documents here state **only what the kit does** — the one exception is the README's list of the engines games have been made with (names only). Whether something was used or not (verification status), the history of what was removed, and figures and dates such as how many · how many turns · how many days go in `records.md` (not in commit messages either).

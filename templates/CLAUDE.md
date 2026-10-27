@@ -31,7 +31,7 @@ This session directs; the skills and their agents do the work. Each skill's own 
 | A goal of several tasks ("let's add ○○ this time") | `/gamedev-kit:cycle` — one document in `docs/cycle/` from Goal to Play |
 | Cycles run for the user in the background, several at once, while they decide and play | `/gamedev-kit:ceo` — this window coordinates, workers do the cycles; it decides nothing |
 | Several problems written down after playing | `/gamedev-kit:playtest` — do not analyze or fix them here |
-| A 3D model, a sprite, a sound or a clip | Made the way the user's own skill for it says (their ways of working, in `~/.claude/skills/`; with none, ask which tool and make one — `/gamedev-kit:feedback`) — the kit makes none; the style is the one in [docs/DESIGN.md](docs/DESIGN.md); the file goes to its slot's path |
+| A 3D model, a sprite, a sound or a clip | Made the way the user's own skill for it says (their ways of working, in `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`; with none, ask which tool and make one — `/gamedev-kit:feedback`) — the kit makes none; the style is the one in [docs/DESIGN.md](docs/DESIGN.md); the file goes to its slot's path |
 | "Where are we" | `/gamedev-kit:board` — do not read or edit `docs/board/`; fix the GDD table or the cycle document and it follows |
 | Starting over light | `/clear`, then `/gamedev-kit:cycle next` — in the same window, so the dashboard stays connected; the cycle document holds the state, and work in hand that is not in it is left there first (the cycle skill's "Leaving a session") |
 
@@ -61,5 +61,5 @@ Do not read cycle · playtest documents whole — that skill's script extracts t
 ## What was learned, and what goes outside
 
 - A pitfall or a way to verify is sorted when it happens, not saved up: specific to this game → this file's "Pitfalls"; would trip this user again in another game → one of the user's own rules (`add` of the feedback skill — it holds from the next session, in every game of theirs). The feedback skill sends those rules on to the kit, as the user has said they should go.
-- How the user wants things made — the tools, services or MCP servers for models, sprites, sounds, clips — is not a rule but a way of working: one of the user's own skills (`~/.claude/skills/` — the feedback skill makes it), for every game of theirs, and it never goes to the kit. The kit makes no assets itself.
+- How the user wants things made — the tools, services or MCP servers for models, sprites, sounds, clips — is not a rule but a way of working: one of the user's own skills (`${CLAUDE_CONFIG_DIR:-~/.claude}/skills/` — the feedback skill makes it), for every game of theirs, and it never goes to the kit. The kit makes no assets itself.
 - Before anything goes outside (a build uploaded to a store, an issue posted), say what goes where and get consent. Logins and API keys live outside the repository — do not write them in any file.

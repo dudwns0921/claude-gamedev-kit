@@ -73,7 +73,9 @@ def main():
     target = os.path.abspath(os.path.expanduser(args[0]))
     if target.endswith(".jsonl"):
         return report(target)
-    logs = os.path.expanduser("~/.claude/projects/" + re.sub(r"[^A-Za-z0-9]", "-", target))
+    # A session run under another config (CLAUDE_CONFIG_DIR) writes its logs there, not in ~/.claude.
+    config = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+    logs = os.path.join(config, "projects", re.sub(r"[^A-Za-z0-9]", "-", target))
     sessions = sorted(glob.glob(os.path.join(logs, "*.jsonl")), key=os.path.getmtime)
     if not sessions:
         sys.exit(f"no session logs in {logs}")

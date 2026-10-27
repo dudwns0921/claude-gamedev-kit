@@ -21,7 +21,7 @@ so a rule holds from the next session in every game of the user's — their size
   python3 feedback.py --notice             Called by the hook at session start: one line when unsent rules have piled up. Does not look outside
 
 The user's ways of working are not rules: a rule is what went wrong and would go wrong again — a candidate for the kit. A way is how this user chose to make
-things — the tools, services and MCP servers they use, how their assets are made. A way is one of the user's own skills (~/.claude/skills/), never kept here and
+things — the tools, services and MCP servers they use, how their assets are made. A way is one of the user's own skills (${CLAUDE_CONFIG_DIR:-~/.claude}/skills/), never kept here and
 never sent. ways.md, where older kits kept them, is no longer imported: while it still holds ways, --notice asks for them to be turned into skills.
 
 `list` · `preview` · `state` take --json (what the dashboard reads). Outside a game, --all lists every file and send · drop still work.

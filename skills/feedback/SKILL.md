@@ -80,10 +80,10 @@ Leave alone a rule whose issue is open, closed as not planned (the kit will not 
 
 ## Ways of working
 
-When the user says how they want something made, it becomes **their own skill** — `~/.claude/skills/<name>/SKILL.md`, where Claude Code finds it in every project.
+When the user says how they want something made, it becomes **their own skill** — `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/<name>/SKILL.md` (the skills folder of the Claude Code config this session runs under — `~/.claude` unless `CLAUDE_CONFIG_DIR` points elsewhere), where Claude Code finds it in every project.
 Only its description is read until it is used, and its scripts live beside it; it is never in a game's repository and never sent.
 
-1. Look for one of theirs that already covers it (`ls ~/.claude/skills/`) — a change to how they make sprites is an edit to that skill, not a second one.
+1. Look for one of theirs that already covers it (`ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/"`) — a change to how they make sprites is an edit to that skill, not a second one.
 2. Make or edit it with the `skill-creator` skill when this machine has it; otherwise write `SKILL.md` directly. One skill per kind of thing made
    (3D models · sprites · sounds · clips · …), so each loads only when that kind is made.
 3. The description says when it is used — "filling a sprite slot in a gamedev-kit game" — so it does not fire in other projects.

@@ -266,7 +266,7 @@ and the user looks once, not every few tasks.
 1. List them from the "Assets needed" table — every row still `none` or `placeholder …` that was decided "make" or "bring my own".
    For the ones the user brings, tell them exactly what to deliver, one line each: the path the placeholder holds, the format the game already uses, and the size
    (longest side in metres for a model, shown pixels for a sprite, seconds for a sound).
-   The kit makes no assets: the ones to make are made the way the user's own skill for that kind says (their ways of working, in `~/.claude/skills/`). With none, ask which tool or service,
+   The kit makes no assets: the ones to make are made the way the user's own skill for that kind says (their ways of working, in `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`). With none, ask which tool or service,
    and make the answer one of their skills (the feedback skill's "Ways of working"). Say how many and what it may cost before making any.
 2. **Show the user all of them in one sitting** — as decisions with the pictures attached (`ask Asset … --image`), or the board's asset sheet (`docs/board/assets.html`),
    which lays every file in a slot side by side — and take approvals and redraws together.
