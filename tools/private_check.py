@@ -2,13 +2,13 @@
 """Check that no individual records leaked into the public repository — games' names and dates.
 
   python3 tools/private_check.py                    every file git knows
-  python3 tools/private_check.py --message <file>   a commit message (called by the commit-msg hook)
+  python3 tools/private_check.py --message <file>   a commit message (the pre-push hook calls it for each commit it sends)
 
 The blocked words (games' names and the like) live outside the repository: private-words.txt in the rules folder
 (~/.config/gamedev-kit/rules, override with GAMEDEV_KIT_RULES — the old voice folder is read too), one per line. Without that file only dates are checked.
 Dates (YYYY-MM-DD) are written nowhere outside tests/.
 
-The commit-msg hook in .githooks/ runs it; turn the hooks on once per clone: git config core.hooksPath .githooks
+The pre-push hook in .githooks/ runs it on every commit being pushed; turn it on once per clone: git config core.hooksPath .githooks
 """
 import os
 import re

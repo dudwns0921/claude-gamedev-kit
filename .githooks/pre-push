@@ -1,18 +1,28 @@
 #!/bin/sh
-# Every push checks the whole kit; a failure stops the push. Skip with SKIP_KIT_CHECK=1 git push.
-# Turn the hooks on once per clone: git config core.hooksPath .githooks
+# Every push checks the whole kit, and the messages of the commits it sends; a failure stops the push. Nothing runs at commit time. Skip with SKIP_KIT_CHECK=1 git push.
+# Turn it on once per clone: git config core.hooksPath .githooks
 [ -n "$SKIP_KIT_CHECK" ] && exit 0
 cd "$(git rev-parse --show-toplevel)" || exit 1
 # git hands the refs being pushed on stdin: "<local ref> <local sha> <remote ref> <remote sha>"
+zero=0000000000000000000000000000000000000000
 sha=HEAD
-while read -r _ local_sha _ _; do
-  case "$local_sha" in 0000000000000000000000000000000000000000) ;; *) sha=$local_sha ;; esac
+commits=
+while read -r _ local_sha _ remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  sha=$local_sha
+  # a new branch sends what no remote has yet; otherwise what the remote lacks
+  if [ "$remote_sha" = "$zero" ]; then commits="$commits $(git rev-list "$local_sha" --not --remotes)"
+  else commits="$commits $(git rev-list "$remote_sha..$local_sha")"; fi
 done
 fail() { echo "pre-push: $1 failed — fix it, or SKIP_KIT_CHECK=1 git push"; exit 1; }
 echo "pre-push: checking the kit (about 2.5 minutes)"
 log=$(mktemp) && trap 'rm -f "$log"' EXIT
 # run quietly, show the output only when it fails
 check() { "$@" >"$log" 2>&1 || { tail -40 "$log"; fail "$*"; }; }
+for c in $commits; do
+  git log -1 --format=%B "$c" >"$log"
+  python3 tools/private_check.py --message "$log" >/dev/null || { python3 tools/private_check.py --message "$log"; fail "the message of $(git log -1 --format='%h %s' "$c")"; }
+done
 check python3 tests/test_structure.py
 python3 tools/install_check.py "$sha" || fail "the install check"
 check python3 tests/test_tools.py

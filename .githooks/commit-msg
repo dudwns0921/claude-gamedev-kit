@@ -1,3 +1,0 @@
-#!/bin/sh
-# Blocks a commit message naming a game or a date (tools/private_check.py).
-exec python3 tools/private_check.py --message "$1"
